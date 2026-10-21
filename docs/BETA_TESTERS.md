@@ -1,9 +1,9 @@
-# Xipper 0.9.0 beta2: note per i tester
+# Xipper 0.9.0 beta3: note per i tester
 
 Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica ed estrae archivi in modo veloce e sicuro.
 
 ## Installazione
-1. Apri `Xipper-0.9.0-beta2.dmg` e trascina **Xipper** nella cartella **Applicazioni**.
+1. Apri `Xipper-0.9.0-beta3.dmg` e trascina **Xipper** nella cartella **Applicazioni**.
 2. **Primo avvio.** La beta è firmata con un certificato di sviluppo, non con un Developer ID Apple, quindi macOS la blocca la prima volta.
    - Apri Xipper. Al messaggio "non è possibile verificare lo sviluppatore" scegli **Fine**.
    - Vai in **Impostazioni di Sistema › Privacy e sicurezza**, scorri fino a "Xipper è stata bloccata" e premi **Apri comunque**. Conferma con la password o Touch ID.
@@ -51,7 +51,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 | Notifiche e Dock | Avvia un lavoro lungo e passa a un'altra app | Barra di avanzamento sull'icona nel Dock e notifica alla fine |
 | Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
 
-## Limiti noti della beta2
+## Limiti noti della beta3
 - **7z** è supportato in lettura e scrittura (anche con nomi cifrati e volumi). **RAR** non è supportato (previsto più avanti, in sola lettura). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
 - **lz4, brotli, cpio e Apple Archive (`.aar`)** si aprono, si verificano e si estraggono, ma non si creano.
 - Gli **attributi estesi del Mac** (tag del Finder, resource fork) vengono salvati nei formati tar e riapplicati in estrazione, anche da ZIP del Finder e tar di macOS (`__MACOSX`, `._`). Negli ZIP creati da Xipper non vengono ancora salvati.
