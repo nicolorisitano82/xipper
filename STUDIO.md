@@ -1,0 +1,396 @@
+# Zipper: studio di fattibilità
+
+Archiviatore nativo per macOS su Apple Silicon (arm64)
+
+*Versione 0.1, 21 ottobre 2026. Bozza di studio, nessuna riga di codice ancora scritta.*
+
+---
+
+## 0. Sintesi
+
+| Tema | Conclusione |
+|---|---|
+| **Nome "Zipper"** | ⚠️ **Sconsigliato come nome commerciale.** È molto usato nello stesso ambito (archiviatori), anche su macOS. **Candidato alternativo: "Xipper"**, molto più pulito (§1.4). |
+| **Fattibilità tecnica** | Alta. macOS mette a disposizione buona parte del necessario (Compression, AppleArchive, CryptoKit/CommonCrypto, zlib/bzip2 di sistema). Il resto si scrive o si incorpora come sorgente. |
+| **"Totalmente autoincluso"** | Si può fare: un solo `.app`, nessun Homebrew, nessun binario esterno, nessun download a runtime. La scelta da prendere è se incorporare codec open source con licenza permissiva (compilati dentro l'app) o scriverli tutti da zero. Raccomandazione al §3. |
+| **Ottimizzazione arm64** | Il guadagno vero viene dal parallelismo sui P-core e gli E-core, dalle istruzioni CRC32/AES/SHA hardware di ARMv8, da NEON e dall'I/O con mmap e APFS clone. Dettagli al §5. |
+| **Integrazione di sistema** | Finder Sync (menu contestuale), Quick Look (anteprima del contenuto), App Intents (Comandi Rapidi/Shortcuts e Azioni rapide), Servizi, CLI inclusa e, come obiettivo avanzato, montaggio dell'archivio come volume con FSKit. Dettagli al §6. |
+| **Distribuzione** | Developer ID + notarizzazione come canale principale. Il Mac App Store è possibile, ma la sandbox limita l'estrazione "accanto al file". Dettagli al §8. |
+
+---
+
+## 1. Analisi del nome "Zipper"
+
+### 1.1 Usi esistenti trovati
+
+| Prodotto | Tipo | Ambito | Conflitto |
+|---|---|---|---|
+| **Zipper.app** (GNUstep) | Archive viewer GPLv2, ultima versione 1.5 (2013) | Desktop Unix/GNUstep, apre tar/gz/bz2/rar/lha/zip | 🔴 Stesso nome *e* stesso bundle name `Zipper.app`. Progetto fermo ma pacchettizzato in Debian. |
+| **unxed/zipper** | CLI Go, sostituto di tar/zip/unzip, zstd, ZIP cifrati con lista file nascosta, modalità di estrazione "resiliente" | CLI multipiattaforma, **attivo** (v0.1.x pubblicate di frequente) | 🔴 Stesso nome, stessa funzione, progetto vivo. Conflitto anche per il nome del comando `zipper`. |
+| **Mr. Zipper – 7Z RAR 7ZIP** (TinySoft) | Archiviatore a pagamento | **Mac App Store** | 🟠 Molto vicino: un utente lo confonde facilmente. |
+| **Smart Zipper / Smart Zipper Pro** (Zip-Rar Inc) | Archiviatore ZIP/RAR/7z | Mac | 🟠 Molto vicino. |
+| **Password Zipper** | ZIP con password | Mac App Store | 🟠 Molto vicino, stessa feature chiave (le password). |
+| **"Zipper"** (citato nella scheda "ZIP Extractor – UnZIP, UnRar") | Archiviatore RAR/7z/ZIP con password | App Store iPad | 🟠 Possibile omonimo esatto sull'App Store Apple. |
+| **UnZipper**, **iZipper**, **Zippr** (AppYogi) | Archiviatori | Mac/App Store | 🟡 Varianti dello stesso nome. |
+| **Zipper 1.9.8** | Software di sviluppatore ignoto, segnalato da JVN (CERT giapponese) | Windows/sconosciuto | 🟡 Esiste un omonimo con un avviso di sicurezza associato: brutto per la reputazione nei motori di ricerca. |
+| **Mail Zipper** (LRM) | Cifratura email | Giappone | 🟢 Ambito diverso. |
+| **zypper** (openSUSE) | Package manager | Linux | 🟢 Simile solo nel suono, ma inquina le ricerche. |
+| "zipper" (struttura dati funzionale), vari pacchetti npm/crates | Librerie | Sviluppo | 🟢 Rumore SEO. |
+
+### 1.2 Marchio
+
+- Nelle ricerche fatte non è emersa una registrazione del marchio "ZIPPER" in classe 9 (software) per la compressione. Esiste invece "IZIP" (Comc Soft Corp., registrato nel 2012 e rinnovato) per software di gestione di file compressi.
+- "Zipper" per un archiviatore è un termine **descrittivo e generico**: l'icona dei file ZIP è proprio una cerniera. Un marchio descrittivo è difficile da registrare e da difendere.
+- **Da fare prima di qualsiasi lancio:** ricerca formale su EUIPO (TMview), UIBM e USPTO in classe 9 e 42, più un controllo dei nomi esatti su Mac App Store (App Store Connect rifiuta i nomi già in uso).
+
+### 1.3 Verdetto e alternative
+
+**Verdetto:** "Zipper" va bene come **nome in codice interno** (repo, target Xcode). **Non va bene come nome di prodotto**, per quattro motivi:
+1. ci sono almeno due omonimi esatti nello stesso ambito, uno dei quali attivo (la CLI `zipper`);
+2. ci sono 4 o 5 app Mac con nomi quasi identici;
+3. il nome non è difendibile come marchio;
+4. un prodotto nuovo con un nome così affollato sarebbe quasi introvabile in ricerca.
+
+**Spunti per alternative**, tutti **ancora da verificare** con lo stesso metodo:
+- *Cerniera*: "zipper" in italiano, distintivo all'estero, con un gioco di parole che resta.
+- *Bale*, *Crate*, *Satchel*, *Hold*: richiamano il contenitore. Probabilmente alcuni sono già usati.
+- *Ripstop*, *Tessera*, *Ark* (già usato da KDE, quindi da evitare).
+- Una parola inventata (stile "Keka"), la più facile da registrare.
+
+### 1.4 Candidato "Xipper" (verifica del 21/10/2026)
+
+| Verifica | Esito |
+|---|---|
+| App o prodotto "Xipper" (web, App Store) | 🟢 Nessun archiviatore né app trovati con questo nome |
+| GitHub | 🟠 **JayBrown/Xipper**: workflow macOS e script shell per creare, firmare e verificare archivi `.xip`. Stessa piattaforma e stesso ambito, ma piccolo (10 stelle) e non è un'app. Gli altri risultati sono repo personali (backend/frontend "Xipper", un esercizio di selezione) e una libreria Elixir "Huet's zipper". |
+| Somiglianze | 🟡 *Sxipper*: add-on di Firefox per identità e password, abbandonato intorno al 2009. 🟡 *Xiippy*: startup australiana di pagamenti. 🟡 **`.xip`** è il formato di archivio firmato di Apple usato per Xcode: "Xipper" potrebbe far pensare a "uno strumento per i .xip". È un'ambiguità da tenere presente, anche se il formato non è un marchio. |
+| Marchio | Nessuna registrazione emersa nelle ricerche. **Da fare:** ricerca formale su EUIPO, UIBM e USPTO in classe 9 |
+| Domini | `xipper.com` registrato dal 2003 e rinnovato fino al 2035 (non disponibile) · `xipper.io` registrato nel 2024 · **`xipper.it` libero** · `xipper.app` da verificare con un registrar |
+| Comando CLI `xipper` | 🟢 nessun conflitto noto con pacchetti Homebrew o di sistema |
+
+**Valutazione:** "Xipper" è **molto più pulito di "Zipper"**. Si legge come "zipper" (la X iniziale si pronuncia Z in inglese, come in Xerox e Xylophone), quindi resta evocativo ma è distintivo e registrabile. I rischi residui sono il `.com` già occupato, il repo JayBrown/Xipper e l'associazione con `.xip`. → **Candidato raccomandato**, da confermare con la ricerca formale del marchio e con App Store Connect.
+
+---
+
+## 2. Panorama concorrenti su macOS
+
+| App | Prezzo | Forza | Debolezza / spazio per noi |
+|---|---|---|---|
+| **Archive Utility** (di sistema) | gratis | integrato, zero attriti | solo zip/gz/bz2/cpio, nessuna password, nessuna UI |
+| **The Unarchiver** | gratis | oltre 40 formati in lettura | sola estrazione, niente creazione o password |
+| **Keka** | gratis (sito) / €5,99 (MAS) | creazione 7z/zip, AES-256, open source | UI essenziale; AES per ZIP disattivato di default; anteprime limitate |
+| **BetterZip 5** | ~$25 | modifica dell'archivio in place, Quick Look, preset nella toolbar del Finder | costoso; per RAR e altri formati dipende da strumenti esterni |
+| **Archiver 4** | ~$25 | UX curata, split e merge | a pagamento, chiuso |
+
+**Possibili differenziatori di Zipper:**
+1. **Prestazioni misurabili su Apple Silicon**: compressione multi-core vera anche per zip e gzip, CRC e AES in hardware. Benchmark pubblici contro Keka e BetterZip.
+2. **Archivio montato come volume** (FSKit): si sfoglia, si apre e si copia dal Finder senza estrarre. Nessun concorrente lo offre in modo nativo.
+3. **Integrazione completa con Comandi Rapidi** (App Intents): "comprimi con password", "verifica", "estrai in…" componibili in automazioni.
+4. **Verifica come funzione di prima classe**: test di integrità, manifest SHA-256 e, in prospettiva, dati di recupero PAR2.
+5. **Sicurezza di default**: protezione da zip-slip e zip-bomb, propagazione della quarantena, cifratura dei nomi file in 7z.
+
+---
+
+## 3. Vincolo "totalmente autoincluso": interpretazione
+
+L'obiettivo si può leggere in tre modi.
+
+| Livello | Significato | Pro | Contro |
+|---|---|---|---|
+| **A. Solo framework Apple + codice nostro** | Nessuna riga di codice di terzi | Massimo controllo, nessuna licenza da gestire | zstd, xz/LZMA2 in scrittura, PPMd, brotli in scrittura e il formato 7z vanno scritti **da zero**: mesi di lavoro e rischio di bug sui dati |
+| **B. Framework Apple + codec open source permissivi compilati dentro** ⭐ | Nessuna dipendenza a runtime né installazione. Il sorgente di zstd/xz/LZMA SDK/libdeflate è *vendorizzato* nel repo e compilato staticamente | Codec maturi e testati su miliardi di file; ci concentriamo su container, UX e prestazioni | Bisogna gestire licenze e attribuzioni (BSD/MIT/0BSD/public domain, tutte compatibili con un'app commerciale chiusa) |
+| C. Dipendenze esterne (Homebrew, `7z` di sistema, ecc.) | Fuori obiettivo | | ❌ escluso |
+
+**Raccomandazione: livello B**, con questa regola:
+- **I container** (ZIP, 7z, TAR, CPIO, AAR) li scriviamo **noi**, in Swift. È lì che stanno UX, parallelismo, sicurezza e gestione dei metadati macOS.
+- **I codec** di base usano prima di tutto i **framework di sistema**. Il resto è **vendorizzato** solo da progetti con licenza permissiva. **Niente GPL/LGPL**, perché incompatibili con una distribuzione chiusa e un binario statico.
+- Il risultato resta *un solo bundle firmato* che non installa e non scarica nulla: è autoincluso nel senso che conta per l'utente.
+
+> **Decisione presa il 21/10/2026: livello B.** I risultati dello spike sono in [SPIKE_FASE0.md](SPIKE_FASE0.md).
+
+---
+
+## 4. Formati
+
+### 4.1 Cosa offre già macOS (zero codice di terzi)
+
+| Componente | Cosa dà | Note |
+|---|---|---|
+| `Compression.framework` (libcompression) | deflate raw (zlib), **LZMA/xz** (codifica e decodifica), LZ4, LZFSE, LZBITMAP, **Brotli (solo decodifica)** | API a stream; ottimizzato da Apple per arm64 |
+| `AppleArchive.framework` | formato `.aar` più compressione e cifratura (AEA) | Formato Apple, utile come formato "nativo" veloce, non open |
+| `libz` / `libbz2` (in `/usr/lib`, nell'SDK) | zlib/gzip, bzip2 | Fanno parte del sistema operativo: non sono una dipendenza di terzi |
+| `CryptoKit` / `CommonCrypto` | AES (CBC/CTR/GCM), HMAC-SHA1/256, PBKDF2, SHA-1/256/512 | Usano le istruzioni AES/SHA di ARMv8 |
+| `Security.framework` | Keychain, accesso con Touch ID | Per salvare le password degli archivi |
+| `libarchive` | presente nel sistema operativo, ma **headers non pubblici nell'SDK** | Linkarla è fragile e a rischio di rifiuto: **da non usare** |
+
+### 4.2 Matrice formati proposta
+
+Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
+
+| Formato | Crea | Estrae | Password | Codec / origine |
+|---|---|---|---|---|
+| **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-2) · 📖 ZipCrypto legacy | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
+| ZIP: deflate64, bzip2, LZMA, **zstd (metodo 93)**, xz (95) | 🔜 zstd | ✅ | — | come sopra |
+| ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
+| ZIP multi-volume (`.z01`…) | 🔜 | ✅ | | nostro |
+| **7z** | ✅ | ✅ | ✅ AES-256 + **cifratura dei nomi file** | LZMA SDK (public domain): LZMA/LZMA2, PPMd, filtri BCJ/**ARM64** |
+| **TAR** (ustar, pax, GNU) | ✅ | ✅ | — | nostro |
+| **tar.gz / .tgz**, **gzip** | ✅ | ✅ | | deflate parallelo (stile pigz) |
+| **tar.bz2**, **bzip2** | ✅ | ✅ | | libbz2 di sistema, parallelo per blocchi |
+| **tar.xz**, **xz** | ✅ | ✅ | | xz-embedded/liblzma (0BSD), xz multi-blocco parallelo |
+| **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
+| lz4, brotli | 🔜 | ✅ | | lz4 di sistema; brotli in scrittura vendorizzato (MIT) |
+| CPIO, `.aar` (Apple Archive) | ✅ | ✅ | ✅ (AEA) | sistema |
+| ISO 9660 / UDF | ❌ | 🔜 📖 | | nostro (lettura semplice) |
+| **RAR / RAR5** | ❌ | ⚠️ vedi sotto | | |
+| DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
+
+**Caso RAR.** RAR è **proprietario, non aperto**. Creare RAR è vietato dalla licenza. Per estrarre servirebbe `unrar` (licenza propria, non OSI, che vieta di ricostruire il compressore) oppure una reimplementazione clean-room come quella di libarchive (BSD).
+→ **Proposta:** fuori dalla v1. In v2, solo estrazione con un decoder clean-room scritto da noi, valutando prima il rischio legale. Gli utenti lo chiederanno, perché i concorrenti lo supportano.
+
+### 4.3 Requisiti trasversali sui formati
+- **Nomi file:** UTF-8 con il flag bit 11 in ZIP; normalizzazione NFD↔NFC (APFS conserva la forma, Windows usa NFC); in lettura si rileva la codepage legacy (CP437, CP866, Shift-JIS…).
+- **Metadati macOS:** xattr, ACL, flag BSD, date di creazione, permessi, symlink. In ZIP si scrive opzionalmente il formato AppleDouble `__MACOSX/` *solo* se l'utente lo chiede; di default si producono ZIP "puliti" per Windows.
+- **Esclusioni automatiche configurabili:** `.DS_Store`, `._*`, `.Spotlight-V100`, `.git`, `node_modules`.
+
+---
+
+## 5. Ottimizzazioni Apple Silicon (arm64)
+
+### 5.1 CPU e parallelismo
+- **Topologia P/E:** lavoro pesante a QoS `.userInitiated` (P-core); compressioni in background, come le Azioni rapide o le cartelle sorvegliate, a `.utility` (E-core, meno consumo e meno calore). Thread contati con `sysctl hw.perflevel0.physicalcpu` / `hw.perflevel1.physicalcpu`.
+- **Parallelismo per formato**, dove la maggior parte dei concorrenti è a un solo thread:
+  - **ZIP:** ogni voce è indipendente, quindi si comprimono N file in parallelo. Un file grande si divide in blocchi deflate con un dizionario innescato (tecnica pigz) e un CRC combinato (`crc32_combine`).
+  - **gzip:** pigz-like, flusso compatibile al 100%.
+  - **xz:** formato multi-blocco, compressione e *decompressione* parallele.
+  - **zstd:** multithread nativo (`ZSTD_c_nbWorkers`), più la modalità `--long` per archivi grandi.
+  - **7z:** LZMA2 multi-blocco più "solid block" configurabile.
+  - **bzip2:** blocchi da 900 KB indipendenti, quindi parallelismo naturale.
+- **Pipeline** lettura → compressione → cifratura → scrittura, con ring buffer e back-pressure: niente picchi di RAM con archivi da centinaia di GB.
+
+### 5.2 Istruzioni hardware ARMv8
+| Operazione | Accelerazione | Guadagno atteso |
+|---|---|---|
+| CRC32 (ZIP, gzip) | istruzioni `CRC32X` + folding con `PMULL` (NEON) | oltre 20 GB/s contro ~1 GB/s per la versione a tabella |
+| CRC32C, xxHash64 (zstd) | `CRC32CX`, NEON | |
+| Adler-32 (zlib) | NEON | |
+| AES-256 (ZIP AES-CTR, 7z AES-CBC) | estensioni crittografiche ARMv8 tramite CommonCrypto | multi-GB/s, la cifratura smette di essere un collo di bottiglia |
+| SHA-1 (HMAC per ZIP AES), SHA-256 (KDF 7z, manifest) | `SHA1*`/`SHA256*` tramite CryptoKit | |
+| PBKDF2 (ZIP AES: 1000 iterazioni) | CommonCrypto | |
+| match finder LZ, memcpy | NEON a 128 bit, già ottimizzato in zstd/libdeflate | |
+
+### 5.3 Memoria e I/O
+- **Memoria unificata, pagine da 16 KB:** buffer allineati a 16 KB, `mmap` per la lettura sequenziale degli archivi, `madvise(MADV_SEQUENTIAL)`.
+- **`F_NOCACHE`** per file enormi, così non si svuota la cache del sistema.
+- **APFS:**
+  - `clonefile()` quando si "estrae" una voce memorizzata (metodo *store*) da un archivio sullo stesso volume. È una copia istantanea, in alcuni casi.
+  - Allocazione anticipata con `fcntl(F_PREALLOCATE)` per l'archivio in uscita.
+  - Scrittura atomica: file temporaneo e poi `rename`, così un'interruzione non lascia archivi corrotti.
+- **SSD:** I/O concorrente con `DispatchIO`, coda profonda.
+- **Metal/GPU:** non è utile per i codec LZ, che sono sequenziali e pieni di diramazioni. Si scarta.
+
+### 5.4 Obiettivi di prestazione (da validare con benchmark)
+- tar.zst livello 3 su M-series: velocità limitata dall'SSD (oltre 3 GB/s).
+- ZIP deflate livello 6: almeno 4× Archive Utility e almeno 2× Keka, su un mix reale di file.
+- Estrazione ZIP AES-256: entro il 10% della stessa estrazione senza cifratura.
+- Suite di benchmark ripetibile (Silesia corpus, un repo di codice, una cartella di foto, un file singolo da 10 GB) inclusa nel progetto fin dall'inizio.
+
+---
+
+## 6. Integrazione con macOS
+
+| Estensione / API | Cosa fa per l'utente | Note tecniche |
+|---|---|---|
+| **Associazione dei tipi documento (UTI)** | doppio clic su `.zip`, `.7z`, `.tar.xz`… apre Zipper | `CFBundleDocumentTypes` e `UTImportedTypeDeclarations`; impostabile come app predefinita |
+| **Finder Sync Extension** | menu contestuale "Comprimi ▸ preset", "Estrai qui", "Estrai in…", "Verifica"; pulsante nella toolbar del Finder | API `FIFinderSync`; funziona in sandbox |
+| **Azioni rapide / Servizi** | voce nel pannello Anteprima del Finder e in *Servizi* | Action Extension e `NSServices` |
+| **App Intents → Comandi Rapidi** ⭐ | azioni "Comprimi file", "Estrai archivio", "Verifica archivio", "Elenca contenuto", "Aggiungi password" componibili; disponibili anche in Spotlight, Siri e come Azione rapida | App Intents è l'erede moderno di Automator ed è il punto che chiedevi per le "azioni di macOS" |
+| **Quick Look Preview Extension** | spazio su un `.zip` mostra l'albero dei file con dimensioni e rapporto di compressione, e l'anteprima del singolo file interno | `QLPreviewingController`; sola lettura e streaming |
+| **Thumbnail Extension** | icona dell'archivio con il numero di file e il formato | `QLThumbnailProvider` |
+| **FSKit (macOS 15.4+)** ⭐ | **monta l'archivio come volume** in sola lettura: lo si sfoglia nel Finder e le app aprono i file senza estrarre | il differenziatore principale; prima un MVP in sola lettura per ZIP e TAR |
+| **Spotlight** | ricerca per nome dei file *dentro* gli archivi | importer di metadati (da valutare per costo e beneficio) |
+| **CLI `zipper`** inclusa nel bundle | uso da terminale e script; installazione opzionale di un symlink in `/usr/local/bin` | stesso core dell'app; serve un nome diverso da `zipper`, già usato da unxed/zipper |
+| **Cartelle sorvegliate** | ogni file messo in "Da comprimere" viene archiviato | `FSEvents`; si lancia come agente con `SMAppService` |
+| **Keychain e Touch ID** | memorizza le password degli archivi, per archivio o per profilo | `kSecAttrAccessControl` con `.biometryCurrentSet` |
+| **Notifiche e Dock** | avanzamento nell'icona del Dock e notifica a fine lavoro | |
+
+---
+
+## 6-bis. Interfaccia: studio secondo Liquid Glass
+
+Liquid Glass è il linguaggio visivo introdotto con macOS 26 e rifinito in macOS 27, soprattutto per la leggibilità. Le API sono state verificate nell'SDK di Xcode 27 installato: `glassEffect(_:in:)`, `Glass.regular/.clear/.identity` con `.tint()` e `.interactive()`, `GlassEffectContainer`, `glassEffectID` e `glassEffectUnion`, `.buttonStyle(.glass)` e `.glassProminent`, `ToolbarSpacer`, `ConcentricRectangle`, `backgroundExtensionEffect()`, `scrollEdgeEffectStyle`. Nessuna di queste è nuova in macOS 27.
+→ **Il target minimo sale a macOS 26**, dove Liquid Glass è nativo, invece del 15 indicato nel §8.
+
+### Principi applicati a Xipper
+1. **Il vetro serve alla navigazione, non al contenuto.** Toolbar, sidebar, barre d'azione e HUD di avanzamento galleggiano in vetro. La lista dei file dell'archivio (il contenuto) resta una `Table` standard e opaca.
+2. **Mai vetro su vetro.** Niente card in vetro dentro una sidebar di vetro. Gli elementi in vetro vicini stanno in un unico `GlassEffectContainer`, così si fondono e si trasformano in modo coerente.
+3. **Prima i componenti di sistema.** `NavigationSplitView` (la sidebar flottante è automatica), `.toolbar` con gruppi separati da `ToolbarSpacer`, `.inspector`, `.sheet`, `Form` nelle impostazioni. Il vetro personalizzato si usa solo dove serve davvero: la zona di rilascio e l'HUD dei lavori.
+4. **Colore solo per l'azione primaria:** una sola azione `.glassProminent` per vista, cioè "Comprimi" o "Estrai". Il resto usa `.glass` neutro. La tinta del vetro ha valore semantico (per esempio rosso per un errore di verifica), non decorativo.
+5. **Forme concentriche:** angoli che seguono il raggio della finestra (`ConcentricRectangle` e `containerShape`). Niente raggi scelti a mano.
+6. **Bordi di scorrimento:** la `Table` sotto la toolbar usa `scrollEdgeEffectStyle(.hard, for: .top)`, perché le intestazioni di colonna sono fisse e la vista è densa.
+7. **Accessibilità obbligatoria:** con Riduci trasparenza si passa a `Glass.identity` per il vetro personalizzato; con Riduci movimento niente animazioni di morphing; con Aumenta contrasto si usano bordi. I componenti di sistema si adattano da soli.
+8. **Icona dell'app** creata con **Icon Composer** (formato `.icon` a livelli), con le varianti chiaro, scuro, tinta e trasparente.
+
+### Schermate
+
+| Schermata | Struttura | Liquid Glass |
+|---|---|---|
+| **Home / Drop** (nessun documento aperto) | Ampia zona di rilascio e, in basso, una barra d'azione flottante: formato ▾ · livello ▾ · 🔒 password · **Comprimi** | La barra è una capsula `glassEffect` dentro un `GlassEffectContainer`. Al rilascio dei file la zona *si trasforma* nella barra d'avanzamento (`glassEffectID`). |
+| **Browser archivio** | `NavigationSplitView`: sidebar con Recenti, Preferiti e Preset; `Table` al centro (nome, dimensione, compresso, rapporto, data, 🔒); `.inspector` con dettagli, checksum e verifica; percorso in alto per le sottocartelle | Sidebar e toolbar di sistema. Toolbar a gruppi: [Estrai (prominent)] · [Aggiungi, Elimina] · [Verifica] · ricerca |
+| **Lavori in corso** | HUD flottante: MB/s, tempo stimato, file corrente, annulla. Avanzamento anche nell'icona del Dock | Una capsula di vetro che si espande in pannello (`glassEffectID`); più lavori diventano una pila di capsule unite (`glassEffectUnion`) |
+| **Password** | `.sheet`: SecureField, indicatore di robustezza, "Cifra anche i nomi dei file" (7z), "Salva nel Portachiavi (Touch ID)" | Sheet di sistema, già in vetro |
+| **Esito verifica** | Elenco delle voci con stato ✓ / ✗ ed errori evidenziati | Il vetro è tinto (rosso) solo nel banner di riepilogo in caso di errori |
+| **Impostazioni** | `Settings` con `Form(.grouped)`: Generali, Formati, Sicurezza, Integrazioni (Finder, Comandi Rapidi), Prestazioni (P-core/E-core) | Solo componenti standard |
+| **Menu bar extra** (opzionale) | Lavori attivi e cartelle sorvegliate | Popover di sistema |
+
+Quick Look ed estensioni del Finder usano l'interfaccia del sistema: niente vetro personalizzato.
+
+> Fonti: SDK SwiftUI di Xcode 27 (verifica diretta); guide di terze parti su `GlassEffectContainer` e sull'accessibilità; resoconti sui ritocchi di Liquid Glass in macOS 27 (WWDC26). Prima del design definitivo vanno lette le HIG Apple aggiornate e le sessioni WWDC26.
+
+**Design dei flussi (30 tavole, prototipo navigabile, chiaro/scuro, Riduci trasparenza):** [Xipper — Flussi Liquid Glass](https://claude.ai/artifact/CspdHhiqFhGPGUY36aTxjs)
+
+---
+
+## 6-ter. Interfaccia MCP (agenti AI)
+
+Obiettivo: permettere ad agenti come Claude Desktop, Claude Code e altri client MCP di elencare, verificare, estrarre e creare archivi con Xipper, mantenendo il vincolo di autoinclusione e le garanzie di sicurezza.
+
+### Stato dell'arte (ottobre 2026)
+- **Specifica MCP corrente: 2026-07-28**, la versione "stateless". Spariscono `initialize` e le sessioni ed entra `server/discover`. Le richieste che il server faceva al client (elicitation, roots) diventano *Multi Round-Trip Requests* con `resultType: "input_required"`. Roots, Sampling e Logging sono deprecati. Molti client installati parlano ancora la **2025-11-25** → **il server deve supportare entrambe le versioni** (il client sonda con `server/discover` e, se riceve un errore, ripiega su `initialize`).
+- **Trasporto:** solo **stdio** (JSON-RPC 2.0, un messaggio per riga; stdout riservato al protocollo, log su stderr). Streamable HTTP non serve a un'app desktop locale.
+- **SDK Swift ufficiale** (`modelcontextprotocol/swift-sdk`): dipende da swift-system, swift-log ed eventsource, e in risoluzione anche swift-nio; inoltre risulta fermo alla 2025-11-25. → **Non lo usiamo** perché violerebbe l'autoinclusione. Scriviamo un server nostro: circa 1.000–1.800 righe, solo Foundation. L'SDK resta utile come client nei test di CI, senza essere distribuito.
+- **Apple:** nelle beta di macOS 26.1 c'erano tracce di MCP legato agli App Intents, ma non è mai arrivato in una release. Al WWDC26 MCP è stato annunciato solo in Xcode 27 (`xcrun mcpbridge`). **Non c'è un ponte di sistema App Intents → MCP.** → Due adapter sottili sopra lo stesso core: App Intents (Siri, Comandi Rapidi, Spotlight) e MCP (agenti terzi), con nomi e schemi allineati per essere pronti se Apple aprirà il ponte.
+
+### Architettura
+```
+XipperKit (core)  ──►  ArchiveService (API unica, sincrona, cancellabile, con progress)
+                          ├─ App Intents adapter   (Xipper.app)
+                          ├─ CLI                    (xipper …)
+                          └─ MCP adapter            (xipper mcp  → stdio JSON-RPC)
+```
+- Il server è un **sottocomando della CLI inclusa** (`Xipper.app/Contents/MacOS/xipper mcp`), firmato e notarizzato con l'app.
+- **Installazione con un clic** dalle Impostazioni, sezione Integrazioni:
+  - per Claude Desktop, un **MCP Bundle `.mcpb`** (`server.type: "binary"`, `user_config` con le cartelle consentite);
+  - per Claude Code, `claude mcp add --transport stdio --scope user xipper -- …/xipper mcp`, previa conferma dell'utente.
+- **Sandbox:** il processo MCP lo avvia il client, non Xipper, quindi non eredita la sandbox. → Canale Developer ID **senza sandbox per il binario MCP**, con una allowlist applicativa. Un'eventuale edizione per il Mac App Store userebbe i security-scoped bookmark condivisi tramite App Group: più limitante, perché gli agenti non potrebbero passare path arbitrari.
+
+### Tool esposti
+| Tool | Input | Annotation |
+|---|---|---|
+| `archive_info` | `path` | readOnly |
+| `archive_list` | `path`, `cursor?`, `limit?` (200), `glob?` | readOnly, paginato |
+| `archive_test` | `path`, `password_ref?` | readOnly, lungo, con progress |
+| `archive_extract` | `path`, `destination`, `entries?[]`, `overwrite?`=false, `password_ref?` | destructive se `overwrite` |
+| `archive_create` | `sources[]`, `output`, `format`, `level?`, `encrypt?`, `password_ref?` | non distruttivo (fallisce se `output` esiste) |
+| `archive_read_entry` | `path`, `entry`, `max_bytes?` | readOnly (testo o immagini piccole) |
+
+Ogni tool restituisce `structuredContent` più un breve riepilogo testuale. I lavori lunghi inviano `notifications/progress` e rispettano `notifications/cancelled`; l'estensione Tasks è prevista per la v2. Le resources (`xipper://archive/{path}/entry/{entry}`) sono opzionali.
+
+### Sicurezza (obbligatoria)
+1. **Allowlist di cartelle** scelte dall'utente in Xipper.app o nel `.mcpb`. Ogni path passa per `realpath` e viene confrontato per prefisso; tutto il resto è rifiutato.
+2. **Stesse protezioni dell'estrazione manuale** (§7): zip-slip, symlink esterni, zip-bomb, quarantena, setuid rimosso. In più limiti specifici per MCP: dimensione totale e numero di voci.
+3. **Password mai nel contesto dell'LLM:**
+   - di base si usa `password_ref`, che punta a una voce del Portachiavi creata dall'utente in Xipper;
+   - in alternativa il server chiede via XPC a Xipper.app di mostrare un `SecureField` nativo;
+   - una password in chiaro come parametro è disattivata di default;
+   - le password non compaiono mai nei risultati né nei log.
+4. **Operazioni distruttive** (overwrite) solo con conferma esplicita tramite elicitation sì/no. Se il client non supporta la conferma, l'operazione viene rifiutata.
+5. **Modalità sola lettura** attivabile: restano esposti solo `info`, `list`, `test` e `read_entry`.
+6. **Registro di audit** in JSONL (`~/Library/Logs/Xipper/mcp-audit.jsonl`), visibile nell'app e senza segreti.
+
+### Pianificazione
+Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1–2 settimane. Test di conformità con un client MCP di riferimento, usato solo in CI.
+
+> Fonti: changelog della specifica MCP 2026-07-28 e trasporto stdio (modelcontextprotocol.io); spec 2025-11-25 sull'elicitation; repository e `Package.swift` dello swift-sdk; 9to5Mac e AppleInsider (beta 26.1); Apple Newsroom (WWDC26); MANIFEST di MCPB; documentazione MCP di Claude Code. Da verificare: quale versione del protocollo usano oggi Claude Desktop e Claude Code.
+
+---
+
+## 7. Sicurezza
+
+1. **Zip-slip / path traversal:** si rifiutano percorsi assoluti, segmenti `..` e symlink che puntano fuori dalla destinazione. L'estrazione passa per `openat` con `O_NOFOLLOW`.
+2. **Zip-bomb:** si controllano il rapporto di espansione e la dimensione totale dichiarata rispetto a quella reale; voci sovrapposte nella directory centrale vengono rilevate; limiti configurabili con conferma dell'utente.
+3. **Quarantena:** se l'archivio ha l'attributo `com.apple.quarantine`, lo si **propaga** a tutti i file estratti, così Gatekeeper e XProtect controllano gli eseguibili. Molti archiviatori se ne dimenticano.
+4. **Password:**
+   - ZIP: **AES-256 (AE-2)** di default. ZipCrypto è disponibile solo in modalità "compatibilità" con un avviso esplicito, perché si rompe con un attacco a testo in chiaro noto.
+   - 7z: AES-256 con **intestazioni cifrate** di default, così i nomi dei file non sono visibili senza password.
+   - La password non va mai su disco né nei log; buffer azzerati dopo l'uso.
+5. **Verifica:** controllo CRC/MAC di tutte le voci senza scrivere su disco ("Testa archivio"); manifest opzionale `SHA256SUMS`; in v2 dati di recupero **PAR2** (formato aperto) per riparare archivi danneggiati.
+6. **Fuzzing** del parser di ogni formato (libFuzzer o fuzzing con Swift Testing) in CI. È obbligatorio per un programma che apre file non fidati.
+
+---
+
+## 8. Architettura e stack
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Zipper.app (SwiftUI, macOS 15+)                         │
+│  ├─ Finder Sync Ext   ├─ QuickLook Ext  ├─ FSKit Ext      │
+│  ├─ App Intents       ├─ Thumbnail Ext  ├─ CLI (helper)   │
+├─────────────────────────────────────────────────────────┤
+│  ZipperKit (Swift framework, condiviso da tutti i target)│
+│  ├─ Container: ZIP · 7z · TAR · CPIO · AAR               │
+│  ├─ Pipeline: scheduler P/E, back-pressure, progress     │
+│  ├─ Crypto: AES-CTR/CBC, PBKDF2, HMAC (CryptoKit/CC)     │
+│  ├─ Safety: path sanitizer, bomb guard, quarantine       │
+│  └─ Metadata: xattr, ACL, NFC/NFD, AppleDouble           │
+├─────────────────────────────────────────────────────────┤
+│  ZipperCodecs (C, SwiftPM targets, link statico)         │
+│  ├─ di sistema: Compression, libz, libbz2                │
+│  └─ vendorizzati: zstd · xz/liblzma · LZMA SDK · libdeflate · brotli │
+│  └─ nostri: CRC32/CRC32C NEON+PMULL                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+- **Linguaggi:** Swift 6 (strict concurrency) per app e container; C per i codec vendorizzati e per le poche routine NEON scritte a mano. Rust è stato scartato: aggiunge una toolchain e un FFI senza un vantaggio netto qui.
+- **Target minimo: macOS 26**, aggiornato dopo lo studio della UI: Liquid Glass è nativo, FSKit e App Intents sono maturi, e c'è Swift 6. Solo `arm64`, senza binario universale: è una scelta esplicita.
+- **Build:** Xcode con il core in un pacchetto SwiftPM, quindi testabile da riga di comando.
+- **Test:**
+  - round-trip contro un corpus;
+  - interoperabilità con file creati da 7-Zip, WinRAR (ZIP), Info-ZIP, Windows Explorer e Archive Utility;
+  - fuzzing;
+  - benchmark in CI su un Mac M-series.
+- **Distribuzione:**
+  - **Primaria:** Developer ID con notarizzazione e Sparkle… ⚠️ Sparkle è una dipendenza di terzi. In alternativa un updater minimale scritto da noi (feed firmato EdDSA), oppure solo il Mac App Store.
+  - **Mac App Store:** possibile, ma la sandbox impedisce di scrivere "accanto" all'archivio senza un permesso dell'utente sulla cartella (Keka lo risolve chiedendo l'accesso alla cartella home). FSKit e la CLI vanno verificati rispetto alle regole del MAS.
+
+---
+
+## 9. Roadmap proposta
+
+| Fase | Contenuto | Stima indicativa (1 sviluppatore) |
+|---|---|---|
+| **0. Spike** ✅ | Benchmark dei codec (sistema contro vendorizzati) su M-series, prototipo di ZIP parallelo, decisione A/B, **scelta del nome** → [SPIKE_FASE0.md](SPIKE_FASE0.md) | completata il 21/10/2026 |
+| **1. Core** ✅ | XipperKit: ZIP/ZIP64 (lettura e scrittura, AES), TAR, gzip/bzip2/xz/zstd, sicurezza, verifica, CLI → [FASE1.md](FASE1.md) | completata il 21/10/2026 (restano alcuni punti rimandati) |
+| **1.5 CLI + MCP** | Server MCP come sottocomando `xipper mcp` (§6-ter), allowlist, audit, installazione `.mcpb` / `claude mcp add` | 1–2 settimane |
+| **2. App v1** | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | 6 settimane |
+| **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
+| **4. v2** | Montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, RAR solo lettura (dopo valutazione legale), ISO | aperta |
+
+---
+
+## 10. Decisioni aperte
+
+1. ~~Nome del prodotto~~ → **Xipper**, bundle `Xipper.app` (21/10/2026). Restano la ricerca formale del marchio (EUIPO/UIBM/USPTO) e la verifica del nome su App Store Connect.
+2. ~~Livello di autoinclusione~~ → **B**, codec permissivi vendorizzati (21/10/2026).
+3. **Canale di distribuzione:** Developer ID, Mac App Store o entrambi? Lo studio MCP (§6-ter) spinge verso Developer ID.
+4. **RAR:** escluso del tutto, oppure solo lettura clean-room in v2?
+5. **Modello di business:** gratuito/open source, a pagamento o freemium? Incide su licenze, MAS e aggiornamenti.
+
+---
+
+## Fonti
+
+- GNUstep Zipper.app: https://wiki.gnustep.org/index.php/Zipper · pacchetto Debian: https://packages-pkgmirror-csail.debian.org/nl/trixie/zipper.app
+- unxed/zipper (Go): https://pkg.go.dev/github.com/unxed/zipper@v0.1.71
+- Mr. Zipper (MAS): https://apps.apple.com/us/app/mr-zipper-7z-rar-7zip/id471561604?mt=12 · https://alternativeto.net/software/mr-zipper/about
+- Smart Zipper: https://www.waerfa.com/smart-zipper · https://www.alternativeto.net/software/smart-zipper/about/
+- Password Zipper (MAS): https://apps.apple.com/app/id627776008
+- "Zipper" iPad (scheda ZIP Extractor): https://apps.apple.com/app/id6443985825
+- Zippr: https://www.mactech.com/2019/01/28/appyogi-software-launches-zippr-for-the-mac
+- UnZipper: https://mac.softpedia.com/get/Utilities/UnZipper.shtml
+- Zipper 1.9.8 (JVN): https://jvn.jp/en/reply/DID96055463.html
+- Mail Zipper: https://www.capterra.co.uk/software/1036561/mail-zipper
+- Marchio IZIP: https://trademark.justia.com/855/13/izip-85513174.html
+- Concorrenti: https://setapp.com/app-reviews/winzip-alternatives-for-mac · https://alternativeto.net/news/2025/9/betterzip-5-4-brings-new-file-previews-finder-style-selection-macos-26-support-and-more · https://www.macitbetter.com/whats-new-in-betterzip-4/ · https://www.softpedia.com/reviews/mac/keka-review-537996.shtml
+
+*Nota: le informazioni tecniche sui framework Apple, sulle istruzioni ARMv8 e sui formati vengono da conoscenza consolidata, non da ricerche fatte per questo documento. La fase 0 (spike) deve verificarle con benchmark e prove di build, in particolare il supporto di Compression.framework per brotli/LZMA e i vincoli di FSKit e della sandbox MAS.*

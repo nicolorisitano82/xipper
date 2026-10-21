@@ -1,0 +1,45 @@
+# file corpus/mix.tar  full 473.7 MB  sample 67.1 MB  P-cores 10 E-cores 4
+
+## single-thread, sample 67 MB
+zlib(system) -1              ratio  43.02%  comp    126.5 MB/s  decomp   1029.7 MB/s
+zlib(system) -6              ratio  39.62%  comp     52.4 MB/s  decomp   1200.2 MB/s
+zlib(system) -9              ratio  39.51%  comp     24.0 MB/s  decomp   1279.6 MB/s
+libdeflate -1                ratio  41.92%  comp    277.3 MB/s  decomp   1366.5 MB/s
+libdeflate -6                ratio  39.46%  comp    141.7 MB/s  decomp   1354.9 MB/s
+libdeflate -9                ratio  39.27%  comp     65.3 MB/s  decomp   1444.9 MB/s
+libdeflate -12               ratio  38.55%  comp     10.1 MB/s  decomp   1411.7 MB/s
+Apple ZLIB (lvl5)            ratio  39.87%  comp     70.1 MB/s  decomp    774.8 MB/s
+Apple LZFSE                  ratio  38.38%  comp    158.3 MB/s  decomp   1730.8 MB/s
+Apple LZ4                    ratio  51.03%  comp   1019.0 MB/s  decomp   4457.9 MB/s
+Apple LZBITMAP               ratio  41.66%  comp    386.0 MB/s  decomp   4984.4 MB/s
+Apple LZMA (xz, lvl6)        ratio  30.64%  comp      4.8 MB/s  decomp    175.0 MB/s
+bzip2(system) -9             ratio  36.24%  comp     19.5 MB/s  decomp     55.0 MB/s
+zstd -1                      ratio  40.65%  comp    794.2 MB/s  decomp   1867.4 MB/s
+zstd -3                      ratio  37.42%  comp    515.7 MB/s  decomp   1882.8 MB/s
+zstd -9                      ratio  35.09%  comp    125.8 MB/s  decomp   2029.6 MB/s
+zstd -19                     ratio  32.61%  comp      5.9 MB/s  decomp   1691.1 MB/s
+xz -6                        ratio  30.64%  comp      5.2 MB/s  decomp    145.8 MB/s
+
+## multi-thread (14 threads), full 474 MB
+zstd -3 MT                   ratio  36.86%  comp   3950.1 MB/s  decomp   1712.9 MB/s
+zstd -9 MT                   ratio  33.99%  comp    777.7 MB/s  decomp   2109.6 MB/s
+zstd -19 MT                  ratio  29.87%  comp     36.1 MB/s  decomp   1787.5 MB/s
+zstd -9 MT --long            ratio  31.07%  comp    546.6 MB/s  decomp   2225.0 MB/s
+xz -6 MT                     ratio  28.54%  comp     34.6 MB/s  decomp   1483.1 MB/s
+
+## checksums, full 474 MB
+CRC32 table (bytewise)             0.38 GB/s   (0x396faa29)
+CRC32 zlib(system)                36.30 GB/s   (0x396faa29)
+CRC32 ARMv8 __crc32d               9.68 GB/s   (0x396faa29)
+CRC32 libdeflate (PMULL)          66.27 GB/s   (0x396faa29)
+Adler32 zlib(system)              18.10 GB/s   (0x048d3672)
+Adler32 libdeflate (NEON)         52.73 GB/s   (0x048d3672)
+
+## crypto, full 474 MB
+SHA-256 (CommonCrypto)             2.81 GB/s
+SHA-1 (CommonCrypto)               2.80 GB/s
+AES-256-CTR (CommonCrypto)        12.98 GB/s
+AES-256-CBC enc (CC)               1.45 GB/s
+HMAC-SHA1 (ZIP AES auth)           2.82 GB/s
+PBKDF2-SHA1 x1000 (ZIP AES)       0.754 ms/key
+7z KDF SHA-256 x2^19              5.849 ms/key

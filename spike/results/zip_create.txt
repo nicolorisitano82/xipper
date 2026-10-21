@@ -1,0 +1,23 @@
+## tree (468 MB, 11k files)
+create: 11688 entries, 464.8 MB -> 191.6 MB (41.23%), walk 0.27s, total 1.41s, 330 MB/s, threads 14, engine libdeflate, big files 14 (333 chunks)
+create: 11688 entries, 464.8 MB -> 191.7 MB (41.24%), walk 0.27s, total 1.48s, 313 MB/s, threads 14, engine zlib, big files 14 (333 chunks)
+create: 11688 entries, 464.8 MB -> 191.6 MB (41.23%), walk 0.27s, total 9.19s, 51 MB/s, threads 1, engine libdeflate, big files 14 (333 chunks)
+create: 11688 entries, 464.8 MB -> 191.6 MB (41.23%), walk 0.27s, total 1.32s, 352 MB/s, threads 10, engine libdeflate, big files 14 (333 chunks)
+real 10.53 user 9.58 sys 0.77  <- Info-ZIP zip -6
+   size 192604622
+real 9.98 user 8.83 sys 0.95  <- ditto -c -k (Archive Utility)
+   size 192164198
+## single big file (474 MB tar)
+walk
+walk
+ zip error: Nothing to do! (try: zip -r -6 -q /private/tmp/claude-502/-Users-nicolo--claude-spares-spare-hmyqWI/e9a31ae3-6475-48e3-b697-8685d32770ae/scratchpad/zipbench.ryXr/big_infozip.zip . -i corpus/big) real 0.00 user 0.00 sys 0.00  <- Info-ZIP
+ls: /private/tmp/claude-502/-Users-nicolo--claude-spares-spare-hmyqWI/e9a31ae3-6475-48e3-b697-8685d32770ae/scratchpad/zipbench.ryXr/big_infozip.zip: No such file or directory
+ditto: Cannot get the real path for source 'corpus/big' real 0.00 user 0.00 sys 0.00  <- ditto
+ls: /private/tmp/claude-502/-Users-nicolo--claude-spares-spare-hmyqWI/e9a31ae3-6475-48e3-b697-8685d32770ae/scratchpad/zipbench.ryXr/big_ditto.zip: No such file or directory
+## single big file (474 MB tar)
+create: 2 entries, 473.7 MB -> 184.6 MB (38.97%), walk 0.00s, total 1.22s, 387 MB/s, threads 14, engine libdeflate, big files 1 (452 chunks)
+create: 2 entries, 473.7 MB -> 184.6 MB (38.97%), walk 0.00s, total 10.08s, 47 MB/s, threads 1, engine libdeflate, big files 1 (452 chunks)
+real 9.89 user 9.54 sys 0.26  <- Info-ZIP
+   size 184781296
+real 9.38 user 8.94 sys 0.25  <- ditto
+   size 184561974

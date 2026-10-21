@@ -1,0 +1,12 @@
+## creazione (corpus 468 MB, 11.688 voci, cache calda)
+out.zip: 11688 entries, 464,8 MB → 191,9 MB (41.3%) in 0.86s, 544 MB/s real 1.33 
+outz.zip: 11688 entries, 464,8 MB → 191,9 MB (41.3%) in 0.85s, 544 MB/s real 0.95 
+out.tar.gz: 11688 entries, 464,8 MB → 184,4 MB (39.7%) in 1.56s, 299 MB/s real 1.64 
+out.tar.zst: 11688 entries, 464,8 MB → 174,4 MB (37.5%) in 0.45s, 1024 MB/s real 0.54 
+out.tar.xz: 11688 entries, 464,8 MB → 134,5 MB (28.9%) in 14.81s, 31 MB/s real 14.91 
+out.tar.bz2: 11688 entries, 464,8 MB → 167,1 MB (36.0%) in 3.48s, 133 MB/s real 3.57 
+## confronto strumenti di sistema
+real 9.77  <- bsdtar -czf (gzip)
+   size 184561716
+real 110.07  <- bsdtar -cJf (xz)
+   size 133844816

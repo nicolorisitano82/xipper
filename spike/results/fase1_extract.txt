@@ -1,0 +1,19 @@
+## estrazione (dest. pulita, cache calda)
+xipper extract out.zip: 12.39s
+xipper extract infozip.zip: 12.74s
+xipper extract out.tar.zst: 16.63s
+xipper extract out.tar.gz: 13.12s
+xipper extract out.tar.xz: 13.22s
+ditto -x -k infozip.zip: 12.34s
+unzip infozip.zip: 9.59s
+bsdtar -x out.tar.gz: 8.10s
+bsdtar -x out.tar.xz: 9.90s
+## verifica
+xipper test infozip.zip: 0.09s
+unzip -t infozip.zip: 2.49s
+xipper test out.tar.xz: 0.41s
+xz -t (via tar -tf) out.tar.xz: s
+s
+s
+2.85s
+xipper: corrupt archive: truncated zstd stream

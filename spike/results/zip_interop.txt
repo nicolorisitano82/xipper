@@ -1,0 +1,27 @@
+## interop: archivio xipzip letto da strumenti terzi
+unzip -t x_ld.zip: OK
+python zipfile x_ld.zip OK 11688 entries
+bsdtar list x_ld.zip: 11688 entries
+unzip -t big_x.zip: OK
+python zipfile big_x.zip OK 2 entries
+bsdtar list big_x.zip: 2 entries
+ditto -x (Archive Utility) estrazione + diff -r: IDENTICO
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink error: Permission denied
+symlink preservati (ditto): 45 / 45
+permessi eseguibili: orig 12 / estratti 12
+
+## verifica parallela (xipzip test) su archivi altrui
+test: 11688 entries, 464.8 MB uncompressed, 0 errors, 0.07s, 6672 MB/s, threads 14
+test: 11688 entries, 464.8 MB uncompressed, 0 errors, 0.21s, 2259 MB/s, threads 14
+test: 11688 entries, 464.8 MB uncompressed, 0 errors, 0.22s, 2090 MB/s, threads 14
+test: 2 entries, 473.7 MB uncompressed, 0 errors, 0.63s, 757 MB/s, threads 14
+test: 2 entries, 473.7 MB uncompressed, 0 errors, 0.62s, 759 MB/s, threads 14
+test: 11688 entries, 464.8 MB uncompressed, 0 errors, 0.41s, 1140 MB/s, threads 1
+real 2.55 user 2.46 sys 0.06  <- unzip -t infozip.zip
