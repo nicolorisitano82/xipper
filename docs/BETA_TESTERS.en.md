@@ -1,11 +1,11 @@
-# Xipper 0.9.0 beta3: notes for testers
+# Xipper 0.9.0 beta4: notes for testers
 
 *[Italiano](BETA_TESTERS.md) · English*
 
 Thanks for trying Xipper! It is an archiver for Macs with Apple Silicon (M1 or later) and **macOS 26 or later**. It creates, opens, verifies and extracts archives quickly and safely. The app follows the system language (English or Italian).
 
 ## Installation
-1. Open `Xipper-0.9.0-beta3.dmg` and drag **Xipper** into **Applications**.
+1. Open `Xipper-0.9.0-beta4.dmg` and drag **Xipper** into **Applications**.
 2. **First launch.** The beta is signed with a development certificate, not an Apple Developer ID, so macOS blocks it the first time.
    - Open Xipper. At the message "Apple could not verify…", choose **Done**.
    - Go to **System Settings › Privacy & Security**, scroll to "Xipper was blocked" and click **Open Anyway**. Confirm with your password or Touch ID.
@@ -52,7 +52,7 @@ Finder actions always create new files next to the originals (`name.zip`, `name 
 | Notifications and Dock | Start a long job and switch to another app | A progress bar on the Dock icon and a notification at the end |
 | AI assistants | **Settings › Integrations**: add a folder, then **Copy Command for Claude Code** | Claude Code sees the "xipper" server |
 
-## Known limitations of beta3
+## Known limitations of beta4
 - **RAR** is not supported yet (planned, read only), nor is ZIP Deflate64.
 - **lz4 and brotli** can be opened, verified and extracted, but not created.
 - Encrypted Apple Archives (AEA) need a password of at least 20 characters: a macOS limit.
@@ -60,6 +60,7 @@ Finder actions always create new files next to the originals (`name.zip`, `name 
 - The Finder extension only reads the names of the selected files and hands the request to the app; it never reads file contents.
 - Saved passwords belong to the archive's path: if you move the archive, Xipper asks again.
 - Watched folders are not there yet.
+- **XIZ** (Settings › General › Experimental features) is a BETA: the format may change before version 1 and does not support passwords yet. Keep a copy in a standard format too.
 
 ## Reporting a problem
 Open an issue at <https://github.com/nicolorisitano82/xipper/issues> with:
