@@ -64,3 +64,7 @@ I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema
 ```
 
 Uscita: `0` ok, `1` errore, `2` uso errato, `3` voci saltate o verifica fallita, `4` password mancante o errata, `130` annullato (Ctrl-C).
+
+## Licenza
+
+[MIT](LICENSE). Il codice in `Vendor/` mantiene la propria licenza: zstd BSD-3-Clause, libdeflate MIT, liblzma 0BSD (vedi [Vendor/README.md](Vendor/README.md)).

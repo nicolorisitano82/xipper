@@ -15,6 +15,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **"Totalmente autoincluso"** | Si può fare: un solo `.app`, nessun Homebrew, nessun binario esterno, nessun download a runtime. La scelta da prendere è se incorporare codec open source con licenza permissiva (compilati dentro l'app) o scriverli tutti da zero. Raccomandazione al §3. |
 | **Ottimizzazione arm64** | Il guadagno vero viene dal parallelismo sui P-core e gli E-core, dalle istruzioni CRC32/AES/SHA hardware di ARMv8, da NEON e dall'I/O con mmap e APFS clone. Dettagli al §5. |
 | **Integrazione di sistema** | Finder Sync (menu contestuale), Quick Look (anteprima del contenuto), App Intents (Comandi Rapidi/Shortcuts e Azioni rapide), Servizi, CLI inclusa e, come obiettivo avanzato, montaggio dell'archivio come volume con FSKit. Dettagli al §6. |
+| **Licenza** | **Gratuito e open source, licenza MIT** (§10). |
 | **Distribuzione** | Developer ID + notarizzazione come canale principale. Il Mac App Store è possibile, ma la sandbox limita l'estrazione "accanto al file". Dettagli al §8. |
 
 ---
@@ -103,7 +104,7 @@ L'obiettivo si può leggere in tre modi.
 
 **Raccomandazione: livello B**, con questa regola:
 - **I container** (ZIP, 7z, TAR, CPIO, AAR) li scriviamo **noi**, in Swift. È lì che stanno UX, parallelismo, sicurezza e gestione dei metadati macOS.
-- **I codec** di base usano prima di tutto i **framework di sistema**. Il resto è **vendorizzato** solo da progetti con licenza permissiva. **Niente GPL/LGPL**, perché incompatibili con una distribuzione chiusa e un binario statico.
+- **I codec** di base usano prima di tutto i **framework di sistema**. Il resto è **vendorizzato** solo da progetti con licenza permissiva. **Niente GPL/LGPL**: Xipper è open source con licenza **MIT** (§10), e tutto il codice incluso deve restare compatibile con MIT e con il link statico in un unico bundle (BSD, MIT, 0BSD, zlib, Apache-2.0).
 - Il risultato resta *un solo bundle firmato* che non installa e non scarica nulla: è autoincluso nel senso che conta per l'utente.
 
 > **Decisione presa il 21/10/2026: livello B.** I risultati dello spike sono in [SPIKE_FASE0.md](SPIKE_FASE0.md).
@@ -142,11 +143,24 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | lz4, brotli | 🔜 | ✅ | | lz4 di sistema; brotli in scrittura vendorizzato (MIT) |
 | CPIO, `.aar` (Apple Archive) | ✅ | ✅ | ✅ (AEA) | sistema |
 | ISO 9660 / UDF | ❌ | 🔜 📖 | | nostro (lettura semplice) |
-| **RAR / RAR5** | ❌ | ⚠️ vedi sotto | | |
+| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v2 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
+| **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
+| **MPEG-G** (ISO/IEC 23092, `.mgb`) | ⚠️ | ⚠️ | — | brevetti e licenze da chiarire prima di qualsiasi implementazione; vedi §4.5 |
 
-**Caso RAR.** RAR è **proprietario, non aperto**. Creare RAR è vietato dalla licenza. Per estrarre servirebbe `unrar` (licenza propria, non OSI, che vieta di ricostruire il compressore) oppure una reimplementazione clean-room come quella di libarchive (BSD).
-→ **Proposta:** fuori dalla v1. In v2, solo estrazione con un decoder clean-room scritto da noi, valutando prima il rischio legale. Gli utenti lo chiederanno, perché i concorrenti lo supportano.
+**Caso RAR, decisione del 21/10/2026: sola lettura, clean-room.** RAR è proprietario. La licenza di `unrar` permette di estrarre, ma vieta di usarne il codice per ricostruire il compressore e non è compatibile con MIT, quindi **non usiamo né guardiamo il sorgente di unrar**.
+- **Fonti ammesse:**
+  - la documentazione pubblica del formato contenitore RAR5 (technote di RARLAB);
+  - implementazioni indipendenti con licenza permissiva, in particolare i lettori RAR e RAR5 di **libarchive** (BSD-2), che Apple stessa distribuisce in macOS dentro `bsdtar`.
+- **Percorso consigliato:** partire da un port o vendoring dei lettori RAR/RAR5 di libarchive (BSD-2, compatibile con MIT), avvolto dall'estrazione sicura di Xipper (§7) e dalla decompressione in streaming. Un decoder riscritto da zero sulla stessa documentazione è l'alternativa più pulita ma più costosa (stima 4–6 settimane in più).
+- **Ambito:**
+  - RAR5 e RAR 2.9/3.x;
+  - archivi multi-volume (`.part1.rar`…, `.r00`…);
+  - verifica tramite CRC32 e BLAKE2sp (RAR5);
+  - archivi cifrati RAR5 (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, tutto disponibile in CommonCrypto) e intestazioni cifrate;
+  - da valutare a parte: RAR3 cifrato (AES-128 con KDF SHA-1 proprietaria) e archivi "solid" molto grandi (decodifica necessariamente sequenziale).
+- **Fuori ambito:** creazione di RAR, recovery record, archivi SFX Windows (si possono estrarre se il contenitore è standard).
+- **Nota legale:** sui formati RAR non risultano brevetti attivi; il nome "RAR" è un marchio di RARLAB e va usato solo in modo descrittivo ("apre archivi RAR"). La conferma di un legale resta raccomandata prima del rilascio.
 
 ### 4.3 Requisiti trasversali sui formati
 - **Nomi file:** UTF-8 con il flag bit 11 in ZIP; normalizzazione NFD↔NFC (APFS conserva la forma, Windows usa NFC); in lettura si rileva la codepage legacy (CP437, CP866, Shift-JIS…).
@@ -154,6 +168,86 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 - **Esclusioni automatiche configurabili:** `.DS_Store`, `._*`, `.Spotlight-V100`, `.git`, `node_modules`.
 
 ---
+
+### 4.4 BGZF (bgzip), il gzip della genomica
+
+**Cos'è.** BGZF ("Blocked GNU Zip Format", SAM/BAM spec v1 §4.1) è una serie di membri gzip **indipendenti**, ciascuno di al massimo 64 KiB prima e dopo la compressione. Ogni membro porta nell'header un extra field `BC`:
+- `FLG.FEXTRA` = 1;
+- subfield `SI1`=66, `SI2`=67, `SLEN`=2;
+- `BSIZE` = dimensione totale del blocco − 1 (uint16 LE).
+
+Il file termina con un blocco vuoto di 28 byte che segnala la fine (EOF marker):
+`1f 8b 08 04 00 00 00 00 00 ff 06 00 42 43 02 00 1b 00 03 00 00 00 00 00 00 00 00 00`
+
+È compatibile con `gunzip`, ma permette l'accesso casuale: gli indici `.tbi`/`.csi` (tabix) e `.bai` (BAM) usano *virtual offset* `coffset<<16 | uoffset`. bgzip può produrre anche un indice `.gzi`: uint64 LE con il numero di voci, seguito da coppie (offset compresso, offset non compresso). È il formato standard per VCF, BED, GFF, FASTA e FASTQ compressi, e il contenitore di BAM e BCF.
+
+**Perché conta.** In genomica un `.vcf.gz` compresso con gzip "normale" non si può indicizzare né interrogare per regione: gli strumenti (bcftools, tabix, IGV) pretendono BGZF. Oggi l'utente Mac deve installare htslib da Homebrew o conda solo per questo.
+
+**Cosa farà Xipper:**
+
+| Funzione | Dettaglio |
+|---|---|
+| **Riconoscimento** | Dall'header gzip con extra field `BC`, non solo dall'estensione. Il formato viene mostrato come "BGZF" nell'inspector e in Quick Look. |
+| **Compressione BGZF** | Blocchi da 0xFF00 byte (come htslib), così il blocco compresso sta sempre in 64 KiB; se un blocco non si comprime, viene salvato come blocco deflate *stored*. I blocchi sono indipendenti, quindi il parallelismo è perfetto su tutti i P-core con libdeflate (la stessa libreria che usa htslib). Il marker EOF è sempre scritto. Livelli 0–9 compatibili con `bgzip -l`. |
+| **Decompressione parallela** | Una scansione sequenziale degli header (`BSIZE` dà subito l'offset del blocco seguente) e poi la decompressione dei blocchi in parallelo, con dimensione d'uscita nota (`ISIZE`) e CRC per blocco. Oggi `gunzip` è a thread singolo. |
+| **Verifica** | CRC di ogni blocco più la presenza del marker EOF: rileva i file troncati, il problema più frequente sui trasferimenti di BAM e VCF. Funziona anche su **BAM e BCF**, senza bisogno di interpretarne il contenuto. |
+| **Conversione gzip → BGZF** | L'azione rapida "Converti in BGZF" ricomprime in streaming un `.vcf.gz` creato con gzip normale. Va anche nel senso inverso. |
+| **Indice `.gzi`** | Creato a richiesta, compatibile con `bgzip -i`/`-I`. Gli indici `.tbi`/`.csi`/`.bai` esistenti non vengono mai toccati. Se un file viene ricompresso, Xipper avvisa che il suo indice tabix non è più valido (la creazione di indici tabix richiede di interpretare VCF/BED/GFF ed è prevista in v2). |
+| **Preferenza "Genomica"** | Quando si comprime in `.gz` un file `.vcf`, `.bed`, `.gff`/`.gtf`, `.fa`/`.fasta`, `.fq`/`.fastq` o `.sam`, Xipper usa BGZF di default (attivo di default, disattivabile). |
+| **Smart store** | Nelle creazioni ZIP/tar, `.bam`, `.cram`, `.bcf`, `.bgz`, `.vcf.gz`, `.fastq.gz`, `.sra` e gli indici (`.bai`, `.crai`, `.tbi`, `.csi`) vengono salvati senza ricomprimerli. |
+
+**Integrazione:** azioni nel Finder ("Comprimi con BGZF", "Converti in BGZF", "Verifica BGZF/BAM"), un'azione in Comandi Rapidi, i tool MCP `bgzf_compress`, `bgzf_check`, `bgzf_convert`, e il comando CLI `xipper bgzip`, compatibile con le opzioni principali di `bgzip` (`-c`, `-d`, `-i`, `-l`, `-@`).
+
+**Licenze:** nessun problema. BGZF è una specifica aperta (hts-specs) senza brevetti noti, e l'implementazione è nostra, sopra libdeflate (MIT).
+
+**Test:**
+- interoperabilità con htslib (`bgzip`, `tabix`, `samtools quickcheck`), installato via Homebrew solo in CI;
+- confronto byte per byte del contenuto decompresso;
+- validità degli indici `.gzi`;
+- file troncati senza marker EOF.
+
+### 4.5 MPEG-G (ISO/IEC 23092)
+
+**Cos'è.** Uno standard ISO/IEC (prima edizione 2019) in sei parti:
+1. trasporto e archiviazione;
+2. codifica;
+3. metadati e API;
+4. software di riferimento;
+5. conformità;
+6. annotazioni.
+
+Non comprime byte generici: **transcodifica** le letture FASTQ e gli allineamenti SAM/BAM in "record MPEG-G" (`.mgrec`) e li codifica con codec specifici per tipo di dato, cioè CABAC/GABAC e, per la qualità, CALQ con perdita. L'output è `.mgb` (eventualmente in un contenitore Part 1). La modalità con riferimento richiede il FASTA del genoma.
+
+**Stato dell'arte (ottobre 2026):**
+- **Implementazione open source: [Genie](https://github.com/mitogen/genie)** (Leibniz Universität Hannover, licenza BSD-3, C++, basata su SPRING e GABAC). Implementa principalmente la Part 2 e solo un *sottoinsieme* dello standard. Non gestisce alcuni record (per esempio gli half-aligned) e, nei benchmark, gli autori hanno rimosso allineamenti secondari e supplementari e i tag opzionali. In modalità global assembly le letture sono limitate a 511 basi.
+- **Prestazioni riportate:**
+  - FASTQ: rapporto mediano sotto 0,15 rispetto a gzip, ma codifica circa 7 volte più lenta di gzip;
+  - dati allineati: leggermente meglio di CRAM, ma molto più lento;
+  - in entrambi i casi Genozip fa meglio;
+  - un articolo del 2026 stima circa 4,3× di compressione in più rispetto ai compressori generici e circa 5× di prestazioni in meno.
+- **Brevetti e licenze: è il punto critico.**
+  - Philips nel 2021 ha concesso a **GenomSys una licenza esclusiva** sui propri brevetti MPEG-G.
+  - Gli autori di Genie dichiarano di essere inventori di brevetti (EP3311318B1, EP3652862B1, US10938415B2, CN110915140B) implementati in parte nel software. La licenza di Genie dice testualmente che **non concede diritti sui brevetti**.
+  - Non abbiamo trovato termini pubblici di licenza: né patent pool, né FRAND, né royalty.
+  - Il testo dello standard è a pagamento (ISO).
+  - Parte della comunità bioinformatica è critica, e preferisce gli standard GA4GH (CRAM, VCF).
+- **Diffusione:** limitata. Ci sono attività commerciali di GenomSys, ma nei risultati delle ricerche nessuna delle grandi piattaforme genomiche annuncia supporto nel 2025–2026.
+
+**Valutazione per Xipper.**
+1. **Il vincolo "formati open" non è soddisfatto finché i brevetti non sono chiariti.** Distribuire un encoder o decoder MPEG-G in un'app commerciale senza licenza è un rischio legale concreto, anche usando Genie.
+2. **Non è un formato d'archivio.** La transcodifica non restituisce il file originale byte per byte: si ottengono FASTQ/SAM equivalenti, con possibili perdite (qualità, tag, record non supportati). In un archiviatore, dove "estrai" deve ridare esattamente i file originali, va presentata come **esportazione/importazione genomica**, separata dalla compressione.
+3. **Autoinclusione:** Genie è C++ con le sue dipendenze (SPRING, GABAC e altre di terze parti) e andrebbe vendorizzato. Si può fare (BSD-3), ma aumenta molto superficie e manutenzione.
+
+**Piano proposto a fasi, con un passaggio legale vincolante:**
+
+| Passo | Contenuto | Condizione |
+|---|---|---|
+| **G0. Verifica legale** | Contatto con GenomSys e con i titolari dei brevetti (Philips, LUH) per i termini di licenza; acquisto delle parti 1–3 della ISO/IEC 23092 | **prima di scrivere codice MPEG-G** |
+| **G1. Riconoscimento** | Riconoscere i file `.mgb` e i contenitori MPEG-G, con icona, Quick Look delle informazioni di base (dimensione e, se il contenitore lo espone, numero di record e riferimento) e nessuna decodifica | solo parsing dell'header, rischio basso; da confermare con G0 |
+| **G2. Decodifica** | `.mgb` → FASTQ/SAM (con BGZF/BAM in uscita), un modulo basato su Genie vendorizzato, con un report delle eventuali perdite | licenza ottenuta |
+| **G3. Codifica** | FASTQ/BAM → `.mgb` come "Esporta in MPEG-G", con scelta della modalità (global assembly, low latency, con riferimento) e avviso sulla qualità con perdita | licenza ottenuta, domanda reale dagli utenti |
+
+> Nota: per la compressione specifica di dati genomici, le alternative aperte e molto più diffuse sono **CRAM** (GA4GH, implementazione htslib con licenza MIT/BSD) per gli allineamenti e BGZF per VCF/BED/FASTQ. Non sono state richieste qui, ma restano un'opzione da valutare se G0 desse esito negativo.
 
 ## 5. Ottimizzazioni Apple Silicon (arm64)
 
@@ -247,7 +341,7 @@ Quick Look ed estensioni del Finder usano l'interfaccia del sistema: niente vetr
 
 > Fonti: SDK SwiftUI di Xcode 27 (verifica diretta); guide di terze parti su `GlassEffectContainer` e sull'accessibilità; resoconti sui ritocchi di Liquid Glass in macOS 27 (WWDC26). Prima del design definitivo vanno lette le HIG Apple aggiornate e le sessioni WWDC26.
 
-**Design dei flussi (30 tavole, prototipo navigabile, chiaro/scuro, Riduci trasparenza):** [Xipper — Flussi Liquid Glass](https://claude.ai/artifact/CspdHhiqFhGPGUY36aTxjs)
+**Design dei flussi (40 tavole, prototipo navigabile, chiaro/scuro, Riduci trasparenza, Aumenta contrasto, Riduci movimento, icona):** [Xipper — Flussi Liquid Glass](https://claude.ai/artifact/CspdHhiqFhGPGUY36aTxjs)
 
 ---
 
@@ -362,9 +456,11 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **0. Spike** ✅ | Benchmark dei codec (sistema contro vendorizzati) su M-series, prototipo di ZIP parallelo, decisione A/B, **scelta del nome** → [SPIKE_FASE0.md](SPIKE_FASE0.md) | completata il 21/10/2026 |
 | **1. Core** ✅ | XipperKit: ZIP/ZIP64 (lettura e scrittura, AES), TAR, gzip/bzip2/xz/zstd, sicurezza, verifica, CLI → [FASE1.md](FASE1.md) | completata il 21/10/2026 (restano alcuni punti rimandati) |
 | **1.5 CLI + MCP** | Server MCP come sottocomando `xipper mcp` (§6-ter), allowlist, audit, installazione `.mcpb` / `claude mcp add` | 1–2 settimane |
+| **1.6 Genomica: BGZF** | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | 1–2 settimane |
+| **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | 6 settimane |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
-| **4. v2** | Montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, RAR solo lettura (dopo valutazione legale), ISO | aperta |
+| **4. v2** | Montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
 
 ---
 
@@ -373,8 +469,19 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 1. ~~Nome del prodotto~~ → **Xipper**, bundle `Xipper.app` (21/10/2026). Restano la ricerca formale del marchio (EUIPO/UIBM/USPTO) e la verifica del nome su App Store Connect.
 2. ~~Livello di autoinclusione~~ → **B**, codec permissivi vendorizzati (21/10/2026).
 3. **Canale di distribuzione:** Developer ID, Mac App Store o entrambi? Lo studio MCP (§6-ter) spinge verso Developer ID.
-4. **RAR:** escluso del tutto, oppure solo lettura clean-room in v2?
-5. **Modello di business:** gratuito/open source, a pagamento o freemium? Incide su licenze, MAS e aggiornamenti.
+4. ~~RAR~~ → **sola lettura, clean-room** (21/10/2026), §4.2.
+5. **MPEG-G:** avviare la verifica legale G0 (GenomSys, Philips, LUH), oppure tenerlo in osservazione e puntare su BGZF (ed eventualmente CRAM)?
+6. ~~Modello di business~~ → **gratuito e open source, licenza MIT** (decisa il 21/10/2026, file `LICENSE`). Motivazioni:
+   - **Compatibilità:** tutte le dipendenze sono permissive (zstd BSD-3, libdeflate MIT, liblzma 0BSD, ed eventualmente libarchive BSD-2 per RAR), quindi MIT non crea attriti.
+   - **LGPL e app macOS:** la LGPL richiede che l'utente possa ricollegare una versione modificata della libreria. Con un bundle Swift che contiene tutto in modo statico, e a maggior ragione con il Mac App Store (DRM e firma), rispettarla è macchinoso; molti progetti LGPL infatti non possono andare sul MAS.
+   - **Diffusione:** con MIT XipperKit è riusabile ovunque, anche in altre app e strumenti di genomica, ed è il modo più rapido per farsi adottare.
+   - Se si vuole che le modifiche a XipperKit restino aperte, l'alternativa intermedia è **MPL-2.0**: copyleft solo sui file modificati, compatibile con il link statico e con il MAS.
+   - **Conseguenze:**
+     - repository pubblico;
+     - distribuzione tramite GitHub Releases con Developer ID e notarizzazione, cask Homebrew e un'eventuale versione gratuita sul MAS;
+     - Sparkle (MIT) diventa accettabile per gli aggiornamenti, perché si può vendorizzare;
+     - eventuali donazioni o sponsor;
+     - l'open source **non** esenta dai brevetti, quindi per MPEG-G il passo G0 resta obbligatorio.
 
 ---
 
