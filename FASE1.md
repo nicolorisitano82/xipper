@@ -87,7 +87,7 @@ Ottimizzazioni arrivate dalle misure:
 - **zlib-ng o patch a libdeflate** per i blocchi dei file grandi in deflate (oggi zlib di sistema, circa 390 MB/s per file).
 - **Indice dei blocchi in un extra field** per decomprimere in parallelo le voci grandi dei nostri ZIP.
 - **ZIP con 10.000 file piccoli** (4,8 s contro 2,7 s del tar): da profilare.
-- 7z (fase 3), Deflate64 in lettura, ZIP multi-volume, RAR (valutazione legale).
+- ~~7z (fase 3)~~ fatto, vedi sotto; Deflate64 in lettura, ZIP multi-volume, RAR (valutazione legale).
 - CLI + server MCP (fase 1.5, vedi STUDIO.md §6-ter).
 
 ---
@@ -165,6 +165,110 @@ L'indicizzazione è circa 2 volte più veloce di htslib grazie al parsing parall
 - La verifica CRAM non decodifica i dati e non controlla gli MD5 delle sequenze (`@SQ M5`), che richiederebbero refget: è prevista nella decodifica CRAM (STUDIO.md §4.6, bassa priorità).
 - Non implementati, in quanto fuori dalla fase: l'indicizzazione di BAM (BAI/CSI), che richiede il parsing dei record; i client DRS e htsget, che richiedono la rete (fase 2.x); l'integrazione con il Finder (spetta all'app, `App/`).
 - Il CSI usa la profondità di default di htslib senza leggere le lunghezze `##contig`: è valido per htslib, ma i numeri dei bin possono differire da quelli di `tabix -C` quando l'header dichiara contig molto lunghi.
+
+---
+
+# Fase 3: 7z
+
+*21 ottobre 2026 · stessa macchina · 7-Zip 26.03 (Homebrew `7zz`, solo nei test) come riferimento*
+
+## Cosa c'è
+- **Modulo `SevenZip/`** (header, coder, reader, writer) più `Crypto/SevenZipAES.swift`. Nessuna libreria 7-Zip: il contenitore è nostro, i codec sono quelli già vendorizzati più il decoder PPMd del LZMA SDK.
+- **Lettura:**
+  - header semplici, compressi (`kEncodedHeader`) e cifrati (`-mhe`), annidati fino a 4 livelli;
+  - archivi solid, con ogni voce localizzata nel suo blocco;
+  - metodi LZMA, LZMA2, PPMd (variante H), BZip2, Deflate, Copy e, in più, zstd (7-Zip ZS/NanaZip);
+  - filtri BCJ (x86), BCJ2 (4 flussi), ARM64, ARM, ARMT, PPC, SPARC, RISC-V e Delta. Il grafo dei coder è generico, con controllo di cicli, legami doppi e coder non usati;
+  - AES-256 (`06F10701`) con KDF SHA-256 a 2^NumCyclesPower iterazioni (fino a 2^24), password in UTF-16LE;
+  - CRC-32 di ogni voce e dei blocchi;
+  - multi-volume: `.7z.001`, `.002`… letti come un unico flusso; anche aprire `.7z.002` funziona. Un volume mancante dà un errore chiaro.
+- **Scrittura:**
+  - LZMA2 multi-thread: blocchi indipendenti (3× il dizionario, come xz) compressi da un pool mentre si leggono i successivi, e uniti con un reset del dizionario. È lo stesso schema del LZMA2 multi-thread di 7-Zip, quindi anche 7-Zip li decomprime in parallelo;
+  - blocco solid configurabile (`CreateOptions.solidBlockSize`: automatico 64× il dizionario, cioè 512 MiB al livello 6; `0` = un blocco per file);
+  - filtro ARM64 per gli eseguibili arm64 (Mach-O thin o universal, ELF AArch64), riconosciuti dall'intestazione e messi in blocchi separati;
+  - file già compressi (jpg, mp4, zip…) memorizzati con Copy in blocchi a parte;
+  - AES-256-CBC con IV casuale per blocco, 2^19 iterazioni, e **header cifrato di default** quando c'è una password (`encryptFileNames`), così senza password non si vedono nemmeno i nomi;
+  - CRC di ogni voce, permessi Unix e symlink nello stile p7zip (contenuto = destinazione, `S_IFLNK` negli attributi): `7zz x -snl` li ricrea;
+  - volumi (`CreateOptions.volumeSize`), con pulizia dei volumi in eccesso di un vecchio set sovrascritto.
+- **Integrazione:**
+  - `ArchiveFormat.sevenZip` (`7z`), riconosciuto dai magic byte `7z\xBC\xAF\x27\x1C`;
+  - `Xipper.create`, `extract`, `test`, `list` e `readEntry`. `list` e `plannedConflicts` hanno un parametro `password` per gli archivi con nomi cifrati;
+  - estrazione tramite `ExtractionContext` con tutte le protezioni (zip-slip, `..` e `\` di Windows, symlink, limiti, quarantena, conflitti, flatten, selezione);
+  - blocchi decompressi in parallelo, e i file piccoli scritti da un pool mentre il blocco solid viene decodificato;
+  - progresso e annullamento in creazione, estrazione e verifica;
+  - CLI: `-f 7z` o estensione `.7z`, `--solid SIZE|off`, `-v/--volume SIZE`, `--plain-names`, `list -p`;
+  - MCP: `archive_create` con `format: "7z"` e `solid`, `password_ref` anche in `archive_info`/`archive_list`.
+- **Decoder LZMA/LZMA2 in assembly ARM64:** di default si usa `LzmaDec` del LZMA SDK con il ciclo principale in assembly di 7-Zip (`Vendor/lzma-sdk/Asm/arm64/LzmaDecOpt.S`); liblzma resta il percorso portabile (`XIPPER_PORTABLE_LZMA=1` lo forza). I flussi senza reset vengono decodificati su un thread dedicato, pochi MiB avanti rispetto a chi consuma l'output.
+- **Test:** 21 nuovi test (51 casi) più uno MCP. In totale 68 test, tutti verdi:
+  - round trip solid, non solid e a blocchi piccoli, livelli 0/1/9, selezione, flatten, conflitti, progresso, annullamento, quarantena;
+  - password e nomi cifrati: password mancante, sbagliata e giusta, nomi assenti dai byte dell'archivio;
+  - `7zz t` e `7zz x` sui nostri archivi: solid, non solid, cifrati con header cifrato, Copy cifrato, volumi;
+  - lettura di 22 varianti create da `7zz`: LZMA2, LZMA, PPMd (anche ordine 32), BZip2, Deflate, Copy, BCJ, BCJ2, ARM64, ARM, ARMT, PPC, SPARC, Delta, non solid, LZMA2 multi-thread, header cifrati, dati cifrati, volumi (anche cifrati), header non compressi;
+  - decodifica parallela per segmenti, con e senza ARM64, anche su archivi multi-thread di 7-Zip;
+  - archivi troncati in 7 punti e con byte alterati, PPMd/BCJ2/Delta/BZip2 danneggiati, header ostili (offset oltre la fine, un miliardo di file, grafo di coder ciclico);
+  - zip-slip, path assoluti, `..\`, symlink verso l'esterno e scrittura attraverso symlink dentro un 7z, solid e non; rifiuto delle compression bomb;
+  - filtri BCJ in andata e ritorno a pezzi di 1, 7, 4096 byte e 1 MiB; codifica dei numeri 7z;
+  - decoder in assembly contro liblzma: LZMA2 (due blocchi uniti da un reset) e LZMA1 con e senza marker di fine, su testo, dati misti, casuali e zeri, con input a pezzi da 1 byte a 1 MiB; flussi troncati e alterati (mai un crash, e stesso output quando entrambi accettano); archivi LZMA, LZMA2 e BCJ2 di `7zz` decodificati in entrambi i modi.
+
+## Prestazioni
+Corpus dello spike: 465 MB, 11.688 voci, cache calda. Durante le misure altre sessioni usavano la macchina (load average 6–7), quindi i tempi sono indicativi.
+
+### Creazione
+
+| Archivio | Xipper | 7-Zip 26.03 |
+|---|---|---|
+| Livello 6 (default di Xipper) | **14,6 s** → 124,5 MB | `-mx6` 45,7 s → 120,7 MB |
+| Default di 7-Zip (`-mx5`) | — | 27,9 s → 123,1 MB |
+| Livello 9 | **39,6 s** → **112,1 MB** | `-mx9` 55,1 s → 118,8 MB |
+| Livello 6, non solid | 16,2 s → 135,6 MB | — |
+| Livello 6 con password e nomi cifrati | 19,6 s → 124,5 MB | — |
+| Riferimento: tar.xz -6 (fase 1) | 14,8 s → 134,5 MB | — |
+
+Al livello 6 siamo 3,1× più veloci di `-mx6` con un archivio più grande del 3%. 7-Zip ha un dizionario più grande e meno blocchi indipendenti; al livello 9 il nostro archivio è anche più piccolo.
+
+### Verifica ed estrazione
+
+| Caso | Xipper | 7-Zip 26.03 |
+|---|---|---|
+| Verifica, archivio Xipper -6 | 0,49 s | `7zz t` **0,38 s** |
+| Verifica, archivio Xipper -6 cifrato | 0,63 s | — |
+| Verifica, archivio Xipper -9 | **0,58 s** | 0,97 s |
+| Verifica, archivio `7zz -mx5` | 0,79 s | 0,79 s |
+| Verifica, archivio `7zz -mx6` (due blocchi da 256 MiB) | 1,27 s | 1,28 s |
+| Verifica, archivio `7zz -mx9` | 1,28 s | 1,27 s |
+| Estrazione, archivio Xipper -6 | **5,4 s** | `7zz x` 8,7 s |
+
+La verifica e l'estrazione dividono il flusso LZMA2 ai reset del dizionario (anche dietro AES) e decodificano i segmenti in parallelo: prima di questa ottimizzazione la verifica dell'archivio cifrato durava 1,66 s. L'estrazione è dominata dalla creazione dei file, ispezionati uno per uno da Jamf Protect (vedi la fase 1).
+
+**Assembly ARM64 contro liblzma**, stessi archivi e stessa macchina:
+
+| Verifica | `LzmaDecOpt.S` (default) | liblzma (portabile) |
+|---|---|---|
+| `7zz -mx6`, `-mx9` | **1,6 s** su un thread, 1,27 s in parallelo | 2,0 s |
+| Xipper -6 | **0,49 s** | 0,61 s |
+| Xipper -6, un thread | **1,70 s** | 2,09 s |
+
+Su un thread il decoder in assembly va come `7zz t -mmt=1` (1,66 s contro 1,66 s) ed è circa il 20% più veloce di liblzma. Il resto della differenza che c'era con 7-Zip non dipendeva dal decoder: i blocchi da 256 MiB di 7-Zip superavano il limite dei nostri segmenti, che ora arriva a 256 MiB compressi e 1 GiB decompressi (entro 1/32 e 1/16 della RAM).
+
+## Decisioni e scoperte
+- **Ordine dei coder** come lo scrive 7-Zip, dal lato compresso: `[7zAES] → LZMA2 → [ARM64]`, ognuno legato al precedente. I blocchi Copy cifrati hanno il solo AES.
+- **7z non ha un verificatore della password:** un errore di decodifica o di CRC in un blocco cifrato viene riportato come `wrongPassword`, come fa 7-Zip ("Wrong password?").
+- **Dizionario dichiarato = min(dizionario del livello, dimensione del blocco):** il decoder alloca quanto dichiarato, così gli archivi piccoli richiedono poca memoria. In lettura lo limitiamo allo stesso modo, anche per archivi altrui.
+- **I file già compressi non passano da LZMA2:** 7-Zip li comprime comunque, sprecando tempo.
+- **Dal LZMA SDK 26.05** (pubblico dominio, `Vendor/lzma-sdk`) vengono solo il decoder PPMd e il decoder LZMA/LZMA2 con il ciclo in assembly ARM64, ciascuno dietro un piccolo wrapper C. BCJ2 è scritto in Swift; i filtri x86, ARM, ARMT, PPC e SPARC sono portati da liblzma; ARM64 e RISC-V usano le funzioni a chiamata singola di liblzma 5.8.
+- **Nomi con `\`** (archivi creati su Windows) trattati come separatori.
+- **`ArchiveEntry.encryption`** per 7z vale `.aes(strength: 3, vendorVersion: 0, actualMethod: 0)`: `vendorVersion` 0 indica 7z AES-256-CBC, così l'etichetta "AES-256" dell'app funziona senza modifiche.
+- **Bug di liblzma aggirato:** con LZMA1 a dimensione nota, un marker di fine diviso fra due blocchi d'input veniva rifiutato come dato non valido dopo aver prodotto tutto l'output. Lo trovano i test di confronto con l'input a pezzi da 7 byte. Ora il decoder portabile si ferma quando ha prodotto la dimensione dichiarata, e la correzione vale anche per il metodo LZMA (14) dei ZIP.
+- **In debug** il linker avvisa "could not associate debug note" per le costanti `.equ` di `LzmaDecOpt.S`. È innocuo e in release non compare; il file vendorizzato resta invariato.
+- **Bug della CLI corretto:** `create --overwrite` si mangiava l'opzione successiva (per esempio `--password-stdin`), che diventava il nome dell'archivio.
+
+## Rimandato
+- **App:** aggiungere `.sevenZip` agli `switch` esaustivi su `ArchiveFormat` (`Preferences.displayName`), passare la password a `Xipper.list` per i nomi cifrati e mostrare le opzioni solid, volumi e "cifra i nomi". Se ne occupa la sessione dell'app.
+- **Scrittura di PPMd e BCJ2** (oggi solo lettura) e ordinamento dei file per estensione (`-mqs`), che migliorerebbe il rapporto sui sorgenti.
+- **Lettura di Deflate64, IA64, SWAP2/4 e degli archivi SFX** (7z con eseguibile davanti).
+- **Decodifica parallela dei flussi senza reset:** impossibile per costruzione. Il decoder è già quello in assembly di 7-Zip.
+- **GPU:** LZMA, PPMd e BCJ2 sono sequenziali per natura e non si prestano a Metal.
+- **Aggiornamento sul posto** (aggiungere o togliere voci senza riscrivere l'archivio) e metadati macOS (xattr, ACL) nell'archivio.
 
 ---
 

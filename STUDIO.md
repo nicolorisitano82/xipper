@@ -136,7 +136,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
 | ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
 | ZIP multi-volume (`.z01`…, `.zip.001`…) | 🔜 | ✅ fatto | | nostro (lettura di parti unite, da qualsiasi parte) |
-| **7z** | ✅ | ✅ | ✅ AES-256 + **cifratura dei nomi file** | LZMA SDK (public domain): LZMA/LZMA2, PPMd, filtri BCJ/**ARM64** |
+| **7z** | ✅ fase 3 | ✅ | ✅ AES-256 + **cifratura dei nomi file** (default con password) | contenitore nostro; LZMA/LZMA2 da liblzma (LZMA2 multi-thread in scrittura, decodifica parallela ai reset), PPMd dal LZMA SDK (pubblico dominio, solo lettura), BCJ/BCJ2/ARM64/ARM/ARMT/PPC/SPARC/RISC-V/Delta, BZip2, Deflate; solid configurabile, multi-volume in lettura e scrittura → [FASE1.md](FASE1.md) |
 | **TAR** (ustar, pax, GNU) | ✅ | ✅ | — | nostro |
 | **tar.gz / .tgz**, **gzip** | ✅ | ✅ | | deflate parallelo (stile pigz) |
 | **tar.bz2**, **bzip2** | ✅ | ✅ | | libbz2 di sistema, parallelo per blocchi |
@@ -494,8 +494,8 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.7 Genomica 2 (GA4GH, locale)** ✅ | Creazione di tabix/CSI compatibile htslib (query identiche a `tabix`), verifica degli indici `.tbi`/`.csi`/`.bai`/`.gzi`/`.crai`, verifica strutturale di CRAM 3.0/3.1 e di VCF.gz/BCF, manifest sha-256/md5/crc32c (JSON DRS, `sha256sum`/`md5sum`); CLI `xipper tabix`/`index-check`/`manifest`, MCP `genomics_index`/`genomics_check`/`checksum_manifest` (§4.6) | completata il 21/10/2026 → [FASE1.md](FASE1.md) (Finder: con l'app) |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
-| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta2 pubblicata il 21/10/2026; restano Developer ID e notarizzazione, Apple Archive / lz4 / brotli in lettura (dopo il merge del 7z), varianti dell'icona → [FASE2.md](FASE2.md) |
-| **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
+| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta2 pubblicata il 21/10/2026; restano Developer ID e notarizzazione, Apple Archive / CPIO / lz4 / brotli in lettura, 7z nell'app, varianti dell'icona → [FASE2.md](FASE2.md) |
+| **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
 | **4. v2** | ⭐ **Ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi: decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, con percorso portabile di riserva, benchmark e test di equivalenza (§5.3). Poi montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
 
 ---

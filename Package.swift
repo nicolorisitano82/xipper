@@ -62,6 +62,18 @@ let package = Package(
             publicHeadersPath: "liblzma/api",
             cSettings: lzmaDefines
         ),
+        // LZMA SDK (public domain): PPMd, and LZMA/LZMA2 decoding with 7-Zip's ARM64 assembly loop.
+        .target(
+            name: "CLzmaSDK",
+            path: "Vendor/lzma-sdk",
+            sources: ["C/Ppmd7.c", "C/Ppmd7Dec.c", "C/LzmaDec.c", "C/Lzma2Dec.c", "Asm/arm64/LzmaDecOpt.S",
+                      "shim/xs_ppmd.c", "shim/xs_lzdec.c"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("Z7_LZMA_DEC_OPT"),
+                .define("NDEBUG", .when(configuration: .release)),
+            ]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -70,7 +82,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CXipShims"]
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims"]
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
         .target(
@@ -83,7 +95,7 @@ let package = Package(
         ),
         .testTarget(
             name: "XipperKitTests",
-            dependencies: ["XipperKit", "XipperMCP"]
+            dependencies: ["XipperKit", "XipperMCP", "CLZMA"]
         ),
     ],
     swiftLanguageModes: [.v6]

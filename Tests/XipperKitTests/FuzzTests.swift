@@ -51,7 +51,7 @@ struct FuzzTests {
         return b
     }
 
-    @Test(arguments: [ArchiveFormat.zip, .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .gzip, .bgzf, .xz, .zstd])
+    @Test(arguments: [ArchiveFormat.zip, .sevenZip, .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .gzip, .bgzf, .xz, .zstd])
     func mutatedArchivesNeverCrashOrEscape(format: ArchiveFormat) throws {
         let t = TempDir()
         t.write("src/a.txt", String(repeating: "Xipper fuzz ", count: 300))

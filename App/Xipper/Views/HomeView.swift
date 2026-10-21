@@ -258,7 +258,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!format.supportsPassword)
-                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : "La password è disponibile solo per ZIP")
+                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile solo per ZIP e 7z"))
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
@@ -328,7 +328,8 @@ struct HomeView: View {
         switch f {
         case .zip: String(localized: "si apre ovunque")
         case .tarZstd: String(localized: "il più veloce")
-        case .tarXz: "compatto"
+        case .sevenZip: String(localized: "compatto, nomi cifrati")
+        case .tarXz: String(localized: "compatto")
         case .tarGzip: String(localized: "Linux e server")
         case .tarBzip2: String(localized: "compatibilità")
         case .tar: String(localized: "senza compressione")

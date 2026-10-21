@@ -47,6 +47,8 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.zipMethod) private var method = "deflate"
     @AppStorage(PrefKey.storeCompressed) private var store = true
     @AppStorage(PrefKey.keepMacFiles) private var keepMac = false
+    @AppStorage(PrefKey.sevenZipEncryptNames) private var encryptNames = true
+    @AppStorage(PrefKey.sevenZipSolid) private var solid = true
 
     var body: some View {
         Form {
@@ -58,6 +60,10 @@ private struct FormatSettings: View {
                 }
                 Toggle("Non ricomprimere file già compressi (foto, video, archivi)", isOn: $store)
                 Toggle("Includi file nascosti del Mac (.DS_Store, ._*)", isOn: $keepMac)
+            }
+            Section("7z") {
+                Toggle("Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)", isOn: $solid)
+                Toggle("Con la password, cifra anche i nomi dei file", isOn: $encryptNames)
             }
             Section {
                 Text("Gli archivi tar.zst sono i più veloci e compatti per backup e scambio tra Mac e Linux; ZIP resta il più compatibile con Windows.")

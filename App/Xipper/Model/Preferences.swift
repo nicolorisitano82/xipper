@@ -21,6 +21,8 @@ enum PrefKey {
     static let onboardingDone = "onboardingDone"
     static let updatesAutomatic = "updatesAutomatic"
     static let menuBarExtra = "showMenuBarExtra"
+    static let sevenZipEncryptNames = "sevenZipEncryptNames"
+    static let sevenZipSolid = "sevenZipSolid"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
 }
@@ -73,6 +75,8 @@ enum Preferences {
             PrefKey.mcpReadOnly: false,
             PrefKey.vaultRequiresAuth: true,
             PrefKey.updatesAutomatic: true,
+            PrefKey.sevenZipEncryptNames: true,
+            PrefKey.sevenZipSolid: true,
         ])
     }
 
@@ -96,6 +100,9 @@ enum Preferences {
         o.scan.excludeMacMetadata = !defaults.bool(forKey: PrefKey.keepMacFiles)
         o.genomicsUsesBGZF = defaults.bool(forKey: PrefKey.genomicsBGZF)
         o.writeBGZFIndex = defaults.bool(forKey: PrefKey.bgzfIndex)
+        o.encryptFileNames = defaults.bool(forKey: PrefKey.sevenZipEncryptNames)
+        // nil = automatic solid blocks; 0 = one block per file.
+        o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0
         o.workload = workload
         return o
     }
@@ -130,11 +137,12 @@ extension ArchiveFormat {
         case .bzip2: "bzip2 (.bz2)"
         case .xz: "xz (.xz)"
         case .zstd: "zstd (.zst)"
+        case .sevenZip: "7z"
         }
     }
 
     /// Formats offered when compressing several items or a folder.
-    static let multiItem: [ArchiveFormat] = [.zip, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar]
+    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar]
     static let singleFile: [ArchiveFormat] = [.gzip, .bgzf, .zstd, .xz, .bzip2]
 }
 

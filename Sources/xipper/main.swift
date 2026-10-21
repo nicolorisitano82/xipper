@@ -9,10 +9,13 @@ let usage = """
 usage: xipper <command> [options]
 
   create  [options] <archive> <file|folder>...
-      -f, --format FMT     zip (default from name), tar, tar.gz, tar.bz2, tar.xz, tar.zst, gz, bz2, xz, zst
-      -l, --level N        compression level (zip 1-12, zstd 1-22, xz 0-9, bzip2 1-9)
+      -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, gz, bz2, xz, zst
+      -l, --level N        compression level (zip 1-12, zstd 1-22, xz/7z 0-9, bzip2 1-9)
       -m, --method M       zip method: deflate (default), zstd, store
-      -p, --password       encrypt (zip, AES-256); prompts for the password
+      -p, --password       encrypt (zip, 7z: AES-256); prompts for the password
+          --solid SIZE     7z solid block size (e.g. 64m, 2g; "off" = one block per file)
+      -v, --volume SIZE    7z: split into volumes of SIZE (name.7z.001, .002, …)
+          --plain-names    7z with a password: leave file names readable
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
@@ -26,7 +29,7 @@ usage: xipper <command> [options]
       -p, --password / --password-stdin
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
-  list    [--long] <archive>
+  list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
   mcp     [options]               MCP server on stdio for AI agents (see `xipper mcp --help`)
   bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
       (default)            compress FILE to FILE.gz (the original is kept)
@@ -65,23 +68,24 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256"])
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
-    : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite"]
+    : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
+       "--solid", "-v", "--volume"]
 do {
     var i = 0
     while i < args.count {
         let a = args[i]
         if a == "--" { positional += args[(i + 1)...]; break }
         if a.hasPrefix("-") && a.count > 1 {
+            if a == "--overwrite" && command == "create" { flags.insert(a); i += 1; continue }
             if valueOptions.contains(a) {
                 guard i + 1 < args.count else { throw Usage(message: "\(a) needs a value") }
                 values[a] = args[i + 1]
                 i += 2
                 continue
             }
-            if a == "--overwrite" && command == "create" { flags.insert(a); i += 1; continue }
             guard knownFlags.contains(a) else { throw Usage(message: "unknown option \(a)") }
             flags.insert(a)
         } else {
@@ -89,11 +93,7 @@ do {
         }
         i += 1
     }
-    // `create --overwrite` is a flag, `extract --overwrite P` takes a value.
-    if command == "create", let v = values.removeValue(forKey: "--overwrite") {
-        flags.insert("--overwrite")
-        positional.insert(v, at: 0)
-    }
+    // `create --overwrite` is a flag (handled above), `extract --overwrite P` takes a value.
 } catch let u as Usage {
     fputs("xipper: \(u.message)\n", stderr)
     exit(2)
@@ -101,6 +101,18 @@ do {
 
 @MainActor func value(_ names: String...) -> String? { names.lazy.compactMap { values[$0] }.first }
 @MainActor func flag(_ names: String...) -> Bool { names.contains { flags.contains($0) } }
+
+/// "512k", "64m", "2g", "1000" → bytes.
+func parseSize(_ s: String) -> Int64? {
+    let units: [Character: Int64] = ["k": 1 << 10, "m": 1 << 20, "g": 1 << 30, "t": 1 << 40]
+    var t = s.lowercased()
+    if t.hasSuffix("b") { t.removeLast() }
+    let mult = t.last.flatMap { units[$0] } ?? 1
+    if mult > 1 { t.removeLast() }
+    guard let n = Int64(t), n >= 0 else { return nil }
+    let (v, overflow) = n.multipliedReportingOverflow(by: mult)
+    return overflow ? nil : v
+}
 
 func fail(_ message: String, code: Int32 = 1) -> Never {
     fputs("xipper: \(message)\n", stderr)
@@ -197,11 +209,20 @@ case "create", "c":
     case let m?: fail("unknown method \(m)", code: 2)
     }
     o.forceZip64 = flag("--zip64")
+    if let v = value("--solid") {
+        guard let n = v.lowercased() == "off" ? 0 : parseSize(v) else { fail("invalid solid block size \(v)", code: 2) }
+        o.solidBlockSize = n
+    }
+    if let v = value("-v", "--volume") {
+        guard let n = parseSize(v), n > 0 else { fail("invalid volume size \(v)", code: 2) }
+        o.volumeSize = n
+    }
+    o.encryptFileNames = !flag("--plain-names")
     o.overwrite = flag("--overwrite")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
     o.workload = workload
     o.password = readPassword(confirm: true)
-    if let pw = o.password, pw.utf8.contains(where: { $0 >= 0x80 }) {
+    if o.format == .zip, let pw = o.password, pw.utf8.contains(where: { $0 >= 0x80 }) {
         fputs("xipper: warning: non-ASCII passwords cannot be entered in 7-Zip\n", stderr)
     }
     run {
@@ -263,8 +284,9 @@ case "test", "t":
 
 case "list", "l":
     guard positional.count == 1 else { fail("list needs one archive", code: 2) }
+    let pw = readPassword(confirm: false)
     run {
-        let entries = try Xipper.list(URL(fileURLWithPath: positional[0]), workload: workload)
+        let entries = try Xipper.list(URL(fileURLWithPath: positional[0]), password: pw, workload: workload)
         let long = flag("--long")
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd HH:mm"
@@ -470,7 +492,7 @@ func buildBundle(executable: String, output: String) throws {
         ["name": "archive_test", "description": "Verify archive integrity"],
         ["name": "archive_read_entry", "description": "Read one entry without extracting"],
         ["name": "archive_extract", "description": "Extract safely into an allowed folder"],
-        ["name": "archive_create", "description": "Create zip / tar.* / gz / BGZF archives"],
+        ["name": "archive_create", "description": "Create zip / 7z / tar.* / gz / BGZF archives"],
         ["name": "bgzf_compress", "description": "Genomics: compress with BGZF (bgzip)"],
         ["name": "bgzf_check", "description": "Genomics: verify BGZF, BAM, BCF"],
         ["name": "bgzf_convert", "description": "Genomics: convert plain gzip to BGZF"],
@@ -483,7 +505,7 @@ func buildBundle(executable: String, output: String) throws {
         "name": "xipper",
         "display_name": "Xipper",
         "version": MCPServer.serverVersion,
-        "description": "Create, list, verify and extract archives (zip, tar.*, gz, BGZF for genomics) on your Mac, only inside the folders you choose.",
+        "description": "Create, list, verify and extract archives (zip, 7z, tar.*, gz, BGZF for genomics) on your Mac, only inside the folders you choose.",
         "author": ["name": "nicolorisitano82", "url": "https://github.com/nicolorisitano82/xipper"],
         "repository": ["type": "git", "url": "https://github.com/nicolorisitano82/xipper"],
         "license": "MIT",

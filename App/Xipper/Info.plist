@@ -37,6 +37,7 @@
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.zip-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -58,6 +59,7 @@
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.zip-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -80,6 +82,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.zip-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -94,6 +97,16 @@
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.7-zip.7-zip-archive</string>
+			<key>UTTypeDescription</key>
+			<string>7-Zip archive</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>7z</string></array><key>public.mime-type</key><array><string>application/x-7z-compressed</string></array></dict>
+		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>com.facebook.zstandard-archive</string>

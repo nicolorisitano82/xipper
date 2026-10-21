@@ -25,7 +25,7 @@ struct OnboardingView: View {
                 FIFinderSyncController.showExtensionManagementInterface()
             }
             step(symbol: "doc.zipper", title: String(localized: "Apri gli archivi con Xipper"),
-                 detail: String(localized: "Doppio clic su ZIP, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio."),
+                 detail: String(localized: "Doppio clic su ZIP, 7z, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio."),
                  done: isDefault, action: isDefault ? nil : String(localized: "Imposta")) {
                 Task { await DefaultApp.makeDefault(); isDefault = DefaultApp.isDefault }
             }
@@ -69,7 +69,7 @@ struct OnboardingView: View {
 
 /// Default handler for the archive types Xipper declares.
 enum DefaultApp {
-    static let types: [UTType] = ["public.zip-archive", "public.tar-archive", "org.gnu.gnu-zip-archive",
+    static let types: [UTType] = ["public.zip-archive", "org.7-zip.7-zip-archive", "public.tar-archive", "org.gnu.gnu-zip-archive",
                                   "org.gnu.gnu-zip-tar-archive", "public.bzip2-archive", "org.tukaani.xz-archive",
                                   "org.tukaani.tar-xz-archive", "com.facebook.zstandard-archive",
                                   "app.xipper.tar-zstd", "app.xipper.bgzf"].compactMap { UTType($0) }

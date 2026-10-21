@@ -6,16 +6,17 @@ import XipperKit
 /// They call XipperKit directly and return the files they produce, so they chain with other actions.
 
 enum IntentFormat: String, AppEnum {
-    case zip, tarZstd, tarGzip, tarXz
+    case zip, sevenZip, tarZstd, tarGzip, tarXz
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Formato"
     static let caseDisplayRepresentations: [IntentFormat: DisplayRepresentation] = [
-        .zip: "ZIP", .tarZstd: "tar.zst", .tarGzip: "tar.gz", .tarXz: "tar.xz",
+        .zip: "ZIP", .sevenZip: "7z", .tarZstd: "tar.zst", .tarGzip: "tar.gz", .tarXz: "tar.xz",
     ]
 
     var format: ArchiveFormat {
         switch self {
         case .zip: .zip
+        case .sevenZip: .sevenZip
         case .tarZstd: .tarZstd
         case .tarGzip: .tarGzip
         case .tarXz: .tarXz

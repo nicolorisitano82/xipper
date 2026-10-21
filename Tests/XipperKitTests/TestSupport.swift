@@ -60,6 +60,8 @@ func run(_ tool: String, _ args: [String], stdin: String? = nil, cwd: String? = 
     // afterwards can deadlock when either pipe fills up (it hung the MCP end-to-end test).
     let writer = DispatchGroup()
     if let inPipe, let bytes = stdin?.data(using: .utf8) {
+        // A child that exits without reading all of stdin must not kill the tests with SIGPIPE.
+        _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         DispatchQueue.global().async(group: writer) {
             try? inPipe.fileHandleForWriting.write(contentsOf: bytes)
             try? inPipe.fileHandleForWriting.close()

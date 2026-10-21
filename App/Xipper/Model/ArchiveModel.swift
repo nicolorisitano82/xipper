@@ -35,22 +35,28 @@ final class ArchiveModel {
     /// Password for encrypted entries, once the user (or the Keychain) supplied it.
     var password: String?
 
+    /// A 7z with encrypted names cannot even be listed without the password.
+    private(set) var namesLocked = false
+
     init(url: URL) { self.url = url }
 
-    var isEncrypted: Bool { entries.contains(where: \.isEncrypted) }
+    var isEncrypted: Bool { namesLocked || entries.contains(where: \.isEncrypted) }
     var totalSize: Int64 { entries.reduce(0) { $0 + max(0, $1.uncompressedSize) } }
     var archiveSize: Int64 { ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.int64Value ?? 0 }
     var fileCount: Int { entries.filter { $0.kind == .file }.count }
 
     func load() async {
         loading = true
+        error = nil
+        namesLocked = false
         let url = url
+        let pw = password
         let result = await Task.detached { () -> Result<(ArchiveFormat?, [ArchiveEntry], BGZFInfo?), Error> in
             Result {
                 let f = try ArchiveFormat.detect(url)
                 // AppleDouble metadata ("__MACOSX/", "._name") is merged into the files on extraction:
                 // the browser does not show it either.
-                var entries = try Xipper.list(url).filter { !$0.isAppleDoubleMetadata }
+                var entries = try Xipper.list(url, password: pw).filter { !$0.isAppleDoubleMetadata }
                 if f == .bgzf {
                     // Sizes come from the block chain without decompressing.
                     let info = try Xipper.bgzfInfo(url)
@@ -70,7 +76,14 @@ final class ArchiveModel {
             bgzf = b
             folders = Self.folderSet(e).sorted()
         case let .failure(err):
-            error = (err as? XipperError).map(Job.localized) ?? err.localizedDescription
+            switch err as? XipperError {
+            case .passwordRequired?, .wrongPassword?:
+                format = try? ArchiveFormat.detect(url)
+                namesLocked = true
+                self.password = nil
+            default:
+                error = (err as? XipperError).map(Job.localized) ?? err.localizedDescription
+            }
         }
         loading = false
     }
@@ -110,6 +123,10 @@ final class ArchiveModel {
 
     /// Whether `password` opens the encrypted entries (checked on the first one).
     func check(password: String) async -> Bool {
+        if namesLocked {
+            let url = url
+            return await Task.detached { (try? Xipper.list(url, password: password)) != nil }.value
+        }
         guard let entry = entries.first(where: { $0.isEncrypted && $0.kind == .file }) else { return true }
         let url = url
         return await Task.detached {

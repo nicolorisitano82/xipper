@@ -91,6 +91,7 @@ struct ArchiveBrowserView: View {
         }
         .task {
             await model.load()
+            if model.namesLocked { unlockNames() }
             #if DEBUG
             if ProcessInfo.processInfo.environment["XIPPER_DEMO_EXTRACT_SHEET"] != nil {
                 let firstFolder = model.folders.first.map { Set([$0]) }
@@ -138,6 +139,18 @@ struct ArchiveBrowserView: View {
         }
     }
 
+    /// 7z with encrypted names: the password (Keychain first) is needed to list the content.
+    private func unlockNames() {
+        Task {
+            if let pw = await PasswordVault.password(for: url), await model.check(password: pw) {
+                model.password = pw
+                await model.load()
+            } else {
+                passwordPrompt = PasswordPrompt(wrong: false) { Task { await model.load() } }
+            }
+        }
+    }
+
     /// Selected files (not folders) for the Quick Look panel.
     private func syncQuickLook() {
         quickLook.archive = url
@@ -177,6 +190,14 @@ struct ArchiveBrowserView: View {
             .transition(.opacity)
         } else if model.loading {
             ProgressView("Lettura dell'archivio…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if model.namesLocked {
+            ContentUnavailableView {
+                Label("Nomi dei file cifrati", systemImage: "lock.fill")
+            } description: {
+                Text("Questo archivio nasconde anche i nomi dei file. Inserisci la password per vederne il contenuto.")
+            } actions: {
+                Button("Password…") { unlockNames() }.buttonStyle(.glassProminent)
+            }
         } else if let error = model.error {
             ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
         } else {
@@ -265,7 +286,7 @@ struct ArchiveBrowserView: View {
             }
             .buttonStyle(.glassProminent)
             .help("Estrai accanto all'archivio (⌥ per scegliere la cartella)")
-            .disabled(model.loading || model.error != nil)
+            .disabled(model.loading || model.error != nil || model.namesLocked)
         }
         ToolbarSpacer(.fixed)
         ToolbarItemGroup {
@@ -273,7 +294,7 @@ struct ArchiveBrowserView: View {
                 verifyJob = jobs.start(.test(archive: url, password: model.password))
             }
             .help("Verifica l'integrità senza estrarre")
-            .disabled(model.loading || model.error != nil)
+            .disabled(model.loading || model.error != nil || model.namesLocked)
             Button("Info", systemImage: "info.circle") { showInspector.toggle() }
                 .help("Mostra o nasconde l'inspector")
         }
@@ -353,7 +374,7 @@ private struct ArchiveInspector: View {
                     if model.totalSize > 0 {
                         LabeledContent("Rapporto", value: "\(Int((Double(model.archiveSize) / Double(model.totalSize) * 100).rounded()))%")
                     }
-                    LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì (AES/ZipCrypto)") : "No")
+                    LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì") : "No")
                 }
                 if let b = model.bgzf {
                     Section("BGZF (genomica)") {
