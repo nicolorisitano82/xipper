@@ -4,7 +4,7 @@ import XipperKit
 /// Floating stack of glass capsules, one per job (Liquid Glass control layer).
 struct JobsHUD: View {
     @Environment(JobCenter.self) private var center
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var glass
 
     var body: some View {
@@ -12,22 +12,21 @@ struct JobsHUD: View {
             VStack(alignment: .trailing, spacing: 8) {
                 ForEach(center.jobs.filter { !center.focused.contains($0.id) }) { job in
                     JobCapsule(job: job)
-                        .glassEffect(glass(for: job), in: .rect(cornerRadius: 24))
+                        .accessibleGlass(tint: tint(for: job), in: RoundedRectangle(cornerRadius: 24))
                         .glassEffectID(job.id, in: glass)
-                        .transition(.blurReplace)
+                        .transition(AnyTransition.morph(reduceMotion: reduceMotion, AnyTransition(.blurReplace)))
                 }
             }
         }
         .frame(maxWidth: 380)
-        .animation(.snappy, value: center.jobs.map(\.id))
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy, value: center.jobs.map(\.id))
     }
 
-    private func glass(for job: Job) -> Glass {
-        if reduceTransparency { return .identity }
+    private func tint(for job: Job) -> Color? {
         switch job.state {
-        case .failed: return .regular.tint(.red.opacity(0.35))
-        case .needsPassword, .needsOverride: return .regular.tint(.orange.opacity(0.3))
-        default: return .regular
+        case .failed: .red
+        case .needsPassword, .needsOverride: .orange
+        default: nil
         }
     }
 }
@@ -37,13 +36,16 @@ private struct JobCapsule: View {
     @Environment(JobCenter.self) private var center
     @State private var askPassword = false
     @State private var showReport = false
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
                     .foregroundStyle(iconColor)
-                    .symbolEffect(.pulse, isActive: job.isRunning)
+                    .symbolEffect(.pulse, isActive: job.isRunning && !reduceMotion)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(job.title).font(.callout.weight(.semibold)).lineLimit(1).truncationMode(.middle)
                     Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -91,15 +93,15 @@ private struct JobCapsule: View {
     private var subtitle: String {
         switch job.state {
         case .running:
-            if job.paused { return "In pausa: un file esiste già" }
+            if job.paused { return String(localized: "In pausa: un file esiste già") }
             guard let p = job.progress else { return "\(job.verb) in corso…" }
-            let pct = p.totalBytes > 0 ? "\(Int(p.fraction * 100))% · " : ""
+            let pct = p.totalBytes > 0 ? String(localized: "\(Int(p.fraction * 100))% · ") : ""
             return "\(pct)\(Int(job.smoothedSpeed / 1e6)) MB/s" + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
         case let .finished(s): return s
         case let .failed(s): return s
-        case .cancelled: return "Annullato"
-        case let .needsPassword(wrong): return wrong ? "Password errata" : "Archivio protetto da password"
-        case .needsOverride: return "Possibile zip bomb: estrazione fermata prima di scrivere"
+        case .cancelled: return String(localized: "Annullato")
+        case let .needsPassword(wrong): return wrong ? String(localized: "Password errata") : String(localized: "Archivio protetto da password")
+        case .needsOverride: return String(localized: "Possibile zip bomb: estrazione fermata prima di scrivere")
         }
     }
 
@@ -110,7 +112,8 @@ private struct JobCapsule: View {
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
         case .finished, .failed:
             if !job.report.isEmpty || job.verifyOK != nil {
-                Button("Dettagli", systemImage: "list.bullet.rectangle") { showReport = true }
+                Button("Dettagli", systemImage: "list.bullet.rectangle") { showDetails() }
+                    .help("Dettagli")
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
             }
             if let out = job.output {
@@ -124,25 +127,29 @@ private struct JobCapsule: View {
         case .needsPassword:
             Button("Password…") { askPassword = true }.buttonStyle(.glass)
             dismiss
-        case let .needsOverride(message):
-            Button("Estrai comunque") { confirmOverride(message) }.buttonStyle(.glass)
+        case .needsOverride:
+            Button("Opzioni…") {
+                if case let .extract(r) = job.kind { ZipBombPrompt.ask(for: job, request: r) }
+            }
+            .buttonStyle(.glass)
             dismiss
+        }
+    }
+
+    /// Damaged entries open in the archive window (5.2), blocked items in their own window (6.3).
+    private func showDetails() {
+        if case let .test(archive, _) = job.kind, job.verifyOK == false {
+            AppState.shared.reportRequests[archive] = job.id
+            openWindow(id: "archive", value: archive)
+        } else if !job.blocked.isEmpty {
+            BlockedEntriesWindow.show(job)
+        } else {
+            showReport = true
         }
     }
 
     private var dismiss: some View {
         Button("Chiudi", systemImage: "xmark") { center.remove(job) }
             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
-    }
-
-    /// Second, explicit confirmation before lifting the zip-bomb guard.
-    private func confirmOverride(_ message: String) {
-        let alert = NSAlert()
-        alert.alertStyle = .critical
-        alert.messageText = "Estrarre comunque \(job.title)?"
-        alert.informativeText = "Xipper ha fermato l'estrazione: \(message).\nUn archivio così può riempire il disco. Continua solo se ti fidi della provenienza."
-        alert.addButton(withTitle: "Annulla")
-        alert.addButton(withTitle: "Estrai comunque")
-        if alert.runModal() == .alertSecondButtonReturn { center.retry(job, ratioOverride: 1_000_000) }
     }
 }

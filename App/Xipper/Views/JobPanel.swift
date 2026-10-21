@@ -9,7 +9,6 @@ struct JobPanel: View {
     let onHide: () -> Void
     @Environment(JobCenter.self) private var center
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -21,24 +20,19 @@ struct JobPanel: View {
         }
         .padding(30)
         .frame(maxWidth: 560)
-        .glassEffect(glass, in: .rect(cornerRadius: 30))
+        .accessibleGlass(tint: { if case .failed = job.state { Color.red } else { nil } }(), in: RoundedRectangle(cornerRadius: 30))
         .animation(.easeInOut(duration: 0.25), value: job.isRunning)
     }
 
-    private var glass: Glass {
-        if reduceTransparency { return .identity }
-        if case .failed = job.state { return .regular.tint(.red.opacity(0.3)) }
-        return .regular
-    }
 
     // MARK: 2.4
 
     private var running: some View {
         VStack(alignment: .leading, spacing: 18) {
             header(symbol: "arrow.down.right.and.arrow.up.left", color: .accentColor,
-                   title: "Compressione in corso", subtitle: job.title)
+                   title: String(localized: "Compressione in corso"), subtitle: job.title)
             HStack(alignment: .firstTextBaseline) {
-                Text(job.smoothedSpeed > 0 ? "\(Int(job.smoothedSpeed / 1e6))" : "…")
+                Text(job.smoothedSpeed > 0 ? String(localized: "\(Int(job.smoothedSpeed / 1e6))") : "…")
                     .font(.system(size: 44, weight: .bold)).monospacedDigit()
                     .foregroundStyle(job.smoothedSpeed > 0 ? .primary : .secondary)
                     .contentTransition(.numericText())
@@ -78,7 +72,8 @@ struct JobPanel: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 56)).foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: job.isRunning)
+                    .bounce(on: job.isRunning)
+                    .accessibilityHidden(true)
                 Text("Archivio creato").font(.title2.weight(.semibold))
                 if let out = job.output {
                     Text("\(out.lastPathComponent), in \(out.deletingLastPathComponent().lastPathComponent)").foregroundStyle(.secondary)
@@ -86,9 +81,9 @@ struct JobPanel: View {
             }
             if let r = job.writeReport {
                 HStack(spacing: 10) {
-                    tile("Dimensione", r.outputBytes.byteText, saving(r))
-                    tile("Tempo", seconds(r.elapsed), "\(r.entries.formatted()) elementi")
-                    tile("Velocità media", r.elapsed > 0 ? "\(Int(Double(r.inputBytes) / r.elapsed / 1e6)) MB/s" : "—",
+                    tile(String(localized: "Dimensione"), r.outputBytes.byteText, saving(r))
+                    tile(String(localized: "Tempo"), seconds(r.elapsed), String(localized: "\(r.entries) elementi"))
+                    tile(String(localized: "Velocità media"), r.elapsed > 0 ? String(localized: "\(Int(Double(r.inputBytes) / r.elapsed / 1e6)) MB/s") : "—",
                          "\(CPUTopology.performanceCores) P-core")
                 }
             }
@@ -121,7 +116,7 @@ struct JobPanel: View {
             switch job.state {
             case let .failed(message):
                 header(symbol: "xmark.circle.fill", color: .red, title: failureTitle(message),
-                       subtitle: "La compressione si è fermata al \(Int((job.progress?.fraction ?? 0) * 100))%.")
+                       subtitle: String(localized: "La compressione si è fermata al \(Int((job.progress?.fraction ?? 0) * 100))%."))
                 if job.progress?.fraction ?? 0 > 0 {
                     ProgressView(value: job.progress?.fraction ?? 0).tint(.red)
                 }
@@ -147,8 +142,8 @@ struct JobPanel: View {
                     Button("Salva altrove…") { saveElsewhere() }.buttonStyle(.glassProminent)
                 }
             default:
-                header(symbol: "xmark.circle", color: .secondary, title: "Compressione annullata",
-                       subtitle: "Nessun file è stato creato.")
+                header(symbol: "xmark.circle", color: .secondary, title: String(localized: "Compressione annullata"),
+                       subtitle: String(localized: "Nessun file è stato creato."))
                 HStack {
                     Spacer()
                     Button("Chiudi") { onClose() }.buttonStyle(.glassProminent)
@@ -159,11 +154,11 @@ struct JobPanel: View {
 
     private func failureTitle(_ message: String) -> String {
         switch job.failure {
-        case .diskFull?: "Spazio su disco esaurito"
-        case .permission?: "Permessi insufficienti"
-        case .readOnly?: "Volume in sola lettura"
-        case .volumeGone?: "Volume non disponibile"
-        default: "Compressione non riuscita"
+        case .diskFull?: String(localized: "Spazio su disco esaurito")
+        case .permission?: String(localized: "Permessi insufficienti")
+        case .readOnly?: String(localized: "Volume in sola lettura")
+        case .volumeGone?: String(localized: "Volume non disponibile")
+        default: String(localized: "Compressione non riuscita")
         }
     }
 
@@ -173,8 +168,8 @@ struct JobPanel: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Salva qui"
-        panel.message = "Scegli dove salvare l'archivio"
+        panel.prompt = String(localized: "Salva qui")
+        panel.message = String(localized: "Scegli dove salvare l'archivio")
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         center.relocate(job, to: folder)
         onClose()
@@ -212,8 +207,8 @@ struct JobPanel: View {
     private func saving(_ r: WriteReport) -> String {
         guard r.inputBytes > 0 else { return "" }
         let pct = Int(((1 - Double(r.outputBytes) / Double(r.inputBytes)) * 100).rounded())
-        if pct == 0 { return "da \(r.inputBytes.byteText) · già compressi" }
-        return "da \(r.inputBytes.byteText) · \(pct > 0 ? "−" : "+")\(abs(pct))%"
+        if pct == 0 { return String(localized: "da \(r.inputBytes.byteText) · già compressi") }
+        return String(localized: "da \(r.inputBytes.byteText) · \(pct > 0 ? "−" : "+")\(abs(pct))%")
     }
 
     private func seconds(_ s: Double) -> String {
@@ -221,6 +216,6 @@ struct JobPanel: View {
     }
 
     private func etaText(_ s: Double) -> String {
-        s < 1 ? "meno di un secondo" : s < 60 ? "circa \(Int(s.rounded())) secondi" : "circa \(Int((s / 60).rounded())) minuti"
+        s < 1 ? String(localized: "meno di un secondo") : s < 60 ? String(localized: "circa \(Int(s.rounded())) secondi") : String(localized: "circa \(Int((s / 60).rounded())) minuti")
     }
 }

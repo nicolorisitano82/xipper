@@ -58,6 +58,11 @@ public struct ExtractionLimits: Sendable {
     /// Entries bigger than `ratioCheckThreshold` may expand at most this many times (zip-bomb guard).
     public var maxCompressionRatio: Double = 1000
     public var ratioCheckThreshold: Int64 = 64 << 20
+    /// Extract until `maxTotalBytes` is reached, then stop (and discard what was written),
+    /// instead of refusing up front when the declared size is larger. Used for "extract anyway".
+    public var stopAtLimit = false
+    /// Keep at least this fraction of the destination volume free (0 = only the 1 GiB margin).
+    public var minFreeFraction: Double = 0
     public init() {}
 }
 
@@ -83,9 +88,69 @@ public struct ExtractOptions: Sendable {
     public init() {}
 }
 
+/// An entry not extracted (blocked for safety, or already existing) or found damaged by a test.
 public struct SkippedEntry: Sendable, Equatable {
     public var path: String
+    /// English, technical: for the CLI, MCP and logs.
     public var reason: String
+    /// The same cause in structured form, for localized UI.
+    public var problem: Problem
+
+    public init(path: String, reason: String, problem: Problem = .other) {
+        self.path = path
+        self.reason = reason
+        self.problem = problem
+    }
+
+    public init(path: String, error: XipperError) {
+        self.init(path: path, reason: error.description, problem: Problem(error))
+    }
+
+    public enum Problem: Sendable, Equatable {
+        // Blocked during extraction (never extractable on request).
+        case escapesDestination
+        case invalidName
+        case throughSymlink
+        case symlinkOutside(target: String)
+        case symlinksDisabled
+        case specialFile
+        case alreadyExists
+        // Found by a test.
+        case checksumMismatch(expected: UInt32, actual: UInt32)
+        case truncated(read: Int64?, expected: Int64?)
+        case authenticationFailed
+        case missingEndMarker
+        case wrongPassword
+        case passwordRequired
+        case unsupported
+        case damaged
+        case other
+
+        /// True for entries blocked by the extraction guards (6.3).
+        public var isSecurityBlock: Bool {
+            switch self {
+            case .escapesDestination, .invalidName, .throughSymlink, .symlinkOutside, .symlinksDisabled, .specialFile: true
+            default: false
+            }
+        }
+
+        init(_ e: XipperError) {
+            switch e {
+            case let .checksumMismatch(_, x, a): self = .checksumMismatch(expected: x, actual: a)
+            case let .truncated(_, r, x): self = .truncated(read: r, expected: x)
+            case let .integrity(_, d) where d.contains("AES"): self = .authenticationFailed
+            case .integrity: self = .damaged
+            case let .corrupt(m) where m.contains("end-of-file marker"): self = .missingEndMarker
+            case let .corrupt(m) where m.contains("truncated"): self = .truncated(read: nil, expected: nil)
+            case .corrupt: self = .damaged
+            case .wrongPassword: self = .wrongPassword
+            case .passwordRequired: self = .passwordRequired
+            case .unsupported: self = .unsupported
+            case let .unsafeEntry(_, r) where r.contains("symlink or a file"): self = .throughSymlink
+            default: self = .other
+            }
+        }
+    }
 }
 
 public struct ExtractReport: Sendable {
@@ -129,14 +194,19 @@ final class ExtractionContext: @unchecked Sendable {
         if rootFD < 0 { throw XipperError.posix("open destination", root) }
         quarantine = options.propagateQuarantine ? Self.readXattr(archivePath, "com.apple.quarantine") : nil
         limitIsFreeSpace = options.limits.maxTotalBytes <= 0
+        var fs = statfs()
+        let hasFS = fstatfs(rootFD, &fs) == 0
+        var cap: Int64
         if options.limits.maxTotalBytes > 0 {
-            maxBytes = options.limits.maxTotalBytes
+            cap = options.limits.maxTotalBytes
         } else {
-            var fs = statfs()
-            maxBytes = fstatfs(rootFD, &fs) == 0
-                ? max(0, Int64(fs.f_bavail) * Int64(fs.f_bsize) - (1 << 30))
-                : .max
+            cap = hasFS ? max(0, Int64(fs.f_bavail) * Int64(fs.f_bsize) - (1 << 30)) : .max
         }
+        if options.limits.minFreeFraction > 0 && hasFS {
+            let reserve = Int64(Double(fs.f_blocks) * options.limits.minFreeFraction) * Int64(fs.f_bsize)
+            cap = min(cap, max(0, Int64(fs.f_bavail) * Int64(fs.f_bsize) - reserve))
+        }
+        maxBytes = cap
     }
 
     deinit {
@@ -186,7 +256,9 @@ final class ExtractionContext: @unchecked Sendable {
     /// Lays out an entry: full path, or only its name when flattening.
     func layout(_ comps: [String]) -> [String] { options.flatten ? [comps.last!] : comps }
 
-    func skip(_ path: String, _ reason: String) { skippedList.withLock { $0.append(SkippedEntry(path: path, reason: reason)) } }
+    func skip(_ path: String, _ reason: String, _ problem: SkippedEntry.Problem = .other) {
+        skippedList.withLock { $0.append(SkippedEntry(path: path, reason: reason, problem: problem)) }
+    }
 
     // MARK: path sanitizing
 
@@ -199,11 +271,11 @@ final class ExtractionContext: @unchecked Sendable {
         var comps: [String] = []
         for c in s.split(separator: "/", omittingEmptySubsequences: true) {
             if c == "." { continue }
-            if c == ".." { skip(raw, "path escapes the destination (..)"); return nil }
-            if c.utf8.count > 255 || c.contains("\0") { skip(raw, "invalid path component"); return nil }
+            if c == ".." { skip(raw, "path escapes the destination (..)", .escapesDestination); return nil }
+            if c.utf8.count > 255 || c.contains("\0") { skip(raw, "invalid path component", .invalidName); return nil }
             comps.append(String(c))
         }
-        if comps.isEmpty { skip(raw, "empty path"); return nil }
+        if comps.isEmpty { skip(raw, "empty path", .invalidName); return nil }
         return comps
     }
 
@@ -284,7 +356,7 @@ final class ExtractionContext: @unchecked Sendable {
         if fd < 0 {
             guard errno == EEXIST else { throw XipperError.posix("create", entry) }
             decision = try decide(entry: entry, dirFD: dirFD, name: name, size: declaredSize, modified: modified)
-            if decision == .skip { skip(entry, "already exists"); return }
+            if decision == .skip { skip(entry, "already exists", .alreadyExists); return }
             let t = ".xip-\(UInt32.random(in: 0...UInt32.max)).part"
             fd = openat(dirFD, t, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
             if fd < 0 { throw XipperError.posix("create", entry) }
@@ -335,7 +407,7 @@ final class ExtractionContext: @unchecked Sendable {
         }
         switch d {
         case .skip:
-            skip(entry, "already exists")
+            skip(entry, "already exists", .alreadyExists)
             unlinkat(dirFD, tmp, 0)
             return false
         case .replace:
@@ -370,11 +442,11 @@ final class ExtractionContext: @unchecked Sendable {
     func addSymlink(_ comps: [String], target: String, modified: Date?) {
         switch options.symlinks {
         case .skipAll:
-            skip(comps.joined(separator: "/"), "symlinks are disabled")
+            skip(comps.joined(separator: "/"), "symlinks are disabled", .symlinksDisabled)
             return
         case .insideDestinationOnly:
             if !Self.staysInside(link: comps, target: target) {
-                skip(comps.joined(separator: "/"), "symlink points outside the destination (\(target))")
+                skip(comps.joined(separator: "/"), "symlink points outside the destination (\(target))", .symlinkOutside(target: target))
                 return
             }
         case .allowAll:

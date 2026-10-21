@@ -280,7 +280,7 @@ enum TarExtractor {
             let comps = ctx.layout(full)
             switch e.header.type {
             case Tar.TypeFlag.directory.rawValue:
-                do { try ctx.makeDirectory(comps, permissions: e.entry.permissions, modified: e.entry.modified) } catch let XipperError.unsafeEntry(p, r) { ctx.skip(p, r) }
+                do { try ctx.makeDirectory(comps, permissions: e.entry.permissions, modified: e.entry.modified) } catch let XipperError.unsafeEntry(p, r) { ctx.skip(p, r, .throughSymlink) }
             case Tar.TypeFlag.symlink.rawValue:
                 ctx.addSymlink(comps, target: e.header.linkTarget, modified: e.entry.modified)
             case Tar.TypeFlag.hardlink.rawValue:
@@ -302,7 +302,7 @@ enum TarExtractor {
                                 try content.withUnsafeBytes { try sink($0) }
                             }
                         } catch let XipperError.unsafeEntry(p, r) {
-                            ctx.skip(p, r)
+                            ctx.skip(p, r, .throughSymlink)
                         }
                     }
                 } else {
@@ -315,11 +315,11 @@ enum TarExtractor {
                             }
                         }
                     } catch let XipperError.unsafeEntry(p, r) {
-                        ctx.skip(p, r)
+                        ctx.skip(p, r, .throughSymlink)
                     }
                 }
             default:
-                ctx.skip(e.entry.path, "special file type not extracted")
+                ctx.skip(e.entry.path, "special file type not extracted", .specialFile)
             }
             tracker.add(bytes: 0, entries: 1, current: e.entry.path)
         }
@@ -363,7 +363,7 @@ enum TarExtractor {
             try pipe.drainAndCheck()
         } catch let e as XipperError where e != .cancelled {
             if case .unsupported = e { throw e }
-            return (count, [SkippedEntry(path: (path as NSString).lastPathComponent, reason: e.description)])
+            return (count, [SkippedEntry(path: (path as NSString).lastPathComponent, error: e)])
         }
         return (isTar ? count : 1, [])
     }

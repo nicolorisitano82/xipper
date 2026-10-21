@@ -17,7 +17,7 @@ enum ItemScanner {
 
     static func scan(_ url: URL) -> ItemInfo {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .localizedTypeDescriptionKey])
-        let kind = values?.localizedTypeDescription ?? "Documento"
+        let kind = values?.localizedTypeDescription ?? String(localized: "Documento")
         guard values?.isDirectory == true else {
             return ItemInfo(isFolder: false, kind: kind, size: Int64(values?.fileSize ?? 0), files: 1, excludedMacFiles: 0)
         }
@@ -36,6 +36,6 @@ enum ItemScanner {
                 size += Int64(v.fileSize ?? 0)
             }
         }
-        return ItemInfo(isFolder: true, kind: "Cartella", size: size, files: files, excludedMacFiles: excluded)
+        return ItemInfo(isFolder: true, kind: String(localized: "Cartella"), size: size, files: files, excludedMacFiles: excluded)
     }
 }

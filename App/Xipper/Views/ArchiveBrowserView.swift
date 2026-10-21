@@ -13,6 +13,12 @@ struct ArchiveBrowserView: View {
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
     @State private var extractSheet: ExtractSheetRequest?
     @State private var quickLook = EntryPreviewController()
+    /// The verification started here (or opened from the HUD): its result replaces the content (5.2).
+    @State private var verifyJob: Job?
+    @State private var showDamaged = false
+    @State private var intactReport: Job?
+    @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Asking the password of encrypted entries (wrong = the last one did not work).
     @State private var passwordPrompt: PasswordPrompt?
 
@@ -38,13 +44,24 @@ struct ArchiveBrowserView: View {
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
         } detail: {
             content
-                .inspector(isPresented: $showInspector) {
+                .inspector(isPresented: Binding(get: { showInspector && !showDamaged }, set: { showInspector = $0 })) {
                     ArchiveInspector(model: model, selection: selectedItems)
                         .inspectorColumnWidth(min: 240, ideal: 262)
                 }
         }
-        .navigationTitle(url.lastPathComponent)
-        .navigationSubtitle(pausedExtraction ?? (model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder))
+        .navigationTitle(showDamaged ? String(localized: "Verifica di \(url.lastPathComponent)") : url.lastPathComponent)
+        .navigationSubtitle(showDamaged ? "" : pausedExtraction ?? (model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder))
+        .sheet(item: $intactReport) { ReportSheet(job: $0) }
+        .onChange(of: verifyJob?.verifyOK) { _, ok in
+            guard let job = verifyJob, let ok else { return }
+            if ok { intactReport = job } else { withAnimation(reduceMotion ? nil : .default) { showDamaged = true } }
+        }
+        .onChange(of: appState.reportRequests[url], initial: true) { _, id in
+            guard let id, let job = jobs.jobs.first(where: { $0.id == id }) else { return }
+            appState.reportRequests[url] = nil
+            verifyJob = job
+            if job.verifyOK == false { showDamaged = true }
+        }
         .sheet(item: $extractSheet) { req in
             ExtractSheet(archive: url, selection: req.selection, itemNames: names(for: req.selection),
                          totalSize: size(for: req.selection))
@@ -78,6 +95,9 @@ struct ArchiveBrowserView: View {
             if ProcessInfo.processInfo.environment["XIPPER_DEMO_EXTRACT_SHEET"] != nil {
                 let firstFolder = model.folders.first.map { Set([$0]) }
                 extractSheet = ExtractSheetRequest(selection: firstFolder)
+            }
+            if ProcessInfo.processInfo.environment["XIPPER_DEMO_VERIFY"] != nil {
+                verifyJob = jobs.start(.test(archive: url, password: nil))
             }
             if let entry = ProcessInfo.processInfo.environment["XIPPER_DEMO_QUICKLOOK"] {
                 model.currentFolder = (entry as NSString).deletingLastPathComponent
@@ -132,7 +152,7 @@ struct ArchiveBrowserView: View {
         for job in jobs.jobs where job.paused {
             if case let .extract(r) = job.kind, r.archive == url {
                 let n = r.selection?.count
-                return n.map { "Estrazione di \($0) element\($0 == 1 ? "o" : "i") · in pausa" } ?? "Estrazione · in pausa"
+                return n.map { String(localized: "Estrazione di \($0) elementi · in pausa") } ?? String(localized: "Estrazione · in pausa")
             }
         }
         return nil
@@ -150,7 +170,12 @@ struct ArchiveBrowserView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if model.loading {
+        if showDamaged, let job = verifyJob, !model.loading {
+            DamagedEntriesView(job: job, model: model) { intact in
+                extractSheet = ExtractSheetRequest(selection: intact)
+            }
+            .transition(.opacity)
+        } else if model.loading {
             ProgressView("Lettura dell'archivio…").frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = model.error {
             ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -218,16 +243,24 @@ struct ArchiveBrowserView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            Button("Indietro", systemImage: "chevron.left") {
-                model.currentFolder = (model.currentFolder as NSString).deletingLastPathComponent
+            if showDamaged {
+                Button("Torna al contenuto", systemImage: "chevron.left") {
+                    withAnimation(reduceMotion ? nil : .default) { showDamaged = false }
+                }
+                .help("Torna al contenuto")
+            } else {
+                Button("Indietro", systemImage: "chevron.left") {
+                    model.currentFolder = (model.currentFolder as NSString).deletingLastPathComponent
+                }
+                .help("Cartella superiore")
+                .disabled(model.currentFolder.isEmpty)
             }
-            .disabled(model.currentFolder.isEmpty)
         }
         ToolbarItem(placement: .primaryAction) {
             Button {
                 extract(selection: selection.isEmpty ? nil : selection)
             } label: {
-                Label(selection.isEmpty ? "Estrai" : "Estrai selezione", systemImage: "arrow.down.to.line")
+                Label(selection.isEmpty ? String(localized: "Estrai") : String(localized: "Estrai selezione"), systemImage: "arrow.down.to.line")
                     .labelStyle(.titleAndIcon)
             }
             .buttonStyle(.glassProminent)
@@ -236,9 +269,10 @@ struct ArchiveBrowserView: View {
         }
         ToolbarSpacer(.fixed)
         ToolbarItemGroup {
-            Button("Verifica", systemImage: "checkmark.shield") {
-                jobs.start(.test(archive: url, password: nil))
+            Button(showDamaged ? String(localized: "Verifica di nuovo") : String(localized: "Verifica"), systemImage: "checkmark.shield") {
+                verifyJob = jobs.start(.test(archive: url, password: model.password))
             }
+            .help("Verifica l'integrità senza estrarre")
             .disabled(model.loading || model.error != nil)
             Button("Info", systemImage: "info.circle") { showInspector.toggle() }
                 .help("Mostra o nasconde l'inspector")
@@ -290,7 +324,7 @@ private struct ArchiveInspector: View {
     var body: some View {
         Form {
             if let item = selection.first, selection.count == 1 {
-                Section(item.isFolder ? "Cartella" : "File") {
+                Section(item.isFolder ? String(localized: "Cartella") : String(localized: "File")) {
                     LabeledContent("Nome", value: item.name)
                     LabeledContent("Dimensione", value: item.size >= 0 ? item.size.byteText : "—")
                     if item.compressed > 0 { LabeledContent("Compresso", value: item.compressed.byteText) }
@@ -319,12 +353,12 @@ private struct ArchiveInspector: View {
                     if model.totalSize > 0 {
                         LabeledContent("Rapporto", value: "\(Int((Double(model.archiveSize) / Double(model.totalSize) * 100).rounded()))%")
                     }
-                    LabeledContent("Cifrato", value: model.isEncrypted ? "Sì (AES/ZipCrypto)" : "No")
+                    LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì (AES/ZipCrypto)") : "No")
                 }
                 if let b = model.bgzf {
                     Section("BGZF (genomica)") {
                         LabeledContent("Blocchi", value: "\(b.blocks)")
-                        LabeledContent("Marcatore di fine", value: b.endsWithEOFMarker ? "Presente" : "Mancante: file troncato?")
+                        LabeledContent("Marcatore di fine", value: b.endsWithEOFMarker ? String(localized: "Presente") : String(localized: "Mancante: file troncato?"))
                     }
                 }
             }
@@ -349,8 +383,8 @@ private struct ArchiveInspector: View {
 
     private func encryptionName(_ e: EntryEncryption) -> String {
         switch e {
-        case .none: "Nessuna"
-        case .zipCrypto: "ZipCrypto (debole)"
+        case .none: String(localized: "Nessuna")
+        case .zipCrypto: String(localized: "ZipCrypto (debole)")
         case let .aes(strength, _, _): "AES-\([128, 192, 256][max(0, min(2, Int(strength) - 1))])"
         }
     }
@@ -365,13 +399,13 @@ private struct ArchiveInspector: View {
         let result = await Task.detached { () -> Result<EntryContent, Error> in
             Result { try Xipper.readEntry(url, path: path, password: password, maxBytes: isImage ? 8 << 20 : 32 << 10) }
         }.value
-        guard case let .success(c) = result else { preview = .none("Anteprima non disponibile"); return }
+        guard case let .success(c) = result else { preview = .none(String(localized: "Anteprima non disponibile")); return }
         if isImage, !c.truncated, let img = NSImage(data: Data(c.data)) {
             preview = .image(img)
         } else if let s = String(bytes: c.data, encoding: .utf8), !c.data.contains(0) {
             preview = .text(s + (c.truncated ? "\n…" : ""))
         } else {
-            preview = .none("File binario")
+            preview = .none(String(localized: "File binario"))
         }
     }
 }

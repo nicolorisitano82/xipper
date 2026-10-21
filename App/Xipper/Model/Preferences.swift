@@ -27,9 +27,9 @@ enum LevelPreset: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .fast: "Veloce"
-        case .balanced: "Normale"
-        case .best: "Massimo"
+        case .fast: String(localized: "Veloce")
+        case .balanced: String(localized: "Normale")
+        case .best: String(localized: "Massimo")
         }
     }
 

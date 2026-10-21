@@ -41,17 +41,18 @@ struct ArchiveSummary: Sendable {
         let size = ((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize).map(Int64.init) ?? 0
         var s = ArchiveSummary(name: url.lastPathComponent, format: "—", archiveSize: size)
         do {
-            guard let f = try ArchiveFormat.detect(url) else { s.note = "Formato non riconosciuto"; return s }
+            guard let f = try ArchiveFormat.detect(url) else { s.note = String(localized: "Formato non riconosciuto"); return s }
             s.format = f.displayName
             if f == .bgzf {
                 let i = try Xipper.bgzfInfo(url)
                 s.uncompressed = i.uncompressedSize
                 s.totalEntries = 1
-                s.note = "BGZF · \(i.blocks) blocchi · marcatore di fine \(i.endsWithEOFMarker ? "presente" : "MANCANTE (file troncato?)")"
+                s.note = i.endsWithEOFMarker ? String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine presente")
+                                             : String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine MANCANTE (file troncato?)")
                 return s
             }
             if f != .zip && f != .tar && size > tarListingLimit {
-                s.note = "Archivio grande: aprilo in Xipper per vedere il contenuto"
+                s.note = String(localized: "Archivio grande: aprilo in Xipper per vedere il contenuto")
                 return s
             }
             let all = try Xipper.list(url)
@@ -60,7 +61,7 @@ struct ArchiveSummary: Sendable {
             s.encrypted = all.contains(where: \.isEncrypted)
             s.entries = Array(all.prefix(maxRows))
         } catch {
-            s.note = "Impossibile leggere l'archivio: \(error)"
+            s.note = String(localized: "Impossibile leggere l'archivio: \(error)")
         }
         return s
     }
@@ -128,7 +129,7 @@ struct ArchivePreview: View {
         if summary.uncompressed > 0 {
             parts.append("\(summary.uncompressed.bytes) estratti")
             let ratio = Int((Double(summary.archiveSize) / Double(summary.uncompressed) * 100).rounded())
-            if ratio < 100 { parts.append("rapporto \(ratio)%") }
+            if ratio < 100 { parts.append(String(localized: "rapporto \(ratio)%")) }
         }
         return parts.joined(separator: " · ")
     }

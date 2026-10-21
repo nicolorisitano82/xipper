@@ -1,0 +1,166 @@
+{
+  "sourceLanguage" : "it",
+  "strings" : {
+    "Archivio grande: aprilo in Xipper per vedere il contenuto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Large archive: open it in Xipper to see its contents"
+          }
+        }
+      }
+    },
+    "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld block · end marker MISSING (truncated file?)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocks · end marker MISSING (truncated file?)"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocco · marcatore di fine MANCANTE (file troncato?)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "BGZF · %lld blocchi · marcatore di fine presente" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld block · end marker present"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocks · end marker present"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocco · marcatore di fine presente"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "BGZF · %lld blocchi · marcatore di fine presente"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Cifrato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted"
+          }
+        }
+      }
+    },
+    "Formato non riconosciuto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unrecognized format"
+          }
+        }
+      }
+    },
+    "rapporto %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ratio %lld%%"
+          }
+        }
+      }
+    },
+    "… e altri %lld elementi" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "… and one more item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "… and %lld more items"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "… e un altro elemento"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "… e altri %lld elementi"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

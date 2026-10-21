@@ -9,7 +9,6 @@ struct HomeView: View {
     @Environment(JobCenter.self) private var jobs
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(PrefKey.defaultFormat) private var formatRaw = ArchiveFormat.zip.rawValue
     @AppStorage(PrefKey.levelPreset) private var presetRaw = LevelPreset.balanced.rawValue
@@ -40,7 +39,7 @@ struct HomeView: View {
     private var totalSize: Int64 { items.reduce(0) { $0 + (infos[$1]?.size ?? 0) } }
     private var totalFiles: Int { items.reduce(0) { $0 + (infos[$1]?.files ?? 1) } }
     private var excludedMac: Int { items.reduce(0) { $0 + (infos[$1]?.excludedMacFiles ?? 0) } }
-    private var defaultName: String { items.count == 1 ? items[0].lastPathComponent : "Archivio" }
+    private var defaultName: String { items.count == 1 ? items[0].lastPathComponent : String(localized: "Archivio") }
     private var archiveName: String { (name.isEmpty ? defaultName : name) + "." + format.fileExtension }
     private var folder: URL {
         saveFolder ?? items.first?.deletingLastPathComponent()
@@ -72,8 +71,8 @@ struct HomeView: View {
         }
         .frame(minWidth: 640, minHeight: 500)
         .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16).padding(.bottom, job == nil ? 88 : 0) }
-        .navigationTitle(items.isEmpty || job != nil ? "Xipper" : "Nuovo archivio")
-        .navigationSubtitle(items.isEmpty || job != nil ? "" : "\(items.count) element\(items.count == 1 ? "o" : "i") · \(totalSize.byteText)")
+        .navigationTitle(items.isEmpty || job != nil ? String(localized: "Xipper") : String(localized: "Nuovo archivio"))
+        .navigationSubtitle(items.isEmpty || job != nil ? "" : String(localized: "\(items.count) elementi · \(totalSize.byteText)"))
         .toolbar { toolbar }
         .sheet(isPresented: Bindable(appState).showOnboarding) { OnboardingView() }
         .sheet(isPresented: $askPassword) {
@@ -102,7 +101,7 @@ struct HomeView: View {
             route(urls)
         }
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : .smooth, value: job?.id)
-        .animation(.snappy, value: items)
+        .animation(reduceMotion ? nil : .snappy, value: items)
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
@@ -137,7 +136,8 @@ struct HomeView: View {
                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                         .font(.system(size: 56, weight: .light))
                         .foregroundStyle(.secondary)
-                        .symbolEffect(.bounce, value: targeted)
+                        .bounce(on: targeted)
+                        .accessibilityHidden(true)
                     Text("Trascina qui file o cartelle").font(.title3.weight(.semibold))
                     Text("per creare un archivio. Rilascia un archivio per aprirlo.").foregroundStyle(.secondary)
                 }
@@ -145,11 +145,15 @@ struct HomeView: View {
                 .padding()
             }
             .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Scegli i file da comprimere, oppure trascinali qui")
+            .accessibilityAction { addFiles() }
             .dropDestination(for: URL.self) { urls, _ in
                 route(urls)
                 return true
             } isTargeted: { targeted = $0 }
-            .animation(.snappy, value: targeted)
+            .animation(reduceMotion ? nil : .snappy, value: targeted)
     }
 
     // MARK: 2.2 dropped items
@@ -212,13 +216,13 @@ struct HomeView: View {
 
     private var summary: String {
         var s = "\(totalFiles) file · \(totalSize.byteText)"
-        if excludedMac > 0 { s += " · .DS_Store e __MACOSX esclusi (\(excludedMac))" }
+        if excludedMac > 0 { s += String(localized: " · .DS_Store e __MACOSX esclusi (\(excludedMac))") }
         return s
     }
 
     private func kindText(_ url: URL) -> String {
         guard let i = infos[url] else { return "…" }
-        return i.isFolder ? "Cartella · \(i.files.formatted()) element\(i.files == 1 ? "o" : "i")" : i.kind
+        return i.isFolder ? String(localized: "Cartella · \(i.files) elementi") : i.kind
     }
 
     private var saveCandidates: [URL] {
@@ -254,13 +258,13 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!format.supportsPassword)
-                .help(format.supportsPassword ? (password == nil ? "Proteggi con password (AES-256)" : "Rimuovi la password") : "La password è disponibile solo per ZIP")
+                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : "La password è disponibile solo per ZIP")
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
             .padding(.horizontal, 18)
             .frame(height: 44)
-            .glassEffect(reduceTransparency ? .identity : .regular, in: .capsule)
+            .accessibleGlass(in: Capsule())
             .glassEffectID("job", in: glass)
 
             Button {
@@ -322,14 +326,14 @@ struct HomeView: View {
 
     private func description(_ f: ArchiveFormat) -> String {
         switch f {
-        case .zip: "si apre ovunque"
-        case .tarZstd: "il più veloce"
+        case .zip: String(localized: "si apre ovunque")
+        case .tarZstd: String(localized: "il più veloce")
         case .tarXz: "compatto"
-        case .tarGzip: "Linux e server"
-        case .tarBzip2: "compatibilità"
-        case .tar: "senza compressione"
-        case .bgzf: "genomica (tabix, samtools)"
-        default: "un solo file"
+        case .tarGzip: String(localized: "Linux e server")
+        case .tarBzip2: String(localized: "compatibilità")
+        case .tar: String(localized: "senza compressione")
+        case .bgzf: String(localized: "genomica (tabix, samtools)")
+        default: String(localized: "un solo file")
         }
     }
 
@@ -355,7 +359,7 @@ struct HomeView: View {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
-        panel.prompt = "Aggiungi"
+        panel.prompt = String(localized: "Aggiungi")
         if panel.runModal() == .OK { route(panel.urls) }
     }
 
@@ -369,7 +373,7 @@ struct HomeView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Salva qui"
+        panel.prompt = String(localized: "Salva qui")
         if panel.runModal() == .OK { saveFolder = panel.url }
     }
 

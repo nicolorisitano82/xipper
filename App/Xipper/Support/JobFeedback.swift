@@ -38,20 +38,20 @@ enum JobFeedback {
         let content = UNMutableNotificationContent()
         switch job.state {
         case let .finished(detail):
-            content.title = "\(job.verb) completata"
+            content.title = String(localized: "\(job.verb) completata")
             content.body = "\(job.title): \(detail)"
         case let .failed(reason):
-            content.title = "\(job.verb) non riuscita"
+            content.title = String(localized: "\(job.verb) non riuscita")
             content.body = "\(job.title): \(reason)"
             content.sound = .default
         case .needsPassword:
             // A saved password is being unlocked with Touch ID: that prompt is enough.
             if let archive = job.archive, PasswordVault.has(archive) { return }
-            content.title = "Password richiesta"
-            content.body = "\(job.title) è protetto da password."
+            content.title = String(localized: "Password richiesta")
+            content.body = String(localized: "\(job.title) è protetto da password.")
         case .needsOverride:
-            content.title = "Estrazione fermata"
-            content.body = "\(job.title) supera il limite di sicurezza sulla compressione."
+            content.title = String(localized: "Estrazione fermata")
+            content.body = String(localized: "\(job.title) supera il limite di sicurezza sulla compressione.")
         case .running, .cancelled:
             return
         }

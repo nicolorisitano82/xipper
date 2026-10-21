@@ -11,6 +11,8 @@ import XipperKit
 final class AppState {
     static let shared = AppState()
     var pendingOpen: [URL] = []
+    /// Verification results to show in an archive window (5.2): archive → job id.
+    var reportRequests: [URL: UUID] = [:]
     /// First launch, or "Introduzione a Xipper" in the Help menu.
     var showOnboarding = !Preferences.defaults.bool(forKey: PrefKey.onboardingDone)
         && !ProcessInfo.processInfo.environment.keys.contains { $0.hasPrefix("XIPPER_DEMO") }
@@ -25,8 +27,8 @@ final class AppState {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.message = "Scegli un archivio da aprire"
-        panel.prompt = "Apri"
+        panel.message = String(localized: "Scegli un archivio da aprire")
+        panel.prompt = String(localized: "Apri")
         return panel.runModal() == .OK ? panel.urls : []
     }
 
@@ -66,10 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let running = MainActor.assumeIsolated { JobCenter.shared.jobs.contains(where: \.isRunning) }
         guard running else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = "Ci sono lavori in corso"
-        alert.informativeText = "Se esci ora verranno annullati. Gli archivi incompleti non vengono lasciati sul disco."
-        alert.addButton(withTitle: "Continua")
-        alert.addButton(withTitle: "Esci e annulla")
+        alert.messageText = String(localized: "Ci sono lavori in corso")
+        alert.informativeText = String(localized: "Se esci ora verranno annullati. Gli archivi incompleti non vengono lasciati sul disco.")
+        alert.addButton(withTitle: String(localized: "Continua"))
+        alert.addButton(withTitle: String(localized: "Esci e annulla"))
         return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
     }
 }

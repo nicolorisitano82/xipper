@@ -19,10 +19,10 @@ struct PasswordSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label(isCreate ? "Proteggi con password" : "Password richiesta", systemImage: "lock.fill")
+            Label(isCreate ? String(localized: "Proteggi con password") : String(localized: "Password richiesta"), systemImage: "lock.fill")
                 .font(.title2.weight(.semibold))
-            Text(isCreate ? "\(archiveName) sarà cifrato con AES-256. Senza la password nessuno potrà aprirlo, nemmeno tu."
-                          : "\(archiveName) è protetto. Inserisci la password per continuare.")
+            Text(isCreate ? String(localized: "\(archiveName) sarà cifrato con AES-256. Senza la password nessuno potrà aprirlo, nemmeno tu.")
+                          : String(localized: "\(archiveName) è protetto. Inserisci la password per continuare."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if case .open(wrong: true) = mode {
@@ -50,7 +50,7 @@ struct PasswordSheet: View {
                 Spacer()
                 Button("Annulla", role: .cancel) { onDone(nil, false); dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(isCreate ? "Usa password" : "Apri") { onDone(password, remember); dismiss() }
+                Button(isCreate ? String(localized: "Usa password") : String(localized: "Apri")) { onDone(password, remember); dismiss() }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!valid)

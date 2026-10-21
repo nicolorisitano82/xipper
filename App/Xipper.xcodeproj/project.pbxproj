@@ -615,6 +615,7 @@
 				MARKETING_VERSION = 0.9.0;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperFinder;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -636,6 +637,7 @@
 				MARKETING_VERSION = 0.9.0;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperFinder;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -657,6 +659,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Preview;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperPreview;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -678,6 +681,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Preview;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperPreview;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -699,6 +703,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Thumbnail;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperThumbnail;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -720,6 +725,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Thumbnail;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperThumbnail;
 				SKIP_INSTALL = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;

@@ -32,7 +32,7 @@ enum PasswordVault {
         var add = query(archive)
         add[kSecValueData as String] = Data(password.utf8)
         add[kSecAttrLabel as String] = "Xipper: \(archive.lastPathComponent)"
-        add[kSecAttrDescription as String] = "Password di archivio"
+        add[kSecAttrDescription as String] = String(localized: "Password di archivio")
         SecItemAdd(add as CFDictionary, nil)
     }
 
@@ -60,10 +60,10 @@ enum PasswordVault {
         guard has(archive) else { return nil }
         if Preferences.defaults.bool(forKey: PrefKey.vaultRequiresAuth) {
             let context = LAContext()
-            context.localizedCancelTitle = "Inserisci a mano"
+            context.localizedCancelTitle = String(localized: "Inserisci a mano")
             do {
                 guard try await context.evaluatePolicy(.deviceOwnerAuthentication,
-                                                       localizedReason: "usare la password salvata di \(archive.lastPathComponent)") else { return nil }
+                                                       localizedReason: String(localized: "usare la password salvata di \(archive.lastPathComponent)")) else { return nil }
             } catch {
                 return nil
             }

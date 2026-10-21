@@ -38,7 +38,7 @@ struct ExtractSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(selection == nil ? "Estrai \(archive.lastPathComponent)" : "Estrai \(count) element\(count == 1 ? "o" : "i")")
+                Text(selection == nil ? String(localized: "Estrai \(archive.lastPathComponent)") : String(localized: "Estrai \(count) elementi"))
                     .font(.title2.weight(.semibold))
                 Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -80,7 +80,7 @@ struct ExtractSheet: View {
                 Spacer()
                 Button("Annulla", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(selection == nil ? "Estrai" : "Estrai \(count) element\(count == 1 ? "o" : "i")") { start() }
+                Button(selection == nil ? String(localized: "Estrai") : String(localized: "Estrai \(count) elementi")) { start() }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -104,7 +104,7 @@ struct ExtractSheet: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Estrai qui"
+        panel.prompt = String(localized: "Estrai qui")
         guard panel.runModal() == .OK, let u = panel.url else { return }
         if !candidates.contains(u) { candidates.insert(u, at: 0) }
         destination = u

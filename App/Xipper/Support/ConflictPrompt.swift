@@ -17,14 +17,14 @@ enum ConflictPrompt {
         let alert = NSAlert()
         // The folder that actually holds the clashing file ("in Progetto-Atlante").
         let holder = c.existing.deletingLastPathComponent().lastPathComponent
-        alert.messageText = "“\(name)” esiste già in \(holder.isEmpty ? folder : holder)"
-        alert.informativeText = "Scegli cosa fare con il file che stai estraendo."
-        alert.addButton(withTitle: "Mantieni entrambi")
-        alert.addButton(withTitle: "Sostituisci")
-        alert.addButton(withTitle: "Salta")
+        alert.messageText = String(localized: "“\(name)” esiste già in \(holder.isEmpty ? folder : holder)")
+        alert.informativeText = String(localized: "Scegli cosa fare con il file che stai estraendo.")
+        alert.addButton(withTitle: String(localized: "Mantieni entrambi"))
+        alert.addButton(withTitle: String(localized: "Sostituisci"))
+        alert.addButton(withTitle: String(localized: "Salta"))
         if others > 0 {
             alert.showsSuppressionButton = true
-            alert.suppressionButton?.title = others == 1 ? "Applica all'altro conflitto" : "Applica agli altri \(others) conflitti"
+            alert.suppressionButton?.title = String(localized: "Applica agli altri \(others) conflitti")
         }
         let view = NSHostingView(rootView: ConflictDetails(conflict: c, name: name))
         view.frame.size = view.fittingSize
@@ -52,8 +52,8 @@ private struct ConflictDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                box("Nell'archivio", size: conflict.archiveSize, date: conflict.archiveModified, newer: archiveNewer)
-                box("Sul disco", size: conflict.diskSize, date: conflict.diskModified, newer: !archiveNewer && conflict.archiveModified != nil)
+                box(String(localized: "Nell'archivio"), size: conflict.archiveSize, date: conflict.archiveModified, newer: archiveNewer)
+                box(String(localized: "Sul disco"), size: conflict.diskSize, date: conflict.diskModified, newer: !archiveNewer && conflict.archiveModified != nil)
             }
             Text("“Mantieni entrambi” salva la copia come “\(keepBothName)”. Sostituisci sposta il file sul disco nel Cestino.")
                 .font(.caption).foregroundStyle(.secondary)

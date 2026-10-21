@@ -31,7 +31,7 @@ enum ZipExtractor {
         try precheck(records, limits: ctx.options.limits, password: password)
         let declared = records.reduce(Int64(0)) { $0 + ($1.entry.kind == .file ? $1.uncompressedSize : 0) }
         // Fail before writing anything when the content cannot fit.
-        if declared > ctx.maxBytes { throw ctx.overLimit(needed: declared) }
+        if declared > ctx.maxBytes && !ctx.options.limits.stopAtLimit { throw ctx.overLimit(needed: declared) }
         tracker.setTotals(bytes: declared, entries: records.count)
 
         var files: [(ZipEntryRecord, [String])] = []
@@ -42,12 +42,12 @@ enum ZipExtractor {
             switch r.entry.kind {
             case .directory:
                 do { try ctx.makeDirectory(comps, permissions: r.entry.permissions, modified: r.entry.modified) } catch let XipperError.unsafeEntry(e, reason) {
-                    ctx.skip(e, reason)
+                    ctx.skip(e, reason, .throughSymlink)
                 }
                 tracker.add(bytes: 0, entries: 1)
             case .symlink:
                 var target: [UInt8] = []
-                if r.uncompressedSize > 4096 { ctx.skip(r.entry.path, "symlink target too long"); continue }
+                if r.uncompressedSize > 4096 { ctx.skip(r.entry.path, "symlink target too long", .invalidName); continue }
                 try ZipEntryDecoder.decode(r, in: archive, password: password, cancel: cancel) { target.append(contentsOf: $0) }
                 ctx.addSymlink(comps, target: String(decoding: target, as: UTF8.self), modified: r.entry.modified)
                 tracker.add(bytes: 0, entries: 1)
@@ -74,7 +74,7 @@ enum ZipExtractor {
                     }
                 }
             } catch let XipperError.unsafeEntry(e, reason) {
-                ctx.skip(e, reason)
+                ctx.skip(e, reason, .throughSymlink)
             }
             tracker.add(bytes: 0, entries: 1, current: r.entry.path)
         }
@@ -97,7 +97,7 @@ enum ZipExtractor {
             } catch XipperError.cancelled {
                 throw XipperError.cancelled
             } catch let e as XipperError {
-                failures.withLock { $0.append(SkippedEntry(path: r.entry.path, reason: e.description)) }
+                failures.withLock { $0.append(SkippedEntry(path: r.entry.path, error: e)) }
             }
             tracker.add(bytes: 0, entries: 1, current: r.entry.path)
         }

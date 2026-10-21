@@ -328,7 +328,8 @@ enum ZipEntryDecoder {
             let mac = try reader.read(at: end, count: WinZipAES.macLength)
             try mac.withUnsafeBytes { try aes.verify($0, entry: name) }
         }
+        if produced < expected { throw XipperError.truncated(entry: name, read: produced, expected: expected) }
         if produced != expected { throw XipperError.corrupt("\(name): expected \(expected) bytes, got \(produced)") }
-        if checkCRC && crc != rec.crc { throw XipperError.integrity(entry: name, detail: "CRC-32 mismatch") }
+        if checkCRC && crc != rec.crc { throw XipperError.checksumMismatch(entry: name, expected: rec.crc, actual: crc) }
     }
 }

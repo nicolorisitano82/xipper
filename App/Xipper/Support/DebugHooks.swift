@@ -5,7 +5,8 @@ import XipperKit
 
 /// Debug-only launch hooks for visual checks without UI scripting:
 /// XIPPER_DEMO_EXTRACT=<archive>, XIPPER_DEMO_TEST=<archive>, XIPPER_DEMO_CREATE=<folder>,
-/// XIPPER_DEMO_DARK=1 (forces dark appearance), XIPPER_DEMO_QUICKLOOK=<entry path> (browser: Quick Look of that entry).
+/// XIPPER_DEMO_DARK=1 (forces dark appearance), XIPPER_DEMO_QUICKLOOK=<entry path> (browser: Quick Look of that entry),
+/// XIPPER_DEMO_VERIFY=1 (browser: verify on open), XIPPER_DEMO_CONTRAST=1 (custom glass as with Increase Contrast).
 @MainActor
 enum DebugHooks {
     private static var done = false

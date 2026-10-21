@@ -43,7 +43,7 @@ enum ExternalActionRunner {
         case let .compress(files):
             guard let first = files.first else { return }
             let format = defaultFormat(for: files)
-            let name = files.count == 1 ? first.lastPathComponent : "Archivio"
+            let name = files.count == 1 ? first.lastPathComponent : String(localized: "Archivio")
             let dest = uniqueURL(first.deletingLastPathComponent().appendingPathComponent("\(name).\(format.fileExtension)"))
             let preset = LevelPreset(rawValue: Preferences.defaults.string(forKey: PrefKey.levelPreset) ?? "") ?? .balanced
             jobs.start(.create(sources: files, destination: dest, format: format, preset: preset, password: nil))

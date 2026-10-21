@@ -1,0 +1,96 @@
+{
+  "sourceLanguage" : "it",
+  "strings" : {
+    "Apri in Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Xipper"
+          }
+        }
+      }
+    },
+    "Comprimi %lld elementi" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Compress %lld Item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Compress %lld Items"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Comprimi %lld elemento"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Comprimi %lld elementi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Comprimi “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compress “%@”"
+          }
+        }
+      }
+    },
+    "Comprimi, estrai o verifica con Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compress, extract or verify with Xipper"
+          }
+        }
+      }
+    },
+    "Estrai qui" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Here"
+          }
+        }
+      }
+    },
+    "Verifica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

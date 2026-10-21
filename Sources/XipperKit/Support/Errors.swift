@@ -15,6 +15,10 @@ public enum XipperError: Error, Sendable, Equatable, CustomStringConvertible {
     case wrongPassword(entry: String)
     /// Data decoded but the checksum / authentication code does not match.
     case integrity(entry: String, detail: String)
+    /// The CRC-32 of the decoded data differs from the one stored in the archive.
+    case checksumMismatch(entry: String, expected: UInt32, actual: UInt32)
+    /// The entry ends before its declared size.
+    case truncated(entry: String, read: Int64, expected: Int64)
     /// The entry would escape the destination or is otherwise unsafe.
     case unsafeEntry(entry: String, reason: String)
     /// A configured safety limit (size, ratio, count) was exceeded.
@@ -37,6 +41,9 @@ public enum XipperError: Error, Sendable, Equatable, CustomStringConvertible {
         case let .passwordRequired(e): return "password required for \(e)"
         case let .wrongPassword(e): return "wrong password for \(e)"
         case let .integrity(e, d): return "integrity check failed for \(e): \(d)"
+        case let .checksumMismatch(e, x, a):
+            return "integrity check failed for \(e): CRC-32 mismatch (expected \(Self.hex(x)), got \(Self.hex(a)))"
+        case let .truncated(e, r, x): return "corrupt archive: \(e) is truncated (\(r) of \(x) bytes)"
         case let .unsafeEntry(e, r): return "unsafe entry \(e): \(r)"
         case let .limitExceeded(m): return "safety limit exceeded: \(m)"
         case let .insufficientSpace(needed, available):
@@ -46,6 +53,11 @@ public enum XipperError: Error, Sendable, Equatable, CustomStringConvertible {
         case let .codec(m): return "codec error: \(m)"
         case .cancelled: return "cancelled"
         }
+    }
+
+    static func hex(_ v: UInt32) -> String {
+        let s = String(v, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 8 - s.count)) + s
     }
 
     static func posix(_ op: String, _ path: String? = nil) -> XipperError {

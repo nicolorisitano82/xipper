@@ -138,7 +138,7 @@ private struct IntegrationSettings: View {
                 }
                 Button("Aggiungi cartella consentita…", systemImage: "plus") { addFolder() }
                 Toggle("Sola lettura (solo elencare e verificare)", isOn: $readOnly)
-                Button(copied ? "Comando copiato" : "Copia comando per Claude Code", systemImage: copied ? "checkmark" : "doc.on.doc") {
+                Button(copied ? String(localized: "Comando copiato") : String(localized: "Copia comando per Claude Code"), systemImage: copied ? "checkmark" : "doc.on.doc") {
                     let args = folders.map { "--allow \"\($0)\"" }.joined(separator: " ") + (readOnly ? " --read-only" : "")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString("claude mcp add --transport stdio --scope user xipper -- \"\(cli)\" mcp \(args)", forType: .string)
@@ -160,7 +160,7 @@ private struct IntegrationSettings: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Consenti"
+        panel.prompt = String(localized: "Consenti")
         guard panel.runModal() == .OK, let u = panel.url, !folders.contains(u.path) else { return }
         foldersRaw = (folders + [u.path]).joined(separator: "\n")
     }

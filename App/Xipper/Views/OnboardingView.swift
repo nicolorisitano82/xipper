@@ -19,17 +19,17 @@ struct OnboardingView: View {
                     Text("Tre passaggi facoltativi per averlo sempre a portata di mano.").foregroundStyle(.secondary)
                 }
             }
-            step(symbol: "folder.badge.gearshape", title: "Xipper nel Finder",
-                 detail: "Menu Xipper nel clic destro e pulsante nella barra degli strumenti.",
+            step(symbol: "folder.badge.gearshape", title: String(localized: "Xipper nel Finder"),
+                 detail: String(localized: "Menu Xipper nel clic destro e pulsante nella barra degli strumenti."),
                  done: finderEnabled, action: finderEnabled ? nil : "Attiva…") {
                 FIFinderSyncController.showExtensionManagementInterface()
             }
-            step(symbol: "doc.zipper", title: "Apri gli archivi con Xipper",
-                 detail: "Doppio clic su ZIP, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio.",
-                 done: isDefault, action: isDefault ? nil : "Imposta") {
+            step(symbol: "doc.zipper", title: String(localized: "Apri gli archivi con Xipper"),
+                 detail: String(localized: "Doppio clic su ZIP, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio."),
+                 done: isDefault, action: isDefault ? nil : String(localized: "Imposta")) {
                 Task { await DefaultApp.makeDefault(); isDefault = DefaultApp.isDefault }
             }
-            step(symbol: "terminal", title: "Comando xipper nel Terminale",
+            step(symbol: "terminal", title: String(localized: "Comando xipper nel Terminale"),
                  detail: cli.detail, done: cli.installed, action: cli.installed ? nil : cli.actionTitle) {
                 cli = CommandLineTool.install()
             }
@@ -103,14 +103,14 @@ enum CommandLineTool {
     static var status: Status {
         for dir in candidates {
             if let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: dir + "/xipper"), dest == helper {
-                return Status(installed: true, detail: "Installato in \(dir)/xipper.", actionTitle: "")
+                return Status(installed: true, detail: String(localized: "Installato in \(dir)/xipper."), actionTitle: "")
             }
         }
         let writable = candidates.first { FileManager.default.isWritableFile(atPath: $0) }
         return Status(installed: false,
-                      detail: writable.map { "Crea il collegamento \($0)/xipper per comprimere ed estrarre dagli script." }
-                          ?? "Copia il comando da incollare nel Terminale (chiede la password di amministratore).",
-                      actionTitle: writable == nil ? "Copia comando" : "Installa")
+                      detail: writable.map { String(localized: "Crea il collegamento \($0)/xipper per comprimere ed estrarre dagli script.") }
+                          ?? String(localized: "Copia il comando da incollare nel Terminale (chiede la password di amministratore)."),
+                      actionTitle: writable == nil ? String(localized: "Copia comando") : String(localized: "Installa"))
     }
 
     static func install() -> Status {
@@ -125,7 +125,7 @@ enum CommandLineTool {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("sudo mkdir -p /usr/local/bin && sudo ln -sf \"\(helper)\" /usr/local/bin/xipper", forType: .string)
         var s = status
-        s.detail = "Comando copiato: incollalo nel Terminale."
+        s.detail = String(localized: "Comando copiato: incollalo nel Terminale.")
         return s
     }
 }

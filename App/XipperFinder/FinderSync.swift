@@ -18,7 +18,7 @@ final class FinderSync: FIFinderSync {
     // MARK: toolbar
 
     override var toolbarItemName: String { "Xipper" }
-    override var toolbarItemToolTip: String { "Comprimi, estrai o verifica con Xipper" }
+    override var toolbarItemToolTip: String { String(localized: "Comprimi, estrai o verifica con Xipper") }
     override var toolbarItemImage: NSImage {
         NSImage(systemSymbolName: "archivebox", accessibilityDescription: "Xipper") ?? NSImage()
     }
@@ -39,13 +39,13 @@ final class FinderSync: FIFinderSync {
             target = NSMenu(title: "Xipper")
             root.submenu = target
         }
-        let compressTitle = items.count == 1 ? "Comprimi “\(items[0].lastPathComponent)”" : "Comprimi \(items.count) elementi"
+        let compressTitle = items.count == 1 ? String(localized: "Comprimi “\(items[0].lastPathComponent)”") : String(localized: "Comprimi \(items.count) elementi")
         add(target, compressTitle, "arrow.down.right.and.arrow.up.left", #selector(compress(_:)))
         if !archives.isEmpty {
             let extractable = archives.filter { !["bam", "bcf"].contains($0.pathExtension.lowercased()) }
-            if !extractable.isEmpty { add(target, "Estrai qui", "arrow.down.to.line", #selector(extract(_:))) }
-            add(target, "Verifica", "checkmark.shield", #selector(test(_:)))
-            if archives.count == 1 { add(target, "Apri in Xipper", "eye", #selector(open(_:))) }
+            if !extractable.isEmpty { add(target, String(localized: "Estrai qui"), "arrow.down.to.line", #selector(extract(_:))) }
+            add(target, String(localized: "Verifica"), "checkmark.shield", #selector(test(_:)))
+            if archives.count == 1 { add(target, String(localized: "Apri in Xipper"), "eye", #selector(open(_:))) }
         }
         return menu
     }

@@ -74,7 +74,7 @@ struct CompressIntent: AppIntent {
         let sources = try localURLs(files)
         guard let first = sources.first else { throw IntentFailure.noFiles }
         let fmt = sources.count > 1 && !ArchiveFormat.multiItem.contains(format.format) ? .zip : format.format
-        let base = name.flatMap { $0.isEmpty ? nil : $0 } ?? (sources.count == 1 ? first.lastPathComponent : "Archivio")
+        let base = name.flatMap { $0.isEmpty ? nil : $0 } ?? (sources.count == 1 ? first.lastPathComponent : String(localized: "Archivio"))
         let dest = uniqueURL(first.deletingLastPathComponent().appendingPathComponent("\(base).\(fmt.fileExtension)"))
         let preset = LevelPreset(rawValue: Preferences.defaults.string(forKey: PrefKey.levelPreset) ?? "") ?? .balanced
         let options = Preferences.createOptions(format: fmt, preset: preset, password: nil)
@@ -145,8 +145,8 @@ struct VerifyIntent: AppIntent {
         let p = pw
         do {
             let r = try await Task.detached { try Xipper.test(url, password: p) }.value
-            let text = r.isOK ? "\(url.lastPathComponent) è integro (\(r.entries) elementi)."
-                              : "\(url.lastPathComponent): \(r.failures.count) problemi trovati."
+            let text = r.isOK ? String(localized: "\(url.lastPathComponent) è integro (\(r.entries) elementi).")
+                              : String(localized: "\(url.lastPathComponent): \(r.failures.count) problemi trovati.")
             return .result(value: r.isOK, dialog: "\(text)")
         } catch {
             throw describe(error)

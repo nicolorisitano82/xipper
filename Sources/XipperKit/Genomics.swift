@@ -130,11 +130,11 @@ enum BGZFVerifier {
             }
             try decoder.finish { _ in }
         } catch let e as XipperError where e != .cancelled {
-            return (decoder.blockCount, [SkippedEntry(path: name, reason: e.description)])
+            return (decoder.blockCount, [SkippedEntry(path: name, error: e)])
         }
         tracker.add(bytes: 0, entries: 1)
         if !decoder.endsWithEOFMarker {
-            return (decoder.blockCount, [SkippedEntry(path: name, reason: "BGZF end-of-file marker missing: the file is probably truncated")])
+            return (decoder.blockCount, [SkippedEntry(path: name, reason: "BGZF end-of-file marker missing: the file is probably truncated", problem: .missingEndMarker)])
         }
         return (decoder.blockCount, [])
     }

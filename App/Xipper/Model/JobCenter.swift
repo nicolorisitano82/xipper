@@ -16,6 +16,8 @@ struct ExtractRequest: @unchecked Sendable {
     var reveal: Bool?
     var password: String?
     var ratioOverride: Double?
+    /// "Estrai comunque" (6.2): write at most this many bytes, then stop and discard everything.
+    var capBytes: Int64?
 }
 
 /// One background operation shown in the jobs HUD.
@@ -56,6 +58,12 @@ final class Job: Identifiable {
     var writeReport: WriteReport?
     /// Why a job failed, when the UI can say something specific (2.8).
     var failure: Failure?
+    /// Full results, for the verification and blocked-items views (5.2, 6.3).
+    var testReport: TestReport?
+    var extractReport: ExtractReport?
+    var capBytes: Int64? { if case let .extract(r) = kind { r.capBytes } else { nil } }
+    /// Entries blocked by the extraction guards (6.3).
+    var blocked: [SkippedEntry] { report.filter(\.problem.isSecurityBlock) }
     /// Save the password in the Keychain once the job succeeds (4.2).
     var rememberPassword = false
     /// The password came from the Keychain: a wrong one is forgotten, not retried.
@@ -134,9 +142,9 @@ final class Job: Identifiable {
 
     var verb: String {
         switch kind {
-        case .create: "Compressione"
-        case .extract: "Estrazione"
-        case .test: "Verifica"
+        case .create: String(localized: "Compressione")
+        case .extract: String(localized: "Estrazione")
+        case .test: String(localized: "Verifica")
         }
     }
 
@@ -158,7 +166,7 @@ final class JobCenter {
     fileprivate func jobsChanged() {
         let running = jobs.contains(where: \.isRunning)
         if running && activity == nil {
-            activity = ProcessInfo.processInfo.beginActivity(options: .userInitiated, reason: "Xipper: archivio in elaborazione")
+            activity = ProcessInfo.processInfo.beginActivity(options: .userInitiated, reason: String(localized: "Xipper: archivio in elaborazione"))
         } else if !running, let a = activity {
             ProcessInfo.processInfo.endActivity(a)
             activity = nil
@@ -228,6 +236,7 @@ final class JobCenter {
                 job.apply(outcome)
                 JobCenter.shared.jobsChanged()
                 JobFeedback.notifyEnd(of: job)
+                if !job.blocked.isEmpty { BlockedEntriesWindow.show(job) }
             }
         }
     }
@@ -254,6 +263,13 @@ final class JobCenter {
             options.overwrite = r.overwrite
             options.trashReplacedFiles = true
             if let ratio = r.ratioOverride { options.limits.maxCompressionRatio = ratio }
+            if let cap = r.capBytes {
+                options.limits.maxCompressionRatio = .infinity
+                options.limits.maxTotalBytes = cap
+                options.limits.stopAtLimit = true
+                // Always on for an override, cannot be disabled (6.2).
+                options.limits.minFreeFraction = 0.10
+            }
             if let dest = r.destination, r.mode == .into {
                 try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
                 if r.overwrite == .ask {
@@ -302,14 +318,16 @@ extension Job {
         case let .extracted(r):
             output = r.destination
             report = r.skipped
+            extractReport = r
             var s = "\(r.files) file · \(r.bytes.byteText)"
             if !r.skipped.isEmpty { s += " · \(r.skipped.count) saltati" }
             state = .finished(s)
             revealIfWanted()
         case let .tested(r):
             report = r.failures
+            testReport = r
             verifyOK = r.isOK
-            state = r.isOK ? .finished("Integro · \(r.entries) elementi verificati") : .failed("\(r.failures.count) problemi trovati")
+            state = r.isOK ? .finished(String(localized: "Integro · \(r.entries) elementi verificati")) : .failed(String(localized: "\(r.failures.count) problemi trovati"))
         case let .error(e):
             switch e as? XipperError {
             case .cancelled?: state = .cancelled
@@ -325,22 +343,28 @@ extension Job {
             case .wrongPassword?:
                 if passwordFromVault, let archive { PasswordVault.remove(for: archive) }
                 state = .needsPassword(wrong: true)
-            case let .limitExceeded(m)?: state = .needsOverride(m)
+            case .limitExceeded? where capBytes != nil:
+                state = .failed(String(localized: "Estrazione fermata al limite di \(capBytes!.byteText): i dati scritti sono stati eliminati"))
+            case let .limitExceeded(m)?:
+                state = .needsOverride(m)
+                if case let .extract(r) = kind {
+                    Task { ZipBombPrompt.ask(for: self, request: r) }
+                }
             case let .insufficientSpace(needed, available)?:
                 failure = .diskFull(available: available)
-                state = .failed("Spazio su disco insufficiente: servono \(needed.byteText), liberi \(max(0, available).byteText)")
+                state = .failed(String(localized: "Spazio su disco insufficiente: servono \(needed.byteText), liberi \(max(0, available).byteText)"))
             case let .io(_, _, err)? where [ENOSPC, EDQUOT].contains(err):
                 failure = .diskFull(available: freeSpace)
-                state = .failed("Spazio su disco esaurito")
+                state = .failed(String(localized: "Spazio su disco esaurito"))
             case let .io(_, path, err)? where [EACCES, EPERM].contains(err):
                 failure = .permission
-                state = .failed("Permessi insufficienti\(path.map { " per \(($0 as NSString).lastPathComponent)" } ?? "")")
+                state = .failed(path.map { String(localized: "Permessi insufficienti per \(($0 as NSString).lastPathComponent)") } ?? String(localized: "Permessi insufficienti"))
             case .io(_, _, EROFS)?:
                 failure = .readOnly
-                state = .failed("Il volume di destinazione è in sola lettura")
+                state = .failed(String(localized: "Il volume di destinazione è in sola lettura"))
             case let .io(_, _, err)? where [ENXIO, ENODEV, EIO].contains(err):
                 failure = .volumeGone
-                state = .failed("Il volume non è più disponibile")
+                state = .failed(String(localized: "Il volume non è più disponibile"))
             case let x?:
                 failure = .other
                 state = .failed(Self.localized(x))
@@ -368,11 +392,11 @@ extension Job {
     /// Italian messages for the errors users can act on; the technical text otherwise.
     nonisolated static func localized(_ e: XipperError) -> String {
         switch e {
-        case let .alreadyExists(p): "Esiste già: \((p as NSString).lastPathComponent)"
-        case let .unsupported(m): "Formato non supportato: \(m)"
-        case let .corrupt(m): "Archivio danneggiato: \(m)"
-        case let .integrity(entry, _): "Dati non integri in \(entry)"
-        case let .io(op, path, errno): "Errore di disco (\(op)) \(path.map { ($0 as NSString).lastPathComponent } ?? ""): \(String(cString: strerror(errno)))"
+        case let .alreadyExists(p): String(localized: "Esiste già: \((p as NSString).lastPathComponent)")
+        case let .unsupported(m): String(localized: "Formato non supportato: \(m)")
+        case let .corrupt(m): String(localized: "Archivio danneggiato: \(m)")
+        case let .integrity(entry, _): String(localized: "Dati non integri in \(entry)")
+        case let .io(op, path, errno): String(localized: "Errore di disco (\(op)) \(path.map { ($0 as NSString).lastPathComponent } ?? ""): \(String(cString: strerror(errno)))")
         default: e.description
         }
     }

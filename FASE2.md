@@ -37,10 +37,10 @@
 - [x] **3.3:** alert di sistema per il file esistente: riquadri archivio/disco con il badge "più recente", "Applica agli altri N conflitti" (conteggio da `plannedConflicts`), Mantieni entrambi (predefinito) · Sostituisci (sposta il file nel Cestino) · Salta. L'estrazione resta in pausa; HUD e sottotitolo del browser dicono "in pausa".
 - [x] **3.4:** Quick Look della voce (beta2).
 - [x] **4.2:** Portachiavi e Touch ID per le password degli archivi (beta2).
-- [ ] **5.2:** voci danneggiate *nella finestra*. **6.1–6.3:** avvisi di sicurezza secondo la specifica (alert di sistema, seconda conferma, elementi bloccati nella finestra).
+- [x] **5.2:** voci danneggiate nella finestra. **6.1–6.3:** avvisi di sicurezza secondo la specifica (verso la v1).
 - [ ] **8.6:** cartelle sorvegliate. *1.1–1.3 onboarding: fatto (beta2).*
 - [ ] **Estensioni:** FSKit (9.4). *Finder Sync (9.1, beta1), Quick Look dell'archivio (9.2), miniature (9.5) e Comandi Rapidi (9.3): fatti (beta2).*
-- [ ] **Icona** (Icon Composer, 10.3); localizzazione con String Catalog; aumento del contrasto e riduzione del movimento (10.1, 10.2).
+- [x] Icona del design, String Catalog con l'inglese, aumento del contrasto e riduzione del movimento (verso la v1). *Resta il file `.icon` di Icon Composer per le varianti scura/tinta/trasparente.*
 
 ## Seconda iterazione (21/10/2026): 2.2, 2.4/2.5, 3.2, 3.3
 
@@ -96,3 +96,17 @@ Ai livelli -7 e -8 si usa 1× dizionario, privilegiando la velocità.
 | **Onboarding (1.1–1.3)** | Al primo avvio (e da Aiuto › Introduzione a Xipper): attivazione dell'estensione Finder, Xipper come app predefinita per gli archivi (conferma del sistema) e comando `xipper` nel Terminale (collegamento in `/opt/homebrew/bin` se scrivibile, altrimenti il comando `sudo ln` copiato negli appunti). |
 | **Comandi Rapidi (9.3)** | App Intents "Comprimi con Xipper" (file, formato, nome → archivio), "Estrai con Xipper" (archivio, destinazione, password → cartella) e "Verifica con Xipper" (→ Sì/No con messaggio). Usano il Portachiavi se c'è una password salvata. Metadati generati; da provare nell'app Comandi Rapidi. |
 | **Release** | `scripts/xcodeproj_add_extension.py` aggiunge un target di estensione al progetto; `scripts/release.sh` firma ogni `.appex` con il proprio file di entitlement. DMG 4,2 MB. |
+
+## Verso la v1 (21/10/2026): voci danneggiate, avvisi di sicurezza, accessibilità, inglese, icona
+
+| Area | Stato |
+|---|---|
+| **Core: cause strutturate** | `SkippedEntry.problem` descrive ogni voce saltata o danneggiata: percorso fuori destinazione, symlink esterno, scrittura attraverso un symlink, CRC con valori atteso/letto (nuovo errore `checksumMismatch`), dati troncati con i byte letti (`truncated`), autenticazione AES, marcatore EOF mancante. `reason` resta il testo tecnico inglese per CLI e MCP. |
+| **Core: "estrai comunque" con limite** | `ExtractionLimits.stopAtLimit` estrae fino a `maxTotalBytes` e poi si ferma, eliminando quanto scritto; `minFreeFraction` lascia libero almeno il 10% del volume. 3 test nuovi (49 in tutto). |
+| **5.2 Voci danneggiate** | Nella finestra dell'archivio, al posto del contenuto: banner di vetro rosso ("N voci danneggiate su M", tempo, nessun dato scritto), filtro Tutte / Solo errori, tabella Voce · Dimensione · Problema · Esito, "Esporta rapporto…", "Estrai voci integre…" (sheet 3.2 con le voci integre già selezionate, solo per ZIP), nota su PAR2. "Torna al contenuto" e "Verifica di nuovo". Dall'HUD, "Dettagli" apre la finestra dell'archivio in questa vista. |
+| **6.1 Zip-bomb** | Alert di sistema critico appena scatta il controllo: peso dell'archivio, dati dichiarati, rapporto, spazio libero; Non estrarre (predefinito) · Sposta nel Cestino · Estrai comunque…. |
+| **6.2 Seconda conferma** | Pannello da 470 pt: limite 1 / 10 / 50 GB, cartella nuova in Download, "Fermati se resta meno del 10%" sempre attivo; "Estrai fino a N" (rosso) · **Annulla** (predefinito). Al limite il lavoro fallisce con "i dati scritti sono stati eliminati". Da provare a mano (serve un clic). |
+| **6.3 Elementi bloccati** | Finestra aperta a fine estrazione se ci sono voci rifiutate: banner arancione, tabella Voce · Motivo · Dove avrebbe scritto, "Copia rapporto", "Mostra nel Finder", righe su elementi estratti, quarantena e assenza di "estrai comunque". Verificata con un archivio con `../../.zshrc`, `driver/../../../Library/LaunchAgents/x.plist` e un symlink a `/etc/passwd`: nulla scritto fuori. |
+| **Accessibilità (0.3, 10.1, 10.2)** | `accessibleGlass`: con Riduci trasparenza o Aumenta contrasto il vetro personalizzato diventa una superficie piena con bordo (1,5 pt `.primary` con contrasto aumentato). Con Riduci movimento i morph diventano dissolvenze da 150 ms e niente rimbalzi o pulsazioni dei simboli. Zona di rilascio con azione VoiceOver "Scegli i file", icone decorative nascoste, `.help` sui pulsanti solo icona. |
+| **Inglese** | String Catalog (`Localizable.xcstrings`) in app ed estensioni, lingua sorgente italiano, 366 stringhe con l'inglese e i plurali singolare/plurale in entrambe le lingue. I testi AppKit (alert, pannelli, notifiche, menu del Finder) passano da `String(localized:)`. `scripts/sync-strings.sh` aggiorna i cataloghi dopo una build da riga di comando; `scripts/translations-en.py` contiene le traduzioni e segnala quelle mancanti. Restano in italiano i nomi dei Servizi in Info.plist. |
+| **Icona** | Quella del design (A3): X bianca con i denti della cerniera su gradiente #4AA3FF → #0A57D4; sotto i 32 pt solo la X. Generata da `scripts/make-app-icon.swift`. |

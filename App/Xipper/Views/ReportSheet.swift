@@ -5,7 +5,6 @@ import XipperKit
 struct ReportSheet: View {
     let job: Job
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var ok: Bool { job.verifyOK ?? job.report.isEmpty }
 
@@ -22,7 +21,7 @@ struct ReportSheet: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(reduceTransparency ? .identity : (ok ? .regular : .regular.tint(.red.opacity(0.25))), in: .rect(cornerRadius: 18))
+            .accessibleGlass(tint: ok ? nil : .red, in: RoundedRectangle(cornerRadius: 18))
             .padding(16)
 
             if !job.report.isEmpty {
@@ -48,9 +47,9 @@ struct ReportSheet: View {
 
     private var title: String {
         switch job.kind {
-        case .test: ok ? "Archivio integro" : "Problemi di integrità"
-        case .extract: "Voci non estratte per sicurezza"
-        case .create: "Report"
+        case .test: ok ? String(localized: "Archivio integro") : String(localized: "Problemi di integrità")
+        case .extract: String(localized: "Voci non estratte per sicurezza")
+        case .create: String(localized: "Report")
         }
     }
 }
