@@ -2,7 +2,25 @@
 
 Archiviatore nativo per macOS su Apple Silicon (arm64)
 
-*Versione 0.1, 21 ottobre 2026. Bozza di studio, nessuna riga di codice ancora scritta.*
+*Versione 0.1 del 21 ottobre 2026 (studio iniziale), aggiornata il 22 ottobre 2026 con lo stato del progetto: Xipper 1.0.0 è costruito.*
+
+---
+
+## Stato del progetto (22/10/2026)
+
+| Area | Stato |
+|---|---|
+| **Versione** | **1.0.0 costruita** (`scripts/release.sh final` → `dist/Xipper-1.0.0.dmg`, firmata self-signed, DMG con sfondo). Non ancora pubblicata: l'ultima release su GitHub è la pre-release 0.9.0-beta4. |
+| **Test** | 129 test automatici verdi, fuzzing a 1000 mutazioni per formato (anche XIZ cifrato e con segmenti). Da provare a mano: Touch ID, trascinamento dal browser al Finder, esecuzione delle azioni di Comandi Rapidi. |
+| **Formati** | ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive, **XIZ 1.1** in lettura e scrittura; lz4, brotli e ZIP divisi in lettura; BGZF e indici genomici (§4.2). |
+| **XIZ** | Formato proprio stabile: specifica pubblica in [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md) (1.0 congelata il 22/10, 1.1 con segmenti aggiunti), cifratura Argon2id + AES-256-GCM, deduplicazione per file e a blocchi (FastCDC). |
+| **Modifica in place** | `Xipper.edit` / `xipper edit` e browser (rinomina, elimina, aggiungi, trascina): ZIP senza ricomprimere le voci invariate, XIZ con segmenti in coda, altri formati ricostruiti. |
+| **Recupero** | PAR2 scritto da zero dalla specifica, compatibile con par2cmdline: crea, verifica, ripara (CLI, inspector, «Ripara» nelle voci danneggiate). |
+| **Montaggio** | Archivi montati come volumi **in lettura e scrittura** tramite un server WebDAV locale e il client di macOS. FSKit è stato provato ma richiede un entitlement riservato ad Apple Developer: [docs/FSKIT.md](docs/FSKIT.md). |
+| **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
+| **Grafica** | Icona e simboli ridisegnati dallo sprite A ([docs/design/](docs/design/)), sfondo del DMG. |
+| **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
+| **Prossimi passi** | Pubblicazione della 1.0, poi la v2: ottimizzazioni ARM64/NEON e GPU, dizionari XIZ, RAR in sola lettura, CRAM, cartelle sorvegliate ([docs/ROADMAP.md](docs/ROADMAP.md)). |
 
 ---
 
@@ -14,7 +32,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Fattibilità tecnica** | Alta. macOS mette a disposizione buona parte del necessario (Compression, AppleArchive, CryptoKit/CommonCrypto, zlib/bzip2 di sistema). Il resto si scrive o si incorpora come sorgente. |
 | **"Totalmente autoincluso"** | Si può fare: un solo `.app`, nessun Homebrew, nessun binario esterno, nessun download a runtime. La scelta da prendere è se incorporare codec open source con licenza permissiva (compilati dentro l'app) o scriverli tutti da zero. Raccomandazione al §3. |
 | **Ottimizzazione arm64** | Il guadagno vero viene dal parallelismo sui P-core e gli E-core, dalle istruzioni CRC32/AES/SHA hardware di ARMv8, da NEON e dall'I/O con mmap e APFS clone. Dettagli al §5. |
-| **Integrazione di sistema** | Finder Sync (menu contestuale), Quick Look (anteprima del contenuto), App Intents (Comandi Rapidi/Shortcuts e Azioni rapide), Servizi, CLI inclusa e, come obiettivo avanzato, montaggio dell'archivio come volume con FSKit. Dettagli al §6. |
+| **Integrazione di sistema** | Finder Sync (menu contestuale), Quick Look (anteprima del contenuto), App Intents (Comandi Rapidi/Shortcuts e Azioni rapide), Servizi, CLI inclusa e montaggio dell'archivio come volume. FSKit richiede un account Apple Developer, quindi il montaggio usa un server WebDAV locale, in lettura e scrittura (22/10/2026, [docs/FSKIT.md](docs/FSKIT.md)). Dettagli al §6. |
 | **Licenza** | **Gratuito e open source, licenza MIT** (§10). |
 | **Distribuzione** | **Decisione del 21/10/2026: solo DMG su GitHub, firmato self-signed.** Developer ID e notarizzazione non servono per ora; il Mac App Store è escluso (la sandbox limiterebbe l'estrazione "accanto al file", l'estensione del Finder e il server MCP). Dettagli al §8. |
 
@@ -149,6 +167,10 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
 | **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
 | **MPEG-G** (ISO/IEC 23092, `.mgb`) | ⚠️ | ⚠️ | — | brevetti e licenze da chiarire prima di qualsiasi implementazione; vedi §4.5 |
+| **XIZ** (formato di Xipper, `.xiz`) | ✅ 1.1 | ✅ | ✅ Argon2id + AES-256-GCM su dati, nomi e metadati | nostro; [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md): frame zstd indipendenti, catalogo in coda, deduplicazione FastCDC, segmenti aggiunti in coda per la modifica in place |
+| **PAR2** (dati di recupero, `.par2`) | ✅ | ✅ verifica e riparazione | — | nostro, dalla specifica PAR 2.0 (Reed-Solomon su GF(2^16)); vale per qualsiasi archivio |
+
+**Modifica in place** (22/10/2026): ZIP copia le voci invariate senza ricomprimerle; XIZ aggiunge un segmento in coda; 7z, tar, cpio e Apple Archive vengono ricostruiti nel loro formato; i file compressi singoli, lz4 e brotli non si modificano.
 
 **Caso RAR, decisione del 21/10/2026: sola lettura, clean-room.** RAR è proprietario. La licenza di `unrar` permette di estrarre, ma vieta di usarne il codice per ricostruire il compressore e non è compatibile con MIT, quindi **non usiamo né guardiamo il sorgente di unrar**.
 - **Fonti ammesse:**
@@ -535,9 +557,9 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.7 Genomica 2 (GA4GH, locale)** ✅ | Creazione di tabix/CSI compatibile htslib (query identiche a `tabix`), verifica degli indici `.tbi`/`.csi`/`.bai`/`.gzi`/`.crai`, verifica strutturale di CRAM 3.0/3.1 e di VCF.gz/BCF, manifest sha-256/md5/crc32c (JSON DRS, `sha256sum`/`md5sum`); CLI `xipper tabix`/`index-check`/`manifest`, MCP `genomics_index`/`genomics_check`/`checksum_manifest` (§4.6) | completata il 21/10/2026 → [FASE1.md](FASE1.md) (Finder: con l'app) |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
-| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; distribuzione solo DMG su GitHub (niente Developer ID); restano i test manuali di Touch ID, trascinamento e Comandi Rapidi, i feedback dei tester e la nuova grafica → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
+| **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** | ⭐ **Primo: montaggio dell'archivio come volume con FSKit** (sola lettura; ZIP, tar, 7z, XIZ). ⭐ Poi **ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi: decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, con percorso portabile di riserva, benchmark e test di equivalenza (§5.3). Poi XIZ stabile, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | aperta |
+| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0 e 1.1). ✅ **PAR2**. ✅ **Modifica in place**. Da fare: ⭐ **ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi (decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, GF(2^16) di PAR2), con percorso portabile di riserva, benchmark e test di equivalenza (§5.3); dizionari XIZ; cartelle sorvegliate; **RAR in sola lettura (clean-room, §4.2)**; ISO; CRAM. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
 
 ---
 
@@ -550,9 +572,9 @@ Nome ed estensione: **XIZ**, **`.xiz`** (`.xip` è già di Apple; `.xiz` è usat
 
 1. ~~Nome del prodotto~~ → **Xipper**, bundle `Xipper.app` (21/10/2026). Restano la ricerca formale del marchio (EUIPO/UIBM/USPTO) e la verifica del nome su App Store Connect.
 2. ~~Livello di autoinclusione~~ → **B**, codec permissivi vendorizzati (21/10/2026).
-3. **Canale di distribuzione:** Developer ID, Mac App Store o entrambi? Lo studio MCP (§6-ter) spinge verso Developer ID.
+3. ~~Canale di distribuzione~~ → **solo DMG su GitHub, firma self-signed** (21/10/2026), senza account Apple Developer: niente notarizzazione, niente Mac App Store, niente FSKit (montaggio via WebDAV).
 4. ~~RAR~~ → **sola lettura, clean-room** (21/10/2026), §4.2.
-5. **MPEG-G:** avviare la verifica legale G0 (GenomSys, Philips, LUH), oppure tenerlo in osservazione e puntare su BGZF (ed eventualmente CRAM)?
+5. **MPEG-G:** avviare la verifica legale G0 (GenomSys, Philips, LUH), oppure tenerlo in osservazione e puntare su BGZF e CRAM? Dopo l'analisi del 21/10/2026 (§4.5) l'opzione preferita è **CRAM 3.1** nella v2, con MPEG-G al massimo riconosciuto.
 6. ~~Modello di business~~ → **gratuito e open source, licenza MIT** (decisa il 21/10/2026, file `LICENSE`). Motivazioni:
    - **Compatibilità:** tutte le dipendenze sono permissive (zstd BSD-3, libdeflate MIT, liblzma 0BSD, ed eventualmente libarchive BSD-2 per RAR), quindi MIT non crea attriti.
    - **LGPL e app macOS:** la LGPL richiede che l'utente possa ricollegare una versione modificata della libreria. Con un bundle Swift che contiene tutto in modo statico, e a maggior ragione con il Mac App Store (DRM e firma), rispettarla è macchinoso; molti progetti LGPL infatti non possono andare sul MAS.

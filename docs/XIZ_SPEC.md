@@ -1,6 +1,7 @@
-# XIZ archive format, version 1.0
+# XIZ archive format, version 1.1
 
-Status: **stable** (frozen on 2026-10-22). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11), which
+1.0 readers refuse cleanly. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -53,11 +54,12 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---|---|
 | 0 | encrypted | defined (§6) |
 | 1 | dictionaries | reserved: frames referencing zstd dictionary frames |
-| 2 | append_chain | reserved: appended segments linked by `previous_footer` |
+| 2 | append_chain | reserved, never set (appended segments are signalled by the footer, §11: the superblock is authenticated by the keys block and is never rewritten) |
 | 3–15 | — | reserved, zero |
 
-**Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved for Reed-Solomon
-recovery data; bits 1–15 are reserved and zero.
+**Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved for embedded
+recovery data; bits 1–15 are reserved and zero. Recovery data for XIZ (and any other archive) is
+written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.xiz.volNN+MM.par2`).
 
 `encrypted` is set if and only if `keys_length > 0`. `keys_length` must not exceed 65,536.
 
@@ -218,7 +220,8 @@ The output is ciphertext followed by the 16-byte tag. Each data key encrypts one
 The compressed catalog is split into 65,536-byte chunks (the last one may be shorter or empty).
 Chunk *n* is `AES-GCM(catalog key, nonce, chunk, associated data)` with
 
-- `nonce = 00 00 00 ‖ last ‖ u64 big-endian(n)`, where `last` is 1 for the final chunk and 0 otherwise;
+- `nonce = u24 big-endian(segment) ‖ last ‖ u64 big-endian(n)`, where `last` is 1 for the final
+  chunk and 0 otherwise and `segment` is 0 for the first catalog (§11);
 - `associated data = "XIZ1catalog" ‖ archive_id ‖ u16(version_major) ‖ u16(version_minor) ‖
   u64(catalog_usize) ‖ u32(frame_count) ‖ u32(entry_count) ‖ u64(total_bytes) ‖ u64(previous_footer)`
   (the footer fields).
@@ -245,7 +248,7 @@ sizes of frames and the footer counters. Names, sizes of entries, metadata and c
 | 36 | 4 | entry_count |
 | 40 | 8 | total_bytes: sum of the sizes of all entries |
 | 48 | 32 | catalog_sha256 |
-| 80 | 8 | previous_footer: 0 in 1.0 (reserved for `append_chain`) |
+| 80 | 8 | previous_footer: offset of the previous segment's footer, 0 for the first (§11) |
 | 88 | 4 | CRC32C of bytes 0–87 |
 | 92 | 4 | tail magic `XIZ!` |
 
@@ -280,3 +283,25 @@ support it; writers must not produce it.
   the archive with a clear message), with `version_minor` incremented.
 - Data old readers can ignore: an optional feature bit.
 - `version_major` changes only for an incompatible redesign.
+
+## 11. Version 1.1: appended segments
+
+An archive can change in place: a writer appends new frames, then a **complete** new catalog and a
+new footer, after the current end of the file. Nothing already written changes.
+
+- The new footer has `version_minor = 1` and `previous_footer` = offset of the footer it supersedes.
+  Each earlier footer keeps pointing at its own predecessor, down to the first (`previous_footer = 0`).
+- The new catalog lists every frame of every segment (frame indexes keep counting) and every entry
+  of the archive as it is now: renamed and deleted entries simply change or disappear; their data
+  stays in the file until the archive is rewritten ("compaction").
+- Between frames, the only gaps allowed are the catalogs and footers of earlier segments: a reader
+  follows the chain of `previous_footer` (offsets strictly decreasing, each footer valid, its
+  catalog ending at its footer) and accepts a gap only if it is exactly such a region. Overlaps are
+  never allowed.
+- Encrypted archives: frames keep using `u64(frame index)` nonces (indexes are unique across
+  segments); the catalog of segment *k* (k = number of earlier footers) uses `segment = k` in its
+  nonce (§6.5), so no two catalogs share a nonce.
+- An interrupted append leaves bytes after the last complete footer. A reader that does not find a
+  valid footer in the last 96 bytes searches backwards for the last footer whose CRC is valid and
+  whose catalog ends right before it; the next writer truncates the file there before appending.
+- 1.0 readers refuse appended archives (they require `previous_footer = 0`).

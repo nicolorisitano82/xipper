@@ -252,56 +252,23 @@ public final class MountedArchive: @unchecked Sendable {
 
     // MARK: saving
 
-    /// Rebuilds the archive with the changes, in its format and with its password. The original is
-    /// replaced only when the new one is complete; symlinks and hard links of untouched folders
-    /// are kept, Finder's ._ and .DS_Store files are left out.
+    /// Writes the changes into the archive with `Xipper.edit`: deletions first, then the overlay
+    /// merged in (new and modified files). ZIP keeps untouched entries' compressed bytes, XIZ
+    /// appends a segment, the other formats are rebuilt; the original is replaced only when the
+    /// new archive is complete. Finder's ._ and .DS_Store files are left out.
     public func save(progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws {
         try requireWritable()
         let (outs, changed) = lock.withLock { (whiteouts, dirty) }
         guard changed else { return }
-        let staging = workDirectory.appendingPathComponent("save-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: staging) }
-
-        if !baseFiles.isEmpty || baseDirs.count > 1 {
-            var x = ExtractOptions()
-            x.password = password
-            x.overwrite = .replace
-            x.propagateQuarantine = false
-            _ = try Xipper.extract(archive, to: staging, mode: .into, options: x, cancel: cancel)
+        var changes: [ArchiveChange] = outs.sorted().compactMap { p in
+            // Deleting what the archive never had (only created in the overlay) is not a change.
+            baseFiles[p] != nil || baseDirs.contains(p) || baseFiles.keys.contains { $0.hasPrefix(p + "/") } ? .delete(p) : nil
         }
-        for w in outs { try? FileManager.default.removeItem(at: staging.appendingPathComponent(w)) }
-        try merge(overlay, into: staging)
-
-        let top = try FileManager.default.contentsOfDirectory(at: staging, includingPropertiesForKeys: nil)
-            .filter { $0.lastPathComponent != ".DS_Store" && !$0.lastPathComponent.hasPrefix("._") }
-        guard !top.isEmpty else { throw XipperError.invalidArgument("the archive would be empty") }
-        var o = CreateOptions()
-        o.format = format
-        o.password = password
-        o.overwrite = true
-        _ = try Xipper.create(from: top.sorted { $0.lastPathComponent < $1.lastPathComponent }, to: archive, options: o,
-                              progress: progress, cancel: cancel)
+        for name in try FileManager.default.contentsOfDirectory(atPath: overlay.path).sorted()
+        where name != ".DS_Store" && !name.hasPrefix("._") {
+            changes.append(.add(overlay.appendingPathComponent(name), as: name))
+        }
+        if !changes.isEmpty { try Xipper.edit(archive, changes: changes, password: password, progress: progress, cancel: cancel) }
         lock.withLock { dirty = false }
-    }
-
-    /// Copies the overlay over the extracted tree: folders merge, files replace.
-    private func merge(_ from: URL, into to: URL) throws {
-        let fm = FileManager.default
-        for name in try fm.contentsOfDirectory(atPath: from.path) {
-            let s = from.appendingPathComponent(name), d = to.appendingPathComponent(name)
-            var isDir: ObjCBool = false
-            fm.fileExists(atPath: s.path, isDirectory: &isDir)
-            var destIsDir: ObjCBool = false
-            let destExists = fm.fileExists(atPath: d.path, isDirectory: &destIsDir)
-            if isDir.boolValue {
-                if destExists && !destIsDir.boolValue { try fm.removeItem(at: d) }
-                if !destExists || !destIsDir.boolValue { try fm.createDirectory(at: d, withIntermediateDirectories: true) }
-                try merge(s, into: d)
-            } else {
-                if destExists || (try? fm.destinationOfSymbolicLink(atPath: d.path)) != nil { try fm.removeItem(at: d) }
-                try fm.copyItem(at: s, to: d)
-            }
-        }
     }
 }

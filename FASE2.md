@@ -267,3 +267,29 @@ Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi 
 - **Test:**
   - suite "XIZ 1.0" con 8 test: vettore ufficiale di Argon2id, cifratura (niente nomi o contenuto in chiaro, password mancante o sbagliata), manomissioni (bit cambiati in ogni sezione, CRC "riparato" da un attaccante ma tag AEAD che rifiuta), FastCDC, funzione obbligatoria sconosciuta, archivio 0.1;
   - fuzzing anche sulla variante cifrata.
+
+## PAR2 e modifica in place (22/10/2026)
+
+**Dati di recupero PAR2** (`Sources/XipperKit/Recovery/PAR2.swift`):
+- scritti da zero dalla specifica PAR 2.0 (`par2cmdline` è GPL): pacchetti Main, FileDesc, IFSC, RecvSlic e Creator; Reed-Solomon su GF(2^16) con polinomio 0x1100B e le costanti dello standard; riparazione per eliminazione di Gauss-Jordan;
+- file `nome.par2` e `nome.vol00+NN.par2`; verifica posizionale (i blocchi spostati non vengono cercati);
+- prestazioni in release su 300 MB: creazione al 10% in 2,7 s, verifica 0,47 s, riparazione 1,1 s;
+- un difetto di prestazioni trovato nell'app è stato corretto: le tabelle di moltiplicazione venivano ricostruite a ogni chiamata, e con slice piccole i 3 MB di prova non finivano più. Ora le regioni piccole usano log/exp diretti, e le slice sono di almeno 4 KiB;
+- **interfacce:**
+  - CLI `xipper par2 create|verify|repair`;
+  - inspector con sezione "Dati di recupero" e «Crea dati di recupero»;
+  - «Ripara» nella vista delle voci danneggiate;
+  - Impostazioni › Generali, per crearli dopo ogni compressione (5, 10 o 20%);
+- **prova in app:** dati creati, archivio danneggiato, «Verifica», «Ripara»: l'archivio torna identico al byte all'originale;
+- l'interoperabilità con par2cmdline ha un test che si attiva quando è installato (`brew install par2`); qui non lo era.
+
+**Modifica in place** (`Sources/XipperKit/Edit/ArchiveEditor.swift`, `Xipper.edit`):
+- **ZIP:** header locale, dati e data descriptor delle voci invariate vengono copiati così come sono (cambia solo il nome se rinominate), le nuove le comprime ZipWriter, e la directory centrale è ricostruita (ZIP64 dove serve, extra Unicode tolto sulle rinomine). Verificato con `unzip -t`, archivi di `ditto` e voci AES;
+- **XIZ 1.1:** segmenti aggiunti in coda (specifica §11), con il numero di segmento nel nonce del catalogo cifrato e la ricerca all'indietro del footer dopo un append interrotto; `compact` riscrive l'archivio;
+- **altri formati:** ricostruiti nel loro formato;
+- **interfacce:**
+  - CLI `xipper edit` con `--delete`, `--rename`, `--add`, `--mkdir`, `--compact`;
+  - menu contestuale del browser con «Rinomina…», «Elimina» (con conferma) e «Aggiungi file…»;
+  - file trascinati nella tabella;
+  - il salvataggio dei volumi montati usa `Xipper.edit`;
+- **test:** suite "Editing archives" (5 test) e fuzzing di un XIZ con segmento aggiunto.

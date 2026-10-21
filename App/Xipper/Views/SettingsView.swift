@@ -20,6 +20,8 @@ private struct GeneralSettings: View {
     @AppStorage(PrefKey.defaultFormat) private var format = ArchiveFormat.zip.rawValue
     @AppStorage(PrefKey.levelPreset) private var preset = LevelPreset.balanced.rawValue
     @AppStorage(PrefKey.revealAfter) private var reveal = true
+    @AppStorage(PrefKey.recoveryAfterCreate) private var recovery = false
+    @AppStorage(PrefKey.recoveryPercent) private var recoveryPercent = 10.0
     @AppStorage(PrefKey.updatesAutomatic) private var updates = true
 
     var body: some View {
@@ -31,6 +33,16 @@ private struct GeneralSettings: View {
                 ForEach(LevelPreset.allCases) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Mostra il risultato nel Finder al termine", isOn: $reveal)
+            Section("Dati di recupero") {
+                Toggle("Crea i dati di recupero PAR2 dopo ogni compressione", isOn: $recovery)
+                Picker("Ridondanza", selection: $recoveryPercent) {
+                    Text("5%").tag(5.0)
+                    Text("10%").tag(10.0)
+                    Text("20%").tag(20.0)
+                }
+                Text("File .par2 accanto all'archivio, compatibili con par2cmdline e MultiPar: se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             Section("Aggiornamenti") {
                 Toggle("Cerca aggiornamenti ogni giorno", isOn: $updates)
                 LabeledContent("Versione", value: Updates.runningVersion)

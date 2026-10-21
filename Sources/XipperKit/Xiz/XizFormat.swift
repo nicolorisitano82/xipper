@@ -508,8 +508,11 @@ struct XizKeys: @unchecked Sendable {
 
     static let catalogChunk = 64 << 10
 
-    private func catalogNonce(_ counter: UInt64, last: Bool) throws -> AES.GCM.Nonce {
+    /// `00 00 00 ‖ last ‖ counter` in 1.0; appended segments (1.1) put their number in the first
+    /// three bytes, so no two catalogs of an archive share a nonce.
+    private func catalogNonce(_ counter: UInt64, last: Bool, segment: UInt32) throws -> AES.GCM.Nonce {
         var n = [UInt8](repeating: 0, count: 12)
+        n[0] = UInt8((segment >> 16) & 0xFF); n[1] = UInt8((segment >> 8) & 0xFF); n[2] = UInt8(segment & 0xFF)
         n[3] = last ? 1 : 0
         var be = counter.bigEndian
         withUnsafeBytes(of: &be) { n.replaceSubrange(4..<12, with: $0) }
@@ -520,13 +523,14 @@ struct XizKeys: @unchecked Sendable {
         Data(Array("XIZ1catalog".utf8) + archiveID + footer.authenticatedFields)
     }
 
-    func sealCatalog(_ plain: [UInt8], footer: Xiz.Footer) throws -> [UInt8] {
+    func sealCatalog(_ plain: [UInt8], footer: Xiz.Footer, segment: UInt32 = 0) throws -> [UInt8] {
+        precondition(segment < 1 << 24)
         var out = [UInt8]()
         out.reserveCapacity(plain.count + (plain.count / Self.catalogChunk + 1) * Xiz.tagSize)
         var start = 0, counter: UInt64 = 0
         repeat {
             let end = min(plain.count, start + Self.catalogChunk)
-            let box = try AES.GCM.seal(plain[start..<end], using: catalog, nonce: try catalogNonce(counter, last: end == plain.count),
+            let box = try AES.GCM.seal(plain[start..<end], using: catalog, nonce: try catalogNonce(counter, last: end == plain.count, segment: segment),
                                        authenticating: catalogAAD(footer))
             out += Array(box.ciphertext) + Array(box.tag)
             start = end
@@ -535,7 +539,8 @@ struct XizKeys: @unchecked Sendable {
         return out
     }
 
-    func openCatalog(_ sealed: [UInt8], footer: Xiz.Footer) throws -> [UInt8] {
+    func openCatalog(_ sealed: [UInt8], footer: Xiz.Footer, segment: UInt32 = 0) throws -> [UInt8] {
+        guard segment < 1 << 24 else { throw XipperError.corrupt("XIZ segment number") }
         var out = [UInt8]()
         var start = 0, counter: UInt64 = 0
         let step = Self.catalogChunk + Xiz.tagSize
@@ -544,7 +549,7 @@ struct XizKeys: @unchecked Sendable {
             let last = end == sealed.count
             guard end - start >= Xiz.tagSize else { throw XipperError.corrupt("XIZ catalog truncated") }
             do {
-                let box = try AES.GCM.SealedBox(nonce: try catalogNonce(counter, last: last), ciphertext: sealed[start..<(end - Xiz.tagSize)],
+                let box = try AES.GCM.SealedBox(nonce: try catalogNonce(counter, last: last, segment: segment), ciphertext: sealed[start..<(end - Xiz.tagSize)],
                                                 tag: sealed[(end - Xiz.tagSize)..<end])
                 out += Array(try AES.GCM.open(box, using: catalog, authenticating: catalogAAD(footer)))
             } catch {

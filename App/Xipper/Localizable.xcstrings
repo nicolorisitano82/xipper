@@ -763,6 +763,36 @@
         }
       }
     },
+    "10%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10%"
+          }
+        }
+      }
+    },
+    "20%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "20%"
+          }
+        }
+      }
+    },
+    "5%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5%"
+          }
+        }
+      }
+    },
     "50 GB" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -840,6 +870,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Files"
+          }
+        }
+      }
+    },
+    "Aggiungi file…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Files…"
           }
         }
       }
@@ -1081,6 +1121,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Password-protected archive"
+          }
+        }
+      }
+    },
+    "Assenti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
           }
         }
       }
@@ -1368,6 +1418,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Archives are mounted"
+          }
+        }
+      }
+    },
+    "Ci sono dati di recupero PAR2: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PAR2 recovery data is available: Repair rebuilds the damaged parts, as long as the damage does not exceed the redundancy."
           }
         }
       }
@@ -1752,6 +1812,26 @@
         }
       }
     },
+    "Crea dati di recupero" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Recovery Data"
+          }
+        }
+      }
+    },
+    "Crea i dati di recupero PAR2 dopo ogni compressione" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create PAR2 recovery data after every compression"
+          }
+        }
+      }
+    },
     "Crea il collegamento %@/xipper per comprimere ed estrarre dagli script." : {
       "localizations" : {
         "en" : {
@@ -1782,6 +1862,16 @@
         }
       }
     },
+    "Creazione dei dati di recupero…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating recovery data…"
+          }
+        }
+      }
+    },
     "Danneggiata" : {
       "localizations" : {
         "en" : {
@@ -1798,6 +1888,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Damaged data"
+          }
+        }
+      }
+    },
+    "Dati di recupero" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery Data"
           }
         }
       }
@@ -2041,6 +2141,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "List the contents of ${archive}"
+          }
+        }
+      }
+    },
+    "Elimina" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        }
+      }
+    },
+    "Eliminare %lld elementi da “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete %lld items from “%@”?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Eliminare %1$lld elementi da “%2$@”?"
+          }
+        }
+      }
+    },
+    "Eliminare l'elemento da “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the item from “%@”?"
           }
         }
       }
@@ -2477,6 +2613,26 @@
         }
       }
     },
+    "File .par2 accanto all'archivio, compatibili con par2cmdline e MultiPar: se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".par2 files next to the archive, compatible with par2cmdline and MultiPar: if the archive gets damaged, Xipper repairs it as long as the damage does not exceed the chosen redundancy."
+          }
+        }
+      }
+    },
+    "File .par2 accanto all'archivio: servono a ripararlo se si danneggia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".par2 files next to the archive, used to repair it if it gets damaged"
+          }
+        }
+      }
+    },
     "File binario" : {
       "localizations" : {
         "en" : {
@@ -2649,6 +2805,16 @@
         }
       }
     },
+    "Gli elementi scelti vanno nella cartella «%@» dell'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The chosen items go into the “%@” folder of the archive."
+          }
+        }
+      }
+    },
     "Gli eseguibili estratti restano in quarantena: Gatekeeper e XProtect li controlleranno alla prima apertura." : {
       "localizations" : {
         "en" : {
@@ -2780,6 +2946,16 @@
         }
       }
     },
+    "Impossibile creare i dati di recupero" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t create the recovery data"
+          }
+        }
+      }
+    },
     "Impossibile espellere “%@”" : {
       "localizations" : {
         "en" : {
@@ -2790,12 +2966,32 @@
         }
       }
     },
+    "Impossibile modificare “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t change “%@”"
+          }
+        }
+      }
+    },
     "Impossibile montare “%@”" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn’t mount “%@”"
+          }
+        }
+      }
+    },
+    "Impossibile riparare “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t repair “%@”"
           }
         }
       }
@@ -2986,6 +3182,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The archive comes from the Internet: extracted files stay quarantined and Gatekeeper will check them the first time they are opened."
+          }
+        }
+      }
+    },
+    "L'archivio viene modificato. L'operazione non si può annullare." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is changed. This can’t be undone."
           }
         }
       }
@@ -3278,6 +3484,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unsupported compression method"
+          }
+        }
+      }
+    },
+    "Modifica dell'archivio…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changing the archive…"
           }
         }
       }
@@ -3692,6 +3908,16 @@
         }
       }
     },
+    "PAR2" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PAR2"
+          }
+        }
+      }
+    },
     "Password" : {
       "localizations" : {
         "en" : {
@@ -3853,6 +4079,16 @@
       }
     },
     "Presente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Present"
+          }
+        }
+      }
+    },
+    "Presenti" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4032,6 +4268,26 @@
         }
       }
     },
+    "Ricostruisce le parti danneggiate dai dati di recupero PAR2" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuilds the damaged parts from the PAR2 recovery data"
+          }
+        }
+      }
+    },
+    "Ridondanza" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redundancy"
+          }
+        }
+      }
+    },
     "Rigida (100:1)" : {
       "localizations" : {
         "en" : {
@@ -4068,6 +4324,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove the password"
+          }
+        }
+      }
+    },
+    "Rinomina" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "Rinomina “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename “%@”"
+          }
+        }
+      }
+    },
+    "Rinomina…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename…"
+          }
+        }
+      }
+    },
+    "Ripara" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repair"
+          }
+        }
+      }
+    },
+    "Riparazione in corso…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repairing…"
           }
         }
       }

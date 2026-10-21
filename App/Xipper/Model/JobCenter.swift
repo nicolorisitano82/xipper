@@ -269,6 +269,9 @@ final class JobCenter {
             var options = Preferences.createOptions(format: format, preset: preset, password: password)
             options.legacyZipCrypto = legacyZipCrypto
             let r = try Xipper.create(from: sources, to: dest, options: options, progress: progress, cancel: cancel)
+            if Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate) {
+                try PAR2.create(for: [dest], redundancy: Preferences.recoveryPercent, cancel: cancel)
+            }
             return .created(r, dest)
         case let .extract(r):
             var options = Preferences.extractOptions(password: r.password)

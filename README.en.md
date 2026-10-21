@@ -25,6 +25,8 @@ It needs no third-party software at run time: the open-source codecs are compile
   - XIZ: Argon2id and AES-256-GCM over data, names and metadata.
   - Passwords can be saved in the Keychain and unlocked with Touch ID.
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
+- **Edit archives without unpacking them.** Delete, rename and add entries; ZIP and XIZ keep untouched entries as they are (no recompression).
+- **PAR2 recovery data.** Written from the specification, compatible with par2cmdline and MultiPar; damaged archives are repaired from the window or the CLI.
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**
   - Finder extension, Quick Actions, Quick Look previews and thumbnails.
@@ -117,6 +119,20 @@ scripts/benchmark.sh 600 3
 
 ```bash
 .build/release/xipper list --long photos.zip
+```
+
+Edit an archive, repair it with PAR2:
+
+```bash
+.build/release/xipper edit photos.zip --delete old.jpg --rename draft:final --add new.jpg:final/new.jpg
+```
+
+```bash
+.build/release/xipper par2 create --redundancy 10 photos.zip
+```
+
+```bash
+.build/release/xipper par2 repair photos.zip.par2
 ```
 
 Mount an archive as a volume (`/Volumes/<name>`) until you eject it or press Ctrl-C. Changes are saved into the archive; `--read-only` mounts it read-only, `--discard` drops the changes:

@@ -9,6 +9,8 @@ enum PrefKey {
     static let storeCompressed = "storeAlreadyCompressed"
     static let keepMacFiles = "keepMacFiles"
     static let revealAfter = "revealInFinderAfter"
+    static let recoveryAfterCreate = "par2AfterCreate"
+    static let recoveryPercent = "par2Percent"
     static let propagateQuarantine = "propagateQuarantine"
     static let symlinkPolicy = "symlinkPolicy"
     static let maxRatio = "maxCompressionRatio"
@@ -80,10 +82,15 @@ enum Preferences {
             PrefKey.updatesAutomatic: true,
             PrefKey.sevenZipEncryptNames: true,
             PrefKey.sevenZipSolid: true,
+            PrefKey.recoveryAfterCreate: false,
+            PrefKey.recoveryPercent: 10.0,
         ])
     }
 
     static var workload: Workload { defaults.bool(forKey: PrefKey.useEfficiencyCores) ? .background : .interactive }
+
+    /// PAR2 redundancy, percent of the archive (5, 10 or 20 in Settings).
+    static var recoveryPercent: Double { min(100, max(1, defaults.double(forKey: PrefKey.recoveryPercent))) }
 
     static var zipMethod: ZipMethod {
         switch defaults.string(forKey: PrefKey.zipMethod) {

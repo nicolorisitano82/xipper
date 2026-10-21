@@ -139,7 +139,7 @@ final class ZipArchive: @unchecked Sendable {
 
     private static func parseCentral(_ r: inout ByteReader, bias: Int64, partStarts: [Int64]) throws -> ZipEntryRecord {
         let madeBy = try r.u16()
-        _ = try r.u16()  // version needed
+        let needed = try r.u16()
         let flags = try r.u16()
         let method = try r.u16()
         let dosTime = try r.u16(), dosDate = try r.u16()
@@ -147,12 +147,12 @@ final class ZipArchive: @unchecked Sendable {
         var csize = Int64(try r.u32()), usize = Int64(try r.u32())
         let nameLen = Int(try r.u16()), extraLen = Int(try r.u16()), commentLen = Int(try r.u16())
         var disk = Int(try r.u16())
-        _ = try r.u16()  // internal attributes
+        let internalAttributes = try r.u16()
         let external = try r.u32()
         var offset = Int64(try r.u32())
         let rawName = Array(try r.bytes(nameLen))
         let extra = try r.bytes(extraLen)
-        try r.skip(commentLen)
+        let comment = Array(try r.bytes(commentLen))
 
         var mtime: Date?
         var unicodeName: String?
@@ -212,10 +212,13 @@ final class ZipArchive: @unchecked Sendable {
                                  modified: mtime ?? DOSDateTime.decode(time: dosTime, date: dosDate),
                                  permissions: unixMode != 0 ? unixMode & 0o7777 : nil,
                                  encryption: encryption, method: zipMethodName(actualMethod), linkTarget: nil, crc32: storedCRC)
-        return ZipEntryRecord(entry: entry, rawName: rawName, method: method, flags: flags, crc: crc,
-                              compressedSize: csize, uncompressedSize: usize,
-                              localHeaderOffset: offset + (try partStart(disk, partStarts)) + bias,
-                              dosTime: dosTime, hostSystem: host)
+        var rec = ZipEntryRecord(entry: entry, rawName: rawName, method: method, flags: flags, crc: crc,
+                                 compressedSize: csize, uncompressedSize: usize,
+                                 localHeaderOffset: offset + (try partStart(disk, partStarts)) + bias,
+                                 dosTime: dosTime, hostSystem: host)
+        rec.central = .init(versionMadeBy: madeBy, versionNeeded: needed, dosDate: dosDate, internalAttributes: internalAttributes,
+                            externalAttributes: external, extra: Array(extra), comment: comment)
+        return rec
     }
 
     /// Names without the UTF-8 flag: valid non-ASCII UTF-8 is taken as UTF-8 (what macOS and Linux

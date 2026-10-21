@@ -13,6 +13,10 @@ final class XizArchive: @unchecked Sendable {
     let superblock: Xiz.Superblock
     /// Set for encrypted archives (opened with the right password).
     let keys: XizKeys?
+    /// 1 for a single-segment archive; appends add one each (1.1).
+    let segments: Int
+    /// Where the current footer starts (bytes after it are an interrupted append, ignored).
+    var footerOffset: Int64 { footer.catalogOffset + footer.catalogCSize }
 
     var isEncrypted: Bool { keys != nil }
 
@@ -42,9 +46,27 @@ final class XizArchive: @unchecked Sendable {
             keys = nil
         }
 
-        let footerStart = size - Int64(Xiz.footerSize)
-        let footer = try Xiz.Footer.decode(try reader.read(at: footerStart, count: Xiz.footerSize))
-        guard footer.major == sb.major, footer.previousFooter == 0 else { throw XipperError.corrupt("XIZ footer does not match the superblock") }
+        let (footerStart, footer) = try Self.lastFooter(reader, dataStart: dataStart)
+        guard footer.major == sb.major else { throw XipperError.corrupt("XIZ footer does not match the superblock") }
+        // Appended segments (1.1): each earlier catalog and footer is a declared gap between frames.
+        var gaps: [Int64: Int64] = [:]  // start → end
+        var segment: UInt32 = 0
+        var prev = Int64(bitPattern: footer.previousFooter)
+        var bound = footerStart
+        while prev != 0 {
+            guard prev >= dataStart, prev + Int64(Xiz.footerSize) <= bound, segment < 65535 else {
+                throw XipperError.corrupt("XIZ segment chain")
+            }
+            let older = try Xiz.Footer.decode(try reader.read(at: prev, count: Xiz.footerSize))
+            guard older.catalogOffset >= dataStart, older.catalogOffset + older.catalogCSize == prev else {
+                throw XipperError.corrupt("XIZ segment chain")
+            }
+            gaps[older.catalogOffset] = prev + Int64(Xiz.footerSize)
+            bound = older.catalogOffset
+            prev = Int64(bitPattern: older.previousFooter)
+            segment += 1
+        }
+        segments = Int(segment) + 1
         guard footer.catalogOffset >= dataStart, footer.catalogCSize > 0,
               footer.catalogCSize <= Int64(Xiz.maxCatalog), footer.catalogUSize <= Int64(Xiz.maxCatalog),
               footer.catalogOffset + footer.catalogCSize == footerStart else {
@@ -52,7 +74,7 @@ final class XizArchive: @unchecked Sendable {
         }
         var packed = try reader.read(at: footer.catalogOffset, count: Int(footer.catalogCSize))
         guard Xiz.sha256(packed) == footer.catalogSHA256 else { throw XipperError.corrupt("XIZ catalog hash mismatch") }
-        if let keys { packed = try keys.openCatalog(packed, footer: footer) }
+        if let keys { packed = try keys.openCatalog(packed, footer: footer, segment: segment) }
         let raw = try packed.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(footer.catalogUSize)) }
         let c = try Xiz.decodeCatalog(raw)
         guard c.frames.count == Int(footer.frameCount), c.entries.count == Int(footer.entryCount) else {
@@ -61,13 +83,16 @@ final class XizArchive: @unchecked Sendable {
         // Frames: strictly increasing, non-overlapping, after the keys and before the catalog, bounded.
         let overhead = UInt32(keys == nil ? 0 : Xiz.tagSize)
         var next = dataStart
+        func skipGaps() { while let end = gaps[next] { next = end } }
         for f in c.frames {
+            skipGaps()
             guard f.offset == next, f.usize <= UInt32(Xiz.maxFrameData), f.csize <= UInt32(Xiz.maxFrameData) + 4096,
                   f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead else {
                 throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
             }
             next = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
         }
+        skipGaps()
         guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ frames overlap the catalog") }
         // Entries: extents inside their frames, sizes add up, total as declared.
         var total: UInt64 = 0
@@ -87,6 +112,35 @@ final class XizArchive: @unchecked Sendable {
         guard total == footer.totalBytes else { throw XipperError.corrupt("XIZ declared size mismatch") }
         catalog = c
         self.footer = footer
+    }
+
+    /// The last valid footer: normally the file's last 96 bytes; after an interrupted append, the
+    /// one before the incomplete segment (searched backwards, its catalog location must fit).
+    private static func lastFooter(_ reader: FileReader, dataStart: Int64) throws -> (Int64, Xiz.Footer) {
+        let size = reader.size
+        if let f = try? Xiz.Footer.decode(try reader.read(at: size - Int64(Xiz.footerSize), count: Xiz.footerSize)),
+           f.catalogOffset + f.catalogCSize == size - Int64(Xiz.footerSize) {
+            return (size - Int64(Xiz.footerSize), f)
+        }
+        let window = 1 << 20
+        var end = size - 1
+        while end > dataStart + Int64(Xiz.footerSize) {
+            let start = max(dataStart, end - Int64(window))
+            let chunk = try reader.read(at: start, count: Int(end - start))
+            var i = chunk.count - 4
+            while i >= 0 {
+                if chunk[i] == 0x58, chunk[i + 1] == 0x49, chunk[i + 2] == 0x5A, chunk[i + 3] == 0x21 {  // "XIZ!"
+                    let footerAt = start + Int64(i) + 4 - Int64(Xiz.footerSize)
+                    if footerAt >= dataStart, let f = try? Xiz.Footer.decode(try reader.read(at: footerAt, count: Xiz.footerSize)),
+                       f.catalogOffset + f.catalogCSize == footerAt {
+                        return (footerAt, f)
+                    }
+                }
+                i -= 1
+            }
+            end = start + 3
+        }
+        throw XipperError.corrupt("XIZ footer not found")
     }
 
     var entries: [ArchiveEntry] {

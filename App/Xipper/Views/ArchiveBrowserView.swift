@@ -22,6 +22,10 @@ struct ArchiveBrowserView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Asking the password of encrypted entries (wrong = the last one did not work).
     @State private var passwordPrompt: PasswordPrompt?
+    /// An edit, recovery or repair in progress (shown in the status bar).
+    @State private var working: String?
+    /// Bumped when recovery files appear, so the inspector looks again.
+    @State private var recoveryRevision = 0
 
     struct PasswordPrompt: Identifiable {
         let id = UUID()
@@ -46,9 +50,12 @@ struct ArchiveBrowserView: View {
         } detail: {
             content
                 .inspector(isPresented: Binding(get: { showInspector && !showDamaged }, set: { showInspector = $0 })) {
-                    ArchiveInspector(model: model, selection: selectedItems) {
+                    ArchiveInspector(model: model, selection: selectedItems, verify: {
                         verifyJob = jobs.start(.test(archive: url, password: model.password))
-                    }
+                    }, createRecovery: {
+                        working = String(localized: "Creazione dei dati di recupero…")
+                        ArchiveActions.createRecovery(for: url) { working = nil; recoveryRevision += 1 }
+                    }, recoveryRevision: recoveryRevision)
                         .inspectorColumnWidth(min: 240, ideal: 262)
                 }
         }
@@ -157,10 +164,45 @@ struct ArchiveBrowserView: View {
                                    : String(localized: "\(selection.count) di \(items.count) selezionati · \(size.byteText) in \(place)"))
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             Spacer()
+            if let working {
+                ProgressView().controlSize(.mini)
+                Text(working).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 16)
         .frame(height: 24)
         .background(.bar)
+    }
+
+    /// Editing needs a format Xipper writes, the archive not mounted, and nothing else running.
+    private var editable: Bool {
+        ArchiveActions.canEdit(model.format) && !model.namesLocked && working == nil && MountCenter.shared.mounted(url) == nil
+    }
+
+    private func applyEdit(_ changes: [ArchiveChange]) {
+        withPassword(for: Set(model.entries.map(\.path))) {
+            working = String(localized: "Modifica dell'archivio…")
+            ArchiveActions.edit(url, changes, password: model.password) {
+                working = nil
+                selection.removeAll()
+                Task { await model.load() }
+            }
+        }
+    }
+
+    private func addFiles() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = String(localized: "Aggiungi")
+        panel.message = String(localized: "Gli elementi scelti vanno nella cartella «\(model.currentFolder.isEmpty ? url.lastPathComponent : (model.currentFolder as NSString).lastPathComponent)» dell'archivio.")
+        guard panel.runModal() == .OK else { return }
+        add(panel.urls)
+    }
+
+    private func add(_ files: [URL]) {
+        let folder = model.currentFolder
+        applyEdit(files.map { .add($0, as: folder.isEmpty ? $0.lastPathComponent : folder + "/" + $0.lastPathComponent) })
     }
 
     private var isFavorite: Bool { favoritesRaw.split(separator: "\n").contains { String($0) == url.path } }
@@ -239,9 +281,16 @@ struct ArchiveBrowserView: View {
 
     @ViewBuilder private var content: some View {
         if showDamaged, let job = verifyJob, !model.loading {
-            DamagedEntriesView(job: job, model: model) { intact in
+            DamagedEntriesView(job: job, model: model, extractIntact: { intact in
                 extractSheet = ExtractSheetRequest(selection: intact)
-            }
+            }, repair: PAR2.indexFile(for: url) == nil || working != nil ? nil : {
+                working = String(localized: "Riparazione in corso…")
+                ArchiveActions.repair(url) {
+                    working = nil
+                    verifyJob = jobs.start(.test(archive: url, password: model.password))
+                    Task { await model.load() }
+                }
+            })
             .transition(.opacity)
         } else if model.loading {
             ProgressView("Lettura dell'archivio…").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -300,6 +349,18 @@ struct ArchiveBrowserView: View {
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
                     Button("Apri cartella") { model.currentFolder = id }
                 }
+                if editable {
+                    Divider()
+                    if ids.count == 1, let id = ids.first {
+                        Button("Rinomina…") { if let new = ArchiveActions.askNewName(for: id) { applyEdit([.rename(id, to: new)]) } }
+                    }
+                    Button("Aggiungi file…") { addFiles() }
+                    if !ids.isEmpty {
+                        Button("Elimina", role: .destructive) {
+                            if ArchiveActions.confirmDelete(ids.count, archive: url) { applyEdit(ids.sorted().map { .delete($0) }) }
+                        }
+                    }
+                }
             } primaryAction: { ids in
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
                     model.search = ""
@@ -309,6 +370,13 @@ struct ArchiveBrowserView: View {
                     selection = ids
                     previewSelection()  // double click on a file: Quick Look (3.4)
                 }
+            }
+            .dropDestination(for: URL.self) { urls, _ in
+                // Files dropped on the table go into the folder shown (not our own drag-out copies).
+                let files = urls.filter { $0.isFileURL && !$0.path.hasPrefix(EntryStaging.root.path) }
+                guard editable, !files.isEmpty else { return false }
+                add(files)
+                return true
             }
             .safeAreaInset(edge: .top, spacing: 0) { pathBar }
             .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
@@ -480,6 +548,9 @@ private struct ArchiveInspector: View {
     let selection: [BrowserItem]
     /// "Verifica archivio" (3.1).
     var verify: () -> Void = {}
+    /// "Crea dati di recupero" (PAR2).
+    var createRecovery: () -> Void = {}
+    var recoveryRevision = 0
     @State private var preview: Preview?
     @State private var sha256: String?
 
@@ -536,6 +607,15 @@ private struct ArchiveInspector: View {
                 Section {
                     Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
                         .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                }
+                Section("Dati di recupero") {
+                    let index = recoveryRevision >= 0 ? PAR2.indexFile(for: model.url) : nil
+                    LabeledContent("PAR2", value: index == nil ? String(localized: "Assenti") : String(localized: "Presenti"))
+                    if index == nil {
+                        Button("Crea dati di recupero", systemImage: "cross.case", action: createRecovery)
+                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .help("File .par2 accanto all'archivio: servono a ripararlo se si danneggia")
+                    }
                 }
                 if let b = model.bgzf {
                     Section("BGZF (genomica)") {

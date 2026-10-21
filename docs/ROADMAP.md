@@ -72,21 +72,26 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 - ✅ cifratura autenticata di dati e nomi (Argon2id, AES-256-GCM, catalogo STREAM);
 - ✅ chunking basato sul contenuto (FastCDC, deduplicazione dentro i file);
 - ✅ catalogo estensibile (campi TLV con bit "critico") e flag delle funzioni obbligatorie e facoltative;
-- da fare nelle versioni 1.x, già previsti dal formato:
-  - dizionari addestrati per i file piccoli (funzione obbligatoria `dictionaries`);
-  - dati di recupero (funzione facoltativa `recovery`);
-  - aggiunta di file a un archivio esistente (funzione `append_chain`);
+- ✅ XIZ 1.1 (22/10/2026): **modifica in place** con segmenti aggiunti in coda (rinomina, elimina, aggiungi senza riscrivere nulla; `compact` per recuperare spazio);
+- ✅ dati di recupero: file **PAR2** standard accanto all'archivio (vale per XIZ e per ogni altro formato);
+- da fare: dizionari addestrati per i file piccoli (funzione obbligatoria `dictionaries`);
 - ordinamento per somiglianza: è una scelta del compressore, il formato non cambia.
 
-### 4. Robustezza e riparazione
+### 4. Robustezza e riparazione — ✅ 22/10/2026
 
-- dati di recupero **PAR2** (formato aperto) per ZIP, 7z e tar;
-- riparazione guidata dalla vista delle voci danneggiate.
+- ✅ dati di recupero **PAR2** scritti da zero dalla specifica (Reed-Solomon su GF(2^16)), compatibili con par2cmdline e MultiPar: `xipper par2 create|verify|repair`, «Crea dati di recupero» nell'inspector, opzione per crearli dopo ogni compressione;
+- ✅ «Ripara» nella vista delle voci danneggiate quando c'è un `.par2`;
+- da fare: ricerca dei blocchi spostati (come par2cmdline), accelerazione NEON di GF(2^16) (punto 2).
 
-### 5. Modifica degli archivi
+### 5. Modifica degli archivi — ✅ 22/10/2026
 
-- aggiungere, rinominare ed eliminare voci di ZIP e 7z senza ricreare l'archivio dove il formato lo permette;
-- trascinare file dentro il browser.
+- ✅ `Xipper.edit` / `xipper edit`: elimina, rinomina, aggiungi (le cartelle si fondono), crea cartelle;
+  - ZIP: le voci non toccate vengono copiate così come sono (anche AES e data descriptor), solo il nuovo viene compresso;
+  - XIZ: segmento aggiunto in coda, nulla viene riscritto;
+  - altri formati: ricostruiti nel loro formato e con la loro password;
+- ✅ nel browser: «Rinomina…», «Elimina», «Aggiungi file…» e trascinamento di file dentro la tabella;
+- ✅ il salvataggio dei volumi montati usa lo stesso percorso (ZIP e XIZ non ricomprimono più tutto);
+- da fare: 7z non solido senza ricompressione.
 
 ### 6. Formati in sola lettura
 

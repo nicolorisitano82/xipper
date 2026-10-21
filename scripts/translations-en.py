@@ -8,7 +8,7 @@ Usage: python3 scripts/translations-en.py
 import json, pathlib, sys
 
 # Keys whose English text is the same as the Italian one (names, formats, symbols).
-SAME = {"", "7z", "CRC-32", "SHA-256", "No", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
+SAME = {"", "5%", "10%", "20%", "PAR2", "7z", "CRC-32", "SHA-256", "No", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
@@ -443,6 +443,32 @@ EN = {
     "formato Xipper sperimentale, deduplicazione": "experimental Xipper format, dedup",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
+    "Eliminare l'elemento da “%@”?": "Delete the item from “%@”?",
+    "File .par2 accanto all'archivio, compatibili con par2cmdline e MultiPar: se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta.": ".par2 files next to the archive, compatible with par2cmdline and MultiPar: if the archive gets damaged, Xipper repairs it as long as the damage does not exceed the chosen redundancy.",
+    "File .par2 accanto all'archivio: servono a ripararlo se si danneggia": ".par2 files next to the archive, used to repair it if it gets damaged",
+    "Gli elementi scelti vanno nella cartella «%@» dell'archivio.": "The chosen items go into the “%@” folder of the archive.",
+    "L'archivio viene modificato. L'operazione non si può annullare.": "The archive is changed. This can’t be undone.",
+    "Modifica dell'archivio…": "Changing the archive…",
+    "Ci sono dati di recupero PAR2: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza.": "PAR2 recovery data is available: Repair rebuilds the damaged parts, as long as the damage does not exceed the redundancy.",
+    "Crea i dati di recupero PAR2 dopo ogni compressione": "Create PAR2 recovery data after every compression",
+    "Impossibile creare i dati di recupero": "Couldn’t create the recovery data",
+    "Aggiungi file…": "Add Files…",
+    "Assenti": "None",
+    "Crea dati di recupero": "Create Recovery Data",
+    "Creazione dei dati di recupero…": "Creating recovery data…",
+    "Dati di recupero": "Recovery Data",
+    "Elimina": "Delete",
+    "Eliminare %lld elementi da “%@”?": "Delete %lld items from “%@”?",
+    "Impossibile modificare “%@”": "Couldn’t change “%@”",
+    "Impossibile riparare “%@”": "Couldn’t repair “%@”",
+    "Presenti": "Present",
+    "Ricostruisce le parti danneggiate dai dati di recupero PAR2": "Rebuilds the damaged parts from the PAR2 recovery data",
+    "Ridondanza": "Redundancy",
+    "Rinomina": "Rename",
+    "Rinomina “%@”": "Rename “%@”",
+    "Rinomina…": "Rename…",
+    "Ripara": "Repair",
+    "Riparazione in corso…": "Repairing…",
     "Monta come volume": "Mount as a Volume",
     " e salva le modifiche": " and save the changes",
     "Alcuni file del volume sono ancora aperti. Chiudili e riprova.": "Some files on the volume are still open. Close them and try again.",

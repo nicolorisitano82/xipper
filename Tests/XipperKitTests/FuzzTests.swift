@@ -75,10 +75,25 @@ struct FuzzTests {
         try fuzz(.xiz, o, password: "fuzz", t)
     }
 
-    func fuzz(_ format: ArchiveFormat, _ o: CreateOptions, password: String?, _ t: TempDir) throws {
+    /// XIZ with an appended segment (1.1): gaps between frames and the footer chain under mutation.
+    @Test func mutatedAppendedXizNeverCrashesOrEscapes() throws {
+        let t = TempDir()
+        t.write("src/a.txt", String(repeating: "Xipper fuzz ", count: 300))
+        t.write("src/sub/b.bin", sampleData(20 << 10, seed: 5))
+        t.write("more.txt", "appended\n")
+        var o = CreateOptions()
+        o.format = .xiz
+        try fuzz(.xiz, o, password: nil, t) { a in
+            try Xipper.edit(a, changes: [.delete("src/a.txt"), .add(t.url("more.txt"), as: "src/more.txt")])
+        }
+    }
+
+    func fuzz(_ format: ArchiveFormat, _ o: CreateOptions, password: String?, _ t: TempDir,
+              prepare: ((URL) throws -> Void)? = nil) throws {
         let source = format.isSingleFile ? t.url("src/a.txt") : t.url("src")
         let original = t.url("orig." + format.fileExtension)
         try Xipper.create(from: [source], to: original, options: o)
+        try prepare?(original)
         let bytes = try [UInt8](Data(contentsOf: original))
 
         var rng = SplitMix(state: UInt64(abs(format.rawValue.hashValue % 1_000_003)) &+ (password == nil ? 17 : 29))

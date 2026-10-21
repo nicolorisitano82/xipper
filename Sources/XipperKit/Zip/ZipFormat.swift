@@ -105,6 +105,18 @@ struct ZipEntryRecord: Sendable {
     var hostSystem: UInt8
     /// Absolute file offset of the entry's data; resolved from the local header.
     var dataOffset: Int64 = -1
+    /// Raw central directory fields, to copy the entry into another archive (ArchiveEditor).
+    var central = CentralFields()
+
+    struct CentralFields: Sendable {
+        var versionMadeBy: UInt16 = 0
+        var versionNeeded: UInt16 = 20
+        var dosDate: UInt16 = 0
+        var internalAttributes: UInt16 = 0
+        var externalAttributes: UInt32 = 0
+        var extra: [UInt8] = []
+        var comment: [UInt8] = []
+    }
 }
 
 func zipMethodName(_ m: UInt16) -> String {

@@ -31,6 +31,16 @@ usage: xipper <command> [options]
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
+  edit    [options] <archive>   change an archive in place (ZIP: untouched entries are not recompressed;
+                                XIZ: changes are appended; other formats are rebuilt). Repeatable, in order:
+          --delete PATH    remove a file or folder
+          --rename OLD:NEW rename a file or folder
+          --add FILE[:PATH]  add a file or folder from disk (folders merge, files replace)
+          --mkdir PATH     add an empty folder
+          --compact        XIZ: rewrite the archive, dropping deleted data
+      -p, --password / --password-stdin
+  par2    create [--redundancy N] <file> | verify <file.par2> | repair <file.par2>
+          PAR2 recovery data (compatible with par2cmdline): N percent, default 10
   mount   [options] <archive>   mount as a volume (/Volumes/<name>) until ejected or Ctrl-C
           --read-only      do not allow changes
           --discard        drop the changes instead of saving them into the archive
@@ -75,11 +85,11 @@ let knownFlags: Set<String> = command == "bgzip"
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names",
-                         "--read-only", "--discard"])
+                         "--read-only", "--discard", "--compact"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
-       "--solid", "-v", "--volume", "--at"]
+       "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir"]
 do {
     var i = 0
     while i < args.count {
@@ -307,6 +317,67 @@ case "list", "l":
             } else {
                 print(name)
             }
+        }
+    }
+
+case "edit":
+    guard positional.count == 1 else { fail("edit needs one archive", code: 2) }
+    // The changes, in the order given (the generic parser keeps only the last value of each option).
+    var changes: [ArchiveChange] = []
+    var k = 0
+    while k + 1 < args.count {
+        let (opt, v) = (args[k], args[k + 1])
+        switch opt {
+        case "--delete": changes.append(.delete(v)); k += 2
+        case "--mkdir": changes.append(.makeDirectory(v)); k += 2
+        case "--rename":
+            guard let c = v.firstIndex(of: ":") else { fail("--rename needs OLD:NEW", code: 2) }
+            changes.append(.rename(String(v[..<c]), to: String(v[v.index(after: c)...]))); k += 2
+        case "--add":
+            // FILE or FILE:PATH; a ":" that belongs to the file name needs the PATH part.
+            let parts = v.split(separator: ":", maxSplits: 1).map(String.init)
+            let url = URL(fileURLWithPath: parts[0])
+            changes.append(.add(url, as: parts.count > 1 ? parts[1] : url.lastPathComponent)); k += 2
+        default: k += 1
+        }
+    }
+    guard !changes.isEmpty || flag("--compact") else { fail("edit needs at least one change", code: 2) }
+    let pw = readPassword(confirm: false)
+    run {
+        let archive = URL(fileURLWithPath: positional[0])
+        let r = try Xipper.edit(archive, changes: changes, password: pw, compact: flag("--compact"), progress: progress, cancel: cancel)
+        endProgress()
+        print("\(archive.lastPathComponent): \(r.entries) entries, \(r.copied) kept as they were, \(r.compressed) written\(r.rebuilt ? " (rebuilt)" : ""), \(r.outputBytes.bytesText)")
+    }
+
+case "par2":
+    guard positional.count == 2, ["create", "verify", "repair"].contains(positional[0]) else {
+        fail("par2 needs create, verify or repair and a file", code: 2)
+    }
+    run {
+        let file = URL(fileURLWithPath: positional[1])
+        func show(_ r: PAR2.Report) {
+            for f in r.files {
+                print("\(f.missing ? "MISSING" : f.damagedSlices == 0 ? "OK     " : "DAMAGED") \(f.name)\(f.damagedSlices > 0 && !f.missing ? " (\(f.damagedSlices) of \(f.slices) slices)" : "")")
+            }
+            print(r.isIntact ? "all files are intact (\(r.recoverySlices) recovery slices available)"
+                  : r.canRepair ? "repair possible: \(r.damagedSlices) damaged slices, \(r.recoverySlices) recovery slices"
+                  : "repair NOT possible: \(r.damagedSlices) damaged slices, only \(r.recoverySlices) recovery slices")
+        }
+        switch positional[0] {
+        case "create":
+            guard let pct = Double(value("--redundancy") ?? "10"), pct > 0, pct <= 100 else { fail("invalid redundancy (1-100)", code: 2) }
+            let written = try PAR2.create(for: [file], redundancy: pct, progress: progress, cancel: cancel)
+            endProgress()
+            for w in written { print("wrote \(w.lastPathComponent)") }
+        case "verify":
+            let r = try PAR2.verify(file, cancel: cancel)
+            show(r)
+            if !r.isIntact { exit(3) }
+        default:
+            let r = try PAR2.repair(file, progress: progress, cancel: cancel)
+            endProgress()
+            show(r)
         }
     }
 

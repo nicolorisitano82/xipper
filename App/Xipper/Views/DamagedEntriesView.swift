@@ -9,6 +9,8 @@ struct DamagedEntriesView: View {
     let model: ArchiveModel
     /// Opens the extraction sheet with the intact entries selected.
     let extractIntact: (Set<String>) -> Void
+    /// Repairs the archive from its PAR2 files (nil: no recovery data, or a repair is running).
+    var repair: (() -> Void)?
     @State private var onlyErrors = true
 
     struct Row: Identifiable {
@@ -57,6 +59,12 @@ struct DamagedEntriesView: View {
             }
             .layoutPriority(1)
             Spacer(minLength: 12)
+            if let repair {
+                Button("Ripara", systemImage: "cross.case", action: repair)
+                    .buttonStyle(.glassProminent)
+                    .fixedSize()
+                    .help("Ricostruisce le parti danneggiate dai dati di recupero PAR2")
+            }
             Button("Esporta rapporto…") { exportReport() }
                 .buttonStyle(.glass)
                 .fixedSize()
@@ -130,7 +138,10 @@ struct DamagedEntriesView: View {
         let first = perEntry && intact > 0
             ? String(localized: "Le altre \(intact) voci sono integre e si possono estrarre.")
             : String(localized: "L'archivio è un unico flusso compresso: i dati dopo il punto danneggiato non sono recuperabili.")
-        return first + " " + String(localized: "Riparazione non disponibile: l'archivio non contiene dati di recupero PAR2.")
+        let recovery = PAR2.indexFile(for: model.url) != nil
+            ? String(localized: "Ci sono dati di recupero PAR2: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza.")
+            : String(localized: "Riparazione non disponibile: l'archivio non contiene dati di recupero PAR2.")
+        return first + " " + recovery
     }
 
     private func exportReport() {

@@ -48,9 +48,33 @@ enum XizWriter {
             precondition(keysBlock.count == XizKeys.keysBlockSize)
             keys = XizKeys(fileKey: fileKey, archiveID: archiveID)
         }
-        let gear = FastCDC.gearTable(seed: keys.map { k in
+        if !overwrite && FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
+        let out = try OutputFile(path: path)
+        try out.write(superblock.encode())
+        if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
+        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level,
+                                              extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
+        try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
+        let size = out.position
+        try out.commit(overwrite: overwrite)
+        tracker.add(bytes: total - tracker.completedBytes, entries: items.count)  // deduplicated bytes count as done
+        tracker.finish()
+        return WriteReport(entries: items.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
+    }
+
+    /// The chunker's gear table: derived from the archive key when encrypted.
+    static func gear(_ keys: XizKeys?) -> [UInt64] {
+        FastCDC.gearTable(seed: keys.map { k in
             k.fileMAC.withUnsafeBytes { Array(HMAC<SHA256>.authenticationCode(for: Data("xiz/1/chunker".utf8), using: SymmetricKey(data: $0))) }
         })
+    }
+
+    /// Writes the frames holding `items` (deduplicated against themselves and against `known`
+    /// content: digest → extents already in the archive) and returns them with the items' entries.
+    static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
+                          level: Int, extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
+                          cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
+        let gear = gear(keys)
         func newDigest() -> Digest { keys.map { .keyed($0.fileDigest()) } ?? .plain(SHA256()) }
 
         // 1. Hash every file (and chunk the big ones), in parallel.
@@ -99,7 +123,7 @@ enum XizWriter {
         var current: [Segment] = []
         var currentSize = 0
         var entries: [Xiz.Entry] = []
-        var seenFiles: [[UInt8]: [Xiz.Extent]] = [:]
+        var seenFiles = known
         var seenChunks: [[UInt8]: [Xiz.Extent]] = [:]
         func closeFrame() {
             if !current.isEmpty { frames.append(current); current = []; currentSize = 0 }
@@ -112,7 +136,7 @@ enum XizWriter {
             while off < end {
                 if currentSize == Xiz.frameData { closeFrame() }
                 let n = Int(min(Int64(Xiz.frameData - currentSize), end - off))
-                extents.append(Xiz.Extent(frame: UInt32(frames.count), offset: UInt32(currentSize), length: UInt32(n)))
+                extents.append(Xiz.Extent(frame: UInt32(startFrame + frames.count), offset: UInt32(currentSize), length: UInt32(n)))
                 current.append(Segment(item: i, fileOffset: off, length: n))
                 currentSize += n
                 off += Int64(n)
@@ -158,12 +182,8 @@ enum XizWriter {
         }
         closeFrame()
 
-        // 3. Frames, compressed (and sealed) in parallel windows and written in order.
-        if !overwrite && FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
-        let out = try OutputFile(path: path)
-        try out.write(superblock.encode())
-        if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
-        var catalog = Xiz.Catalog()
+        // 3. Frames, compressed (and sealed) in parallel windows and written in order, numbered from `startFrame`.
+        var written: [Xiz.Frame] = []
         let window = max(2, workload.workerCount * 2)
         var start = 0
         while start < frames.count {
@@ -172,6 +192,7 @@ enum XizWriter {
             let results = Mutex<[Int: (Xiz.Frame, [UInt8])]>([:])
             try parallelFor(end - start, workload: workload, cancel: cancel) { k in
                 let idx = start + k
+            let global = startFrame + idx
                 var data = [UInt8]()
                 data.reserveCapacity(frames[idx].reduce(0) { $0 + $1.length })
                 for s in frames[idx] {
@@ -188,7 +209,7 @@ enum XizWriter {
                     payload = c
                 }
                 var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec)
-                if let keys { payload = try keys.sealFrame(payload, index: UInt32(idx), f) }
+                if let keys { payload = try keys.sealFrame(payload, index: UInt32(global), f) }
                 f.csize = UInt32(payload.count)
                 f.crc = Xiz.crc32c(payload)
                 results.withLock { $0[idx] = (f, payload) }
@@ -198,30 +219,30 @@ enum XizWriter {
             for idx in start..<end {
                 guard var (f, payload) = done[idx] else { throw XipperError.codec("missing XIZ frame") }
                 f.offset = out.position
-                try out.write(Xiz.frameHeader(index: UInt32(idx), f))
+                try out.write(Xiz.frameHeader(index: UInt32(startFrame + idx), f))
                 try payload.withUnsafeBytes { try out.write($0) }
-                catalog.frames.append(f)
+                written.append(f)
             }
             start = end
         }
 
-        // 4. Catalog (zstd, then sealed) and footer.
-        catalog.entries = entries
+        return (written, entries)
+    }
+
+    /// The catalog (zstd, then sealed with the segment's nonces) and the footer.
+    static func writeCatalog(_ catalog: Xiz.Catalog, to out: XizOutput, keys: XizKeys?, segment: UInt32, previousFooter: UInt64) throws {
         let raw = Xiz.encodeCatalog(catalog)
         var packed = raw.withUnsafeBytes { ZipWriter.zstdCompress($0, level: 9, allowExpansion: true) } ?? raw
         var footer = Xiz.Footer(catalogOffset: out.position, catalogCSize: 0, catalogUSize: Int64(raw.count),
-                                frameCount: UInt32(catalog.frames.count), entryCount: UInt32(entries.count),
-                                totalBytes: UInt64(entries.reduce(UInt64(0)) { $0 + $1.size }), catalogSHA256: [])
-        if let keys { packed = try keys.sealCatalog(packed, footer: footer) }
+                                frameCount: UInt32(catalog.frames.count), entryCount: UInt32(catalog.entries.count),
+                                totalBytes: UInt64(catalog.entries.reduce(UInt64(0)) { $0 + $1.size }), catalogSHA256: [])
+        footer.previousFooter = previousFooter
+        if previousFooter != 0 { footer.minor = 1 }  // appended segments: XIZ 1.1
+        if let keys { packed = try keys.sealCatalog(packed, footer: footer, segment: segment) }
         footer.catalogCSize = Int64(packed.count)
         footer.catalogSHA256 = Xiz.sha256(packed)
         try packed.withUnsafeBytes { try out.write($0) }
         try out.write(footer.encode())
-        let size = out.position
-        try out.commit(overwrite: overwrite)
-        tracker.add(bytes: total - tracker.completedBytes, entries: items.count)  // deduplicated bytes count as done
-        tracker.finish()
-        return WriteReport(entries: items.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
     }
 
     /// Joins extents that continue each other in the same frame.
@@ -306,3 +327,12 @@ final class FastCDC {
         return (i, false)
     }
 }
+
+/// Where XIZ data goes: a new file (OutputFile) or the end of an existing archive (append).
+protocol XizOutput: AnyObject {
+    var position: Int64 { get }
+    func write(_ src: UnsafeRawBufferPointer) throws
+    func write(_ bytes: [UInt8]) throws
+}
+
+extension OutputFile: XizOutput {}
