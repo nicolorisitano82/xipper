@@ -174,4 +174,6 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 | **HUD (7.1)** | Con tre o più lavori la pila diventa una capsula con anello di avanzamento, "3 lavori", "46% · 5 s"; un clic la espande. Senza finestre aperte (azioni dal Finder) l'HUD appare in un pannello flottante non attivante in basso a destra. |
 | **Test** | 99 test, tutti verdi: 6 sui formati in lettura (contro `lz4`, `brotli`, `cpio`, `aa`), ZipCrypto contro `unzip` e 7-Zip, AppleDouble contro `ditto`; fuzzing anche su lz4, brotli, cpio e Apple Archive (800 mutazioni per formato senza crash). |
 
-**Resta per la V1:** varianti dell'icona (`.icon` di Icon Composer), benchmark ripetibili (§5.4), Developer ID e notarizzazione (dipendono dall'iscrizione all'Apple Developer Program).
+**Benchmark ripetibili (§5.4):** `scripts/benchmark.sh [MB] [esecuzioni]` genera un corpus deterministico (sorgenti, testi, dati già compressi, un file grande) e confronta Xipper con ditto, Info-ZIP, `tar | zstd` e 7-Zip; risultati in [docs/BENCHMARK.md](docs/BENCHMARK.md). Su M3 Max, 316 MB: ZIP in 0,33 s contro 6,57 s di ditto (circa 20×) e 5,48 s di Info-ZIP; tar.zst 5× più veloce di `tar | zstd -T0`; 7z 3,5× più veloce di `7zz -mx5` con un rapporto quasi uguale; verifica ZIP 0,09 s contro 1,78 s di `unzip -t`; estrazione ZIP 4× più veloce di ditto. L'obiettivo dello studio ("ZIP almeno 4× Utility Archivio") è superato.
+
+**Resta per la V1:** varianti dell'icona (`.icon` di Icon Composer) e Developer ID con notarizzazione, che dipendono dall'iscrizione all'Apple Developer Program.
