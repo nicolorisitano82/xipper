@@ -13,6 +13,7 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(PrefKey.defaultFormat) private var formatRaw = ArchiveFormat.zip.rawValue
     @AppStorage(PrefKey.levelPreset) private var presetRaw = LevelPreset.balanced.rawValue
+    @AppStorage(PrefKey.zipMethod) private var zipMethodRaw = "deflate"
 
     @State private var items: [URL] = []
     @State private var infos: [URL: ItemInfo] = [:]
@@ -277,9 +278,22 @@ struct HomeView: View {
         Menu {
             Section("Formato") {
                 ForEach(offered, id: \.self) { f in
-                    Button { formatRaw = f.rawValue } label: {
+                    Button {
+                        formatRaw = f.rawValue
+                        if f == .zip { zipMethodRaw = "deflate" }
+                    } label: {
                         Text(f.displayName)
                         Text(description(f))
+                    }
+                    if f == .zip {
+                        // ZIP with zstd (method 93): same container, much faster and smaller.
+                        Button {
+                            formatRaw = ArchiveFormat.zip.rawValue
+                            zipMethodRaw = "zstd"
+                        } label: {
+                            Text("ZIP · zstd")
+                            Text("più veloce · 7-Zip, WinZip; non Utility Archivio")
+                        }
                     }
                 }
             }
@@ -294,7 +308,7 @@ struct HomeView: View {
                 }
             }
         } label: {
-            Text(format.displayName)
+            Text(format == .zip && zipMethodRaw == "zstd" ? "ZIP · zstd" : format.displayName)
         }
         .fixedSize()
     }

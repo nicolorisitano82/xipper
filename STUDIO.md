@@ -131,7 +131,9 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | Formato | Crea | Estrae | Password | Codec / origine |
 |---|---|---|---|---|
 | **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-2) · 📖 ZipCrypto legacy | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
-| ZIP: deflate64, bzip2, LZMA, **zstd (metodo 93)**, xz (95) | 🔜 zstd | ✅ | — | come sopra |
+| ZIP con **zstd (metodo 93)** | ✅ v1 | ✅ | ✅ AES-256 | zstd (BSD); leggibile da 7-Zip ≥ 21, WinZip, libarchive (non da Utility Archivio). Nell'app: «ZIP · zstd» nel menu Formato |
+| ZIP: bzip2, LZMA (14), xz (95) | ❌ | ✅ | — | lettura per compatibilità |
+| ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
 | ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
 | ZIP multi-volume (`.z01`…) | 🔜 | ✅ | | nostro |
 | **7z** | ✅ | ✅ | ✅ AES-256 + **cifratura dei nomi file** | LZMA SDK (public domain): LZMA/LZMA2, PPMd, filtri BCJ/**ARM64** |
