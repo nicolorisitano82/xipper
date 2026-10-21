@@ -28,6 +28,9 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     case cpio
     /// Apple Archive (`.aar`), read through the system AppleArchive framework.
     case appleArchive = "aar"
+    /// XIZ v0, Xipper's own format (BETA): independent zstd frames, catalog at the end,
+    /// whole-file dedup, Mac metadata. Not stable yet: the layout may change before v1.
+    case xiz
 
     public var fileExtension: String { self == .bgzf ? "gz" : rawValue }
 
@@ -39,7 +42,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
 
     var compression: StreamCompression {
         switch self {
-        case .zip, .tar, .sevenZip, .cpio, .appleArchive: return .none
+        case .zip, .tar, .sevenZip, .cpio, .appleArchive, .xiz: return .none
         case .tarLz4, .lz4: return .lz4
         case .tarBrotli, .brotli: return .brotli
         case .tarGzip, .gzip: return .gzip
@@ -66,7 +69,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
             (".tar.gz", .tarGzip), (".tgz", .tarGzip), (".tar.bz2", .tarBzip2), (".tbz2", .tarBzip2), (".tbz", .tarBzip2),
             (".tar.xz", .tarXz), (".txz", .tarXz), (".tar.zst", .tarZstd), (".tzst", .tarZstd),
             (".7z", .sevenZip), (".7z.001", .sevenZip), (".tar.lz4", .tarLz4), (".tlz4", .tarLz4), (".lz4", .lz4),
-            (".tar.br", .tarBrotli), (".br", .brotli), (".cpio", .cpio), (".aar", .appleArchive), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
+            (".tar.br", .tarBrotli), (".br", .brotli), (".cpio", .cpio), (".aar", .appleArchive), (".xiz", .xiz), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
         ]
         return table.first { n.hasSuffix($0.0) }?.1
     }
@@ -83,6 +86,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
             || head.starts(with: [0x50, 0x4B, 0x07, 0x08]) { return .zip }  // 07 08: first part of a split ZIP
         if head.starts(with: SevenZip.signature) { return .sevenZip }
         if AppleArchiveReader.looksLikeArchive(head) { return .appleArchive }
+        if XizArchive.looksLike(head) { return .xiz }
         if Cpio.looksLikeHeader(head) { return .cpio }
         let byName = inferred(fromFileName: url.lastPathComponent)
         switch StreamCompression.detect(head, name: url.lastPathComponent) {
@@ -242,6 +246,10 @@ public enum Xipper {
                                                 progress: progress, cancel: cancel)
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
+        case .xiz:
+            if options.password != nil { throw XipperError.unsupported("XIZ encryption is not available in the beta") }
+            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, extendedAttributes: options.storeExtendedAttributes,
+                                       workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .tarLz4, .lz4, .tarBrotli, .brotli:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
         case .gzip, .bgzf, .bzip2, .xz, .zstd:
@@ -287,6 +295,8 @@ public enum Xipper {
             } else if format == .sevenZip {
                 let a = try SevenZipArchive(path: archivePath, password: options.password)
                 try SevenZipExtractor.extract(a, ctx: ctx, tracker: tracker, cancel: cancel)
+            } else if format == .xiz {
+                try XizExtractor.extract(try XizArchive(path: archivePath), ctx: ctx, tracker: tracker, cancel: cancel)
             } else {
                 try TarExtractor.extract(archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
             }
@@ -358,6 +368,16 @@ public enum Xipper {
             }
             failures = try ZipExtractor.test(zip, password: password.map(ZipWriter.passwordBytes), workload: workload, tracker: tracker,
                                              digests: sums, cancel: cancel)
+        } else if format == .xiz {
+            do {
+                let a = try XizArchive(path: path)
+                entries = a.catalog.entries.count
+                failures = try XizExtractor.test(a, workload: workload, tracker: tracker, digests: sums, cancel: cancel)
+            } catch let e as XipperError where e != .cancelled {
+                // A catalog that cannot be read or validated fails the whole archive.
+                entries = max(entries, 1)
+                failures = [SkippedEntry(path: archive.lastPathComponent, error: e)]
+            }
         } else if format == .sevenZip {
             do {
                 let a = try SevenZipArchive(path: path, password: password)
@@ -389,6 +409,7 @@ public enum Xipper {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }
         if format == .sevenZip { return try SevenZipArchive(path: archive.standardizedFileURL.path, password: password).entries }
+        if format == .xiz { return try XizArchive(path: archive.standardizedFileURL.path).entries }
         return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload, password: password)
     }
 }
@@ -429,6 +450,7 @@ extension Xipper {
             } catch is EnoughBytes {}
             return EntryContent(entry: rec.entry, data: data, truncated: truncated)
         }
+        if format == .xiz { return try XizExtractor.read(try XizArchive(path: archivePath), path: path, maxBytes: maxBytes) }
         if format == .sevenZip {
             let a = try SevenZipArchive(path: archivePath, password: password)
             guard let rec = a.records.first(where: { $0.entry.path == path && !$0.isAnti }) else {

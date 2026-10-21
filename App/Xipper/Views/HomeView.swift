@@ -337,6 +337,7 @@ struct HomeView: View {
         case .sevenZip: String(localized: "compatto, nomi cifrati")
         case .appleArchive: String(localized: "formato Apple, cifratura AEA")
         case .cpio: String(localized: "Unix, initramfs")
+        case .xiz: String(localized: "formato Xipper sperimentale, deduplicazione")
         case .tarXz: String(localized: "compatto")
         case .tarGzip: String(localized: "Linux e server")
         case .tarBzip2: String(localized: "compatibilità")

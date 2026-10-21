@@ -21,6 +21,7 @@ private struct GeneralSettings: View {
     @AppStorage(PrefKey.levelPreset) private var preset = LevelPreset.balanced.rawValue
     @AppStorage(PrefKey.revealAfter) private var reveal = true
     @AppStorage(PrefKey.updatesAutomatic) private var updates = true
+    @AppStorage(PrefKey.betaXiz) private var betaXiz = false
 
     var body: some View {
         Form {
@@ -31,6 +32,17 @@ private struct GeneralSettings: View {
                 ForEach(LevelPreset.allCases) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Mostra il risultato nel Finder al termine", isOn: $reveal)
+            Section {
+                Toggle("Formato XIZ", isOn: $betaXiz)
+                Text("Il formato di Xipper: frame indipendenti, indice in coda, deduplicazione dei file identici e metadati del Mac. È una BETA: il formato può cambiare prima della versione 1 e per ora non supporta la password. Tieni anche una copia in un formato standard.")
+                    .font(.callout).foregroundStyle(.secondary)
+            } header: {
+                HStack {
+                    Text("Funzioni sperimentali")
+                    Text("BETA").font(.caption2.weight(.bold)).padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.orange.opacity(0.25)))
+                }
+            }
             Section("Aggiornamenti") {
                 Toggle("Cerca aggiornamenti ogni giorno", isOn: $updates)
                 LabeledContent("Versione", value: Updates.runningVersion)

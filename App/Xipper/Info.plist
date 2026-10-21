@@ -42,6 +42,7 @@
 				<string>public.cpio-archive</string>
 				<string>app.xipper.lz4</string>
 				<string>app.xipper.brotli</string>
+				<string>app.xipper.xiz</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -68,6 +69,7 @@
 				<string>public.cpio-archive</string>
 				<string>app.xipper.lz4</string>
 				<string>app.xipper.brotli</string>
+				<string>app.xipper.xiz</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -95,6 +97,7 @@
 				<string>public.cpio-archive</string>
 				<string>app.xipper.lz4</string>
 				<string>app.xipper.brotli</string>
+				<string>app.xipper.xiz</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -105,6 +108,19 @@
 				<string>app.xipper.tar-zstd</string>
 				<string>app.xipper.bgzf</string>
 			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.xiz</string>
+			<key>UTTypeDescription</key>
+			<string>Xipper archive (XIZ)</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>xiz</string></array></dict>
 		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>

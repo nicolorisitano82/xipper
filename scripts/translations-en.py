@@ -431,6 +431,13 @@ EN = {
     "Unix, initramfs": "Unix, initramfs",
     "Verifica archivio": "Verify Archive",
     "formato Apple, cifratura AEA": "Apple format, AEA encryption",
+    # XIZ beta
+    "Formato XIZ": "XIZ format",
+    "Funzioni sperimentali": "Experimental features",
+    "BETA": "BETA",
+    "Il formato di Xipper: frame indipendenti, indice in coda, deduplicazione dei file identici e metadati del Mac. È una BETA: il formato può cambiare prima della versione 1 e per ora non supporta la password. Tieni anche una copia in un formato standard.":
+        "Xipper's own format: independent frames, index at the end, dedup of identical files and Mac metadata. It is a BETA: the format may change before version 1 and does not support passwords yet. Keep a copy in a standard format too.",
+    "formato Xipper sperimentale, deduplicazione": "experimental Xipper format, dedup",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
     "Comprimi “%@”": "Compress “%@”",

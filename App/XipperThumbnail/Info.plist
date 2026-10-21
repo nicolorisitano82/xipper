@@ -14,6 +14,7 @@
 				<string>public.cpio-archive</string>
 				<string>app.xipper.lz4</string>
 				<string>app.xipper.brotli</string>
+				<string>app.xipper.xiz</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>

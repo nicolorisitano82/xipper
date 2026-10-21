@@ -9,7 +9,8 @@ let usage = """
 usage: xipper <command> [options]
 
   create  [options] <archive> <file|folder>...
-      -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, gz, bz2, xz, zst
+      -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio,
+                           xiz (BETA), gz, bz2, xz, zst
       -l, --level N        compression level (zip 1-12, zstd 1-22, xz/7z 0-9, bzip2 1-9)
       -m, --method M       zip method: deflate (default), zstd, store
       -p, --password       encrypt (zip, 7z: AES-256); prompts for the password

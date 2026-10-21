@@ -191,3 +191,19 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 | **Inglese** | `README.en.md` e `docs/BETA_TESTERS.en.md`, con link fra le lingue; il DMG contiene "LEGGIMI - beta.md" e "README - beta.md". |
 | **Icona (10.3)** | `App/Xipper/AppIcon.icon` (Icon Composer): gradiente #4AA3FF → #0A57D4 e glifo X con la cerniera in SVG; macOS ne ricava le varianti scura, tinta e trasparente, Xcode anche l'`.icns` di riserva. Generato da `scripts/make-app-icon.py`; il vecchio asset PNG è stato rimosso. Il glifo semplificato sotto i 32 pt resta da fare a mano in Icon Composer. |
 | **Test** | 102 test, tutti verdi, compresi Apple Archive contro `aa` e `aea`, CPIO contro `cpio`. |
+
+## Formato XIZ in BETA (21/10/2026)
+
+Prima fase del [nuovo formato](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md), estensione `.xiz`, tipo `app.xipper.xiz` dichiarato dall'app.
+
+| Voce | Stato |
+|---|---|
+| **Layout v0** | Superblock da 64 B (magic, versione 0.1, id casuale, CRC-32C) · frame (header da 32 B + payload) · catalogo zstd · footer fisso da 96 B (offset e dimensioni del catalogo, conteggi, totale dichiarato, SHA-256 del catalogo, CRC-32C, magic finale). Codice in `Sources/XipperKit/Xiz/`. |
+| **Frame** | Indipendenti, fino a 4 MiB di dati: i file piccoli condividono i frame, quelli grandi si dividono; zstd (livello 1 Veloce, 3 Normale, 19 Massimo) oppure store se non comprime. CRC-32C (istruzioni ARMv8) del payload nel header e nel catalogo. Compressione parallela a finestre di 2× i worker, scrittura in ordine. |
+| **Deduplicazione** | Per file intero: si calcola lo SHA-256 solo dei file con dimensione uguale a un altro; le copie puntano agli stessi frame. Sulla cartella di prova (sorgenti duplicati e un file casuale da 20 MB copiato) l'archivio è 20,2 MB contro 40,2 MB di tar.zst e 40,4 MB di ZIP. |
+| **Metadati** | Tipo, percorso, permessi, uid/gid, mtime in nanosecondi, symlink, attributi estesi (tag del Finder, resource fork). |
+| **Sicurezza** | Il catalogo è l'unica fonte di verità: frame in ordine stretto senza sovrapposizioni né buchi, estensioni dentro i frame e somma uguale alla dimensione dichiarata, totale nel footer controllato contro lo spazio libero prima di scrivere, header di ogni frame confrontato con il catalogo, decompressione alla dimensione esatta; estrazione tramite `ExtractionContext` (zip-slip, symlink, quarantena). |
+| **Verifica** | Tutti i frame in parallelo (header, CRC-32C, decompressione); con `--sha256` anche lo SHA-256 di ogni file. Un byte alterato viene indicato come CRC non corrispondente; un archivio troncato o con il catalogo alterato viene rifiutato. |
+| **Nell'app** | Impostazioni › Generali › Funzioni sperimentali › "Formato XIZ": compare nel menu dei formati come "XIZ · BETA". L'apertura dei `.xiz` funziona sempre (browser, Quick Look, miniature). Senza password: la cifratura è la fase 2. |
+| **Test** | 3 test dedicati e fuzzing (3000 mutazioni senza crash), più round trip con selezione, attributi, anteprima delle voci. |
+| **Non ancora (fasi 2–7)** | Cifratura (Argon2id, AES-GCM per frame, catalogo STREAM), dizionari ZDICT, ordinamento per similarità, FastCDC, append, dati di recupero, ottimizzazioni ARM64/Metal, specifica pubblica e lettore di riferimento. Il layout può cambiare prima della v1. |
