@@ -9,7 +9,7 @@ import XipperKit
 /// Transport-agnostic: `receive` takes one message (one stdio line), `send` emits one.
 /// Tool calls run concurrently; `notifications/cancelled` cancels them cooperatively.
 public final class MCPServer: @unchecked Sendable {
-    public static let serverVersion = "1.0.0"
+    public static let serverVersion = "1.0.1"
     /// Stateless revisions: every request carries its version and capabilities in `_meta`.
     static let modernVersions = ["2026-07-28"]
     /// Session-based revisions, selected by `initialize` for the life of the stdio process.

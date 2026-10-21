@@ -40,9 +40,11 @@ def glyph(color, teeth=3, bar=6.6, tooth_w=2.5, tooth_h=2.8, scale=1.0, dx=0.0, 
     return "\n  ".join(out)
 
 
-def svg(body, size=40, defs=""):
+def svg(body, size=40, defs="", points=None):
+    """`points`: the drawn size (template images in the menu bar want 18), default the box size."""
     d = f"<defs>{defs}</defs>\n  " if defs else ""
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" width="{size}" height="{size}">\n  {d}{body}\n</svg>\n'
+    shown = points or size
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" width="{shown}" height="{shown}">\n  {d}{body}\n</svg>\n'
 
 
 def gradient(id, a=BLUE_TOP, b=BLUE_BOTTOM):
@@ -75,7 +77,8 @@ art["r1c2-app-icon-dark"] = svg(squircle.format("#1C1C1E") + "\n  " + glyph("url
 art["r1c3-app-icon-tinted"] = svg(squircle.format("#E5E5EA") + "\n  " + glyph("#8E8E93", scale=0.74, dx=5.2, dy=5.2))
 art["r1c4-app-icon-small"] = svg(squircle.format("url(#g)") + "\n  " + glyph("#FFFFFF", teeth=0, bar=7.0, scale=0.74, dx=5.2, dy=5.2),
                                  defs=gradient("g"))
-art["r2c1-menu-bar"] = svg(glyph("#000000", teeth=2, bar=6.6, tooth_w=2.8, tooth_h=3.2))
+menu_glyph = glyph("#000000", teeth=2, bar=6.6, tooth_w=2.8, tooth_h=3.2)
+art["r2c1-menu-bar"] = svg(menu_glyph)
 arrows = []
 for sx, sy in [(-1, -1), (1, -1), (-1, 1), (1, 1)]:  # four arrows from the corners toward the centre
     tip = (20 + sx * 10.5, 20 + sy * 10.5)
@@ -145,7 +148,7 @@ write(os.path.join(icon_root, "icon.json"), json.dumps(icon, indent=2) + "\n")
 
 # --- template symbols in the app's asset catalog, and the Finder extension's glyph -------------------
 
-imageset("XipperGlyph", "XipperGlyph.svg", art["r2c1-menu-bar"])
+imageset("XipperGlyph", "XipperGlyph.svg", svg(menu_glyph, points=18))  # menu bar: 18 pt like system symbols
 imageset("XipperCompress", "XipperCompress.svg", art["r2c2-compress"])
 write(os.path.join(ROOT, "App/XipperFinder/XipperGlyph.svg"), art["r2c1-menu-bar"])
 

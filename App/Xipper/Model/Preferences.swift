@@ -53,7 +53,9 @@ enum LevelPreset: String, CaseIterable, Identifiable {
         case (.best, .tarZstd), (.best, .zstd): return 19
         case (.fast, .tarXz), (.fast, .xz): return 1
         case (.best, .tarXz), (.best, .xz): return 9
-        case (.best, .xiz): return 19
+        // XIZ: zstd 12 in 4 MiB frames is 6× faster than 19 for a 5–6% larger archive
+        // (468 MB corpus: 1.5 s against 9.5 s); 19 stays available from the CLI.
+        case (.best, .xiz): return 12
         case (.fast, _): return 1
         case (.best, _): return 9
         }

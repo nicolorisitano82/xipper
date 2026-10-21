@@ -5,7 +5,7 @@
 Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 26 or later**. It creates, opens, verifies, repairs and extracts archives quickly and safely: ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive and XIZ, Xipper's own format.
 
 ## Installing
-1. Open `Xipper-1.0.0.dmg` and drag **Xipper** into **Applications**.
+1. Open the Xipper `.dmg` file and drag **Xipper** into **Applications**.
 2. **First launch.** Xipper is signed with its own certificate, not an Apple Developer ID, so macOS blocks it the first time.
    - Open Xipper. When macOS says the developer cannot be verified, choose **Done**.
    - Go to **System Settings › Privacy & Security**, scroll to "Xipper was blocked" and click **Open Anyway**. Confirm with your password or Touch ID.

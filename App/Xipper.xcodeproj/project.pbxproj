@@ -542,7 +542,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
 				PRODUCT_NAME = Xipper;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -566,7 +566,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
 				PRODUCT_NAME = Xipper;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -612,7 +612,7 @@
 				INFOPLIST_FILE = XipperFinder/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Xipper nel Finder";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -634,7 +634,7 @@
 				INFOPLIST_FILE = XipperFinder/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Xipper nel Finder";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -657,7 +657,7 @@
 				INFOPLIST_FILE = XipperPreview/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Anteprima Xipper";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Preview;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperPreview;
@@ -679,7 +679,7 @@
 				INFOPLIST_FILE = XipperPreview/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Anteprima Xipper";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Preview;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperPreview;
@@ -701,7 +701,7 @@
 				INFOPLIST_FILE = XipperThumbnail/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Miniature Xipper";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Thumbnail;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperThumbnail;
@@ -723,7 +723,7 @@
 				INFOPLIST_FILE = XipperThumbnail/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Miniature Xipper";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.Thumbnail;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				PRODUCT_NAME = XipperThumbnail;

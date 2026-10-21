@@ -232,10 +232,13 @@ enum ZipWriter {
     /// ZIP passwords altogether, so the UI warns when one is used.
     static func passwordBytes(_ s: String) -> [UInt8] { Array(s.precomposedStringWithCanonicalMapping.utf8) }
 
-    static func zstdCompress(_ src: UnsafeRawBufferPointer, level: Int, allowExpansion: Bool = false) -> [UInt8]? {
+    static func zstdCompress(_ src: UnsafeRawBufferPointer, level: Int, allowExpansion: Bool = false,
+                             pool: ZstdContextPool? = nil) -> [UInt8]? {
         let bound = ZSTD_compressBound(src.count)
         let out = [UInt8](unsafeUninitializedCapacity: bound) { buf, n in
-            let r = ZSTD_compress(buf.baseAddress, bound, src.baseAddress, src.count, Int32(max(1, min(22, level))))
+            let lvl = Int32(max(1, min(22, level)))
+            let r = pool.map { p in p.with { ZSTD_compressCCtx($0, buf.baseAddress, bound, src.baseAddress, src.count, lvl) } }
+                ?? ZSTD_compress(buf.baseAddress, bound, src.baseAddress, src.count, lvl)
             n = ZSTD_isError(r) != 0 ? 0 : r
         }
         if out.isEmpty || (!allowExpansion && out.count >= src.count) { return nil }
@@ -465,4 +468,19 @@ private final class ZipEmitter: @unchecked Sendable {
         try out.write(w.bytes)
         try out.flush()
     }
+}
+
+/// zstd compression contexts reused across the frames of one archive (creating one per frame
+/// costs a large allocation at high levels). Freed with the pool.
+final class ZstdContextPool: @unchecked Sendable {
+    private var free: [OpaquePointer] = []
+    private let lock = NSLock()
+
+    func with<R>(_ body: (OpaquePointer) -> R) -> R {
+        let ctx = lock.withLock { free.popLast() } ?? ZSTD_createCCtx()!
+        defer { lock.withLock { free.append(ctx) } }
+        return body(ctx)
+    }
+
+    deinit { for c in free { ZSTD_freeCCtx(c) } }
 }

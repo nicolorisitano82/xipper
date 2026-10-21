@@ -14,6 +14,8 @@ import Synchronization
 enum XizWriter {
     /// Files from this size on are deduplicated chunk by chunk, not only as a whole.
     static let chunkedFrom: Int64 = 8 << 20
+    /// Big files are chunked in regions of this size, in parallel.
+    static let regionSize: Int64 = 32 << 20
 
     /// One piece of a source file inside a frame.
     private struct Segment {
@@ -77,27 +79,63 @@ enum XizWriter {
         let gear = gear(keys)
         func newDigest() -> Digest { keys.map { .keyed($0.fileDigest()) } ?? .plain(SHA256()) }
 
-        // 1. Hash every file (and chunk the big ones), in parallel.
+        // 1. Hash every file and chunk the big ones, in parallel: a big file is one task for its
+        //    whole-file digest (sequential by nature) plus one task per 32 MiB region for its
+        //    chunks, so a single large file keeps every core busy. Regions start a new chunk
+        //    (fixed offsets: shifted data still deduplicates, except right at the borders).
+        enum Work { case whole(Int), region(Int, Int64, Int64) }
         let files = items.indices.filter { if case .file = items[$0].kind { items[$0].size > 0 } else { false } }
-        let hashed = Mutex<[Int: Hashed]>([:])
-        try parallelFor(files.count, workload: workload, cancel: cancel) { k in
-            let i = files[k]
-            let r = try FileReader(path: items[i].sourcePath)
-            var whole = newDigest()
-            var chunks: [(Int64, Int, [UInt8])] = []
-            let chunker = items[i].size >= chunkedFrom ? FastCDC(gear: gear) : nil
-            var chunkStart: Int64 = 0
-            var chunkDigest = newDigest()
+        var work: [Work] = []
+        for i in files {
+            work.append(.whole(i))
+            let size = items[i].size
+            if size >= chunkedFrom {
+                var start: Int64 = 0
+                while start < size {
+                    work.append(.region(i, start, min(size, start + regionSize)))
+                    start += regionSize
+                }
+            }
+        }
+        // Largest tasks first: whole-file digests of big files start right away.
+        func cost(_ w: Work) -> Int64 {
+            switch w {
+            case let .whole(i): items[i].size
+            case let .region(_, a, b): b - a
+            }
+        }
+        work.sort { cost($0) > cost($1) }
+        let wholes = Mutex<[Int: [UInt8]]>([:])
+        let regions = Mutex<[Int: [Int64: [(Int64, Int, [UInt8])]]]>([:])
+        try parallelFor(work.count, workload: workload, cancel: cancel) { k in
             let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
             defer { buf.deallocate() }
-            var off: Int64 = 0
-            while off < r.size {
-                try cancel?.check()
-                let n = try r.readSome(at: off, into: buf, count: 1 << 20)
-                if n == 0 { break }
-                let block = UnsafeRawBufferPointer(start: buf, count: n)
-                whole.update(block)
-                if let chunker {
+            switch work[k] {
+            case let .whole(i):
+                let r = try FileReader(path: items[i].sourcePath)
+                var whole = newDigest()
+                var off: Int64 = 0
+                while off < r.size {
+                    try cancel?.check()
+                    let n = try r.readSome(at: off, into: buf, count: 1 << 20)
+                    if n == 0 { break }
+                    whole.update(UnsafeRawBufferPointer(start: buf, count: n))
+                    off += Int64(n)
+                }
+                let d = whole.finish()
+                wholes.withLock { $0[i] = d }
+            case let .region(i, from, to):
+                let r = try FileReader(path: items[i].sourcePath)
+                let chunker = FastCDC(gear: gear)
+                var chunks: [(Int64, Int, [UInt8])] = []
+                var chunkStart = from
+                var chunkDigest = newDigest()
+                var off = from
+                while off < to {
+                    try cancel?.check()
+                    let n = try r.readSome(at: off, into: buf, count: Int(min(Int64(1 << 20), to - off)))
+                    if n == 0 { break }
+                    let block = UnsafeRawBufferPointer(start: buf, count: n)
                     var p = 0
                     while p < n {
                         let (used, cut) = chunker.feed(UnsafeRawBufferPointer(rebasing: block[p...]))
@@ -110,13 +148,21 @@ enum XizWriter {
                             chunkDigest = newDigest()
                         }
                     }
+                    off += Int64(n)
                 }
-                off += Int64(n)
+                if chunkStart < off { chunks.append((chunkStart, Int(off - chunkStart), chunkDigest.finish())) }
+                regions.withLock { $0[i, default: [:]][from] = chunks }
             }
-            if chunker != nil, chunkStart < off { chunks.append((chunkStart, Int(off - chunkStart), chunkDigest.finish())) }
-            hashed.withLock { $0[i] = Hashed(digest: whole.finish(), chunks: chunks) }
         }
-        let digests = hashed.withLock { $0 }
+        let allWholes = wholes.withLock { $0 }
+        let allRegions = regions.withLock { $0 }
+        var hashedFiles: [Int: Hashed] = [:]
+        for i in files {
+            guard let d = allWholes[i] else { continue }
+            let chunks = (allRegions[i] ?? [:]).sorted { $0.key < $1.key }.flatMap(\.value)
+            hashedFiles[i] = Hashed(digest: d, chunks: chunks)
+        }
+        let digests = hashedFiles
 
         // 2. Plan: frames of segments, entries with extents; repeated files and chunks point at the first copy.
         var frames: [[Segment]] = []
@@ -184,6 +230,7 @@ enum XizWriter {
 
         // 3. Frames, compressed (and sealed) in parallel windows and written in order, numbered from `startFrame`.
         var written: [Xiz.Frame] = []
+        let contexts = ZstdContextPool()
         let window = max(2, workload.workerCount * 2)
         var start = 0
         while start < frames.count {
@@ -204,7 +251,7 @@ enum XizWriter {
                 }
                 var codec = Xiz.Codec.store
                 var payload = data
-                if level > 0, let c = data.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: level) }) {
+                if level > 0, let c = data.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: level, pool: contexts) }) {
                     codec = .zstd
                     payload = c
                 }
@@ -309,22 +356,36 @@ final class FastCDC {
     }
 
     /// Consumes bytes until a chunk boundary or the end of `bytes`: (bytes used, boundary found).
+    /// The gear hash only depends on the last 64 bytes, so the first `minSize − 64` bytes of a
+    /// chunk are skipped without hashing: same boundaries, a quarter less work.
     func feed(_ bytes: UnsafeRawBufferPointer) -> (Int, Bool) {
-        var i = 0
         let n = bytes.count
-        while i < n {
-            hash = (hash << 1) &+ gear[Int(bytes[i])]
-            length += 1
-            i += 1
-            if length < Self.minSize { continue }
-            let mask = length < Self.averageSize ? Self.maskSmall : Self.maskLarge
-            if hash & mask == 0 || length >= Self.maxSize {
-                hash = 0
-                length = 0
-                return (i, true)
-            }
+        var i = 0
+        let skipTo = Self.minSize - 64
+        if length < skipTo {
+            let skip = min(n, skipTo - length)
+            length += skip
+            i = skip
+            hash = 0
         }
-        return (i, false)
+        guard i < n, let base = bytes.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return (i, false) }
+        return gear.withUnsafeBufferPointer { g in
+            var h = hash, len = length
+            while i < n {
+                h = (h << 1) &+ g[Int(base[i])]
+                len += 1
+                i += 1
+                let mask = len < Self.averageSize ? Self.maskSmall : Self.maskLarge
+                if len >= Self.minSize && (h & mask == 0 || len >= Self.maxSize) {
+                    hash = 0
+                    length = 0
+                    return (i, true)
+                }
+            }
+            hash = h
+            length = len
+            return (i, false)
+        }
     }
 }
 

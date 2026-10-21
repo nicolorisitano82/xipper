@@ -293,3 +293,11 @@ Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi 
   - file trascinati nella tabella;
   - il salvataggio dei volumi montati usa `Xipper.edit`;
 - **test:** suite "Editing archives" (5 test) e fuzzing di un XIZ con segmento aggiunto.
+
+## Velocità di XIZ e icona nella barra dei menu (22/10/2026)
+
+- **File grandi:** la prima fase (digest e FastCDC) girava su un solo thread per file. Ora i file da 8 MiB in su si dividono in regioni da 32 MiB chunkate in parallelo, mentre lo SHA-256 dell'intero file gira su un altro core. FastCDC non calcola più i primi 16 KiB − 64 di ogni chunk (l'hash gear dipende solo dagli ultimi 64 byte: stessi tagli). Su un file da 473 MB: da 1,2 s a 0,43 s (circa 1,1 GB/s), con la fase di hash da 0,77 a 0,20 s.
+- **Molti file piccoli:** XIZ e tar.zst sono pari (0,61 s sul corpus da 468 MB in 11.000 file), e XIZ comprime meglio (161 MB contro 174 al livello 3).
+- **«Massimo» per XIZ:** passa da zstd 19 a 12, 6 volte più veloce (1,5 s contro 9,5 s) per un archivio più grande del 5–6%. Il 19 resta disponibile da CLI (`-l 19`). Frame da 8 o 16 MiB guadagnano solo circa l'1% e non sono stati adottati.
+- **Contesti zstd:** riusati per tutto l'archivio invece di crearne uno per frame.
+- **Barra dei menu:** il glifo era un SVG da 40 pt e appariva enorme; ora il template è da 18 pt, come i simboli di sistema.
