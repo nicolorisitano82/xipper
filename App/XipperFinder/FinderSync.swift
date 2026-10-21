@@ -20,7 +20,7 @@ final class FinderSync: FIFinderSync {
     override var toolbarItemName: String { "Xipper" }
     override var toolbarItemToolTip: String { String(localized: "Comprimi, estrai o verifica con Xipper") }
     override var toolbarItemImage: NSImage {
-        NSImage(systemSymbolName: "archivebox", accessibilityDescription: "Xipper") ?? NSImage()
+        Self.glyph ?? NSImage(systemSymbolName: "archivebox", accessibilityDescription: "Xipper") ?? NSImage()
     }
 
     // MARK: menu
@@ -35,7 +35,7 @@ final class FinderSync: FIFinderSync {
             target = menu
         } else {
             let root = menu.addItem(withTitle: "Xipper", action: nil, keyEquivalent: "")
-            root.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
+            root.image = Self.glyph ?? NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
             target = NSMenu(title: "Xipper")
             root.submenu = target
         }
@@ -64,6 +64,16 @@ final class FinderSync: FIFinderSync {
         if let s = c.selectedItemURLs(), !s.isEmpty { return s }
         return c.targetedURL().map { [$0] } ?? []
     }
+
+    /// Xipper's zipper X (docs/design/artwork), as a template image like the system symbols.
+    private static let glyph: NSImage? = {
+        guard let url = Bundle(for: FinderSync.self).url(forResource: "XipperGlyph", withExtension: "svg"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.size = NSSize(width: 16, height: 16)
+        image.isTemplate = true
+        image.accessibilityDescription = "Xipper"
+        return image
+    }()
 
     private static func isArchive(_ url: URL) -> Bool {
         let name = url.lastPathComponent.lowercased()

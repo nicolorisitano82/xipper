@@ -85,6 +85,8 @@
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Archive</string>
+			<key>CFBundleTypeIconSystemGenerated</key>
+			<integer>1</integer>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>

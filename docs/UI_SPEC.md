@@ -573,3 +573,6 @@ Descrizione nella libreria: una riga in `.secondary` come nel canvas. Le stesse 
   - Glifo: una X bianca con i denti della cerniera.
 - Varianti generate dal sistema: chiaro, scuro (glifo blu su grafite), tinta, trasparente.
 - Sotto i 32 pt i denti vanno tolti e resta solo la X. Nel canvas questa variante è descritta ma non ancora disegnata.
+- **Aggiornamento del 22/10/2026:** il glifo è ridisegnato dallo sprite A ([design/artwork](design/artwork/), `scripts/make-artwork.py`), con tre denti per braccio sul lato rivolto in alto (bracci superiori) o in basso (bracci inferiori).
+  - Il formato `.icon` non ha livelli diversi per dimensione, quindi la X senza denti resta solo un disegno di riferimento (`r1c4`).
+  - Nella barra dei menu e nel Finder si usa il glifo con due denti per braccio, che si legge a 16 pt.

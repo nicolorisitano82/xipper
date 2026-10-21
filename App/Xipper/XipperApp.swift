@@ -32,7 +32,7 @@ struct XipperApp: App {
             SettingsView()
         }
 
-        MenuBarExtra("Xipper", systemImage: "archivebox", isInserted: $showMenuBar) {
+        MenuBarExtra("Xipper", image: "XipperGlyph", isInserted: $showMenuBar) {
             MenuBarJobsView()
                 .environment(jobs)
         }

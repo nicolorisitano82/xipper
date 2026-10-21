@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <path d="M315.4 282.6 L708.6 741.4 M708.6 282.6 L315.4 741.4" stroke="#FFFFFF" stroke-width="81.9" stroke-linecap="round" fill="none"/>
-  <path d="M462.8 364.5 L380.9 364.5 M561.2 364.5 L643.1 364.5 M430.1 446.5 L348.2 446.5 M593.9 446.5 L675.8 446.5 M430.1 577.5 L348.2 577.5 M593.9 577.5 L675.8 577.5 M462.8 659.5 L380.9 659.5 M561.2 659.5 L643.1 659.5" stroke="#FFFFFF" stroke-width="39.3" stroke-linecap="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <path d="M265.73 265.73 L758.27 758.27 M758.27 265.73 L265.73 758.27" stroke="#FFFFFF" stroke-width="125.03" stroke-linecap="round" fill="none"/>
+  <path d="M435.65 357.95 L478.51 315.09 M384.74 307.05 L427.61 264.18 M333.84 256.15 L376.71 213.28 M588.35 357.95 L545.49 315.09 M639.26 307.05 L596.39 264.18 M690.16 256.15 L647.29 213.28 M435.65 666.05 L478.51 708.91 M384.74 716.95 L427.61 759.82 M333.84 767.85 L376.71 810.72 M588.35 666.05 L545.49 708.91 M639.26 716.95 L596.39 759.82 M690.16 767.85 L647.29 810.72" stroke="#FFFFFF" stroke-width="47.36" fill="none"/>
 </svg>

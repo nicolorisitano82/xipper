@@ -227,3 +227,19 @@ Prove fatte sulla build di debug, guidando l'app con l'accessibilità e catturan
 - **Da provare a mano (serve una persona):**
   - Touch ID sulla password salvata: il codice è rivisto, il fallback è la password del Mac;
   - trascinamento di una voce dal browser al Finder: il trascinamento simulato non è partito e non è stato insistito, per non agire su altre app.
+
+## Grafica dallo sprite A (22/10/2026)
+
+ChatGPT ha generato lo sprite A ([docs/design/sprites/sprite-a-app.png](docs/design/sprites/sprite-a-app.png)) con il prompt di [docs/design/icon-sprite-prompt.md](docs/design/icon-sprite-prompt.md). Le 15 celle sono state ridisegnate in SVG con un'unica geometria, in `scripts/make-artwork.py` (che sostituisce `make-app-icon.py`). Le sorgenti e l'anteprima sono in [docs/design/artwork/](docs/design/artwork/).
+
+- **Icona dell'app** (`AppIcon.icon`):
+  - nuovo glifo: X con barre più spesse e tre denti per braccio, sul lato rivolto in alto o in basso come nello sprite;
+  - occupa il 74% centrale, sul gradiente #4AA3FF → #0A57D4;
+  - le varianti scura, tinta e trasparente le ricava macOS.
+- **Simboli template** (`Assets.xcassets`):
+  - `XipperGlyph` (due denti per braccio, leggibile a 16 pt) nella barra dei menu, al posto di `archivebox`; c'è anche una copia SVG nell'estensione Finder, per l'elemento della toolbar e la voce del menu;
+  - `XipperCompress` nella zona di trascinamento della home, al posto della freccia di sistema; si ingrandisce un poco quando ci passano sopra dei file.
+- **Icone dei documenti:** `CFBundleTypeIconSystemGenerated` fa disegnare a macOS l'icona documento con l'icona di Xipper e l'estensione: `.xiz`, e gli archivi quando Xipper è l'app predefinita.
+- **Non integrati di proposito:**
+  - estrai, verifica e i badge cifrato, danneggiato e beta: l'app usa gli SF Symbols di sistema, come vuole la specifica;
+  - DNA, tutto a posto e progresso: le sorgenti SVG restano pronte per lo sprite B e per le icone dei formati.

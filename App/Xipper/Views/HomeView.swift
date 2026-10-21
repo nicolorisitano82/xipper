@@ -139,10 +139,14 @@ struct HomeView: View {
             )
             .overlay {
                 VStack(spacing: 14) {
-                    Image(systemName: "arrow.down.right.and.arrow.up.left")
-                        .font(.system(size: 56, weight: .light))
+                    // Xipper's own "compress" symbol (sprite A, docs/design/artwork): a template image,
+                    // so it takes the secondary colour; it grows a little while files hover.
+                    Image("XipperCompress")
+                        .resizable()
+                        .frame(width: 64, height: 64)
                         .foregroundStyle(.secondary)
-                        .bounce(on: targeted)
+                        .scaleEffect(targeted && !reduceMotion ? 1.1 : 1)
+                        .animation(.snappy, value: targeted)
                         .accessibilityHidden(true)
                     Text("Trascina qui file o cartelle").font(.title3.weight(.semibold))
                     Text("per creare un archivio. Rilascia un archivio per aprirlo.").foregroundStyle(.secondary)

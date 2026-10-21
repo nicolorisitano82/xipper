@@ -13,7 +13,7 @@ Questo file serve a generare con ChatGPT (generazione immagini) gli sprite da cu
    - `dmg-background.png`
    - `onboarding-hero.png`
 5. Chiedi a Claude di "lavorare gli sprite". Claude li taglia, ridisegna ogni elemento in SVG e li integra nel progetto:
-   - icona dell'app: `scripts/make-app-icon.py`, `AppIcon.icon`;
+   - icona dell'app: `scripts/make-artwork.py`, `AppIcon.icon`;
    - icone dei documenti: `UTTypeIcons` in `Info.plist`;
    - simboli template in `Assets.xcassets`;
    - sfondo del DMG: `scripts/release.sh`.
@@ -170,7 +170,7 @@ what to change>. Keep the exact same grid positions, background color, style and
 ## Note per Claude (lavorazione)
 
 - Tagliare gli sprite con la griglia 256 px, rimuovere lo sfondo uniforme e ridisegnare in SVG con geometria pulita (traccia uniforme, angoli arrotondati) usando i PNG solo come riferimento.
-- **Icona dell'app:** aggiornare `scripts/make-app-icon.py`. Il glifo senza denti è la variante sotto i 32 pt (UI_SPEC §11).
+- **Icona dell'app:** aggiornare `scripts/make-artwork.py`. Il glifo senza denti è la variante sotto i 32 pt (UI_SPEC §11).
 - **Badge dei formati:**
   - tipi esportati (`app.xipper.*`): `UTTypeIcons` con `UTTypeIconBadgeName`, `UTTypeIconText` e `UTTypeIconBackgroundName`;
   - tipi di sistema: `CFBundleTypeIconSystemGenerated` in `CFBundleDocumentTypes`.
