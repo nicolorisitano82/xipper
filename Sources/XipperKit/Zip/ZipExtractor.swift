@@ -34,7 +34,9 @@ enum ZipExtractor {
 
         var files: [(ZipEntryRecord, [String])] = []
         for r in records {
-            guard let comps = ctx.sanitize(r.entry.path) else { continue }
+            guard let full = ctx.sanitize(r.entry.path) else { continue }
+            if ctx.options.flatten && r.entry.kind == .directory { continue }
+            let comps = ctx.layout(full)
             switch r.entry.kind {
             case .directory:
                 do { try ctx.makeDirectory(comps, permissions: r.entry.permissions, modified: r.entry.modified) } catch let XipperError.unsafeEntry(e, reason) {
@@ -62,7 +64,8 @@ enum ZipExtractor {
         try parallelFor(files.count, workload: ioWorkload, cancel: cancel) { i in
             let (r, comps) = files[i]
             do {
-                try ctx.writeFile(comps, permissions: r.entry.permissions, modified: r.entry.modified) { sink in
+                try ctx.writeFile(comps, permissions: r.entry.permissions, modified: r.entry.modified,
+                                  declaredSize: r.uncompressedSize) { sink in
                     try ZipEntryDecoder.decode(r, in: archive, password: password, cancel: cancel) { chunk in
                         try sink(chunk)
                         tracker.add(bytes: Int64(chunk.count))

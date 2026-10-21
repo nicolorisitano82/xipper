@@ -11,7 +11,36 @@ public enum OverwritePolicy: Sendable, Equatable {
     case replace
     /// Write "name 2.ext", "name 3.ext", … (Finder convention).
     case keepBoth
+    /// Call `ExtractOptions.conflictHandler` for each existing file (extraction pauses meanwhile).
+    case ask
 }
+
+/// A file being extracted whose name is already taken on disk.
+public struct ExtractConflict: Sendable {
+    /// Entry path inside the archive.
+    public var entry: String
+    /// The existing item on disk.
+    public var existing: URL
+    public var archiveSize: Int64?
+    public var archiveModified: Date?
+    public var diskSize: Int64
+    public var diskModified: Date?
+}
+
+public enum ConflictDecision: Sendable, Equatable { case skip, replace, keepBoth }
+
+public struct ConflictResolution: Sendable {
+    public var decision: ConflictDecision
+    /// Use the same decision for every later conflict of this extraction.
+    public var applyToAll: Bool
+    public init(_ decision: ConflictDecision, applyToAll: Bool = false) {
+        self.decision = decision
+        self.applyToAll = applyToAll
+    }
+}
+
+/// Called on an extraction thread; may block (e.g. while a dialog is shown). Calls are serialized.
+public typealias ConflictHandler = @Sendable (ExtractConflict) -> ConflictResolution
 
 public enum SymlinkPolicy: Sendable, Equatable {
     /// Create links whose target stays inside the destination; skip the others (default).
@@ -44,6 +73,12 @@ public struct ExtractOptions: Sendable {
     public var limits = ExtractionLimits()
     /// Extract only these entry paths (directories include their content); nil = everything.
     public var selection: Set<String>?
+    /// Put every file directly in the destination, dropping the archive's folders.
+    public var flatten = false
+    /// Required by `OverwritePolicy.ask`; without it `.ask` behaves like `.keepBoth`.
+    public var conflictHandler: ConflictHandler?
+    /// When replacing, move the existing file to the Trash instead of overwriting it.
+    public var trashReplacedFiles = false
     public var workload: Workload = .interactive
     public init() {}
 }
@@ -108,6 +143,39 @@ final class ExtractionContext: @unchecked Sendable {
     var bytesWritten: Int64 { written.load(ordering: .relaxed) }
     var skipped: [SkippedEntry] { skippedList.withLock { $0 } }
     var stats: (files: Int, dirs: Int, links: Int) { counts.withLock { $0 } }
+
+    // MARK: conflicts
+
+    private let askLock = NSLock()
+    private let remembered = Mutex<ConflictDecision?>(nil)
+
+    /// What to do with an entry whose name exists: from the policy, a remembered answer or the handler.
+    private func decide(entry: String, dirFD: Int32, name: String, size: Int64?, modified: Date?) throws -> ConflictDecision {
+        switch options.overwrite {
+        case .fail: throw XipperError.alreadyExists(path: entry)
+        case .skip: return .skip
+        case .replace: return .replace
+        case .keepBoth: return .keepBoth
+        case .ask: break
+        }
+        if let r = remembered.withLock({ $0 }) { return r }
+        guard let handler = options.conflictHandler else { return .keepBoth }
+        askLock.lock()
+        defer { askLock.unlock() }
+        if let r = remembered.withLock({ $0 }) { return r }  // answered while we waited
+        var st = stat()
+        fstatat(dirFD, name, &st, AT_SYMLINK_NOFOLLOW)
+        let conflict = ExtractConflict(
+            entry: entry, existing: URL(fileURLWithPath: rootPath + "/" + entry), archiveSize: size, archiveModified: modified,
+            diskSize: Int64(st.st_size),
+            diskModified: Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec) + Double(st.st_mtimespec.tv_nsec) / 1e9))
+        let answer = handler(conflict)
+        if answer.applyToAll { remembered.withLock { $0 = answer.decision } }
+        return answer.decision
+    }
+
+    /// Lays out an entry: full path, or only its name when flattening.
+    func layout(_ comps: [String]) -> [String] { options.flatten ? [comps.last!] : comps }
 
     func skip(_ path: String, _ reason: String) { skippedList.withLock { $0.append(SkippedEntry(path: path, reason: reason)) } }
 
@@ -194,7 +262,7 @@ final class ExtractionContext: @unchecked Sendable {
     /// The file is created directly under its final name (O_EXCL): atomicity comes from the
     /// staging folder in smart mode, and a failed entry is removed. Only when a file of that name
     /// already exists is a temporary file written and moved according to the overwrite policy.
-    func writeFile(_ comps: [String], permissions: UInt16?, modified: Date?,
+    func writeFile(_ comps: [String], permissions: UInt16?, modified: Date?, declaredSize: Int64? = nil,
                    produce: (ByteSink) throws -> Void) throws {
         let entry = comps.joined(separator: "/")
         let dirFD = try openDirectory(comps.dropLast(), entry: entry)
@@ -202,18 +270,16 @@ final class ExtractionContext: @unchecked Sendable {
         let name = comps.last!
         let mode = mode_t(fileMode(permissions, defaultMode: 0o644))
         var tmp: String?
+        var decision = ConflictDecision.keepBoth
         var fd = openat(dirFD, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
         if fd < 0 {
             guard errno == EEXIST else { throw XipperError.posix("create", entry) }
-            switch options.overwrite {
-            case .fail: throw XipperError.alreadyExists(path: entry)
-            case .skip: skip(entry, "already exists"); return
-            case .replace, .keepBoth:
-                let t = ".xip-\(UInt32.random(in: 0...UInt32.max)).part"
-                fd = openat(dirFD, t, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
-                if fd < 0 { throw XipperError.posix("create", entry) }
-                tmp = t
-            }
+            decision = try decide(entry: entry, dirFD: dirFD, name: name, size: declaredSize, modified: modified)
+            if decision == .skip { skip(entry, "already exists"); return }
+            let t = ".xip-\(UInt32.random(in: 0...UInt32.max)).part"
+            fd = openat(dirFD, t, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode)
+            if fd < 0 { throw XipperError.posix("create", entry) }
+            tmp = t
         }
         var ok = false
         defer {
@@ -238,19 +304,29 @@ final class ExtractionContext: @unchecked Sendable {
             throw error
         }
         if let tmp {
-            guard try place(dirFD: dirFD, tmp: tmp, name: name, entry: entry) else { ok = true; return }
+            guard try place(dirFD: dirFD, tmp: tmp, name: name, entry: entry, decision: decision) else { ok = true; return }
         }
         ok = true
         counts.withLock { $0.files += 1 }
     }
 
-    /// Moves `tmp` to `name` according to the overwrite policy. Returns false if skipped.
-    private func place(dirFD: Int32, tmp: String, name: String, entry: String) throws -> Bool {
+    /// Moves `tmp` to `name` according to `decision` (nil: from the policy, `.ask` meaning keep both).
+    /// Returns false if skipped.
+    private func place(dirFD: Int32, tmp: String, name: String, entry: String, decision: ConflictDecision? = nil) throws -> Bool {
         if renameatx_np(dirFD, tmp, dirFD, name, UInt32(RENAME_EXCL)) == 0 { return true }
         guard errno == EEXIST else { throw XipperError.posix("rename", entry) }
-        switch options.overwrite {
-        case .fail:
-            throw XipperError.alreadyExists(path: entry)
+        let d: ConflictDecision
+        if let decision {
+            d = decision
+        } else {
+            switch options.overwrite {
+            case .fail: throw XipperError.alreadyExists(path: entry)
+            case .skip: d = .skip
+            case .replace: d = .replace
+            case .keepBoth, .ask: d = .keepBoth
+            }
+        }
+        switch d {
         case .skip:
             skip(entry, "already exists")
             unlinkat(dirFD, tmp, 0)
@@ -259,6 +335,10 @@ final class ExtractionContext: @unchecked Sendable {
             var st = stat()
             if fstatat(dirFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 && st.st_mode & S_IFMT == S_IFDIR {
                 throw XipperError.alreadyExists(path: entry)
+            }
+            if options.trashReplacedFiles {
+                // Best effort: if the Trash is unavailable (other volume), fall back to replacing.
+                try? FileManager.default.trashItem(at: URL(fileURLWithPath: rootPath + "/" + entry), resultingItemURL: nil)
             }
             if renameat(dirFD, tmp, dirFD, name) != 0 { throw XipperError.posix("rename", entry) }
             return true

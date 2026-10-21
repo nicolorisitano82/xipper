@@ -169,6 +169,13 @@ final class LZMACoder: StreamTransform {
         mt.threads = UInt32(max(1, threads))
         mt.preset = UInt32(max(0, min(9, preset)))
         mt.check = LZMA_CHECK_CRC64
+        // liblzma's default block is 3× the dictionary (192 MiB at -9): too few blocks to keep the
+        // cores busy. Measured on the 468 MB corpus (FASE2.md): -9 with 2× dictionary is both faster
+        // and smaller than the default; -7/-8 favour speed with 1× dictionary.
+        var opts = lzma_options_lzma()
+        if mt.preset >= 7, lzma_lzma_preset(&opts, mt.preset) == 0 {
+            mt.block_size = UInt64(opts.dict_size) * (mt.preset == 9 ? 2 : 1)
+        }
         try c.check(lzma_stream_encoder_mt(&c.strm, &mt))
         return c
     }

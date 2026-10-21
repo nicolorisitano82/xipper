@@ -27,15 +27,43 @@
 | **Verifica visiva** | Catture delle sole finestre dell'app (CGWindowList + `screencapture -l`). Nelle build Debug ci sono agganci di avvio (`XIPPER_DEMO_CREATE/EXTRACT/TEST/DARK`) per fotografare gli stati senza automazione dell'interfaccia. |
 
 ## Checklist rispetto a UI_SPEC.md (prossime iterazioni)
-- [ ] **2.2:** dopo il rilascio, lista dei file in una `Table` con "Nome" modificabile, "Salva in", aggiungi/rimuovi e riepilogo; preset (Email / Backup veloce).
-- [ ] **2.4 / 2.5:** pannello di avanzamento *nella finestra*, con morph da zona e barra (`glassEffectID("job")`), velocità grande smussata, tempo stimato, file corrente, "Nascondi" verso l'HUD; pannello di completamento con i tre riquadri e le azioni.
+- [x] **2.2:** lista dei file rilasciati in una `Table` (Nome · Tipo · Dimensione, cartelle con il numero di elementi calcolato in background), "Nome" modificabile con il suffisso dell'estensione, "Salva in" (cartella d'origine, Scrivania, Documenti, Download, Altra…), aggiungi/rimuovi in toolbar, riepilogo con i file del Mac esclusi, menu Formato con descrizioni e preset "Backup veloce" e "Archivio lungo termine". *Preset Email: manca il ZIP diviso in parti nel core.*
+- [x] **2.4 / 2.5:** pannello di avanzamento in finestra, con morph dalla barra (`glassEffectID("job")`), velocità smussata su 1 s e aggiornata al massimo 4 volte al secondo, percentuale, byte, tempo stimato, file corrente, "Nascondi" verso l'HUD e "Annulla". Pannello di completamento con i riquadri opachi Dimensione / Tempo / Velocità media, nota sulla cifratura, Verifica · Mostra contenuto · **Mostra nel Finder** e "Crea un altro archivio". Errori e annullamento nello stesso pannello, con tinta rossa. *Badge "×Utility Archivio" e barre dei core: omessi finché il confronto non è misurato per il singolo lavoro.*
 - [ ] **2.7:** opzione ZipCrypto con avviso, che richiede ZipCrypto in scrittura nel core. **2.6:** parti multiple, che richiedono ZIP multi-volume nel core.
 - [ ] **2.8:** errore di disco pieno con tinta rossa, Riprova e "Salva altrove…".
 - [ ] **7.1:** capsula compatta e unione (`glassEffectUnion`); `NSPanel` quando non ci sono finestre; avanzamento e badge sull'icona del Dock. **7.2:** notifiche (`UNUserNotificationCenter`) e `MenuBarExtra`.
 - [ ] **3.1:** sezioni Recenti/Preferiti/Preset nella sidebar; barra del percorso; barra di stato; trascinamento delle voci nel Finder (promessa di file); barra spaziatrice → 3.4.
-- [ ] **3.2:** sheet "Estrai N elementi". **3.3:** conflitto con un file esistente. **3.4:** Quick Look della voce.
+- [x] **3.2:** sheet "Estrai N elementi": destinazione (accanto all'archivio, Download, Scrivania, Documenti, Altra…), struttura (cartelle / solo file), "Se un file esiste già" (Chiedi · Sostituisci · Mantieni entrambi · Salta), "Apri la cartella al termine", riquadro sulla quarantena. "Estrai" senza selezione = estrazione smart diretta; con una selezione o con ⌥ si apre lo sheet.
+- [x] **3.3:** alert di sistema per il file esistente: riquadri archivio/disco con il badge "più recente", "Applica agli altri N conflitti" (conteggio da `plannedConflicts`), Mantieni entrambi (predefinito) · Sostituisci (sposta il file nel Cestino) · Salta. L'estrazione resta in pausa; HUD e sottotitolo del browser dicono "in pausa".
+- [ ] **3.4:** Quick Look della voce.
 - [ ] **4.2:** Portachiavi e Touch ID per le password degli archivi.
 - [ ] **5.2:** voci danneggiate *nella finestra*. **6.1–6.3:** avvisi di sicurezza secondo la specifica (alert di sistema, seconda conferma, elementi bloccati nella finestra).
 - [ ] **8.6:** cartelle sorvegliate. **1.1–1.3:** onboarding (estensione Finder, app predefinita).
 - [ ] **Estensioni:** Finder Sync (9.1), Quick Look dell'archivio (9.2), miniature (9.5), App Intents / Comandi Rapidi (9.3), FSKit (9.4).
 - [ ] **Icona** (Icon Composer, 10.3); localizzazione con String Catalog; aumento del contrasto e riduzione del movimento (10.1, 10.2).
+
+## Seconda iterazione (21/10/2026): 2.2, 2.4/2.5, 3.2, 3.3
+
+**Core (XipperKit):**
+- `OverwritePolicy.ask` con `ExtractOptions.conflictHandler`: le chiamate sono serializzate, "applica a tutti" viene ricordato, e l'estrazione aspetta la risposta.
+- `trashReplacedFiles`: chi viene sostituito va nel Cestino.
+- `flatten` ("solo i file"), `Xipper.plannedConflicts`, `Xipper.baseName` pubblico.
+- 3 test nuovi (43 in totale).
+
+**xz più veloce ai livelli alti.** liblzma usa blocchi da 3 volte il dizionario (192 MiB a -9): su input normali i blocchi sono troppo pochi per tenere occupati i core, e l'avanzamento resta fermo per decine di secondi. Misure sul corpus da 468 MB:
+
+| xz -9 | Tempo | Dimensione |
+|---|---|---|
+| default liblzma (3× dizionario) | 56,5 s | 122,6 MB |
+| 1× dizionario | 24,9 s | 124,8 MB |
+| **2× dizionario (scelto per -9)** | **50,9 s** | **120,4 MB** |
+
+Ai livelli -7 e -8 si usa 1× dizionario, privilegiando la velocità.
+
+**App:**
+- `ItemScanner` calcola dimensioni, file e file del Mac esclusi;
+- `JobPanel` e `ExtractSheet`;
+- `ConflictPrompt`: un `NSAlert` sul main thread, mentre il thread di estrazione resta in attesa;
+- velocità smussata che resiste alle pause degli encoder;
+- i lavori "in primo piano" non vengono ripetuti nell'HUD;
+- nuovi agganci di debug (`XIPPER_DEMO_ITEMS`, `XIPPER_DEMO_FORMAT`, `XIPPER_DEMO_COMPRESS`, `XIPPER_DEMO_EXTRACT_SHEET`, `XIPPER_DEMO_CONFLICT`), verificati con catture delle finestre (compresi alert e sheet).

@@ -275,7 +275,9 @@ enum TarExtractor {
                !(sel.contains(e.entry.path) || sel.contains { e.entry.path.hasPrefix($0 + "/") }) {
                 continue
             }
-            guard let comps = ctx.sanitize(e.entry.path) else { continue }
+            guard let full = ctx.sanitize(e.entry.path) else { continue }
+            if ctx.options.flatten && e.header.type == Tar.TypeFlag.directory.rawValue { continue }
+            let comps = ctx.layout(full)
             switch e.header.type {
             case Tar.TypeFlag.directory.rawValue:
                 do { try ctx.makeDirectory(comps, permissions: e.entry.permissions, modified: e.entry.modified) } catch let XipperError.unsafeEntry(p, r) { ctx.skip(p, r) }
@@ -295,7 +297,8 @@ enum TarExtractor {
                     let content = data
                     try writes.submit {
                         do {
-                            try ctx.writeFile(comps, permissions: entry.permissions, modified: entry.modified) { sink in
+                            try ctx.writeFile(comps, permissions: entry.permissions, modified: entry.modified,
+                                              declaredSize: entry.uncompressedSize) { sink in
                                 try content.withUnsafeBytes { try sink($0) }
                             }
                         } catch let XipperError.unsafeEntry(p, r) {
@@ -304,7 +307,8 @@ enum TarExtractor {
                     }
                 } else {
                     do {
-                        try ctx.writeFile(comps, permissions: e.entry.permissions, modified: e.entry.modified) { sink in
+                        try ctx.writeFile(comps, permissions: e.entry.permissions, modified: e.entry.modified,
+                                          declaredSize: e.entry.uncompressedSize) { sink in
                             try reader.readData(cancel: cancel) { chunk in
                                 try sink(chunk)
                                 reportCompressed()

@@ -11,6 +11,12 @@ struct ArchiveBrowserView: View {
     @State private var selection = Set<BrowserItem.ID>()
     @State private var showInspector = true
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
+    @State private var extractSheet: ExtractSheetRequest?
+
+    struct ExtractSheetRequest: Identifiable {
+        let id = UUID()
+        let selection: Set<String>?
+    }
 
     init(url: URL) {
         self.url = url
@@ -29,11 +35,24 @@ struct ArchiveBrowserView: View {
                 }
         }
         .navigationTitle(url.lastPathComponent)
-        .navigationSubtitle(model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder)
+        .navigationSubtitle(pausedExtraction ?? (model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder))
+        .sheet(item: $extractSheet) { req in
+            ExtractSheet(archive: url, selection: req.selection, itemNames: names(for: req.selection),
+                         totalSize: size(for: req.selection))
+                .environment(jobs)
+        }
         .searchable(text: $model.search, placement: .toolbar, prompt: "Cerca nell'archivio")
         .toolbar { toolbar }
         .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16) }
-        .task { await model.load() }
+        .task {
+            await model.load()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["XIPPER_DEMO_EXTRACT_SHEET"] != nil {
+                let firstFolder = model.folders.first.map { Set([$0]) }
+                extractSheet = ExtractSheetRequest(selection: firstFolder)
+            }
+            #endif
+        }
     }
 
     private var subtitle: String {
@@ -42,6 +61,28 @@ struct ArchiveBrowserView: View {
     }
 
     private var selectedItems: [BrowserItem] { model.items.filter { selection.contains($0.id) } }
+
+    /// "Estrazione di 3 elementi · in pausa" while a conflict waits for an answer (3.3).
+    private var pausedExtraction: String? {
+        for job in jobs.jobs where job.paused {
+            if case let .extract(r) = job.kind, r.archive == url {
+                let n = r.selection?.count
+                return n.map { "Estrazione di \($0) element\($0 == 1 ? "o" : "i") · in pausa" } ?? "Estrazione · in pausa"
+            }
+        }
+        return nil
+    }
+
+    private func names(for sel: Set<String>?) -> [String] {
+        guard let sel else { return model.items.map(\.name) }
+        return sel.sorted().map { ($0 as NSString).lastPathComponent }
+    }
+
+    private func size(for sel: Set<String>?) -> Int64 {
+        guard let sel else { return model.totalSize }
+        return model.entries.filter { e in sel.contains(e.path) || sel.contains { e.path.hasPrefix($0 + "/") } }
+            .reduce(0) { $0 + max(0, $1.uncompressedSize) }
+    }
 
     @ViewBuilder private var content: some View {
         if model.loading {
@@ -76,7 +117,7 @@ struct ArchiveBrowserView: View {
                 .width(20)
             }
             .contextMenu(forSelectionType: BrowserItem.ID.self) { ids in
-                Button("Estrai…") { extract(selection: ids) }
+                Button("Estrai…") { extractSheet = ExtractSheetRequest(selection: ids.isEmpty ? nil : ids) }
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
                     Button("Apri cartella") { model.currentFolder = id }
                 }
@@ -127,19 +168,14 @@ struct ArchiveBrowserView: View {
         }
     }
 
-    /// Extracts next to the archive (smart mode) or into a chosen folder (⌥ = ask).
+    /// Whole archive without ⌥: smart extraction next to it, no questions (like Archive Utility).
+    /// A selection, or ⌥, opens the extraction sheet (3.2).
     private func extract(selection ids: Set<String>?) {
-        var destination: URL?
-        if NSEvent.modifierFlags.contains(.option) {
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.canCreateDirectories = true
-            panel.prompt = "Estrai qui"
-            guard panel.runModal() == .OK, let u = panel.url else { return }
-            destination = u
+        if ids == nil && !NSEvent.modifierFlags.contains(.option) {
+            jobs.start(.extract(ExtractRequest(archive: url)))
+        } else {
+            extractSheet = ExtractSheetRequest(selection: ids)
         }
-        jobs.start(.extract(archive: url, destination: destination, selection: ids, password: nil, ratioOverride: nil))
     }
 }
 

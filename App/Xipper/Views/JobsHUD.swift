@@ -10,7 +10,7 @@ struct JobsHUD: View {
     var body: some View {
         GlassEffectContainer(spacing: 8) {
             VStack(alignment: .trailing, spacing: 8) {
-                ForEach(center.jobs) { job in
+                ForEach(center.jobs.filter { !center.focused.contains($0.id) }) { job in
                     JobCapsule(job: job)
                         .glassEffect(glass(for: job), in: .rect(cornerRadius: 24))
                         .glassEffectID(job.id, in: glass)
@@ -91,9 +91,10 @@ private struct JobCapsule: View {
     private var subtitle: String {
         switch job.state {
         case .running:
+            if job.paused { return "In pausa: un file esiste già" }
             guard let p = job.progress else { return "\(job.verb) in corso…" }
             let pct = p.totalBytes > 0 ? "\(Int(p.fraction * 100))% · " : ""
-            return "\(pct)\(Int(p.bytesPerSecond / 1e6)) MB/s" + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
+            return "\(pct)\(Int(job.smoothedSpeed / 1e6)) MB/s" + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
         case let .finished(s): return s
         case let .failed(s): return s
         case .cancelled: return "Annullato"

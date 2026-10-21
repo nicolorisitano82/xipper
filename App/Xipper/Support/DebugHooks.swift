@@ -21,7 +21,12 @@ enum DebugHooks {
                                format: .tarZstd, preset: .best, password: nil))
         }
         if let p = env["XIPPER_DEMO_EXTRACT"] {
-            jobs.start(.extract(archive: URL(fileURLWithPath: p), destination: nil, selection: nil, password: nil, ratioOverride: nil))
+            jobs.start(.extract(ExtractRequest(archive: URL(fileURLWithPath: p))))
+        }
+        if let spec = env["XIPPER_DEMO_CONFLICT"] {  // "<archive>|<existing folder>"
+            let parts = spec.split(separator: "|").map(String.init)
+            jobs.start(.extract(ExtractRequest(archive: URL(fileURLWithPath: parts[0]), destination: URL(fileURLWithPath: parts[1]),
+                                               mode: .into, overwrite: .ask, reveal: false)))
         }
         if let p = env["XIPPER_DEMO_TEST"] {
             jobs.start(.test(archive: URL(fileURLWithPath: p), password: nil))

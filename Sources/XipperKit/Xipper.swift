@@ -221,8 +221,8 @@ public enum Xipper {
         throw XipperError.alreadyExists(path: parent + "/" + name)
     }
 
-    /// "photos.tar.gz" → "photos".
-    static func baseName(_ archiveName: String) -> String {
+    /// "photos.tar.gz" → "photos" (name of the folder an archive extracts into).
+    public static func baseName(_ archiveName: String) -> String {
         let lower = archiveName.lowercased()
         for ext in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".zip", ".tar", ".gz", ".bz2", ".xz", ".zst"]
             where lower.hasSuffix(ext) && lower.count > ext.count {
@@ -328,5 +328,21 @@ extension Xipper {
             return EntryContent(entry: e.entry, data: data, truncated: truncated)
         }
         throw XipperError.invalidArgument("no entry named \(path)")
+    }
+}
+
+extension Xipper {
+    /// Entries (files and links) whose destination already exists when extracting `archive` into
+    /// `directory` (mode `.into`): lets the UI say "apply to the other N conflicts".
+    public static func plannedConflicts(_ archive: URL, into directory: URL, selection: Set<String>? = nil,
+                                        flatten: Bool = false) throws -> [String] {
+        let root = directory.standardizedFileURL.path
+        return try list(archive).filter { e in
+            guard e.kind != .directory else { return false }
+            if let selection, !selection.isEmpty,
+               !(selection.contains(e.path) || selection.contains { e.path.hasPrefix($0 + "/") }) { return false }
+            let rel = flatten ? (e.path as NSString).lastPathComponent : e.path
+            return FileManager.default.fileExists(atPath: root + "/" + rel)
+        }.map(\.path)
     }
 }

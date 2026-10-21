@@ -3,13 +3,28 @@ import Foundation
 import Observation
 import XipperKit
 
+/// Everything the extraction sheet (3.2) can choose.
+struct ExtractRequest: @unchecked Sendable {
+    var archive: URL
+    /// nil = next to the archive.
+    var destination: URL?
+    var mode: ExtractionMode = .smart
+    var selection: Set<String>?
+    var flatten = false
+    var overwrite: OverwritePolicy = .keepBoth
+    /// nil = the "reveal in Finder" preference.
+    var reveal: Bool?
+    var password: String?
+    var ratioOverride: Double?
+}
+
 /// One background operation shown in the jobs HUD.
 @MainActor
 @Observable
 final class Job: Identifiable {
     enum Kind {
         case create(sources: [URL], destination: URL, format: ArchiveFormat, preset: LevelPreset, password: String?)
-        case extract(archive: URL, destination: URL?, selection: Set<String>?, password: String?, ratioOverride: Double?)
+        case extract(ExtractRequest)
         case test(archive: URL, password: String?)
     }
 
@@ -35,13 +50,41 @@ final class Job: Identifiable {
     /// Verification details / skipped entries for the result sheet.
     var report: [SkippedEntry] = []
     var verifyOK: Bool?
+    /// Waiting for the user to resolve a "file already exists" conflict.
+    var paused = false
+    /// Final numbers of a creation, for the completion panel (2.5).
+    var writeReport: WriteReport?
+    let started = Date()
     fileprivate let cancel = CancellationToken()
+
+    /// Speed averaged over the last second, refreshed at most 4 times a second (2.4).
+    private(set) var smoothedSpeed: Double = 0
+    @ObservationIgnored private var samples: [(Date, Int64)] = []
+    @ObservationIgnored private var lastSpeedUpdate = Date.distantPast
+
+    func record(_ p: ProgressSnapshot) {
+        progress = p
+        let now = Date()
+        samples.append((now, p.completedBytes))
+        // Keep one sample at least a second old as the reference, even across encoder stalls.
+        while samples.count > 2 && now.timeIntervalSince(samples[1].0) >= 1 { samples.removeFirst() }
+        guard now.timeIntervalSince(lastSpeedUpdate) >= 0.25, let first = samples.first else { return }
+        lastSpeedUpdate = now
+        let dt = now.timeIntervalSince(first.0)
+        smoothedSpeed = dt > 0.05 ? Double(p.completedBytes - first.1) / dt : p.bytesPerSecond
+    }
+
+    /// Seconds left at the current speed, if meaningful.
+    var eta: Double? {
+        guard let p = progress, p.totalBytes > 0, smoothedSpeed > 0 else { return nil }
+        return Double(p.totalBytes - p.completedBytes) / smoothedSpeed
+    }
 
     init(kind: Kind) {
         self.kind = kind
         switch kind {
         case let .create(_, dest, _, _, _): title = dest.lastPathComponent; symbol = "arrow.down.right.and.arrow.up.left"
-        case let .extract(archive, _, _, _, _): title = archive.lastPathComponent; symbol = "arrow.down.to.line"
+        case let .extract(r): title = r.archive.lastPathComponent; symbol = "arrow.down.to.line"
         case let .test(archive, _): title = archive.lastPathComponent; symbol = "checkmark.shield"
         }
     }
@@ -65,6 +108,8 @@ final class Job: Identifiable {
 final class JobCenter {
     static let shared = JobCenter()
     private(set) var jobs: [Job] = []
+    /// Jobs shown in a window's own panel (2.4): the HUD does not repeat them.
+    var focused = Set<UUID>()
     /// Keeps App Nap from throttling progress updates (and the Mac from idle-sleeping)
     /// while any job runs, as the Finder does during copies.
     @ObservationIgnored private var activity: NSObjectProtocol?
@@ -98,7 +143,10 @@ final class JobCenter {
     func retry(_ job: Job, password: String? = nil, ratioOverride: Double? = nil) {
         let kind: Job.Kind
         switch job.kind {
-        case let .extract(a, d, s, p, r): kind = .extract(archive: a, destination: d, selection: s, password: password ?? p, ratioOverride: ratioOverride ?? r)
+        case var .extract(r):
+            if let password { r.password = password }
+            if let ratioOverride { r.ratioOverride = ratioOverride }
+            kind = .extract(r)
         case let .test(a, p): kind = .test(archive: a, password: password ?? p)
         case .create: kind = job.kind
         }
@@ -109,12 +157,15 @@ final class JobCenter {
     private func run(_ job: Job, _ kind: Job.Kind) {
         let token = job.cancel
         let progress: ProgressHandler = { [weak job] snapshot in
-            Task { @MainActor in job?.progress = snapshot }
+            Task { @MainActor in job?.record(snapshot) }
+        }
+        let pause: @Sendable (Bool) -> Void = { [weak job] on in
+            Task { @MainActor in job?.paused = on }
         }
         Task.detached(priority: .userInitiated) {
             let outcome: Outcome
             do {
-                outcome = try Self.perform(kind, progress: progress, cancel: token)
+                outcome = try Self.perform(kind, progress: progress, pause: pause, cancel: token)
             } catch {
                 outcome = .error(error)
             }
@@ -133,17 +184,33 @@ final class JobCenter {
     }
 
     nonisolated private static func perform(_ kind: Job.Kind, progress: @escaping ProgressHandler,
+                                            pause: @escaping @Sendable (Bool) -> Void,
                                             cancel: CancellationToken) throws -> Outcome {
         switch kind {
         case let .create(sources, dest, format, preset, password):
             let options = Preferences.createOptions(format: format, preset: preset, password: password)
             let r = try Xipper.create(from: sources, to: dest, options: options, progress: progress, cancel: cancel)
             return .created(r, dest)
-        case let .extract(archive, dest, selection, password, ratio):
-            var options = Preferences.extractOptions(password: password)
-            options.selection = selection
-            if let ratio { options.limits.maxCompressionRatio = ratio }
-            return .extracted(try Xipper.extract(archive, to: dest, options: options, progress: progress, cancel: cancel))
+        case let .extract(r):
+            var options = Preferences.extractOptions(password: r.password)
+            options.selection = r.selection
+            options.flatten = r.flatten
+            options.overwrite = r.overwrite
+            options.trashReplacedFiles = true
+            if let ratio = r.ratioOverride { options.limits.maxCompressionRatio = ratio }
+            if let dest = r.destination, r.mode == .into {
+                try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+                if r.overwrite == .ask {
+                    let planned = (try? Xipper.plannedConflicts(r.archive, into: dest, selection: r.selection, flatten: r.flatten).count) ?? 0
+                    let remaining = ConflictCounter(planned)
+                    options.conflictHandler = { conflict in
+                        pause(true)
+                        defer { pause(false) }
+                        return ConflictPrompt.ask(conflict, folder: dest.lastPathComponent, others: remaining.next())
+                    }
+                }
+            }
+            return .extracted(try Xipper.extract(r.archive, to: r.destination, mode: r.mode, options: options, progress: progress, cancel: cancel))
         case let .test(archive, password):
             return .tested(try Xipper.test(archive, password: password, workload: Preferences.workload, progress: progress, cancel: cancel))
         }
@@ -152,11 +219,24 @@ final class JobCenter {
 
 extension Job.Kind: @unchecked Sendable {}
 
+/// Conflicts still expected after the current one ("Applica agli altri N conflitti").
+final class ConflictCounter: @unchecked Sendable {
+    private var left: Int
+    private let lock = NSLock()
+    init(_ total: Int) { left = total }
+    func next() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        left = max(0, left - 1)
+        return left
+    }
+}
+
 extension Job {
     fileprivate func apply(_ outcome: JobCenter.Outcome) {
         switch outcome {
         case let .created(r, url):
             output = url
+            writeReport = r
             let ratio = r.inputBytes > 0 ? Double(r.outputBytes) / Double(r.inputBytes) * 100 : 0
             state = .finished("\(r.entries) elementi · \(r.inputBytes.byteText) → \(r.outputBytes.byteText) (\(Int(ratio.rounded()))%)")
             revealIfWanted()
@@ -184,7 +264,11 @@ extension Job {
     }
 
     private func revealIfWanted() {
-        guard let output, Preferences.defaults.bool(forKey: PrefKey.revealAfter) else { return }
+        var wanted = Preferences.defaults.bool(forKey: PrefKey.revealAfter)
+        if case let .extract(r) = kind, let explicit = r.reveal { wanted = explicit }
+        // A job shown in its own panel offers "Mostra nel Finder" instead.
+        if JobCenter.shared.focused.contains(id) { wanted = false }
+        guard let output, wanted else { return }
         NSWorkspace.shared.activateFileViewerSelecting([output])
     }
 

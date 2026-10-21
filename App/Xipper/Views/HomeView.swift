@@ -2,70 +2,124 @@ import SwiftUI
 import UniformTypeIdentifiers
 import XipperKit
 
-/// Home: drop zone (content layer, no glass) and a floating glass action bar.
+/// Home: empty drop zone (2.1) → list of dropped items (2.2) → progress panel (2.4) → done (2.5).
+/// Content stays opaque; only the action bar and the job panel are glass, and they morph into
+/// each other through a shared `glassEffectID`.
 struct HomeView: View {
     @Environment(JobCenter.self) private var jobs
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(PrefKey.defaultFormat) private var formatRaw = ArchiveFormat.zip.rawValue
     @AppStorage(PrefKey.levelPreset) private var presetRaw = LevelPreset.balanced.rawValue
 
     @State private var items: [URL] = []
+    @State private var infos: [URL: ItemInfo] = [:]
+    @State private var selection = Set<URL>()
+    @State private var name = ""
+    @State private var saveFolder: URL?
     @State private var targeted = false
-    @State private var usePassword = false
-    @State private var showPassword = false
     @State private var password: String?
+    @State private var askPassword = false
+    @State private var job: Job?
     @Namespace private var glass
+
+    // MARK: derived
+
+    private var multi: Bool { items.count > 1 || items.contains { infos[$0]?.isFolder ?? $0.hasDirectoryPath } }
 
     private var format: ArchiveFormat {
         let f = ArchiveFormat(rawValue: formatRaw) ?? .zip
-        if items.count > 1 || items.contains(where: \.hasDirectoryPath) {
-            return ArchiveFormat.multiItem.contains(f) ? f : .zip
-        }
-        return f
+        return multi && !ArchiveFormat.multiItem.contains(f) ? .zip : f
     }
 
-    private var offeredFormats: [ArchiveFormat] {
-        let single = items.count == 1 && !items[0].hasDirectoryPath
-        return ArchiveFormat.multiItem + (single || items.isEmpty ? ArchiveFormat.singleFile : [])
+    private var preset: LevelPreset { LevelPreset(rawValue: presetRaw) ?? .balanced }
+    private var totalSize: Int64 { items.reduce(0) { $0 + (infos[$1]?.size ?? 0) } }
+    private var totalFiles: Int { items.reduce(0) { $0 + (infos[$1]?.files ?? 1) } }
+    private var excludedMac: Int { items.reduce(0) { $0 + (infos[$1]?.excludedMacFiles ?? 0) } }
+    private var defaultName: String { items.count == 1 ? items[0].lastPathComponent : "Archivio" }
+    private var archiveName: String { (name.isEmpty ? defaultName : name) + "." + format.fileExtension }
+    private var folder: URL {
+        saveFolder ?? items.first?.deletingLastPathComponent()
+            ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            dropZone
-                .padding(24)
-                .padding(.bottom, 80)
-            actionBar
-                .padding(.bottom, 28)
-        }
-        .frame(minWidth: 600, minHeight: 460)
-        .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16).padding(.bottom, 72) }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Apri archivio…", systemImage: "archivebox") {
-                    for url in appState.showOpenPanel() { openWindow(id: "archive", value: url) }
+            GlassEffectContainer(spacing: 16) {
+                ZStack(alignment: .bottom) {
+                    if let job {
+                        JobPanel(job: job, onClose: closePanel, onHide: hidePanel)
+                            .padding(28)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .glassEffectID("job", in: glass)
+                            .transition(reduceMotion ? .opacity : .identity)
+                    } else {
+                        Group {
+                            if items.isEmpty { dropZone } else { itemList }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 16)
+                        .padding(.bottom, 104)
+                        actionBar
+                            .padding(.bottom, 28)
+                    }
                 }
-                .buttonStyle(.glass)
             }
         }
-        .sheet(isPresented: $showPassword) {
-            PasswordSheet(mode: .create, archiveName: suggestedName) { pw in
-                password = pw
-                usePassword = pw != nil
+        .frame(minWidth: 640, minHeight: 500)
+        .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16).padding(.bottom, job == nil ? 88 : 0) }
+        .navigationTitle(items.isEmpty || job != nil ? "Xipper" : "Nuovo archivio")
+        .navigationSubtitle(items.isEmpty || job != nil ? "" : "\(items.count) element\(items.count == 1 ? "o" : "i") · \(totalSize.byteText)")
+        .toolbar { toolbar }
+        .sheet(isPresented: $askPassword) {
+            PasswordSheet(mode: .create, archiveName: archiveName) { pw in
+                if let pw { password = pw }
             }
         }
         #if DEBUG
-        .task { DebugHooks.run(jobs) }
+        .task {
+            DebugHooks.run(jobs)
+            // XIPPER_DEMO_ITEMS=path:path (2.2), plus XIPPER_DEMO_COMPRESS=1 (2.4/2.5).
+            let env = ProcessInfo.processInfo.environment
+            if let list = env["XIPPER_DEMO_ITEMS"], items.isEmpty {
+                route(list.split(separator: ":").map { URL(fileURLWithPath: String($0)) })
+                if let f = env["XIPPER_DEMO_FORMAT"] { formatRaw = f }
+                if env["XIPPER_DEMO_COMPRESS"] != nil {
+                    try? await Task.sleep(for: .seconds(1))
+                    compress()
+                }
+            }
+        }
         #endif
         .onChange(of: appState.pendingOpen, initial: true) { _, urls in
             guard !urls.isEmpty else { return }
             appState.pendingOpen.removeAll()
             route(urls)
         }
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .smooth, value: job?.id)
+        .animation(.snappy, value: items)
     }
 
-    // MARK: drop zone
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        if !items.isEmpty && job == nil {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Aggiungi file", systemImage: "plus") { addFiles() }
+                Button("Rimuovi dalla lista", systemImage: "trash") { removeSelected() }
+                    .disabled(selection.isEmpty)
+            }
+        }
+        ToolbarSpacer(.fixed)
+        ToolbarItem(placement: .primaryAction) {
+            Button("Apri archivio…", systemImage: "archivebox") {
+                for url in appState.showOpenPanel() { openWindow(id: "archive", value: url) }
+            }
+            .help("Apri archivio…")
+        }
+    }
+
+    // MARK: 2.1 drop zone
 
     private var dropZone: some View {
         RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -75,7 +129,18 @@ struct HomeView: View {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(targeted ? Color.accentColor.opacity(0.07) : Color.primary.opacity(0.025))
             )
-            .overlay { items.isEmpty ? AnyView(emptyState) : AnyView(selection) }
+            .overlay {
+                VStack(spacing: 14) {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                        .font(.system(size: 56, weight: .light))
+                        .foregroundStyle(.secondary)
+                        .symbolEffect(.bounce, value: targeted)
+                    Text("Trascina qui file o cartelle").font(.title3.weight(.semibold))
+                    Text("per creare un archivio. Rilascia un archivio per aprirlo.").foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+                .padding()
+            }
             .contentShape(Rectangle())
             .dropDestination(for: URL.self) { urls, _ in
                 route(urls)
@@ -84,120 +149,246 @@ struct HomeView: View {
             .animation(.snappy, value: targeted)
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "arrow.down.right.and.arrow.up.left")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(.secondary)
-                .symbolEffect(.bounce, value: targeted)
-            Text("Trascina qui file o cartelle")
-                .font(.title3.weight(.semibold))
-            Text("per creare un archivio. Rilascia un archivio per aprirlo.")
-                .foregroundStyle(.secondary)
-        }
-        .multilineTextAlignment(.center)
-        .padding()
-    }
+    // MARK: 2.2 dropped items
 
-    private var selection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: -18) {
-                ForEach(items.prefix(4), id: \.self) { url in
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-                        .resizable()
-                        .frame(width: 72, height: 72)
-                        .shadow(radius: 3, y: 2)
+    private var itemList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                LabeledContent("Nome") {
+                    HStack(spacing: 2) {
+                        TextField("Nome", text: Binding(get: { name.isEmpty ? defaultName : name },
+                                                        set: { name = $0 }))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 180)
+                        Text("." + format.fileExtension).foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("Salva in") {
+                    Menu {
+                        ForEach(saveCandidates, id: \.self) { u in
+                            Button { saveFolder = u } label: { Label(u.lastPathComponent, systemImage: "folder.fill") }
+                        }
+                        Divider()
+                        Button("Altra cartella…") { chooseFolder() }
+                    } label: {
+                        Label(folder.lastPathComponent, systemImage: "folder.fill")
+                    }
+                    .fixedSize()
                 }
             }
-            Text(items.count == 1 ? items[0].lastPathComponent : "\(items.count) elementi")
-                .font(.title3.weight(.semibold))
-                .lineLimit(1)
-            Text("Diventerà \(suggestedName)")
-                .foregroundStyle(.secondary)
-            Button("Svuota", systemImage: "xmark.circle") { withAnimation(.snappy) { items.removeAll() } }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+            Table(items.map(DroppedItem.init), selection: $selection) {
+                TableColumn("Nome") { (item: DroppedItem) in
+                    let url = item.url
+                    Label {
+                        Text(url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+                    } icon: {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 16, height: 16)
+                    }
+                }
+                .width(min: 200, ideal: 320)
+                TableColumn("Tipo") { (item: DroppedItem) in
+                    Text(kindText(item.url)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .width(min: 120, ideal: 180)
+                TableColumn("Dimensione") { (item: DroppedItem) in
+                    Text(infos[item.url].map { $0.size.byteText } ?? "…").monospacedDigit().foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .width(min: 80, ideal: 90)
+            }
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(nsColor: .separatorColor)))
+            .dropDestination(for: URL.self) { urls, _ in
+                route(urls)
+                return true
+            }
+            .onDeleteCommand { removeSelected() }
+            Text(summary).font(.caption).foregroundStyle(.secondary)
         }
-        .padding()
+    }
+
+    private var summary: String {
+        var s = "\(totalFiles) file · \(totalSize.byteText)"
+        if excludedMac > 0 { s += " · .DS_Store e __MACOSX esclusi (\(excludedMac))" }
+        return s
+    }
+
+    private func kindText(_ url: URL) -> String {
+        guard let i = infos[url] else { return "…" }
+        return i.isFolder ? "Cartella · \(i.files.formatted()) element\(i.files == 1 ? "o" : "i")" : i.kind
+    }
+
+    private var saveCandidates: [URL] {
+        var list: [URL] = []
+        if let first = items.first { list.append(first.deletingLastPathComponent()) }
+        for d in [FileManager.SearchPathDirectory.desktopDirectory, .documentDirectory, .downloadsDirectory] {
+            if let u = FileManager.default.urls(for: d, in: .userDomainMask).first, !list.contains(u) { list.append(u) }
+        }
+        return list
     }
 
     // MARK: action bar (glass)
 
     private var actionBar: some View {
-        GlassEffectContainer(spacing: 14) {
-            HStack(spacing: 14) {
-                HStack(spacing: 12) {
-                    Picker("Formato", selection: $formatRaw) {
-                        ForEach(offeredFormats) { Text($0.displayName).tag($0.rawValue) }
-                    }
-                    .fixedSize()
+        HStack(spacing: 14) {
+            HStack(spacing: 10) {
+                formatMenu
+                Divider().frame(height: 18)
+                Menu {
                     Picker("Livello", selection: $presetRaw) {
                         ForEach(LevelPreset.allCases) { Text($0.title).tag($0.rawValue) }
                     }
-                    .pickerStyle(.segmented)
-                    .fixedSize()
-                    Toggle(isOn: Binding(get: { usePassword }, set: { on in
-                        if on { showPassword = true } else { usePassword = false; password = nil }
-                    })) {
-                        Label("Password", systemImage: usePassword ? "lock.fill" : "lock")
-                    }
-                    .toggleStyle(.button)
-                    .disabled(!format.supportsPassword)
-                    .help(format.supportsPassword ? "Cifra con AES-256" : "La password è disponibile solo per ZIP")
-                }
-                .labelsHidden()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .glassEffect(reduceTransparency ? .identity : .regular, in: .capsule)
-                .glassEffectID("options", in: glass)
-
-                Button {
-                    compress()
+                    .pickerStyle(.inline)
                 } label: {
-                    Label("Comprimi", systemImage: "arrow.down.right.and.arrow.up.left")
-                        .padding(.horizontal, 6)
+                    Text(preset.title)
                 }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .disabled(items.isEmpty)
-                .keyboardShortcut(.defaultAction)
-                .glassEffectID("primary", in: glass)
+                .fixedSize()
+                Divider().frame(height: 18)
+                Button {
+                    if password == nil { askPassword = true } else { password = nil }
+                } label: {
+                    Label("Password", systemImage: password == nil ? "lock" : "lock.fill")
+                }
+                .buttonStyle(.borderless)
+                .disabled(!format.supportsPassword)
+                .help(format.supportsPassword ? (password == nil ? "Proteggi con password (AES-256)" : "Rimuovi la password") : "La password è disponibile solo per ZIP")
             }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 18)
+            .frame(height: 44)
+            .glassEffect(reduceTransparency ? .identity : .regular, in: .capsule)
+            .glassEffectID("job", in: glass)
+
+            Button {
+                compress()
+            } label: {
+                Label("Comprimi", systemImage: "arrow.down.right.and.arrow.up.left").padding(.horizontal, 6)
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .disabled(items.isEmpty)
+            .keyboardShortcut(.defaultAction)
+            .glassEffectID("primary", in: glass)
+        }
+    }
+
+    private var formatMenu: some View {
+        Menu {
+            Section("Formato") {
+                ForEach(offered, id: \.self) { f in
+                    Button { formatRaw = f.rawValue } label: {
+                        Text(f.displayName)
+                        Text(description(f))
+                    }
+                }
+            }
+            Section("Preset") {
+                Button { formatRaw = ArchiveFormat.tarZstd.rawValue; presetRaw = LevelPreset.fast.rawValue } label: {
+                    Text("Backup veloce")
+                    Text("tar.zst · Veloce")
+                }
+                Button { formatRaw = ArchiveFormat.tarXz.rawValue; presetRaw = LevelPreset.best.rawValue } label: {
+                    Text("Archivio lungo termine")
+                    Text("tar.xz · Massimo")
+                }
+            }
+        } label: {
+            Text(format.displayName)
+        }
+        .fixedSize()
+    }
+
+    private var offered: [ArchiveFormat] {
+        let single = items.count == 1 && !(infos[items[0]]?.isFolder ?? items[0].hasDirectoryPath)
+        return ArchiveFormat.multiItem + (single || items.isEmpty ? ArchiveFormat.singleFile : [])
+    }
+
+    private func description(_ f: ArchiveFormat) -> String {
+        switch f {
+        case .zip: "si apre ovunque"
+        case .tarZstd: "il più veloce"
+        case .tarXz: "compatto"
+        case .tarGzip: "Linux e server"
+        case .tarBzip2: "compatibilità"
+        case .tar: "senza compressione"
+        case .bgzf: "genomica (tabix, samtools)"
+        default: "un solo file"
         }
     }
 
     // MARK: actions
 
-    /// Archives open in a browser window; anything else is queued for compression.
+    /// Archives open in a browser window (when nothing is queued); anything else joins the list.
     private func route(_ urls: [URL]) {
-        var toCompress: [URL] = []
-        for url in urls {
-            if !url.hasDirectoryPath && AppState.isArchive(url) && items.isEmpty && urls.count == 1 {
-                openWindow(id: "archive", value: url)
-            } else {
-                toCompress.append(url)
-            }
+        if items.isEmpty && urls.count == 1, !urls[0].hasDirectoryPath, AppState.isArchive(urls[0]) {
+            openWindow(id: "archive", value: urls[0])
+            return
         }
-        withAnimation(.snappy) {
-            for u in toCompress where !items.contains(u) { items.append(u) }
+        for u in urls where !items.contains(u) {
+            items.append(u)
+            let url = u
+            Task.detached(priority: .userInitiated) {
+                let info = ItemScanner.scan(url)
+                await MainActor.run { infos[url] = info }
+            }
         }
     }
 
-    private var suggestedName: String {
-        guard let first = items.first else { return "Archivio.\(format.fileExtension)" }
-        let base = items.count == 1 ? first.lastPathComponent : "Archivio"
-        return "\(base).\(format.fileExtension)"
+    private func addFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.prompt = "Aggiungi"
+        if panel.runModal() == .OK { route(panel.urls) }
+    }
+
+    private func removeSelected() {
+        items.removeAll { selection.contains($0) }
+        selection.removeAll()
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Salva qui"
+        if panel.runModal() == .OK { saveFolder = panel.url }
     }
 
     private func compress() {
-        guard let first = items.first else { return }
-        let folder = first.deletingLastPathComponent()
-        let dest = uniqueURL(folder.appendingPathComponent(suggestedName))
-        jobs.start(.create(sources: items, destination: dest, format: format,
-                           preset: LevelPreset(rawValue: presetRaw) ?? .balanced, password: usePassword ? password : nil))
-        withAnimation(.snappy) { items.removeAll() }
-        usePassword = false
+        guard !items.isEmpty else { return }
+        let dest = uniqueURL(folder.appendingPathComponent(archiveName))
+        let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password))
+        jobs.focused.insert(started.id)
+        job = started
+    }
+
+    /// "Nascondi": the job continues in the HUD.
+    private func hidePanel() {
+        if let job { jobs.focused.remove(job.id) }
+        job = nil
+        reset()
+    }
+
+    /// After completion or failure: back to an empty Home.
+    private func closePanel() {
+        if let job {
+            jobs.focused.remove(job.id)
+            if !job.isRunning { jobs.remove(job) }
+        }
+        job = nil
+        reset()
+    }
+
+    private func reset() {
+        items.removeAll()
+        infos.removeAll()
+        selection.removeAll()
+        name = ""
         password = nil
+        saveFolder = nil
     }
 }
 
@@ -214,4 +405,10 @@ func uniqueURL(_ url: URL) -> URL {
         if !fm.fileExists(atPath: candidate.path) { return candidate }
     }
     return url
+}
+
+/// A row of the dropped-items table.
+private struct DroppedItem: Identifiable {
+    let url: URL
+    var id: URL { url }
 }
