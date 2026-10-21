@@ -262,3 +262,69 @@ public enum Xipper {
         return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload)
     }
 }
+
+public struct EntryContent: Sendable {
+    public var entry: ArchiveEntry
+    /// At most the requested number of bytes.
+    public var data: [UInt8]
+    /// True when the entry is longer than what was returned.
+    public var truncated: Bool
+}
+
+/// Thrown internally to stop decoding once enough bytes were collected.
+private struct EnoughBytes: Error {}
+
+extension Xipper {
+    /// Reads the beginning (up to `maxBytes`) of one entry without extracting the archive.
+    /// For single-file compressed streams (gz, BGZF, bz2, xz, zst) `path` is ignored.
+    public static func readEntry(_ archive: URL, path: String, password: String? = nil, maxBytes: Int = 64 << 10,
+                                 workload: Workload = .interactive) throws -> EntryContent {
+        guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
+        let archivePath = archive.standardizedFileURL.path
+        var data: [UInt8] = []
+        var truncated = false
+        let collect: (UnsafeRawBufferPointer) throws -> Void = { chunk in
+            let room = maxBytes - data.count
+            data.append(contentsOf: chunk.prefix(room))
+            if chunk.count > room { truncated = true; throw EnoughBytes() }
+        }
+        if format == .zip {
+            let zip = try ZipArchive(path: archivePath)
+            guard let rec = zip.records.first(where: { $0.entry.path == path }) else {
+                throw XipperError.invalidArgument("no entry named \(path)")
+            }
+            guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
+            do {
+                try ZipEntryDecoder.decode(rec, in: zip, password: password.map(ZipWriter.passwordBytes), cancel: nil, sink: collect)
+            } catch is EnoughBytes {}
+            return EntryContent(entry: rec.entry, data: data, truncated: truncated)
+        }
+        let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
+        defer { pipe.close() }
+        if !isTar {
+            do {
+                let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 16, alignment: 16)
+                defer { buf.deallocate() }
+                while true {
+                    let n = try source.read(into: buf, max: 1 << 16)
+                    if n == 0 { break }
+                    try collect(UnsafeRawBufferPointer(start: buf, count: n))
+                }
+            } catch is EnoughBytes {}
+            let entry = ArchiveEntry(path: TarExtractor.singleFileName(archivePath), kind: .file, uncompressedSize: -1,
+                                     compressedSize: 0, modified: nil, permissions: nil, encryption: .none,
+                                     method: format.rawValue, linkTarget: nil)
+            return EntryContent(entry: entry, data: data, truncated: truncated)
+        }
+        let reader = TarReader(source: source)
+        while let e = try reader.next() {
+            guard e.entry.path == path else { continue }
+            if e.entry.kind == .symlink || e.entry.kind == .hardlink {
+                return EntryContent(entry: e.entry, data: Array((e.entry.linkTarget ?? "").utf8), truncated: false)
+            }
+            do { try reader.readData(cancel: nil, collect) } catch is EnoughBytes {}
+            return EntryContent(entry: e.entry, data: data, truncated: truncated)
+        }
+        throw XipperError.invalidArgument("no entry named \(path)")
+    }
+}

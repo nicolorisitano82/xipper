@@ -32,6 +32,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "XipperKit", targets: ["XipperKit"]),
+        .library(name: "XipperMCP", targets: ["XipperMCP"]),
         .executable(name: "xipper", targets: ["xipper"]),
     ],
     targets: [
@@ -71,13 +72,18 @@ let package = Package(
             name: "XipperKit",
             dependencies: ["CZstd", "CDeflate", "CLZMA", "CXipShims"]
         ),
+        // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
+        .target(
+            name: "XipperMCP",
+            dependencies: ["XipperKit"]
+        ),
         .executableTarget(
             name: "xipper",
-            dependencies: ["XipperKit"]
+            dependencies: ["XipperKit", "XipperMCP"]
         ),
         .testTarget(
             name: "XipperKitTests",
-            dependencies: ["XipperKit"]
+            dependencies: ["XipperKit", "XipperMCP"]
         ),
     ],
     swiftLanguageModes: [.v6]

@@ -140,3 +140,68 @@ Siamo alla pari con htslib multi-thread, che usa la stessa libdeflate, e 4 volte
 ## Note
 - htslib 1.24 allinea i blocchi alle righe nei file di testo. Xipper usa blocchi fissi da 0xFF00 byte: entrambe le scelte sono valide per la specifica, e tabix e bcftools funzionano con entrambe.
 - Rimandato a v2: la creazione di indici tabix (`.tbi`/`.csi`), che richiede di interpretare VCF/BED/GFF, e la decompressione di BAM/BCF in forma non compressa.
+
+---
+
+# Fase 1.5: server MCP (`xipper mcp`)
+
+*21 ottobre 2026 · verificato con Claude Code 2.1.236*
+
+## Cosa c'è
+- **Modulo `XipperMCP`:** solo Foundation, CryptoKit e Security; nessuno SDK. Il server JSON-RPC 2.0 gira su stdio, un messaggio per riga, con i log su stderr. Il framing è separato dal server, quindi si testa in-process.
+- **Doppia versione del protocollo nello stesso processo:**
+  - **2026-07-28** (senza stato): `server/discover`; `_meta` per richiesta (versione, capability del client, clientInfo); errore -32022 con `supported`/`requested` per le versioni non supportate; -32602 se mancano le capability; `resultType` su ogni risultato; `ttlMs`/`cacheScope` su discover e `tools/list`; `serverInfo` nel `_meta` dei risultati.
+  - **2025-11-25 / 2025-06-18 / 2025-03-26** (con sessione): `initialize` negozia la versione, poi `ping`, `tools/list`, `tools/call`.
+- **9 tool**, tutti con `inputSchema`, annotazioni (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint: false`) e `structuredContent`:
+  - `archive_info`, `archive_list` (paginato, filtro glob), `archive_test`, `archive_read_entry` (testo, oppure immagine in base64);
+  - `archive_extract`, `archive_create`;
+  - `bgzf_compress`, `bgzf_check`, `bgzf_convert`.
+- **Progresso e cancellazione:** `notifications/progress` quando il client invia un `progressToken`. `notifications/cancelled` interrompe il lavoro in corso, e a una richiesta cancellata non segue nessuna risposta.
+
+## Sicurezza (STUDIO.md §6-ter)
+- **Allowlist:** valgono `--allow`, le cartelle passate dopo `--` e `~/Library/Application Support/Xipper/mcp.json`. I percorsi passano per `realpath`, quindi i symlink e i `..` che escono vengono rifiutati. **L'allowlist si controlla prima dell'esistenza del file**, così le risposte non rivelano mai se un file esiste fuori dalle cartelle consentite. Senza cartelle configurate, ogni operazione viene rifiutata con l'istruzione su come configurarle.
+- **Sola lettura** (`--read-only`): restano esposti solo i 5 tool di lettura.
+- **Password mai nella chat:**
+  - `password_ref` punta al Portachiavi (`xipper mcp password set|delete|list`, servizio `app.xipper.mcp`);
+  - la password in chiaro è rifiutata, salvo `--allow-password-argument`;
+  - l'audit non registra mai campi `password*`.
+- **Conferme umane** prima di sovrascrivere archivi, estrarre sostituendo file o convertire sul posto:
+  - con 2025-11-25 tramite una vera richiesta `elicitation/create`;
+  - con 2026-07-28 tramite MRTR: `resultType: "input_required"` più un `requestState` **firmato con HMAC-SHA256** (chiave per processo), legato al tool e al digest degli argomenti, con scadenza a 10 minuti. Uno stato manomesso o riusato per un'altra chiamata viene ignorato e la conferma richiesta di nuovo;
+  - un client senza elicitation non può eseguire operazioni distruttive.
+- **Audit** in JSONL (`~/Library/Logs/Xipper/mcp-audit.jsonl`, permessi 0600): ora, client, tool, argomenti senza segreti, esito e durata.
+- I limiti di estrazione (zip bomb, spazio libero), la quarantena e le altre protezioni di XipperKit valgono anche qui.
+
+## Installazione
+- **Claude Code:**
+
+  ```bash
+  claude mcp add --transport stdio --scope user xipper -- /percorso/xipper mcp --allow ~/Documents
+  ```
+
+  `xipper mcp install` stampa i comandi esatti.
+- **Claude Desktop:** `xipper mcp bundle -o Xipper.mcpb` produce un MCP Bundle con manifest 0.3, `server.type: "binary"`, un `user_config` con le cartelle consentite (multiple, default Documenti) e l'interruttore per la sola lettura. Lo zip è creato con XipperKit e mantiene il bit eseguibile.
+
+## Verifiche
+- **Client reale, Claude Code 2.1.236**, con una configurazione isolata (HOME temporanea), stato "✔ Connected" in entrambe le modalità:
+  - di default negozia `initialize` 2025-11-25, dichiara `elicitation: {}` e chiede `tools/list`;
+  - con `MCP_SDK_GENERATION=v2 MCP_PROTOCOL_NEGOTIATION=auto` sonda con `server/discover` 2026-07-28 e prosegue in modalità moderna.
+- **10 test nuovi** (40 in totale, tutti verdi):
+  - handshake legacy e negoziazione delle versioni;
+  - discover moderno ed errori -32022/-32602;
+  - allowlist: percorsi esterni, symlink, `..`, percorsi relativi, nessun indizio sull'esistenza dei file;
+  - sola lettura;
+  - flusso completo in entrambe le modalità (create, info, list paginato e con glob, read, test con progresso, extract, audit);
+  - MRTR con stato manomesso, falsificato, rifiutato e accettato, e client senza elicitation;
+  - elicitation legacy;
+  - password dal Portachiavi;
+  - tool BGZF;
+  - binario reale su stdio, moderno e legacy.
+
+## Da fare
+- **Validare il `.mcpb`** con il CLI ufficiale (`npx @anthropic-ai/mcpb validate`, non installato qui) e provarlo in Claude Desktop.
+- **Firma:** firmare e notarizzare il binario nel bundle (fase di rilascio).
+- **Funzioni future:**
+  - richiesta della password tramite Xipper.app via XPC (alternativa a `password_ref`, prevista con l'app);
+  - estensione Tasks per i lavori molto lunghi;
+  - resources (`xipper://archive/...`).

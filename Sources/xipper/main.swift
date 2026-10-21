@@ -3,6 +3,7 @@
 import Darwin
 import Foundation
 import XipperKit
+import XipperMCP
 
 let usage = """
 usage: xipper <command> [options]
@@ -25,6 +26,7 @@ usage: xipper <command> [options]
       -p, --password / --password-stdin
   test    [-p | --password-stdin] <archive>
   list    [--long] <archive>
+  mcp     [options]               MCP server on stdio for AI agents (see `xipper mcp --help`)
   bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
       (default)            compress FILE to FILE.gz (the original is kept)
       -d, --decompress     decompress (gz, BGZF, bz2, xz, zst)
@@ -48,6 +50,7 @@ struct Usage: Error { let message: String }
 var args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first else { print(usage); exit(2) }
 args.removeFirst()
+if command == "mcp" { runMCP(args) }
 
 // MARK: argument helpers
 
@@ -345,4 +348,157 @@ extension Int64 {
 
 extension String {
     func leftPad(_ n: Int) -> String { count >= n ? self : String(repeating: " ", count: n - count) + self }
+}
+
+// MARK: - mcp
+
+let mcpUsage = """
+usage: xipper mcp [--allow DIR]... [--read-only] [--allow-password-argument] [--config FILE] [--no-audit] [-- DIR...]
+       xipper mcp password set|delete NAME     store an archive password in the Keychain (agents use password_ref)
+       xipper mcp password list
+       xipper mcp install                      print how to register the server in Claude Code / Claude Desktop
+       xipper mcp bundle [-o Xipper.mcpb]      build an MCP Bundle for Claude Desktop (contains this binary)
+
+Runs a Model Context Protocol server on stdin/stdout. Agents can only touch files inside the
+allowed folders (from --allow and from ~/Library/Application Support/Xipper/mcp.json).
+Tool calls are logged to ~/Library/Logs/Xipper/mcp-audit.jsonl (no passwords, no file contents).
+"""
+
+func runMCP(_ args: [String]) -> Never {
+    if args.first == "password" {
+        guard args.count >= 2 else { fail(mcpUsage, code: 2) }
+        switch (args[1], args.count) {
+        case ("list", 2):
+            PasswordStore.names().forEach { print($0) }
+        case ("set", 3):
+            var buf = [CChar](repeating: 0, count: 1024)
+            guard readpassphrase("Password for \(args[2]): ", &buf, buf.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil else { fail("cannot read password") }
+            let pw = String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            memset_s(&buf, buf.count, 0, buf.count)
+            if pw.isEmpty { fail("empty password") }
+            do { try PasswordStore.set(args[2], password: pw) } catch { fail("\(error)") }
+            print("stored \"\(args[2])\": agents can now use password_ref: \"\(args[2])\"")
+        case ("delete", 3):
+            if !PasswordStore.delete(args[2]) { fail("no password named \(args[2])") }
+        default:
+            fail(mcpUsage, code: 2)
+        }
+        exit(0)
+    }
+    let me = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
+    if args.first == "install" {
+        let exe = (try? FileManager.default.destinationOfSymbolicLink(atPath: me)) ?? me
+        print("""
+        Claude Code (all projects):
+          claude mcp add --transport stdio --scope user xipper -- \(exe) mcp --allow ~/Documents
+
+        Claude Desktop (~/Library/Application Support/Claude/claude_desktop_config.json):
+          "mcpServers": { "xipper": { "command": "\(exe)", "args": ["mcp", "--allow", "\(NSHomeDirectory())/Documents"] } }
+
+        Replace ~/Documents with the folders the assistant may use (repeat --allow for each).
+        """)
+        exit(0)
+    }
+    if args.first == "bundle" {
+        let out = args.count >= 3 && args[1] == "-o" ? args[2] : "Xipper.mcpb"
+        do { try buildBundle(executable: me, output: out) } catch { fail("\(error)") }
+        print("\(out): open it with Claude Desktop (Settings › Extensions) to install")
+        exit(0)
+    }
+    var configPath = MCPConfig.defaultConfigPath
+    var extraRoots: [String] = []
+    var readOnly = false, allowPassword = false, noAudit = false
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--allow":
+            guard i + 1 < args.count else { fail("--allow needs a folder", code: 2) }
+            extraRoots.append(args[i + 1]); i += 1
+        case "--config":
+            guard i + 1 < args.count else { fail("--config needs a file", code: 2) }
+            configPath = args[i + 1]; i += 1
+        case "--read-only": readOnly = true
+        case "--read-only-value":  // for .mcpb user_config booleans ("true"/"false")
+            guard i + 1 < args.count else { fail("--read-only-value needs true or false", code: 2) }
+            readOnly = readOnly || args[i + 1] == "true"; i += 1
+        case "--":
+            extraRoots += args[(i + 1)...].filter { !$0.isEmpty }
+            i = args.count
+        case "--allow-password-argument": allowPassword = true
+        case "--no-audit": noAudit = true
+        case "-h", "--help": print(mcpUsage); exit(0)
+        default: fail("unknown option \(args[i])\n\(mcpUsage)", code: 2)
+        }
+        i += 1
+    }
+    var config: MCPConfig
+    do { config = try MCPConfig.load(path: configPath) } catch { fail("invalid config \(configPath): \(error)") }
+    config.allowedRoots += extraRoots
+    config.readOnly = config.readOnly || readOnly
+    config.allowPasswordArgument = config.allowPasswordArgument || allowPassword
+    if noAudit { config.auditLogPath = nil }
+    if config.allowedRoots.isEmpty {
+        fputs("xipper mcp: warning: no allowed folders; every file operation will be refused (use --allow DIR)\n", stderr)
+    }
+    fputs("xipper mcp \(MCPServer.serverVersion): serving on stdio, allowed: \(config.allowedRoots.joined(separator: ", "))\(config.readOnly ? " (read-only)" : "")\n", stderr)
+    let final = config
+    StdioTransport.run { send in MCPServer(config: final, send: send) }
+    exit(0)
+}
+
+/// Writes an MCP Bundle (.mcpb, manifest 0.3): a zip with manifest.json and this binary.
+func buildBundle(executable: String, output: String) throws {
+    let stage = NSTemporaryDirectory() + "xipper-mcpb-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: stage) }
+    try FileManager.default.createDirectory(atPath: stage + "/server", withIntermediateDirectories: true)
+    try FileManager.default.copyItem(atPath: executable, toPath: stage + "/server/xipper")
+    let tools: [[String: String]] = [
+        ["name": "archive_info", "description": "Format, entries, sizes and encryption of an archive"],
+        ["name": "archive_list", "description": "List archive contents (paginated, glob filter)"],
+        ["name": "archive_test", "description": "Verify archive integrity"],
+        ["name": "archive_read_entry", "description": "Read one entry without extracting"],
+        ["name": "archive_extract", "description": "Extract safely into an allowed folder"],
+        ["name": "archive_create", "description": "Create zip / tar.* / gz / BGZF archives"],
+        ["name": "bgzf_compress", "description": "Genomics: compress with BGZF (bgzip)"],
+        ["name": "bgzf_check", "description": "Genomics: verify BGZF, BAM, BCF"],
+        ["name": "bgzf_convert", "description": "Genomics: convert plain gzip to BGZF"],
+    ]
+    let manifest: [String: Any] = [
+        "manifest_version": "0.3",
+        "name": "xipper",
+        "display_name": "Xipper",
+        "version": MCPServer.serverVersion,
+        "description": "Create, list, verify and extract archives (zip, tar.*, gz, BGZF for genomics) on your Mac, only inside the folders you choose.",
+        "author": ["name": "nicolorisitano82", "url": "https://github.com/nicolorisitano82/xipper"],
+        "repository": ["type": "git", "url": "https://github.com/nicolorisitano82/xipper"],
+        "license": "MIT",
+        "server": [
+            "type": "binary",
+            "entry_point": "server/xipper",
+            "mcp_config": [
+                "command": "${__dirname}/server/xipper",
+                "args": ["mcp", "--read-only-value", "${user_config.read_only}", "--", "${user_config.allowed_directories}"],
+            ],
+        ],
+        "tools": tools,
+        "user_config": [
+            "allowed_directories": [
+                "type": "directory", "title": "Allowed folders", "multiple": true, "required": true,
+                "description": "Folders Claude may read archives from and write archives to. Everything else is refused.",
+                "default": ["${DOCUMENTS}"],
+            ],
+            "read_only": [
+                "type": "boolean", "title": "Read-only", "default": false,
+                "description": "Only list, inspect and verify archives; never write files.",
+            ],
+        ],
+        "compatibility": ["platforms": ["darwin"]],
+    ]
+    let json = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    FileManager.default.createFile(atPath: stage + "/manifest.json", contents: json)
+    var o = CreateOptions()
+    o.format = .zip
+    o.overwrite = true
+    try Xipper.create(from: [URL(fileURLWithPath: stage + "/manifest.json"), URL(fileURLWithPath: stage + "/server")],
+                      to: URL(fileURLWithPath: output), options: o)
 }

@@ -77,6 +77,16 @@ Genomica (BGZF, compatibile con `bgzip`):
 .build/release/xipper bgzip -t campione.bam
 ```
 
+Server MCP per agenti AI (Claude Code, Claude Desktop):
+
+```bash
+claude mcp add --transport stdio --scope user xipper -- "$PWD/.build/release/xipper" mcp --allow ~/Documents
+```
+
+```bash
+.build/release/xipper mcp bundle -o Xipper.mcpb
+```
+
 Uscita: `0` ok, `1` errore, `2` uso errato, `3` voci saltate o verifica fallita, `4` password mancante o errata, `130` annullato (Ctrl-C).
 
 ## Licenza
