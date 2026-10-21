@@ -13,7 +13,16 @@ enum TarWriter {
         let tracker = ProgressTracker(totalBytes: items.reduce(0) { $0 + $1.size }, totalEntries: items.count, handler: progress)
         let out = try OutputFile(path: path)
         let encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
-        let sink: ByteSink = { try out.write($0) }
+        // Progress follows what the encoder has compressed, not what it has buffered.
+        var fed: Int64 = 0, reported: Int64 = 0
+        var current: String?
+        func report() {
+            let done = max(reported, fed - encoder.backlog)
+            if done > reported { tracker.add(bytes: done - reported, current: current); reported = done }
+        }
+        let sink: ByteSink = { try out.write($0); report() }
+        encoder.onIdle { report() }
+        defer { encoder.onIdle(nil) }  // the closure holds the encoder
         var written: Int64 = 0
         func emit(_ bytes: [UInt8]) throws {
             try bytes.withUnsafeBytes { try encoder.process($0, sink) }
@@ -38,7 +47,9 @@ enum TarWriter {
                     try encoder.process(UnsafeRawBufferPointer(start: piece, count: n), sink)
                     off += Int64(n)
                     written += Int64(n)
-                    tracker.add(bytes: Int64(n), current: item.name)
+                    fed += Int64(n)
+                    current = item.name
+                    report()
                     try cancel?.check()
                 }
                 try emit([UInt8](repeating: 0, count: Tar.padding(size)))
@@ -53,6 +64,7 @@ enum TarWriter {
         let pad = Int((Int64(Tar.record) - end % Int64(Tar.record)) % Int64(Tar.record))
         try emit([UInt8](repeating: 0, count: 2 * Tar.block + pad))
         try encoder.finish(sink)
+        tracker.add(bytes: fed - reported)
         try out.flush()
         try out.commit(overwrite: overwrite)
         tracker.finish()

@@ -16,7 +16,7 @@ From the system (part of macOS, not vendored): zlib (streaming inflate, chunked 
 
 ## Local modifications
 - Only library sources are kept (no CLI tools, tests, build scripts, x86/RISC-V assembly).
-- `zstd/include/CZstd.h`, `libdeflate/include/CDeflate.h`: umbrella headers for SwiftPM.
+- `zstd/include/CZstd.h`, `libdeflate/include/CDeflate.h`: umbrella headers for SwiftPM (`CZstd.h` defines `ZSTD_STATIC_LINKING_ONLY` for `ZSTD_getFrameProgression`).
 - `xz/src/liblzma/api/module.modulemap`: exposes only `lzma.h` (the `lzma/*.h` headers must not be included directly).
 - liblzma is configured with the same `-D` defines its CMake build uses on macOS arm64 (see `Package.swift`).
 - zstd is built with `ZSTD_MULTITHREAD`, `ZSTD_DISABLE_ASM`, `XXH_NAMESPACE=ZSTD_`.

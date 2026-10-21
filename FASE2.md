@@ -207,3 +207,23 @@ Prima fase del [nuovo formato](docs/reports/Nuovo%20formato%20di%20compressione%
 | **Nell'app** | Impostazioni › Generali › Funzioni sperimentali › "Formato XIZ": compare nel menu dei formati come "XIZ · BETA". L'apertura dei `.xiz` funziona sempre (browser, Quick Look, miniature). Senza password: la cifratura è la fase 2. |
 | **Test** | 3 test dedicati e fuzzing (3000 mutazioni senza crash), più round trip con selezione, attributi, anteprima delle voci. |
 | **Non ancora (fasi 2–7)** | Cifratura (Argon2id, AES-GCM per frame, catalogo STREAM), dizionari ZDICT, ordinamento per similarità, FastCDC, append, dati di recupero, ottimizzazioni ARM64/Metal, specifica pubblica e lettore di riferimento. Il layout può cambiare prima della v1. |
+
+## Test manuali in app (21/10/2026)
+
+Prove fatte sulla build di debug, guidando l'app con l'accessibilità e catturando solo le finestre di Xipper.
+
+- **6.1 e 6.2 (zip-bomb da 3,15 GB dichiarati, rapporto 1:1030).** La alert e la seconda conferma funzionano; con «Estrai fino a 1 GB» l'estrazione si ferma al limite e la cartella `.partial` sparisce. Corretti tre difetti:
+  - nella 6.2 il `Form` raggruppato collassava a altezza zero dentro il pannello modale e nascondeva il limite e i due interruttori: ora è uno stack;
+  - i limiti erano `1 << 30` e comparivano come «1,07 GB»: ora sono 1, 10 e 50 GB decimali, come li conta il Finder;
+  - la riserva del 10% usava `statfs.f_bavail`, che esclude lo spazio eliminabile (42 GB contro gli 82 GB mostrati). Con meno del 10% libero il limite diventava 0 e il messaggio parlava del limite scelto. Ora il core usa la capacità "per uso importante"; quando è la riserva a fermare l'estrazione l'errore è «spazio insufficiente», e la sheet avvisa e disattiva «Estrai» se lo spazio manca già.
+- **Rapporto nel browser:** «0%» per un archivio allo 0,1% diventa «<1%».
+- **HUD dei lavori (tar.xz -9 di 4 GB casuali).** Pausa, ripresa e annullamento funzionano; l'annullamento rimuove il file temporaneo. Corretti:
+  - il progresso contava l'input bufferizzato da liblzma (fino a thread × 128 MiB) e restava fermo al 27% con «0 MB/s». Ora segue i dati compressi (`lzma_get_progress`, `ZSTD_getFrameProgression`), con un battito ogni ≤ 250 ms mentre l'encoder aspetta i worker;
+  - la velocità è media sugli ultimi 3 s, con la media complessiva tra un blocco e l'altro; «…» quando non è ancora nota;
+  - in pausa l'icona continuava a pulsare (13% di CPU): ora si ferma;
+  - xz multi-thread limita i thread al 25% della RAM, come `xz -T0`. A -9 ogni thread usa circa 700 MB: su questo Mac (36 GB) restano 14 thread e 7,5 GB, su un Mac da 8 GB scendono a 2.
+- **Limite noto della pausa:** i worker di xz e zstd finiscono i blocchi già ricevuti, quindi a -9 la CPU scende dopo circa 30 s.
+- **Comandi Rapidi:** i metadati App Intents ci sono (4 azioni, 4 App Shortcuts). Il nome dell'archivio in «Comprimi con Xipper» ora viene ripulito da `/` e `:`. L'esecuzione dalla app Comandi Rapidi resta da provare a mano.
+- **Da provare a mano (serve una persona):**
+  - Touch ID sulla password salvata: il codice è rivisto, il fallback è la password del Mac;
+  - trascinamento di una voce dal browser al Finder: il trascinamento simulato non è partito e non è stato insistito, per non agire su altre app.

@@ -138,6 +138,8 @@ EN = {
     "Estrazione di %@": "Extraction of %@",
     "Estrazione fermata": "Extraction stopped",
     "Estrazione fermata al limite di %@: i dati scritti sono stati eliminati": "Extraction stopped at the %@ limit: the data written was deleted",
+    "Estrazione fermata: sul disco resterebbe meno del 10% di spazio libero. I dati scritti sono stati eliminati": "Extraction stopped: less than 10% of the disk would be left free. The data written was deleted",
+    "Sul disco resta meno del 10% di spazio libero: libera spazio prima di estrarre.": "Less than 10% of the disk is free: free up space before extracting.",
     "Estrazione · in pausa": "Extraction · paused",
     "Fatto": "Done",
     "Ferma l'estrazione oltre": "Stop extracting beyond",

@@ -291,3 +291,43 @@ struct AppleDoubleTests {
         #expect(ExtendedAttributes.read(t.path + "/out/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
     }
 }
+
+/// Progress of the multi-threaded stream encoders follows the compressed data, not the buffered input.
+@Suite("Progress of tar.xz and tar.zst")
+struct StreamProgressTests {
+    final class Snapshots: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [ProgressSnapshot] = []
+        func add(_ s: ProgressSnapshot) { lock.lock(); values.append(s); lock.unlock() }
+        var all: [ProgressSnapshot] { lock.lock(); defer { lock.unlock() }; return values }
+    }
+
+    @Test(arguments: [ArchiveFormat.tarXz, .tarZstd])
+    func monotonicAndComplete(format: ArchiveFormat) throws {
+        let t = TempDir()
+        t.write("src/a.bin", sampleData(24 << 20, seed: 41))
+        t.write("src/b.txt", String(repeating: "progress\n", count: 200_000))
+        let seen = Snapshots()
+        var o = CreateOptions()
+        o.format = format
+        o.level = format == .tarXz ? 1 : 3
+        o.workload = .threads(4)
+        try Xipper.create(from: [t.url("src")], to: t.url("p." + format.fileExtension), options: o, progress: { seen.add($0) })
+        let all = seen.all
+        #expect(zip(all, all.dropFirst()).allSatisfy { $0.completedBytes <= $1.completedBytes })
+        #expect(all.last.map { $0.completedBytes == $0.totalBytes } == true)
+        #expect(try Xipper.test(t.url("p." + format.fileExtension)).isOK)
+    }
+
+    @Test func encoderBacklogDrainsToZero() throws {
+        let data = sampleData(16 << 20, seed: 42)
+        for encoder in [try LZMACoder.xzEncoder(preset: 1, threads: 4) as StreamTransform, try ZstdEncoder(level: 3, threads: 4)] {
+            var out = 0
+            try data.withUnsafeBytes { try encoder.process($0) { out += $0.count } }
+            #expect(encoder.backlog >= 0 && encoder.backlog <= Int64(data.count))
+            try encoder.finish { out += $0.count }
+            #expect(encoder.backlog == 0)
+            #expect(out > 0)
+        }
+    }
+}

@@ -732,6 +732,7 @@
       }
     },
     "1 GB" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -742,6 +743,7 @@
       }
     },
     "10 GB" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -752,6 +754,7 @@
       }
     },
     "50 GB" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2343,6 +2346,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Extraction stopped at the %@ limit: the data written was deleted"
+          }
+        }
+      }
+    },
+    "Estrazione fermata: sul disco resterebbe meno del 10% di spazio libero. I dati scritti sono stati eliminati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extraction stopped: less than 10% of the disk would be left free. The data written was deleted"
           }
         }
       }
@@ -4314,6 +4327,16 @@
         }
       }
     },
+    "Sul disco resta meno del 10% di spazio libero: libera spazio prima di estrarre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Less than 10% of the disk is free: free up space before extracting."
+          }
+        }
+      }
+    },
     "Symlink che punta fuori dalla destinazione" : {
       "localizations" : {
         "en" : {
@@ -5193,6 +5216,7 @@
       }
     },
     "—" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

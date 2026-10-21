@@ -75,7 +75,10 @@ struct CompressIntent: AppIntent {
         let sources = try localURLs(files)
         guard let first = sources.first else { throw IntentFailure.noFiles }
         let fmt = sources.count > 1 && !ArchiveFormat.multiItem.contains(format.format) ? .zip : format.format
-        let base = name.flatMap { $0.isEmpty ? nil : $0 } ?? (sources.count == 1 ? first.lastPathComponent : String(localized: "Archivio"))
+        // A file name, never a path: "/" and ":" would write outside the folder or fail.
+        let cleaned = name.map { $0.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "."))) }
+        let base = cleaned.flatMap { $0.isEmpty ? nil : $0 } ?? (sources.count == 1 ? first.lastPathComponent : String(localized: "Archivio"))
         let dest = uniqueURL(first.deletingLastPathComponent().appendingPathComponent("\(base).\(fmt.fileExtension)"))
         let preset = LevelPreset(rawValue: Preferences.defaults.string(forKey: PrefKey.levelPreset) ?? "") ?? .balanced
         let options = Preferences.createOptions(format: fmt, preset: preset, password: nil)

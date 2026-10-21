@@ -234,20 +234,33 @@ final class ExtractionContext: @unchecked Sendable {
         rootFD = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         if rootFD < 0 { throw XipperError.posix("open destination", root) }
         quarantine = options.propagateQuarantine ? Self.readXattr(archivePath, "com.apple.quarantine") : nil
-        limitIsFreeSpace = options.limits.maxTotalBytes <= 0
-        var fs = statfs()
-        let hasFS = fstatfs(rootFD, &fs) == 0
+        let space = Self.volumeSpace(root, fd: rootFD)
         var cap: Int64
+        var fromFreeSpace = options.limits.maxTotalBytes <= 0
         if options.limits.maxTotalBytes > 0 {
             cap = options.limits.maxTotalBytes
         } else {
-            cap = hasFS ? max(0, Int64(fs.f_bavail) * Int64(fs.f_bsize) - (1 << 30)) : .max
+            cap = space.map { max(0, $0.free - (1 << 30)) } ?? .max
         }
-        if options.limits.minFreeFraction > 0 && hasFS {
-            let reserve = Int64(Double(fs.f_blocks) * options.limits.minFreeFraction) * Int64(fs.f_bsize)
-            cap = min(cap, max(0, Int64(fs.f_bavail) * Int64(fs.f_bsize) - reserve))
+        if options.limits.minFreeFraction > 0, let space {
+            let room = max(0, space.free - Int64(Double(space.total) * options.limits.minFreeFraction))
+            if room < cap { cap = room; fromFreeSpace = true }
         }
+        limitIsFreeSpace = fromFreeSpace
         maxBytes = cap
+    }
+
+    /// Free and total bytes of the destination volume as the Finder counts them (purgeable space
+    /// is free: macOS reclaims it when we write); statfs when the volume does not report them.
+    static func volumeSpace(_ path: String, fd: Int32) -> (free: Int64, total: Int64)? {
+        let keys: Set<URLResourceKey> = [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]
+        if let v = try? URL(fileURLWithPath: path).resourceValues(forKeys: keys),
+           let free = v.volumeAvailableCapacityForImportantUsage, let total = v.volumeTotalCapacity, total > 0 {
+            return (free, Int64(total))
+        }
+        var fs = statfs()
+        guard fstatfs(fd, &fs) == 0 else { return nil }
+        return (Int64(fs.f_bavail) * Int64(fs.f_bsize), Int64(fs.f_blocks) * Int64(fs.f_bsize))
     }
 
     deinit {

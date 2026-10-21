@@ -12,6 +12,7 @@ It needs no third-party software at run time: the open-source codecs are compile
 - SwiftUI app (phase 2): [FASE2.md](FASE2.md) · UI specification: [docs/UI_SPEC.md](docs/UI_SPEC.md)
 - Benchmarks: [docs/BENCHMARK.md](docs/BENCHMARK.md)
 - Beta testers: [docs/BETA_TESTERS.en.md](docs/BETA_TESTERS.en.md)
+- Roadmap (v1.0, v2; in Italian): [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Highlights
 

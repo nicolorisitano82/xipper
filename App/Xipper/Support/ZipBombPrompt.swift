@@ -10,15 +10,22 @@ enum ZipBombPrompt {
         var archiveSize: Int64
         var declared: Int64
         var freeSpace: Int64?
+        var totalSpace: Int64?
         var ratio: Double { archiveSize > 0 ? Double(declared) / Double(archiveSize) : 0 }
+        /// What the always-on "keep 10% free" rule leaves for an override (nil when unknown).
+        var room: Int64? {
+            guard let freeSpace, let totalSpace else { return nil }
+            return max(0, freeSpace - totalSpace / 10)
+        }
     }
 
     static func facts(for r: ExtractRequest) -> Facts {
         let size = ((try? FileManager.default.attributesOfItem(atPath: r.archive.path)[.size]) as? NSNumber)?.int64Value ?? 0
         let declared = ((try? Xipper.list(r.archive)) ?? []).reduce(Int64(0)) { $0 + max(0, $1.uncompressedSize) }
         let folder = r.destination ?? r.archive.deletingLastPathComponent()
-        let free = (try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
-        return Facts(archiveSize: size, declared: declared, freeSpace: free)
+        let v = try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey])
+        return Facts(archiveSize: size, declared: declared, freeSpace: v?.volumeAvailableCapacityForImportantUsage,
+                     totalSpace: v?.volumeTotalCapacity.map(Int64.init))
     }
 
     static func ask(for job: Job, request r: ExtractRequest) {
@@ -103,7 +110,9 @@ private struct SecondConfirmation: View {
     let name: String
     let facts: ZipBombPrompt.Facts
     let onDone: ((cap: Int64, downloads: Bool)?) -> Void
-    @State private var cap: Int64 = 1 << 30
+    /// Decimal sizes, so the labels read exactly "1 GB", "10 GB", "50 GB" (as the Finder counts).
+    static let caps: [Int64] = [1_000_000_000, 10_000_000_000, 50_000_000_000]
+    @State private var cap: Int64 = caps[0]
     @State private var downloads = true
 
     var body: some View {
@@ -120,23 +129,31 @@ private struct SecondConfirmation: View {
             }
             Text("Xipper estrae finché i dati non superano il limite che scegli, poi si ferma ed elimina quanto scritto.")
                 .fixedSize(horizontal: false, vertical: true)
-            Form {
+            // Plain stack, not a grouped Form: inside the modal panel a Form collapses to zero height.
+            VStack(alignment: .leading, spacing: 10) {
                 Picker("Ferma l'estrazione oltre", selection: $cap) {
-                    Text("1 GB").tag(Int64(1) << 30)
-                    Text("10 GB").tag(Int64(10) << 30)
-                    Text("50 GB").tag(Int64(50) << 30)
+                    ForEach(Self.caps, id: \.self) { Text($0.byteText).tag($0) }
                 }
+                .fixedSize()
                 Toggle("Estrai in una cartella nuova in Download", isOn: $downloads)
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Fermati se resta meno del 10% di spazio libero", isOn: .constant(true)).disabled(true)
                     Text("Sempre attivo, non si può disattivare.").font(.caption).foregroundStyle(.secondary)
+                        .padding(.leading, 20)
                 }
             }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
+            if let room = facts.room, room < 64 << 20 {
+                Label("Sul disco resta meno del 10% di spazio libero: libera spazio prima di estrarre.", systemImage: "externaldrive.badge.exclamationmark")
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Button("Estrai fino a \(cap.byteText)", role: .destructive) { onDone((cap, downloads)) }
                     .foregroundStyle(.red)
+                    .disabled((facts.room ?? .max) < 64 << 20)
                 Spacer()
                 Button("Annulla") { onDone(nil) }
                     .buttonStyle(.glassProminent)

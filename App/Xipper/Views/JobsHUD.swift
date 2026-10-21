@@ -89,7 +89,7 @@ private struct JobCapsule: View {
             HStack(spacing: 8) {
                 Image(systemName: icon)
                     .foregroundStyle(iconColor)
-                    .symbolEffect(.pulse, isActive: job.isRunning && !reduceMotion)
+                    .symbolEffect(.pulse, isActive: job.isRunning && !job.userPaused && !job.paused && !reduceMotion)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(job.title).font(.callout.weight(.semibold)).lineLimit(1).truncationMode(.middle)
@@ -142,7 +142,7 @@ private struct JobCapsule: View {
             if job.userPaused { return String(localized: "In pausa") }
             guard let p = job.progress else { return "\(job.verb) in corso…" }
             let pct = p.totalBytes > 0 ? String(localized: "\(Int(p.fraction * 100))% · ") : ""
-            return "\(pct)\(Int(job.smoothedSpeed / 1e6)) MB/s" + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
+            return "\(pct)" + (job.smoothedSpeed > 0 ? "\(Int(job.smoothedSpeed / 1e6)) MB/s" : "…") + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
         case let .finished(s): return s
         case let .failed(s): return s
         case .cancelled: return String(localized: "Annullato")

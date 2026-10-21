@@ -9,6 +9,7 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 - Core e CLI (fase 1, con 7z della fase 3): [FASE1.md](FASE1.md)
 - App SwiftUI (fase 2, in corso): [FASE2.md](FASE2.md) · specifica UI: [docs/UI_SPEC.md](docs/UI_SPEC.md)
 - Beta per i tester: [docs/BETA_TESTERS.md](docs/BETA_TESTERS.md)
+- Roadmap (v1.0, v2): [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Struttura
 

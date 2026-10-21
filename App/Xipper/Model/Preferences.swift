@@ -165,3 +165,11 @@ extension ArchiveFormat {
 extension Int64 {
     var byteText: String { ByteCountFormatter.string(fromByteCount: self, countStyle: .file) }
 }
+
+extension Double {
+    /// Compressed / original as a percentage; "<1%" rather than a misleading "0%".
+    var ratioText: String {
+        let p = (self * 100).rounded()
+        return self > 0 && p < 1 ? "<1%" : "\(Int(p))%"
+    }
+}

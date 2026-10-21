@@ -107,7 +107,8 @@ final class Job: Identifiable {
     let started = Date()
     fileprivate let cancel = CancellationToken()
 
-    /// Speed averaged over the last second, refreshed at most 4 times a second (2.4).
+    /// Speed averaged over the last 3 seconds, refreshed at most 4 times a second (2.4); the
+    /// whole-job average while a multi-threaded encoder is between blocks.
     private(set) var smoothedSpeed: Double = 0
     @ObservationIgnored private var samples: [(Date, Int64)] = []
     @ObservationIgnored private var lastSpeedUpdate = Date.distantPast
@@ -117,12 +118,13 @@ final class Job: Identifiable {
         let now = Date()
         samples.append((now, p.completedBytes))
         // Keep one sample at least a second old as the reference, even across encoder stalls.
-        while samples.count > 2 && now.timeIntervalSince(samples[1].0) >= 1 { samples.removeFirst() }
+        while samples.count > 2 && now.timeIntervalSince(samples[1].0) >= 3 { samples.removeFirst() }
         JobFeedback.update(JobCenter.shared.jobs)
         guard now.timeIntervalSince(lastSpeedUpdate) >= 0.25, let first = samples.first else { return }
         lastSpeedUpdate = now
         let dt = now.timeIntervalSince(first.0)
-        smoothedSpeed = dt > 0.05 ? Double(p.completedBytes - first.1) / dt : p.bytesPerSecond
+        let recent = dt > 0.05 ? Double(p.completedBytes - first.1) / dt : 0
+        smoothedSpeed = recent > 0 ? recent : p.bytesPerSecond
     }
 
     /// Seconds left at the current speed, if meaningful.
@@ -362,6 +364,8 @@ extension Job {
                 if case let .extract(r) = kind {
                     Task { ZipBombPrompt.ask(for: self, request: r) }
                 }
+            case .insufficientSpace? where capBytes != nil:
+                state = .failed(String(localized: "Estrazione fermata: sul disco resterebbe meno del 10% di spazio libero. I dati scritti sono stati eliminati"))
             case let .insufficientSpace(needed, available)?:
                 failure = .diskFull(available: available)
                 state = .failed(String(localized: "Spazio su disco insufficiente: servono \(needed.byteText), liberi \(max(0, available).byteText)"))

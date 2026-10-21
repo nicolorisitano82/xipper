@@ -267,7 +267,7 @@ struct ArchiveBrowserView: View {
                 TableColumn("Compresso", value: \.compressed) { Text($0.compressed > 0 ? $0.compressed.byteText : "—").monospacedDigit().foregroundStyle(.secondary) }
                     .width(min: 70, ideal: 90)
                 TableColumn("Rapporto") { item in
-                    Text(item.ratio.map { "\(Int(($0 * 100).rounded()))%" } ?? "—").monospacedDigit().foregroundStyle(.secondary)
+                    Text(item.ratio.map(\.ratioText) ?? "—").monospacedDigit().foregroundStyle(.secondary)
                 }
                 .width(min: 64, ideal: 72)
                 TableColumn("Modificato") { item in
@@ -507,7 +507,7 @@ private struct ArchiveInspector: View {
                     LabeledContent("Contenuto", value: model.totalSize.byteText)
                     LabeledContent("File", value: "\(model.fileCount)")
                     if model.totalSize > 0 {
-                        LabeledContent("Rapporto", value: "\(Int((Double(model.archiveSize) / Double(model.totalSize) * 100).rounded()))%")
+                        LabeledContent("Rapporto", value: (Double(model.archiveSize) / Double(model.totalSize)).ratioText)
                     }
                     LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì") : "No")
                     LabeledContent("SHA-256") {

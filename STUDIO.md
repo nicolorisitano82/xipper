@@ -16,7 +16,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Ottimizzazione arm64** | Il guadagno vero viene dal parallelismo sui P-core e gli E-core, dalle istruzioni CRC32/AES/SHA hardware di ARMv8, da NEON e dall'I/O con mmap e APFS clone. Dettagli al §5. |
 | **Integrazione di sistema** | Finder Sync (menu contestuale), Quick Look (anteprima del contenuto), App Intents (Comandi Rapidi/Shortcuts e Azioni rapide), Servizi, CLI inclusa e, come obiettivo avanzato, montaggio dell'archivio come volume con FSKit. Dettagli al §6. |
 | **Licenza** | **Gratuito e open source, licenza MIT** (§10). |
-| **Distribuzione** | Developer ID + notarizzazione come canale principale. Il Mac App Store è possibile, ma la sandbox limita l'estrazione "accanto al file". Dettagli al §8. |
+| **Distribuzione** | **Decisione del 21/10/2026: solo DMG su GitHub, firmato self-signed.** Developer ID e notarizzazione non servono per ora; il Mac App Store è escluso (la sandbox limiterebbe l'estrazione "accanto al file", l'estensione del Finder e il server MCP). Dettagli al §8. |
 
 ---
 
@@ -494,9 +494,9 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.7 Genomica 2 (GA4GH, locale)** ✅ | Creazione di tabix/CSI compatibile htslib (query identiche a `tabix`), verifica degli indici `.tbi`/`.csi`/`.bai`/`.gzi`/`.crai`, verifica strutturale di CRAM 3.0/3.1 e di VCF.gz/BCF, manifest sha-256/md5/crc32c (JSON DRS, `sha256sum`/`md5sum`); CLI `xipper tabix`/`index-check`/`manifest`, MCP `genomics_index`/`genomics_check`/`checksum_manifest` (§4.6) | completata il 21/10/2026 → [FASE1.md](FASE1.md) (Finder: con l'app) |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
-| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta2 pubblicata il 21/10/2026; restano Developer ID e notarizzazione, Apple Archive / CPIO / lz4 / brotli in lettura, 7z nell'app, varianti dell'icona → [FASE2.md](FASE2.md) |
+| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; distribuzione solo DMG su GitHub (niente Developer ID); restano i test manuali di Touch ID, trascinamento e Comandi Rapidi, i feedback dei tester e la nuova grafica → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** | ⭐ **Ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi: decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, con percorso portabile di riserva, benchmark e test di equivalenza (§5.3). Poi montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
+| **4. v2** | ⭐ **Primo: montaggio dell'archivio come volume con FSKit** (sola lettura; ZIP, tar, 7z, XIZ). ⭐ Poi **ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi: decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, con percorso portabile di riserva, benchmark e test di equivalenza (§5.3). Poi XIZ stabile, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | aperta |
 
 ---
 

@@ -17,6 +17,17 @@ typealias ByteSink = (UnsafeRawBufferPointer) throws -> Void
 protocol StreamTransform: AnyObject {
     func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws
     func finish(_ sink: ByteSink) throws
+    /// Input bytes accepted but not yet compressed. Multi-threaded encoders buffer whole blocks
+    /// (xz -9: 128 MiB per thread), so progress counted on input alone stalls, then jumps.
+    var backlog: Int64 { get }
+    /// Called between codec calls (at most every 250 ms) while a multi-threaded encoder waits
+    /// for its workers, so progress can move without output; nil to stop.
+    func onIdle(_ f: (() -> Void)?)
+}
+
+extension StreamTransform {
+    var backlog: Int64 { 0 }
+    func onIdle(_ f: (() -> Void)?) {}
 }
 
 private let outputChunk = 1 << 20
@@ -154,7 +165,16 @@ final class LZMACoder: StreamTransform {
     /// bounds how long a cancellation waits, even while workers compress a large block.
     var cancel: CancellationToken?
 
+    private var idle: (() -> Void)?
+    func onIdle(_ f: (() -> Void)?) { idle = f }
+
     private init(name: String) { self.name = name }
+
+    var backlog: Int64 {
+        var done: UInt64 = 0, produced: UInt64 = 0
+        lzma_get_progress(&strm, &done, &produced)
+        return Int64(strm.total_in) - Int64(min(done, strm.total_in))
+    }
     deinit { lzma_end(&strm) }
 
     /// .xz decoder, multi-threaded for multi-block streams, accepting concatenated streams.
@@ -186,6 +206,9 @@ final class LZMACoder: StreamTransform {
         if mt.preset >= 7, lzma_lzma_preset(&opts, mt.preset) == 0 {
             mt.block_size = UInt64(opts.dict_size) * (mt.preset == 9 ? 2 : 1)
         }
+        // At -9 each thread needs about 1 GB: fewer threads within a quarter of the RAM, as xz -T0 does.
+        let budget = ProcessInfo.processInfo.physicalMemory / 4
+        while mt.threads > 1 && lzma_stream_encoder_mt_memusage(&mt) > budget { mt.threads -= 1 }
         try c.check(lzma_stream_encoder_mt(&c.strm, &mt))
         return c
     }
@@ -259,6 +282,7 @@ final class LZMACoder: StreamTransform {
         strm.avail_in = input.count
         while true {
             try cancel?.check()
+            idle?()
             strm.next_out = out.ptr.assumingMemoryBound(to: UInt8.self)
             strm.avail_out = outputChunk
             let r = lzma_code(&strm, action)
@@ -329,6 +353,14 @@ final class ZstdEncoder: StreamTransform {
     private let out = OutBuffer()
     private let cancel: CancellationToken?
 
+    private var idle: (() -> Void)?
+    func onIdle(_ f: (() -> Void)?) { idle = f }
+
+    var backlog: Int64 {
+        let p = ZSTD_getFrameProgression(c)
+        return Int64(p.ingested) - Int64(min(p.consumed, p.ingested))
+    }
+
     init(level: Int, threads: Int, longDistance: Bool = false, checksum: Bool = true, cancel: CancellationToken? = nil) throws {
         self.cancel = cancel
         guard let c = ZSTD_createCCtx() else { throw XipperError.codec("zstd init") }
@@ -347,6 +379,7 @@ final class ZstdEncoder: StreamTransform {
         var inb = ZSTD_inBuffer(src: input.baseAddress, size: input.count, pos: 0)
         while true {
             try cancel?.check()
+            idle?()
             var outb = ZSTD_outBuffer(dst: out.ptr, size: outputChunk, pos: 0)
             let remaining = ZSTD_compressStream2(c, &outb, &inb, mode)
             if ZSTD_isError(remaining) != 0 { throw XipperError.codec("zstd: \(String(cString: ZSTD_getErrorName(remaining)))") }
