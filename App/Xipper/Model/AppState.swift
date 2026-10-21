@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import UniformTypeIdentifiers
+import UserNotifications
 import XipperKit
 
 /// Files the system asked us to open (Finder double click, Dock drop, Open Recent),
@@ -10,6 +11,9 @@ import XipperKit
 final class AppState {
     static let shared = AppState()
     var pendingOpen: [URL] = []
+    /// First launch, or "Introduzione a Xipper" in the Help menu.
+    var showOnboarding = !Preferences.defaults.bool(forKey: PrefKey.onboardingDone)
+        && !ProcessInfo.processInfo.environment.keys.contains { $0.hasPrefix("XIPPER_DEMO") }
 
     func open(_ urls: [URL]) {
         pendingOpen.append(contentsOf: urls)
@@ -33,8 +37,12 @@ final class AppState {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let services = ServiceProvider()
+    private let notifications = NotificationRouter()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        EntryStaging.cleanUp()
+        UNUserNotificationCenter.current().delegate = notifications
+        MainActor.assumeIsolated { JobFeedback.prepare() }
         NSApp.servicesProvider = services
         NSUpdateDynamicServices()
     }
@@ -48,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let files = urls.filter(\.isFileURL)
             if !files.isEmpty { AppState.shared.open(files) }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        EntryStaging.cleanUp()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

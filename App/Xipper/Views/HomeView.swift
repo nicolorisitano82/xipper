@@ -22,6 +22,7 @@ struct HomeView: View {
     @State private var saveFolder: URL?
     @State private var targeted = false
     @State private var password: String?
+    @State private var rememberPassword = false
     @State private var askPassword = false
     @State private var job: Job?
     @Namespace private var glass
@@ -74,9 +75,10 @@ struct HomeView: View {
         .navigationTitle(items.isEmpty || job != nil ? "Xipper" : "Nuovo archivio")
         .navigationSubtitle(items.isEmpty || job != nil ? "" : "\(items.count) element\(items.count == 1 ? "o" : "i") · \(totalSize.byteText)")
         .toolbar { toolbar }
+        .sheet(isPresented: Bindable(appState).showOnboarding) { OnboardingView() }
         .sheet(isPresented: $askPassword) {
-            PasswordSheet(mode: .create, archiveName: archiveName) { pw in
-                if let pw { password = pw }
+            PasswordSheet(mode: .create, archiveName: archiveName) { pw, remember in
+                if let pw { password = pw; rememberPassword = remember }
             }
         }
         #if DEBUG
@@ -375,6 +377,7 @@ struct HomeView: View {
         guard !items.isEmpty else { return }
         let dest = uniqueURL(folder.appendingPathComponent(archiveName))
         let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password))
+        started.rememberPassword = password != nil && rememberPassword
         jobs.focused.insert(started.id)
         job = started
     }

@@ -1,9 +1,9 @@
-# Xipper 0.9.0 beta1: note per i tester
+# Xipper 0.9.0 beta2: note per i tester
 
 Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica ed estrae archivi in modo veloce e sicuro.
 
 ## Installazione
-1. Apri `Xipper-0.9.0-beta1.dmg` e trascina **Xipper** nella cartella **Applicazioni**.
+1. Apri `Xipper-0.9.0-beta2.dmg` e trascina **Xipper** nella cartella **Applicazioni**.
 2. **Primo avvio.** La beta è firmata con un certificato di sviluppo, non con un Developer ID Apple, quindi macOS la blocca la prima volta.
    - Apri Xipper. Al messaggio "non è possibile verificare lo sviluppatore" scegli **Fine**.
    - Vai in **Impostazioni di Sistema › Privacy e sicurezza**, scorri fino a "Xipper è stata bloccata" e premi **Apri comunque**. Conferma con la password o Touch ID.
@@ -16,6 +16,8 @@ Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o su
 3. Verifica, se vuoi: l'impronta SHA-256 del DMG è nel file `.sha256` che lo accompagna.
 
 ## Integrazione con il Finder
+Al primo avvio Xipper mostra un'introduzione con tre passaggi facoltativi: estensione del Finder, app predefinita per gli archivi e comando `xipper` nel Terminale. Si riapre da **Aiuto › Introduzione a Xipper**.
+
 - **Menu Xipper e pulsante nella toolbar** (Finder Sync): vai in **Impostazioni di Sistema › Generali › Elementi login ed estensioni › Estensioni del Finder** e attiva **Xipper nel Finder**. Nel menu contestuale compare **Xipper ▸** con le voci:
   - Comprimi;
   - Estrai qui;
@@ -24,6 +26,9 @@ Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o su
 
   Per il pulsante in toolbar: tasto destro sulla toolbar del Finder › **Personalizza barra strumenti…** › trascina "Xipper".
 - **Azioni rapide / Servizi:** **Comprimi con Xipper**, **Estrai con Xipper**, **Verifica con Xipper**. Si trovano nel menu contestuale, sotto **Azioni rapide** o **Servizi**. Se non compaiono, attivale in **Impostazioni di Sistema › Tastiera › Scorciatoie da tastiera › Servizi › File e cartelle**.
+
+- **Quick Look:** seleziona un archivio nel Finder e premi la barra spaziatrice per vederne il contenuto. Le icone degli archivi mostrano il formato (e, per gli ZIP, il numero di file).
+- **Comandi Rapidi:** nell'app Comandi Rapidi cerca "Xipper": Comprimi, Estrai e Verifica.
 
 Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`, `nome 2`…) e non sovrascrivono mai nulla.
 
@@ -40,15 +45,19 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 | Disco pieno | Comprimi su una chiavetta quasi piena | "Spazio su disco esaurito", con **Riprova** / **Salva altrove…** |
 | Genomica | Comprimi un `.vcf`: diventa `.vcf.gz` BGZF; poi `tabix -p vcf` | Indicizzabile da tabix / bcftools |
 | Sicurezza | Apri uno zip scaricato da Internet ed estrai | I file estratti restano in quarantena (Gatekeeper li controlla) |
+| Quick Look | Nel browser seleziona un'immagine o un PDF e premi la barra spaziatrice | Si apre l'anteprima; cambiando selezione cambia anche l'anteprima |
+| Trascinare | Trascina un file o una cartella dal browser alla Scrivania | Il file viene estratto lì |
+| Portachiavi | Apri uno ZIP cifrato, attiva "Ricorda nel Portachiavi", poi riaprilo | La seconda volta basta Touch ID |
+| Notifiche e Dock | Avvia un lavoro lungo e passa a un'altra app | Barra di avanzamento sull'icona nel Dock e notifica alla fine |
 | Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
 
-## Limiti noti della beta1
+## Limiti noti della beta2
 - **7z e RAR non sono supportati** (previsti più avanti). ZIP divisi in parti e ZIP Deflate64 non sono supportati.
 - Gli **attributi estesi del Mac** (tag del Finder, metadati) non vengono ancora salvati negli archivi; permessi e date sì.
 - **Solo italiano.**
-- Le password non vengono ancora salvate nel Portachiavi dall'app (prevista per la beta2 con Touch ID).
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
-- Mancano ancora: Quick Look degli archivi nel Finder, miniature, Comandi Rapidi, notifiche e avanzamento sull'icona del Dock.
+- Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.
+- Mancano ancora: icona in Icon Composer, barra dei menu, cartelle sorvegliate.
 
 ## Segnalare un problema
 Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:

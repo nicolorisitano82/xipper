@@ -64,6 +64,8 @@ private struct SecuritySettings: View {
     @AppStorage(PrefKey.propagateQuarantine) private var quarantine = true
     @AppStorage(PrefKey.symlinkPolicy) private var symlinks = "inside"
     @AppStorage(PrefKey.maxRatio) private var ratio = 1000.0
+    @AppStorage(PrefKey.vaultRequiresAuth) private var vaultAuth = true
+    @State private var savedPasswords = PasswordVault.count
 
     var body: some View {
         Form {
@@ -77,6 +79,15 @@ private struct SecuritySettings: View {
                 Text("Standard (1000:1)").tag(1000.0)
                 Text("Rigida (100:1)").tag(100.0)
                 Text("Permissiva (100 000:1)").tag(100_000.0)
+            }
+            Section("Password degli archivi") {
+                Toggle("Chiedi Touch ID per usare le password salvate", isOn: $vaultAuth)
+                LabeledContent("Salvate nel Portachiavi", value: "\(savedPasswords)")
+                Button("Dimentica tutte le password", role: .destructive) {
+                    PasswordVault.removeAll()
+                    savedPasswords = PasswordVault.count
+                }
+                .disabled(savedPasswords == 0)
             }
             Section {
                 Text("Xipper non scrive mai fuori dalla cartella di destinazione, non segue collegamenti durante l'estrazione e rimuove i permessi setuid.")

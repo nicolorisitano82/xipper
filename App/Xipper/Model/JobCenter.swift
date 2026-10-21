@@ -56,6 +56,27 @@ final class Job: Identifiable {
     var writeReport: WriteReport?
     /// Why a job failed, when the UI can say something specific (2.8).
     var failure: Failure?
+    /// Save the password in the Keychain once the job succeeds (4.2).
+    var rememberPassword = false
+    /// The password came from the Keychain: a wrong one is forgotten, not retried.
+    var passwordFromVault = false
+
+    /// The archive the job reads, or the one it creates.
+    var archive: URL? {
+        switch kind {
+        case let .create(_, dest, _, _, _): output ?? dest
+        case let .extract(r): r.archive
+        case let .test(a, _): a
+        }
+    }
+
+    var password: String? {
+        switch kind {
+        case let .create(_, _, _, _, p): p
+        case let .extract(r): r.password
+        case let .test(_, p): p
+        }
+    }
 
     enum Failure: Equatable {
         case diskFull(available: Int64?)
@@ -87,6 +108,7 @@ final class Job: Identifiable {
         samples.append((now, p.completedBytes))
         // Keep one sample at least a second old as the reference, even across encoder stalls.
         while samples.count > 2 && now.timeIntervalSince(samples[1].0) >= 1 { samples.removeFirst() }
+        JobFeedback.update(JobCenter.shared.jobs)
         guard now.timeIntervalSince(lastSpeedUpdate) >= 0.25, let first = samples.first else { return }
         lastSpeedUpdate = now
         let dt = now.timeIntervalSince(first.0)
@@ -141,6 +163,7 @@ final class JobCenter {
             ProcessInfo.processInfo.endActivity(a)
             activity = nil
         }
+        JobFeedback.update(jobs, force: true)
     }
 
     @discardableResult
@@ -158,8 +181,9 @@ final class JobCenter {
         remove(job)
         // The panel closes: the new job is followed in the HUD.
         focused.remove(job.id)
-        start(.create(sources: sources, destination: uniqueURL(folder.appendingPathComponent(dest.lastPathComponent)),
-                      format: format, preset: preset, password: password))
+        let new = start(.create(sources: sources, destination: uniqueURL(folder.appendingPathComponent(dest.lastPathComponent)),
+                                format: format, preset: preset, password: password))
+        new.rememberPassword = job.rememberPassword
     }
 
     func remove(_ job: Job) {
@@ -169,7 +193,7 @@ final class JobCenter {
     func clearFinished() { jobs.removeAll { !$0.isRunning } }
 
     /// Re-runs a job that stopped for a password or a safety override.
-    func retry(_ job: Job, password: String? = nil, ratioOverride: Double? = nil) {
+    func retry(_ job: Job, password: String? = nil, ratioOverride: Double? = nil, remember: Bool = false, fromVault: Bool = false) {
         let kind: Job.Kind
         switch job.kind {
         case var .extract(r):
@@ -180,7 +204,9 @@ final class JobCenter {
         case .create: kind = job.kind
         }
         remove(job)
-        start(kind)
+        let new = start(kind)
+        new.rememberPassword = remember || job.rememberPassword
+        new.passwordFromVault = fromVault
     }
 
     private func run(_ job: Job, _ kind: Job.Kind) {
@@ -201,6 +227,7 @@ final class JobCenter {
             await MainActor.run {
                 job.apply(outcome)
                 JobCenter.shared.jobsChanged()
+                JobFeedback.notifyEnd(of: job)
             }
         }
     }
@@ -262,6 +289,9 @@ final class ConflictCounter: @unchecked Sendable {
 
 extension Job {
     fileprivate func apply(_ outcome: JobCenter.Outcome) {
+        defer {
+            if rememberPassword, case .finished = state, let pw = password, let archive { PasswordVault.save(pw, for: archive) }
+        }
         switch outcome {
         case let .created(r, url):
             output = url
@@ -283,8 +313,18 @@ extension Job {
         case let .error(e):
             switch e as? XipperError {
             case .cancelled?: state = .cancelled
-            case .passwordRequired?: state = .needsPassword(wrong: false)
-            case .wrongPassword?: state = .needsPassword(wrong: true)
+            case .passwordRequired?:
+                state = .needsPassword(wrong: false)
+                if let archive, PasswordVault.has(archive) {
+                    Task {
+                        if let pw = await PasswordVault.password(for: archive) {
+                            JobCenter.shared.retry(self, password: pw, fromVault: true)
+                        }
+                    }
+                }
+            case .wrongPassword?:
+                if passwordFromVault, let archive { PasswordVault.remove(for: archive) }
+                state = .needsPassword(wrong: true)
             case let .limitExceeded(m)?: state = .needsOverride(m)
             case let .insufficientSpace(needed, available)?:
                 failure = .diskFull(available: available)
@@ -326,7 +366,7 @@ extension Job {
     }
 
     /// Italian messages for the errors users can act on; the technical text otherwise.
-    static func localized(_ e: XipperError) -> String {
+    nonisolated static func localized(_ e: XipperError) -> String {
         switch e {
         case let .alreadyExists(p): "Esiste già: \((p as NSString).lastPathComponent)"
         case let .unsupported(m): "Formato non supportato: \(m)"

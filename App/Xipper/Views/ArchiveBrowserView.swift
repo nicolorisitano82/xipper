@@ -12,6 +12,15 @@ struct ArchiveBrowserView: View {
     @State private var showInspector = true
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
     @State private var extractSheet: ExtractSheetRequest?
+    @State private var quickLook = EntryPreviewController()
+    /// Asking the password of encrypted entries (wrong = the last one did not work).
+    @State private var passwordPrompt: PasswordPrompt?
+
+    struct PasswordPrompt: Identifiable {
+        let id = UUID()
+        let wrong: Bool
+        let then: () -> Void
+    }
 
     struct ExtractSheetRequest: Identifiable {
         let id = UUID()
@@ -41,15 +50,41 @@ struct ArchiveBrowserView: View {
                          totalSize: size(for: req.selection))
                 .environment(jobs)
         }
+        .sheet(item: $passwordPrompt) { prompt in
+            PasswordSheet(mode: .open(wrong: prompt.wrong), archiveName: url.lastPathComponent) { pw, remember in
+                guard let pw else { return }
+                Task {
+                    if await model.check(password: pw) {
+                        model.password = pw
+                        if remember { PasswordVault.save(pw, for: url) }
+                        prompt.then()
+                    } else {
+                        passwordPrompt = PasswordPrompt(wrong: true, then: prompt.then)
+                    }
+                }
+            }
+        }
         .searchable(text: $model.search, placement: .toolbar, prompt: "Cerca nell'archivio")
         .toolbar { toolbar }
         .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16) }
+        .background { ResponderInstaller(responder: quickLook) }
+        .onChange(of: selection) {
+            syncQuickLook()
+            quickLook.selectionChanged()
+        }
         .task {
             await model.load()
             #if DEBUG
             if ProcessInfo.processInfo.environment["XIPPER_DEMO_EXTRACT_SHEET"] != nil {
                 let firstFolder = model.folders.first.map { Set([$0]) }
                 extractSheet = ExtractSheetRequest(selection: firstFolder)
+            }
+            if let entry = ProcessInfo.processInfo.environment["XIPPER_DEMO_QUICKLOOK"] {
+                model.currentFolder = (entry as NSString).deletingLastPathComponent
+                selection = [entry]
+                try? await Task.sleep(for: .milliseconds(500))
+                syncQuickLook()
+                quickLook.toggle()
             }
             #endif
         }
@@ -58,6 +93,36 @@ struct ArchiveBrowserView: View {
     private var subtitle: String {
         guard let f = model.format else { return "" }
         return "\(f.displayName) · \(model.fileCount) file · \(model.totalSize.byteText)"
+    }
+
+    /// Space bar: Quick Look of the selected files, unlocking encrypted ones first.
+    private func previewSelection() {
+        withPassword(for: selection) {
+            syncQuickLook()
+            quickLook.toggle()
+        }
+    }
+
+    /// Runs `action` once the password of the encrypted entries in `ids` is known:
+    /// from the Keychain (Touch ID) or asked to the user.
+    private func withPassword(for ids: Set<String>, _ action: @escaping () -> Void) {
+        let encrypted = model.entries.contains { e in e.isEncrypted && (ids.contains(e.path) || ids.contains { e.path.hasPrefix($0 + "/") }) }
+        guard encrypted, model.password == nil else { return action() }
+        Task {
+            if let pw = await PasswordVault.password(for: url), await model.check(password: pw) {
+                model.password = pw
+                action()
+            } else {
+                passwordPrompt = PasswordPrompt(wrong: false, then: action)
+            }
+        }
+    }
+
+    /// Selected files (not folders) for the Quick Look panel.
+    private func syncQuickLook() {
+        quickLook.archive = url
+        quickLook.paths = model.entries.filter { selection.contains($0.path) && $0.kind == .file }.map(\.path).sorted()
+        quickLook.password = model.password
     }
 
     private var selectedItems: [BrowserItem] { model.items.filter { selection.contains($0.id) } }
@@ -90,7 +155,7 @@ struct ArchiveBrowserView: View {
         } else if let error = model.error {
             ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
         } else {
-            Table(model.items.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+            Table(of: BrowserItem.self, selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("Nome", value: \.name) { item in
                     Label {
                         Text(item.name).lineLimit(1).truncationMode(.middle)
@@ -115,8 +180,21 @@ struct ArchiveBrowserView: View {
                     if item.entry?.isEncrypted == true { Image(systemName: "lock.fill").foregroundStyle(.secondary) }
                 }
                 .width(20)
+            } rows: {
+                ForEach(model.items.sorted(using: sortOrder)) { item in
+                    TableRow(item)
+                        .itemProvider { EntryStaging.dragProvider(for: item, archive: url, password: model.password) }
+                }
+            }
+            .onKeyPress(.space) {
+                previewSelection()
+                return .handled
             }
             .contextMenu(forSelectionType: BrowserItem.ID.self) { ids in
+                if ids.contains(where: { !model.folders.contains($0) }) {
+                    Button("Anteprima") { selection = ids; previewSelection() }
+                    Divider()
+                }
                 Button("Estrai…") { extractSheet = ExtractSheetRequest(selection: ids.isEmpty ? nil : ids) }
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
                     Button("Apri cartella") { model.currentFolder = id }
@@ -129,7 +207,6 @@ struct ArchiveBrowserView: View {
                 }
             }
             .scrollEdgeEffectStyle(.hard, for: .top)
-            .onDrag(selection: selection)
         }
     }
 
@@ -179,11 +256,6 @@ struct ArchiveBrowserView: View {
     }
 }
 
-private extension View {
-    /// Placeholder for dragging entries out (promise files): planned with the File Provider work.
-    func onDrag(selection: Set<String>) -> some View { self }
-}
-
 /// Folder outline of the archive.
 private struct FolderSidebar: View {
     @Bindable var model: ArchiveModel
@@ -230,7 +302,7 @@ private struct ArchiveInspector: View {
                         if let t = e.linkTarget { LabeledContent("Collegamento a", value: t) }
                     }
                 }
-                if !item.isFolder && item.entry?.kind == .file && item.entry?.isEncrypted == false {
+                if !item.isFolder && item.entry?.kind == .file && (item.entry?.isEncrypted == false || model.password != nil) {
                     Section("Anteprima") { previewView }
                 }
             } else if selection.count > 1 {
@@ -258,7 +330,7 @@ private struct ArchiveInspector: View {
             }
         }
         .formStyle(.grouped)
-        .task(id: selection.first?.path) { await loadPreview() }
+        .task(id: "\(selection.first?.path ?? "")|\(model.password != nil)") { await loadPreview() }
     }
 
     @ViewBuilder private var previewView: some View {
@@ -288,9 +360,10 @@ private struct ArchiveInspector: View {
         guard let item = selection.first, selection.count == 1, !item.isFolder else { return }
         let url = model.url
         let path = item.path
+        let password = model.password
         let isImage = ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains((path as NSString).pathExtension.lowercased())
         let result = await Task.detached { () -> Result<EntryContent, Error> in
-            Result { try Xipper.readEntry(url, path: path, maxBytes: isImage ? 8 << 20 : 32 << 10) }
+            Result { try Xipper.readEntry(url, path: path, password: password, maxBytes: isImage ? 8 << 20 : 32 << 10) }
         }.value
         guard case let .success(c) = result else { preview = .none("Anteprima non disponibile"); return }
         if isImage, !c.truncated, let img = NSImage(data: Data(c.data)) {

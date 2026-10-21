@@ -60,8 +60,8 @@ private struct JobCapsule: View {
         .frame(width: 364)
         .sheet(isPresented: $askPassword) {
             if case let .needsPassword(wrong) = job.state {
-                PasswordSheet(mode: .open(wrong: wrong), archiveName: job.title) { pw in
-                    if let pw { center.retry(job, password: pw) }
+                PasswordSheet(mode: .open(wrong: wrong), archiveName: job.title) { pw, remember in
+                    if let pw { center.retry(job, password: pw, remember: remember) }
                 }
             }
         }

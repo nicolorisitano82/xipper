@@ -6,10 +6,12 @@ struct PasswordSheet: View {
 
     let mode: Mode
     let archiveName: String
-    let onDone: (String?) -> Void
+    /// The password (nil if cancelled) and whether to remember it in the Keychain.
+    let onDone: (String?, _ remember: Bool) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirm = ""
+    @AppStorage("rememberArchivePasswords") private var remember = false
 
     private var isCreate: Bool { if case .create = mode { true } else { false } }
     private var nonASCII: Bool { password.unicodeScalars.contains { !$0.isASCII } }
@@ -36,6 +38,7 @@ struct PasswordSheet: View {
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
+            Toggle("Ricorda nel Portachiavi (sblocco con Touch ID)", isOn: $remember)
             if isCreate && nonASCII {
                 Label("Le password con caratteri accentati o speciali non si possono inserire in 7-Zip.", systemImage: "info.circle")
                     .font(.callout).foregroundStyle(.orange)
@@ -45,9 +48,9 @@ struct PasswordSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Annulla", role: .cancel) { onDone(nil); dismiss() }
+                Button("Annulla", role: .cancel) { onDone(nil, false); dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(isCreate ? "Usa password" : "Apri") { onDone(password); dismiss() }
+                Button(isCreate ? "Usa password" : "Apri") { onDone(password, remember); dismiss() }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!valid)

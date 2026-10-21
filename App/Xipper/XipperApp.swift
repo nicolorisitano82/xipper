@@ -45,5 +45,11 @@ struct XipperCommands: Commands {
             Button("Nuovo archivio") { openWindow(id: "home") }
                 .keyboardShortcut("n")
         }
+        CommandGroup(before: .help) {
+            Button("Introduzione a Xipper") {
+                openWindow(id: "home")
+                AppState.shared.showOnboarding = true
+            }
+        }
     }
 }

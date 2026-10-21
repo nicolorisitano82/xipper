@@ -28,7 +28,10 @@ ditto "$DERIVED/Build/Products/Release/Xipper.app" "$APP"
 echo "==> signing with \"$IDENTITY\""
 sign() { codesign --force --keychain "$KC" -s "$IDENTITY" --options runtime --timestamp=none "$@"; }
 sign "$APP/Contents/Helpers/xipper"
-sign --entitlements App/XipperFinder/XipperFinder.entitlements "$APP/Contents/PlugIns/XipperFinder.appex"
+for appex in "$APP"/Contents/PlugIns/*.appex; do
+    n=$(basename "$appex" .appex)
+    sign --entitlements "App/$n/$n.entitlements" "$appex"
+done
 sign "$APP"
 codesign --verify --deep --strict "$APP"
 codesign -dvv "$APP" 2>&1 | grep -E '^(Identifier|Authority|Runtime)' || true

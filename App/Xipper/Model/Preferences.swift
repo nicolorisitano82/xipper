@@ -17,6 +17,8 @@ enum PrefKey {
     static let useEfficiencyCores = "useEfficiencyCores"
     static let mcpFolders = "mcpAllowedFolders"
     static let mcpReadOnly = "mcpReadOnly"
+    static let vaultRequiresAuth = "vaultRequiresTouchID"
+    static let onboardingDone = "onboardingDone"
 }
 
 /// Speed/size trade-off shown in the UI instead of raw per-codec levels.
@@ -65,6 +67,7 @@ enum Preferences {
             PrefKey.bgzfIndex: false,
             PrefKey.useEfficiencyCores: false,
             PrefKey.mcpReadOnly: false,
+            PrefKey.vaultRequiresAuth: true,
         ])
     }
 

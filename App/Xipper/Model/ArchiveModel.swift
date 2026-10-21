@@ -32,6 +32,8 @@ final class ArchiveModel {
     private(set) var folders: [String] = []
     var currentFolder = ""
     var search = ""
+    /// Password for encrypted entries, once the user (or the Keychain) supplied it.
+    var password: String?
 
     init(url: URL) { self.url = url }
 
@@ -102,6 +104,15 @@ final class ArchiveModel {
                                    size: e.uncompressedSize, compressed: e.compressedSize))
         }
         return out
+    }
+
+    /// Whether `password` opens the encrypted entries (checked on the first one).
+    func check(password: String) async -> Bool {
+        guard let entry = entries.first(where: { $0.isEncrypted && $0.kind == .file }) else { return true }
+        let url = url
+        return await Task.detached {
+            (try? Xipper.readEntry(url, path: entry.path, password: password, maxBytes: 1)) != nil
+        }.value
     }
 
     var breadcrumb: [String] {
