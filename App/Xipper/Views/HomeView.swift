@@ -22,6 +22,7 @@ struct HomeView: View {
     @State private var targeted = false
     @State private var password: String?
     @State private var rememberPassword = false
+    @State private var legacyZipCrypto = false
     @State private var askPassword = false
     @State private var job: Job?
     @Namespace private var glass
@@ -76,9 +77,9 @@ struct HomeView: View {
         .toolbar { toolbar }
         .sheet(isPresented: Bindable(appState).showOnboarding) { OnboardingView() }
         .sheet(isPresented: $askPassword) {
-            PasswordSheet(mode: .create, archiveName: archiveName) { pw, remember in
+            PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }
-            }
+            }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil)
         }
         #if DEBUG
         .task {
@@ -88,6 +89,10 @@ struct HomeView: View {
             if let list = env["XIPPER_DEMO_ITEMS"], items.isEmpty {
                 route(list.split(separator: ":").map { URL(fileURLWithPath: String($0)) })
                 if let f = env["XIPPER_DEMO_FORMAT"] { formatRaw = f }
+                if env["XIPPER_DEMO_ZIPCRYPTO"] != nil {
+                    legacyZipCrypto = true
+                    askPassword = true
+                }
                 if env["XIPPER_DEMO_COMPRESS"] != nil {
                     try? await Task.sleep(for: .seconds(1))
                     compress()
@@ -381,7 +386,8 @@ struct HomeView: View {
     private func compress() {
         guard !items.isEmpty else { return }
         let dest = uniqueURL(folder.appendingPathComponent(archiveName))
-        let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password))
+        let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password),
+                                 legacyZipCrypto: format == .zip && password != nil && legacyZipCrypto)
         started.rememberPassword = password != nil && rememberPassword
         jobs.focused.insert(started.id)
         job = started

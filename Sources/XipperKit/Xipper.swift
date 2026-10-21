@@ -19,16 +19,29 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     case zstd = "zst"
     /// 7z: LZMA2 (multi-threaded), solid blocks, ARM64 filter for executables, AES-256 with encrypted names.
     case sevenZip = "7z"
+    // Read-only formats (STUDIO.md §4.2): extracted, listed and verified, never created.
+    case tarLz4 = "tar.lz4"
+    case lz4
+    case tarBrotli = "tar.br"
+    case brotli = "br"
+    /// cpio (newc, crc and odc headers), also inside any supported compression.
+    case cpio
+    /// Apple Archive (`.aar`), read through the system AppleArchive framework.
+    case appleArchive = "aar"
 
     public var fileExtension: String { self == .bgzf ? "gz" : rawValue }
 
-    public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd].contains(self) }
-    public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd].contains(self) }
+    public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli].contains(self) }
+    public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli].contains(self) }
+    /// Formats Xipper can write.
+    public var canCreate: Bool { ![.tarLz4, .lz4, .tarBrotli, .brotli, .cpio, .appleArchive].contains(self) }
     public var supportsPassword: Bool { self == .zip || self == .sevenZip }
 
     var compression: StreamCompression {
         switch self {
-        case .zip, .tar, .sevenZip: return .none
+        case .zip, .tar, .sevenZip, .cpio, .appleArchive: return .none
+        case .tarLz4, .lz4: return .lz4
+        case .tarBrotli, .brotli: return .brotli
         case .tarGzip, .gzip: return .gzip
         case .bgzf: return .bgzf
         case .tarBzip2, .bzip2: return .bzip2
@@ -52,7 +65,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         let table: [(String, ArchiveFormat)] = [
             (".tar.gz", .tarGzip), (".tgz", .tarGzip), (".tar.bz2", .tarBzip2), (".tbz2", .tarBzip2), (".tbz", .tarBzip2),
             (".tar.xz", .tarXz), (".txz", .tarXz), (".tar.zst", .tarZstd), (".tzst", .tarZstd),
-            (".7z", .sevenZip), (".7z.001", .sevenZip), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
+            (".7z", .sevenZip), (".7z.001", .sevenZip), (".tar.lz4", .tarLz4), (".tlz4", .tarLz4), (".lz4", .lz4),
+            (".tar.br", .tarBrotli), (".br", .brotli), (".cpio", .cpio), (".aar", .appleArchive), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
         ]
         return table.first { n.hasSuffix($0.0) }?.1
     }
@@ -68,8 +82,12 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         if head.starts(with: [0x50, 0x4B, 0x03, 0x04]) || head.starts(with: [0x50, 0x4B, 0x05, 0x06])
             || head.starts(with: [0x50, 0x4B, 0x07, 0x08]) { return .zip }  // 07 08: first part of a split ZIP
         if head.starts(with: SevenZip.signature) { return .sevenZip }
+        if AppleArchiveReader.looksLikeArchive(head) { return .appleArchive }
+        if Cpio.looksLikeHeader(head) { return .cpio }
         let byName = inferred(fromFileName: url.lastPathComponent)
-        switch StreamCompression.detect(head) {
+        switch StreamCompression.detect(head, name: url.lastPathComponent) {
+        case .lz4: return byName == .lz4 ? .lz4 : .tarLz4
+        case .brotli: return byName == .brotli ? .brotli : .tarBrotli
         case .gzip: return byName == .gzip ? .gzip : .tarGzip
         case .bgzf: return byName == .tarGzip ? .tarGzip : .bgzf
         case .bzip2: return byName == .bzip2 ? .bzip2 : .tarBzip2
@@ -94,6 +112,11 @@ public struct CreateOptions: Sendable {
     public var storeAlreadyCompressed = true
     /// tar formats: keep macOS extended attributes (Finder tags, resource forks…) as pax `SCHILY.xattr.*`.
     public var storeExtendedAttributes = true
+    /// ZIP: also store them as AppleDouble files in `__MACOSX/`, like the Finder's "Compress"
+    /// (off by default: Windows users see that folder).
+    public var zipAppleDouble = false
+    /// ZIP: traditional ZipCrypto instead of AES-256 (weak; only for receivers without AES).
+    public var legacyZipCrypto = false
     public var forceZip64 = false
     public var scan = ScanOptions()
     public var workload: Workload = .interactive
@@ -145,6 +168,29 @@ public enum Xipper {
     // MARK: create
 
     @discardableResult
+    /// Adds `__MACOSX/<dir>/._<name>` items for the entries that have extended attributes.
+    private static func appendAppleDouble(_ items: [ArchiveItem]) throws -> ([ArchiveItem], URL?) {
+        var extra: [ArchiveItem] = []
+        var folder: URL?
+        for item in items {
+            if case .symlink = item.kind { continue }
+            let attrs = ExtendedAttributes.read(item.sourcePath)
+            guard !attrs.isEmpty else { continue }
+            if folder == nil {
+                folder = FileManager.default.temporaryDirectory.appendingPathComponent("xipper-ad-\(UUID().uuidString)")
+                try FileManager.default.createDirectory(at: folder!, withIntermediateDirectories: true)
+            }
+            let file = folder!.appendingPathComponent("\(extra.count)")
+            let data = AppleDouble.encode(attrs)
+            try Data(data).write(to: file)
+            let dir = (item.name as NSString).deletingLastPathComponent
+            let name = "__MACOSX/" + (dir.isEmpty ? "" : dir + "/") + "._" + (item.name as NSString).lastPathComponent
+            extra.append(ArchiveItem(name: name, sourcePath: file.path, kind: .file(size: Int64(data.count)),
+                                     permissions: 0o644, modified: item.modified, uid: item.uid, gid: item.gid))
+        }
+        return (items + extra, folder)
+    }
+
     public static func create(from sources: [URL], to archive: URL, options: CreateOptions = CreateOptions(),
                               progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> WriteReport {
         if sources.isEmpty { throw XipperError.invalidArgument("nothing to archive") }
@@ -154,7 +200,12 @@ public enum Xipper {
         if options.volumeSize != nil && options.format != .sevenZip {
             throw XipperError.invalidArgument("only 7z archives can be split into volumes")
         }
-        let items = try SourceScanner.scan(sources, options: options.scan)
+        var items = try SourceScanner.scan(sources, options: options.scan)
+        var sidecars: URL?
+        defer { if let sidecars { try? FileManager.default.removeItem(at: sidecars) } }
+        if options.format == .zip && options.zipAppleDouble {
+            (items, sidecars) = try appendAppleDouble(items)
+        }
         let level = options.level ?? (options.format == .zip && options.zipMethod == .zstd ? 3 : options.format.defaultLevel)
         let path = archive.standardizedFileURL.path
         if items.contains(where: { $0.sourcePath == path }) { throw XipperError.invalidArgument("the archive cannot contain itself") }
@@ -164,6 +215,7 @@ public enum Xipper {
             z.method = options.zipMethod
             z.level = level
             z.password = options.password
+            z.legacyZipCrypto = options.legacyZipCrypto
             z.storeAlreadyCompressed = options.storeAlreadyCompressed
             z.forceZip64 = options.forceZip64
             z.memoryBudget = options.memoryBudget
@@ -184,6 +236,8 @@ public enum Xipper {
             z.volumeSize = options.volumeSize
             z.workload = options.workload
             return try SevenZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
+        case .tarLz4, .lz4, .tarBrotli, .brotli, .cpio, .appleArchive:
+            throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
         case .gzip, .bgzf, .bzip2, .xz, .zstd:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
             var compression = options.format.compression
@@ -395,7 +449,7 @@ extension Xipper {
                                      method: format.rawValue, linkTarget: nil)
             return EntryContent(entry: entry, data: data, truncated: truncated)
         }
-        let reader = TarReader(source: source)
+        let reader = Cpio.reader(for: source, head: source.head)
         while let e = try reader.next() {
             guard e.entry.path == path else { continue }
             if e.entry.kind == .symlink || e.entry.kind == .hardlink {

@@ -73,3 +73,33 @@ struct DigestTests {
         #expect(r.sha256sums.contains("  \(key)\n"))
     }
 }
+
+@Suite("ZipCrypto writing (compatibility mode)")
+struct ZipCryptoWriteTests {
+    @Test func readableByUsUnzipAnd7Zip() throws {
+        let t = TempDir()
+        t.write("src/small.txt", "piccolo")
+        t.write("src/big.bin", sampleData(40 << 20, seed: 21))  // chunked (streamed) entry
+        var o = CreateOptions()
+        o.password = "segreto"
+        o.legacyZipCrypto = true
+        try Xipper.create(from: [t.url("src")], to: t.url("z.zip"), options: o)
+        let entries = try Xipper.list(t.url("z.zip"))
+        #expect(entries.filter { $0.kind == .file }.allSatisfy { if case .zipCrypto = $0.encryption { true } else { false } })
+        #expect(try Xipper.test(t.url("z.zip"), password: "segreto").isOK)
+        let wrong = try Xipper.test(t.url("z.zip"), password: "sbagliata")
+        #expect(!wrong.isOK && wrong.failures.allSatisfy { $0.problem == .wrongPassword })
+        t.mkdir("ours")
+        var x = ExtractOptions()
+        x.password = "segreto"
+        try Xipper.extract(t.url("z.zip"), to: t.url("ours"), mode: .into, options: x)
+        #expect(treesEqual(t.path + "/src", t.path + "/ours/src").0)
+        if toolExists("/usr/bin/unzip") {
+            #expect(run("/usr/bin/unzip", ["-q", "-P", "segreto", t.path + "/z.zip", "-d", t.path + "/unzip"]).status == 0)
+            #expect(treesEqual(t.path + "/src", t.path + "/unzip/src").0)
+        }
+        if let sevenZip {
+            #expect(run(sevenZip, ["t", "-psegreto", t.path + "/z.zip"]).status == 0)
+        }
+    }
+}

@@ -87,6 +87,16 @@
         }
       }
     },
+    "%@ sarà cifrato con ZipCrypto. Senza la password nessuno potrà aprirlo, nemmeno tu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ will be encrypted with ZipCrypto. Without the password nobody can open it, not even you."
+          }
+        }
+      }
+    },
     "%@ supera il limite di sicurezza sulla compressione." : {
       "localizations" : {
         "en" : {
@@ -229,6 +239,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld MB/s"
+          }
+        }
+      }
+    },
+    "%lld di %lld selezionati · %@ in %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld selected · %3$@ in %4$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld di %2$lld selezionati · %3$@ in %4$@"
           }
         }
       }
@@ -393,6 +419,46 @@
         }
       }
     },
+    "%lld elementi · %@ in %@" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item · %@ in %@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items · %@ in %@"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld elemento · %@ in %@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld elementi · %@ in %@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld integre · %lld errori" : {
       "localizations" : {
         "en" : {
@@ -405,6 +471,46 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld integre · %2$lld errori"
+          }
+        }
+      }
+    },
+    "%lld lavori" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld job"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld jobs"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lavoro"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lavori"
+                }
+              }
+            }
           }
         }
       }
@@ -589,6 +695,26 @@
         }
       }
     },
+    "7z" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7z"
+          }
+        }
+      }
+    },
+    "AES-256 (consigliata)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AES-256 (recommended)"
+          }
+        }
+      }
+    },
     "Aggiornamenti" : {
       "localizations" : {
         "en" : {
@@ -605,6 +731,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add"
+          }
+        }
+      }
+    },
+    "Aggiungi ai Preferiti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Favorites"
           }
         }
       }
@@ -1075,6 +1211,16 @@
         }
       }
     },
+    "Chi possiede anche uno solo dei file in chiaro (per esempio un PDF già inviato per email) può ricavare la chiave e aprire tutto l'archivio in pochi minuti." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone who has even one of the files unencrypted (for example a PDF already sent by email) can recover the key and open the whole archive in minutes."
+          }
+        }
+      }
+    },
     "Chiedi Touch ID per usare le password salvate" : {
       "localizations" : {
         "en" : {
@@ -1235,6 +1381,16 @@
         }
       }
     },
+    "Completati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        }
+      }
+    },
     "Compressione" : {
       "localizations" : {
         "en" : {
@@ -1271,6 +1427,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compression failed"
+          }
+        }
+      }
+    },
+    "Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solid compression (smaller archives, slower extraction of a single file)"
           }
         }
       }
@@ -1321,6 +1487,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compress with Xipper"
+          }
+        }
+      }
+    },
+    "Comprimi l'elenco" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse the List"
+          }
+        }
+      }
+    },
+    "Con la password, cifra anche i nomi dei file" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With a password, also encrypt file names"
           }
         }
       }
@@ -1647,7 +1833,18 @@
         }
       }
     },
+    "Doppio clic su ZIP, 7z, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-clicking ZIP, 7z, tar, gz, xz, zst and BGZF opens Xipper instead of Archive Utility."
+          }
+        }
+      }
+    },
     "Doppio clic su ZIP, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2573,6 +2770,16 @@
         }
       }
     },
+    "La password è disponibile solo per ZIP e 7z" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords are available for ZIP and 7z only"
+          }
+        }
+      }
+    },
     "La scarico nei Download; poi la apro e Xipper si chiude, così lo trascini in Applicazioni al posto di questa copia." : {
       "localizations" : {
         "en" : {
@@ -2813,6 +3020,16 @@
         }
       }
     },
+    "Mostra i lavori" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the jobs"
+          }
+        }
+      }
+    },
     "Mostra i lavori in corso e apre Xipper dalla barra dei menu." : {
       "localizations" : {
         "en" : {
@@ -2969,6 +3186,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invalid name"
+          }
+        }
+      }
+    },
+    "Nomi dei file cifrati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted File Names"
           }
         }
       }
@@ -3263,6 +3490,16 @@
         }
       }
     },
+    "Preferiti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorites"
+          }
+        }
+      }
+    },
     "Presente" : {
       "localizations" : {
         "en" : {
@@ -3363,6 +3600,16 @@
         }
       }
     },
+    "Questo archivio nasconde anche i nomi dei file. Inserisci la password per vederne il contenuto." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive also hides its file names. Enter the password to see its contents."
+          }
+        }
+      }
+    },
     "Questo archivio si espande in modo anomalo" : {
       "localizations" : {
         "en" : {
@@ -3379,6 +3626,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ratio"
+          }
+        }
+      }
+    },
+    "Recenti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recents"
           }
         }
       }
@@ -3529,6 +3786,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save Here"
+          }
+        }
+      }
+    },
+    "Salva tag e attributi del Mac (cartella __MACOSX, come il Finder)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Mac tags and attributes (__MACOSX folder, like the Finder)"
           }
         }
       }
@@ -3839,7 +4106,18 @@
         }
       }
     },
+    "Sì" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
+          }
+        }
+      }
+    },
     "Sì (AES/ZipCrypto)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3865,6 +4143,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kind"
+          }
+        }
+      }
+    },
+    "Togli dai Preferiti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Favorites"
           }
         }
       }
@@ -3929,12 +4217,42 @@
         }
       }
     },
+    "Usa AES-256" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use AES-256"
+          }
+        }
+      }
+    },
+    "Usa ZipCrypto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use ZipCrypto"
+          }
+        }
+      }
+    },
     "Usa password" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use Password"
+          }
+        }
+      }
+    },
+    "Usalo solo se chi riceve ha un programma che non supporta AES. 7-Zip, WinRAR, Keka e Xipper aprono gli archivi AES-256." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use it only if the recipient has a program without AES support. 7-Zip, WinRAR, Keka and Xipper open AES-256 archives."
           }
         }
       }
@@ -4189,12 +4507,32 @@
         }
       }
     },
+    "ZipCrypto (compatibilità)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZipCrypto (compatibility)"
+          }
+        }
+      }
+    },
     "ZipCrypto (debole)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ZipCrypto (weak)"
+          }
+        }
+      }
+    },
+    "ZipCrypto è una cifratura debole" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZipCrypto is weak encryption"
           }
         }
       }
@@ -4295,6 +4633,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "compatibility"
+          }
+        }
+      }
+    },
+    "compatto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "compact"
+          }
+        }
+      }
+    },
+    "compatto, nomi cifrati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "compact, encrypted names"
           }
         }
       }

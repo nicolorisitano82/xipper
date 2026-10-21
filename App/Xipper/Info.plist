@@ -38,6 +38,10 @@
 			<array>
 				<string>public.zip-archive</string>
 				<string>org.7-zip.7-zip-archive</string>
+				<string>com.apple.archive</string>
+				<string>public.cpio-archive</string>
+				<string>app.xipper.lz4</string>
+				<string>app.xipper.brotli</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -60,6 +64,10 @@
 			<array>
 				<string>public.zip-archive</string>
 				<string>org.7-zip.7-zip-archive</string>
+				<string>com.apple.archive</string>
+				<string>public.cpio-archive</string>
+				<string>app.xipper.lz4</string>
+				<string>app.xipper.brotli</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -83,6 +91,10 @@
 			<array>
 				<string>public.zip-archive</string>
 				<string>org.7-zip.7-zip-archive</string>
+				<string>com.apple.archive</string>
+				<string>public.cpio-archive</string>
+				<string>app.xipper.lz4</string>
+				<string>app.xipper.brotli</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>
@@ -97,6 +109,26 @@
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.lz4</string>
+			<key>UTTypeDescription</key>
+			<string>LZ4 file</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>lz4</string><string>tlz4</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.brotli</string>
+			<key>UTTypeDescription</key>
+			<string>Brotli file</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>br</string></array></dict>
+		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>org.7-zip.7-zip-archive</string>

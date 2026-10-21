@@ -160,3 +160,18 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 7. **Developer ID e notarizzazione:** dipendono dall'iscrizione all'Apple Developer Program.
 
 **Studio del nuovo formato:** [docs/reports/Nuovo formato di compressione Xipper.md](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md), con gli appunti della ricerca in `docs/research_notes/`.
+
+## Chiusura della V1: 7z, formati in lettura, ZipCrypto, browser (21/10/2026)
+
+| Voce | Stato |
+|---|---|
+| **7z unito** | Branch `claude/gifted-greider-c8e9b6` unito a main (conflitti risolti in `Xipper.swift`, CLI e documenti). Nell'app: formato nel menu (con descrizione "compatto, nomi cifrati"), tipi di documento, Servizi, Quick Look, miniature, app predefinita, Comandi Rapidi; impostazioni 7z (solid, cifra i nomi). Un 7z con nomi cifrati mostra "Nomi dei file cifrati" e chiede la password (anche dal Portachiavi) prima di elencare il contenuto. Il fuzzing copre anche il 7z. |
+| **lz4 e brotli in lettura** | `LZ4FrameDecoder` (formato frame: blocchi indipendenti e collegati, frame skippable, checksum xxHash32 di blocco e contenuto) e `BrotliDecoder` (Compression di sistema), dentro la pipeline di decompressione: `.lz4`, `.tar.lz4`, `.br`, `.tar.br`. |
+| **CPIO e Apple Archive in lettura** | `CpioReader` (newc, crc, odc, anche dentro gzip/xz/zstd…) e `AppleArchiveReader` (LZFSE, LZMA, LZ4, zlib, raw, tramite il framework di sistema) producono voci come il lettore tar, quindi passano dalla stessa estrazione sicura. `ArchiveFormat.canCreate` è falso per questi formati. |
+| **ZipCrypto in scrittura (2.7)** | Su richiesta, con l'avviso della specifica nello sheet della password (Usa ZipCrypto · Usa AES-256). Voci scritte con data descriptor e byte di controllo dall'ora DOS, come Info-ZIP; lette da `unzip` e 7-Zip. |
+| **Attributi del Mac negli ZIP** | Opzione "Salva tag e attributi del Mac": file AppleDouble in `__MACOSX/` come il Finder; `ditto -x -k` ripristina attributi e resource fork. Disattivata di default (ZIP puliti per Windows). |
+| **Browser (3.1)** | Preferiti (stella nella toolbar) e Recenti nella barra laterale, barra del percorso cliccabile, barra di stato ("1 di 1.206 selezionati · 1,21 GB in Documenti"), doppio clic su un file → Quick Look. |
+| **HUD (7.1)** | Con tre o più lavori la pila diventa una capsula con anello di avanzamento, "3 lavori", "46% · 5 s"; un clic la espande. Senza finestre aperte (azioni dal Finder) l'HUD appare in un pannello flottante non attivante in basso a destra. |
+| **Test** | 99 test, tutti verdi: 6 sui formati in lettura (contro `lz4`, `brotli`, `cpio`, `aa`), ZipCrypto contro `unzip` e 7-Zip, AppleDouble contro `ditto`; fuzzing anche su lz4, brotli, cpio e Apple Archive (800 mutazioni per formato senza crash). |
+
+**Resta per la V1:** varianti dell'icona (`.icon` di Icon Composer), benchmark ripetibili (§5.4), Developer ID e notarizzazione (dipendono dall'iscrizione all'Apple Developer Program).

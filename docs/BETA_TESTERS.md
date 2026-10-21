@@ -52,12 +52,13 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 | Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
 
 ## Limiti noti della beta2
-- **7z e RAR non sono supportati** (previsti più avanti). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
+- **7z** è supportato in lettura e scrittura (anche con nomi cifrati e volumi). **RAR** non è supportato (previsto più avanti, in sola lettura). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
+- **lz4, brotli, cpio e Apple Archive (`.aar`)** si aprono, si verificano e si estraggono, ma non si creano.
 - Gli **attributi estesi del Mac** (tag del Finder, resource fork) vengono salvati nei formati tar e riapplicati in estrazione, anche da ZIP del Finder e tar di macOS (`__MACOSX`, `._`). Negli ZIP creati da Xipper non vengono ancora salvati.
 - **Solo italiano.**
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
 - Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.
-- Mancano ancora: icona in Icon Composer, barra dei menu, cartelle sorvegliate.
+- Mancano ancora: varianti dell'icona (scura, tinta, trasparente) e cartelle sorvegliate.
 
 ## Segnalare un problema
 Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:

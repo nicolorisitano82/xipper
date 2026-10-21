@@ -244,15 +244,22 @@ enum TarExtractor {
     static func open(_ path: String, workload: Workload) throws -> (pipe: DecodingPipe, source: PeekSource, isTar: Bool, compression: StreamCompression) {
         let file = try FileReader(path: path)
         let magic = try file.read(at: 0, count: Int(min(file.size, Int64(StreamCompression.detectLength))))
-        let compression = StreamCompression.detect(magic)
+        let compression = StreamCompression.detect(magic, name: (path as NSString).lastPathComponent)
         let pipe = try DecodingPipe(file: file, compression: compression, threads: workload.workerCount,
                                     qos: workload == .background ? .utility : .userInitiated)
         let peek = try PeekSource(pipe, peek: Tar.block)
-        let isTar = peek.head.count == Tar.block && peek.head.withUnsafeBytes { Tar.looksLikeHeader($0) }
+        // "Tar" here means an archive stream with entries: tar or cpio.
+        let isTar = (peek.head.count == Tar.block && peek.head.withUnsafeBytes { Tar.looksLikeHeader($0) })
+            || Cpio.looksLikeHeader(peek.head)
         return (pipe, peek, isTar, compression)
     }
 
     static func extract(_ path: String, ctx: ExtractionContext, tracker: ProgressTracker, cancel: CancellationToken?) throws {
+        if AppleArchiveReader.isAppleArchive(path) {
+            tracker.setTotals(bytes: 0, entries: 0)
+            try extractEntries(try AppleArchiveReader(path: path), ctx: ctx, tracker: tracker, cancel: cancel, reportCompressed: {})
+            return
+        }
         let (pipe, source, isTar, compression) = try open(path, workload: ctx.options.workload)
         defer { pipe.close() }
         let fileSize = (try? FileReader(path: path).size) ?? 0
@@ -279,7 +286,14 @@ enum TarExtractor {
             return
         }
 
-        let reader = TarReader(source: source)
+        try extractEntries(Cpio.reader(for: source, head: source.head), ctx: ctx, tracker: tracker, cancel: cancel,
+                           reportCompressed: reportCompressed, beforeFinalize: { try pipe.drainAndCheck() })
+    }
+
+    /// Extracts the entries of a tar, cpio or Apple Archive stream through the safe extraction context.
+    static func extractEntries(_ reader: EntryStreamReader, ctx: ExtractionContext, tracker: ProgressTracker,
+                               cancel: CancellationToken?, reportCompressed: @escaping () -> Void,
+                               beforeFinalize: () throws -> Void = {}) throws {
         let writes = BackgroundWrites(workload: ctx.options.workload)
         defer { writes.waitIgnoringErrors() }
         var count = 0
@@ -349,11 +363,17 @@ enum TarExtractor {
             tracker.add(bytes: 0, entries: 1, current: e.entry.path)
         }
         try writes.wait()
-        try pipe.drainAndCheck()
+        try beforeFinalize()
         try ctx.finalize()
     }
 
     static func list(_ path: String, workload: Workload) throws -> [ArchiveEntry] {
+        if AppleArchiveReader.isAppleArchive(path) {
+            let reader = try AppleArchiveReader(path: path)
+            var out: [ArchiveEntry] = []
+            while let e = try reader.next() { out.append(e.entry) }
+            return out
+        }
         let (pipe, source, isTar, compression) = try open(path, workload: workload)
         defer { pipe.close() }
         guard isTar else {
@@ -361,7 +381,7 @@ enum TarExtractor {
             return [ArchiveEntry(path: singleFileName(path), kind: .file, uncompressedSize: -1, compressedSize: (try? FileReader(path: path).size) ?? 0,
                                  modified: nil, permissions: nil, encryption: .none, method: "\(compression)", linkTarget: nil)]
         }
-        let reader = TarReader(source: source)
+        let reader = Cpio.reader(for: source, head: source.head)
         var out: [ArchiveEntry] = []
         while let e = try reader.next() { out.append(e.entry) }
         return out
@@ -372,12 +392,31 @@ enum TarExtractor {
     static func test(_ path: String, workload: Workload, tracker: ProgressTracker, digests: DigestCollector? = nil,
                      cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
         var count = 0
+        if AppleArchiveReader.isAppleArchive(path) {
+            // AppleArchive checks the data as it decodes it; reading every entry is the test.
+            do {
+                let reader = try AppleArchiveReader(path: path)
+                while let e = try reader.next() {
+                    var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
+                    try reader.readData(cancel: cancel) { chunk in
+                        hasher?.update(bufferPointer: chunk)
+                        tracker.add(bytes: Int64(chunk.count))
+                    }
+                    if let hasher { digests?.add(e.entry.path, hasher) }
+                    tracker.add(bytes: 0, entries: 1, current: e.entry.path)
+                    count += 1
+                }
+            } catch let e as XipperError where e != .cancelled {
+                return (count, [SkippedEntry(path: (path as NSString).lastPathComponent, error: e)])
+            }
+            return (count, [])
+        }
         let (pipe, source, isTar, compression) = try open(path, workload: workload)
         defer { pipe.close() }
         tracker.setTotals(bytes: (try? FileReader(path: path).size) ?? 0, entries: 0)
         do {
             if isTar {
-                let reader = TarReader(source: source)
+                let reader = Cpio.reader(for: source, head: source.head)
                 while let e = try reader.next() {
                     var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
                     try reader.readData(cancel: cancel) { chunk in
@@ -412,7 +451,7 @@ enum TarExtractor {
 
     static func singleFileName(_ path: String) -> String {
         let base = (path as NSString).lastPathComponent
-        for ext in [".gz", ".bgz", ".bz2", ".xz", ".zst", ".tgz", ".tbz2", ".txz", ".tzst"] where base.lowercased().hasSuffix(ext) {
+        for ext in [".gz", ".bgz", ".bz2", ".xz", ".zst", ".lz4", ".br", ".tgz", ".tbz2", ".txz", ".tzst", ".tlz4"] where base.lowercased().hasSuffix(ext) {
             let stem = String(base.dropLast(ext.count))
             return ext.hasPrefix(".t") && ext.count > 4 ? stem + ".tar" : stem
         }

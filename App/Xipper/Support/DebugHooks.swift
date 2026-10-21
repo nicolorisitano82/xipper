@@ -31,6 +31,13 @@ enum DebugHooks {
                                                mode: .into, overwrite: .ask, reveal: false)))
         }
         if env["XIPPER_DEMO_VERSION"] != nil { UpdateController.shared.checkForUpdates() }
+        if let list = env["XIPPER_DEMO_NOWINDOW"] {  // "<archive>:<archive>:…": close windows, then test them all
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                for w in NSApp.windows where w.isVisible && !(w is NSPanel) { w.close() }
+                for p in list.split(separator: ":") { jobs.start(.test(archive: URL(fileURLWithPath: String(p)), password: nil)) }
+            }
+        }
         if let p = env["XIPPER_DEMO_TEST"] {
             jobs.start(.test(archive: URL(fileURLWithPath: p), password: nil))
         }

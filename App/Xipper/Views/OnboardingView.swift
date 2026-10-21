@@ -69,7 +69,8 @@ struct OnboardingView: View {
 
 /// Default handler for the archive types Xipper declares.
 enum DefaultApp {
-    static let types: [UTType] = ["public.zip-archive", "org.7-zip.7-zip-archive", "public.tar-archive", "org.gnu.gnu-zip-archive",
+    static let types: [UTType] = ["public.zip-archive", "org.7-zip.7-zip-archive", "public.tar-archive", "com.apple.archive", "public.cpio-archive",
+                                  "app.xipper.lz4", "app.xipper.brotli", "org.gnu.gnu-zip-archive",
                                   "org.gnu.gnu-zip-tar-archive", "public.bzip2-archive", "org.tukaani.xz-archive",
                                   "org.tukaani.tar-xz-archive", "com.facebook.zstandard-archive",
                                   "app.xipper.tar-zstd", "app.xipper.bgzf"].compactMap { UTType($0) }

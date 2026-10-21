@@ -255,6 +255,29 @@ struct AppleDoubleTests {
         #expect(ExtendedAttributes.read(t.path + "/out/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
     }
 
+    /// Our ZIPs with `zipAppleDouble`: the Finder (`ditto -x -k`) and Xipper both restore the attributes.
+    @Test(.enabled(if: toolExists("/usr/bin/ditto")))
+    func ourAppleDoubleZipIsReadByDittoAndByUs() throws {
+        let t = TempDir()
+        let v = taggedFolder(t)
+        let rf: [UInt8] = Array(repeating: 0xAB, count: 1000)
+        _ = rf.withUnsafeBytes { setxattr(t.path + "/src/doc.txt", "com.apple.ResourceFork", $0.baseAddress, rf.count, 0, 0) }
+        var o = CreateOptions()
+        o.zipAppleDouble = true
+        try Xipper.create(from: [t.url("src")], to: t.url("a.zip"), options: o)
+        #expect(try Xipper.list(t.url("a.zip")).contains { $0.path == "__MACOSX/src/._doc.txt" })
+        #expect(run("/usr/bin/ditto", ["-x", "-k", t.path + "/a.zip", t.path + "/ditto"]).status == 0)
+        #expect(ExtendedAttributes.read(t.path + "/ditto/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
+        #expect(ExtendedAttributes.read(t.path + "/ditto/src/doc.txt").first { $0.name == "com.apple.ResourceFork" }?.value == rf)
+        t.mkdir("ours")
+        try Xipper.extract(t.url("a.zip"), to: t.url("ours"), mode: .into)
+        #expect(ExtendedAttributes.read(t.path + "/ours/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
+        #expect(!FileManager.default.fileExists(atPath: t.path + "/ours/__MACOSX"))
+        // Off by default: plain ZIPs for Windows.
+        try Xipper.create(from: [t.url("src")], to: t.url("plain.zip"))
+        #expect(!(try Xipper.list(t.url("plain.zip")).contains { $0.path.hasPrefix("__MACOSX") }))
+    }
+
     /// macOS tar (bsdtar with copyfile) stores attributes as "._name" entries next to the file.
     @Test(.enabled(if: toolExists("/usr/bin/tar")))
     func macTarDotUnderscoreIsMerged() throws {

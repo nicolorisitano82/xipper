@@ -64,6 +64,8 @@ final class Job: Identifiable {
     var capBytes: Int64? { if case let .extract(r) = kind { r.capBytes } else { nil } }
     /// Entries blocked by the extraction guards (6.3).
     var blocked: [SkippedEntry] { report.filter(\.problem.isSecurityBlock) }
+    /// ZIP created with ZipCrypto instead of AES-256 (chosen after the 2.7 warning).
+    var legacyZipCrypto = false
     /// Save the password in the Keychain once the job succeeds (4.2).
     var rememberPassword = false
     /// The password came from the Keychain: a wrong one is forgotten, not retried.
@@ -175,8 +177,9 @@ final class JobCenter {
     }
 
     @discardableResult
-    func start(_ kind: Job.Kind) -> Job {
+    func start(_ kind: Job.Kind, legacyZipCrypto: Bool = false) -> Job {
         let job = Job(kind: kind)
+        job.legacyZipCrypto = legacyZipCrypto
         jobs.append(job)
         jobsChanged()
         run(job, kind)
@@ -190,7 +193,7 @@ final class JobCenter {
         // The panel closes: the new job is followed in the HUD.
         focused.remove(job.id)
         let new = start(.create(sources: sources, destination: uniqueURL(folder.appendingPathComponent(dest.lastPathComponent)),
-                                format: format, preset: preset, password: password))
+                                format: format, preset: preset, password: password), legacyZipCrypto: job.legacyZipCrypto)
         new.rememberPassword = job.rememberPassword
     }
 
@@ -212,13 +215,14 @@ final class JobCenter {
         case .create: kind = job.kind
         }
         remove(job)
-        let new = start(kind)
+        let new = start(kind, legacyZipCrypto: job.legacyZipCrypto)
         new.rememberPassword = remember || job.rememberPassword
         new.passwordFromVault = fromVault
     }
 
     private func run(_ job: Job, _ kind: Job.Kind) {
         let token = job.cancel
+        let legacy = job.legacyZipCrypto
         let progress: ProgressHandler = { [weak job] snapshot in
             Task { @MainActor in job?.record(snapshot) }
         }
@@ -228,7 +232,7 @@ final class JobCenter {
         Task.detached(priority: .userInitiated) {
             let outcome: Outcome
             do {
-                outcome = try Self.perform(kind, progress: progress, pause: pause, cancel: token)
+                outcome = try Self.perform(kind, legacyZipCrypto: legacy, progress: progress, pause: pause, cancel: token)
             } catch {
                 outcome = .error(error)
             }
@@ -248,12 +252,13 @@ final class JobCenter {
         case error(any Error)
     }
 
-    nonisolated private static func perform(_ kind: Job.Kind, progress: @escaping ProgressHandler,
+    nonisolated private static func perform(_ kind: Job.Kind, legacyZipCrypto: Bool, progress: @escaping ProgressHandler,
                                             pause: @escaping @Sendable (Bool) -> Void,
                                             cancel: CancellationToken) throws -> Outcome {
         switch kind {
         case let .create(sources, dest, format, preset, password):
-            let options = Preferences.createOptions(format: format, preset: preset, password: password)
+            var options = Preferences.createOptions(format: format, preset: preset, password: password)
+            options.legacyZipCrypto = legacyZipCrypto
             let r = try Xipper.create(from: sources, to: dest, options: options, progress: progress, cancel: cancel)
             return .created(r, dest)
         case let .extract(r):

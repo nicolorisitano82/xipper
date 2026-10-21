@@ -17,6 +17,7 @@ struct ArchiveBrowserView: View {
     @State private var verifyJob: Job?
     @State private var showDamaged = false
     @State private var intactReport: Job?
+    @AppStorage(PrefKey.favoriteArchives) private var favoritesRaw = ""
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Asking the password of encrypted entries (wrong = the last one did not work).
@@ -114,6 +115,55 @@ struct ArchiveBrowserView: View {
     private var subtitle: String {
         guard let f = model.format else { return "" }
         return "\(f.displayName) · \(model.fileCount) file · \(model.totalSize.byteText)"
+    }
+
+    /// "archivebox Progetto.zip › Documenti", each part clickable (3.1).
+    private var pathBar: some View {
+        HStack(spacing: 4) {
+            Button {
+                model.currentFolder = ""
+            } label: {
+                Label(url.lastPathComponent, systemImage: "archivebox")
+            }
+            ForEach(Array(model.breadcrumb.enumerated()), id: \.offset) { i, name in
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary).accessibilityHidden(true)
+                Button(name) {
+                    model.currentFolder = model.breadcrumb.prefix(i + 1).joined(separator: "/")
+                }
+                .fontWeight(i == model.breadcrumb.count - 1 ? .semibold : .regular)
+            }
+            Spacer()
+        }
+        .buttonStyle(.borderless)
+        .font(.callout)
+        .lineLimit(1)
+        .padding(.horizontal, 16)
+        .frame(height: 28)
+        .background(.bar)
+    }
+
+    /// "1 di 1.206 selezionati · 1,21 GB in Documenti".
+    private var statusBar: some View {
+        let items = model.items
+        let size = items.reduce(Int64(0)) { $0 + max(0, $1.size) }
+        let place = model.currentFolder.isEmpty ? url.lastPathComponent : (model.currentFolder as NSString).lastPathComponent
+        return HStack {
+            Text(selection.isEmpty ? String(localized: "\(items.count) elementi · \(size.byteText) in \(place)")
+                                   : String(localized: "\(selection.count) di \(items.count) selezionati · \(size.byteText) in \(place)"))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 24)
+        .background(.bar)
+    }
+
+    private var isFavorite: Bool { favoritesRaw.split(separator: "\n").contains { String($0) == url.path } }
+
+    private func toggleFavorite() {
+        var list = favoritesRaw.split(separator: "\n").map(String.init)
+        if let i = list.firstIndex(of: url.path) { list.remove(at: i) } else { list.insert(url.path, at: 0) }
+        favoritesRaw = list.joined(separator: "\n")
     }
 
     /// Space bar: Quick Look of the selected files, unlocking encrypted ones first.
@@ -250,8 +300,13 @@ struct ArchiveBrowserView: View {
                     model.search = ""
                     model.currentFolder = id
                     selection.removeAll()
+                } else if !ids.isEmpty {
+                    selection = ids
+                    previewSelection()  // double click on a file: Quick Look (3.4)
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) { pathBar }
+            .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
             .scrollEdgeEffectStyle(.hard, for: .top)
         }
     }
@@ -295,6 +350,10 @@ struct ArchiveBrowserView: View {
             }
             .help("Verifica l'integrità senza estrarre")
             .disabled(model.loading || model.error != nil || model.namesLocked)
+            Button(isFavorite ? "Togli dai Preferiti" : "Aggiungi ai Preferiti", systemImage: isFavorite ? "star.fill" : "star") {
+                toggleFavorite()
+            }
+            .help(isFavorite ? "Togli dai Preferiti" : "Aggiungi ai Preferiti")
             Button("Info", systemImage: "info.circle") { showInspector.toggle() }
                 .help("Mostra o nasconde l'inspector")
         }
@@ -314,9 +373,30 @@ struct ArchiveBrowserView: View {
 /// Folder outline of the archive.
 private struct FolderSidebar: View {
     @Bindable var model: ArchiveModel
+    @Environment(\.openWindow) private var openWindow
+    @AppStorage(PrefKey.favoriteArchives) private var favoritesRaw = ""
+
+    private static let otherArchive = "\u{1}archive:"
+    private var favorites: [URL] {
+        favoritesRaw.split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+    private var recents: [URL] {
+        NSDocumentController.shared.recentDocumentURLs
+            .filter { $0.standardizedFileURL != model.url.standardizedFileURL && !favorites.contains($0) }
+            .prefix(6).map { $0 }
+    }
 
     var body: some View {
-        List(selection: Binding(get: { model.currentFolder }, set: { model.currentFolder = $0 ?? ""; model.search = "" })) {
+        List(selection: Binding(get: { model.currentFolder }, set: { value in
+            // Other archives open in their own window; this one keeps its folder.
+            if let value, value.hasPrefix(Self.otherArchive) {
+                openWindow(id: "archive", value: URL(fileURLWithPath: String(value.dropFirst(Self.otherArchive.count))))
+                return
+            }
+            model.currentFolder = value ?? ""
+            model.search = ""
+        })) {
             Section("Archivio") {
                 Label(model.url.lastPathComponent, systemImage: "archivebox").tag("")
             }
@@ -326,6 +406,20 @@ private struct FolderSidebar: View {
                         Label((f as NSString).lastPathComponent, systemImage: "folder")
                             .padding(.leading, CGFloat(f.split(separator: "/").count - 1) * 12)
                             .tag(f)
+                    }
+                }
+            }
+            if !favorites.isEmpty {
+                Section("Preferiti") {
+                    ForEach(favorites, id: \.self) { u in
+                        Label(u.lastPathComponent, systemImage: "star").tag(Self.otherArchive + u.path)
+                    }
+                }
+            }
+            if !recents.isEmpty {
+                Section("Recenti") {
+                    ForEach(recents, id: \.self) { u in
+                        Label(u.lastPathComponent, systemImage: "clock").tag(Self.otherArchive + u.path)
                     }
                 }
             }

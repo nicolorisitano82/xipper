@@ -6,20 +6,65 @@ struct JobsHUD: View {
     @Environment(JobCenter.self) private var center
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var glass
+    /// With three or more jobs the HUD collapses into one capsule; a click expands it (7.1).
+    @State private var expanded = false
+
+    private var shown: [Job] { center.jobs.filter { !center.focused.contains($0.id) } }
 
     var body: some View {
         GlassEffectContainer(spacing: 8) {
             VStack(alignment: .trailing, spacing: 8) {
-                ForEach(center.jobs.filter { !center.focused.contains($0.id) }) { job in
-                    JobCapsule(job: job)
-                        .accessibleGlass(tint: tint(for: job), in: RoundedRectangle(cornerRadius: 24))
-                        .glassEffectID(job.id, in: glass)
-                        .transition(AnyTransition.morph(reduceMotion: reduceMotion, AnyTransition(.blurReplace)))
+                if shown.count >= 3 && !expanded {
+                    compact
+                        .accessibleGlass(in: Capsule())
+                        .glassEffectID("compact", in: glass)
+                        .onTapGesture { expanded = true }
+                } else {
+                    if shown.count >= 3 {
+                        Button("Comprimi l'elenco", systemImage: "chevron.down") { expanded = false }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Comprimi l'elenco")
+                    }
+                    ForEach(shown) { job in
+                        JobCapsule(job: job)
+                            .accessibleGlass(tint: tint(for: job), in: RoundedRectangle(cornerRadius: 24))
+                            .glassEffectID(job.id, in: glass)
+                            .transition(AnyTransition.morph(reduceMotion: reduceMotion, AnyTransition(.blurReplace)))
+                    }
                 }
             }
         }
         .frame(maxWidth: 380)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy, value: center.jobs.map(\.id))
+    }
+
+    /// Ring with the overall progress, "3 lavori", "46% · 5 s".
+    private var compact: some View {
+        let running = shown.filter(\.isRunning)
+        let total = running.reduce(Int64(0)) { $0 + max(0, $1.progress?.totalBytes ?? 0) }
+        let done = running.reduce(Int64(0)) { $0 + max(0, $1.progress?.completedBytes ?? 0) }
+        let fraction = running.isEmpty ? 1 : (total > 0 ? Double(done) / Double(total) : 0)
+        let eta = running.compactMap(\.eta).max()
+        return HStack(spacing: 10) {
+            ZStack {
+                Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 4)
+                Circle().trim(from: 0, to: fraction).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 26, height: 26)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(shown.count) lavori").font(.callout.weight(.semibold))
+                Text(running.isEmpty ? String(localized: "Completati")
+                                     : "\(Int(fraction * 100))%" + (eta.map { " · \(Int($0.rounded())) s" } ?? ""))
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .fixedSize()
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .contentShape(Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Mostra i lavori")
     }
 
     private func tint(for job: Job) -> Color? {

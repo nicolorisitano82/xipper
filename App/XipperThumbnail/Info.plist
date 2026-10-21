@@ -10,6 +10,10 @@
 			<array>
 				<string>public.zip-archive</string>
 				<string>org.7-zip.7-zip-archive</string>
+				<string>com.apple.archive</string>
+				<string>public.cpio-archive</string>
+				<string>app.xipper.lz4</string>
+				<string>app.xipper.brotli</string>
 				<string>public.tar-archive</string>
 				<string>org.gnu.gnu-zip-archive</string>
 				<string>org.gnu.gnu-zip-tar-archive</string>

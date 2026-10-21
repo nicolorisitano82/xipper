@@ -8,6 +8,8 @@ struct PasswordSheet: View {
     let archiveName: String
     /// The password (nil if cancelled) and whether to remember it in the Keychain.
     let onDone: (String?, _ remember: Bool) -> Void
+    /// ZIP creation only: AES-256 (false) or ZipCrypto (true), offered with a warning (UI_SPEC 2.7).
+    var legacyZipCrypto: Binding<Bool>?
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirm = ""
@@ -21,7 +23,9 @@ struct PasswordSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label(isCreate ? String(localized: "Proteggi con password") : String(localized: "Password richiesta"), systemImage: "lock.fill")
                 .font(.title2.weight(.semibold))
-            Text(isCreate ? String(localized: "\(archiveName) sarà cifrato con AES-256. Senza la password nessuno potrà aprirlo, nemmeno tu.")
+            Text(isCreate ? (legacyZipCrypto?.wrappedValue == true
+                             ? String(localized: "\(archiveName) sarà cifrato con ZipCrypto. Senza la password nessuno potrà aprirlo, nemmeno tu.")
+                             : String(localized: "\(archiveName) sarà cifrato con AES-256. Senza la password nessuno potrà aprirlo, nemmeno tu."))
                           : String(localized: "\(archiveName) è protetto. Inserisci la password per continuare."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -29,15 +33,33 @@ struct PasswordSheet: View {
                 Label("Password errata, riprova.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
             }
-            Form {
+            VStack(alignment: .leading, spacing: 8) {
                 SecureField("Password", text: $password)
                 if isCreate {
                     SecureField("Ripeti password", text: $confirm)
                     StrengthMeter(password: password)
                 }
             }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
+            .textFieldStyle(.roundedBorder)
+            if isCreate, let legacyZipCrypto {
+                Picker("Cifratura", selection: legacyZipCrypto) {
+                    Text("AES-256 (consigliata)").tag(false)
+                    Text("ZipCrypto (compatibilità)").tag(true)
+                }
+                if legacyZipCrypto.wrappedValue {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("ZipCrypto è una cifratura debole", systemImage: "exclamationmark.triangle.fill")
+                            .font(.headline).foregroundStyle(.orange)
+                        Text("Chi possiede anche uno solo dei file in chiaro (per esempio un PDF già inviato per email) può ricavare la chiave e aprire tutto l'archivio in pochi minuti.")
+                        Text("Usalo solo se chi riceve ha un programma che non supporta AES. 7-Zip, WinRAR, Keka e Xipper aprono gli archivi AES-256.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.12)))
+                }
+            }
             Toggle("Ricorda nel Portachiavi (sblocco con Touch ID)", isOn: $remember)
             if isCreate && nonASCII {
                 Label("Le password con caratteri accentati o speciali non si possono inserire in 7-Zip.", systemImage: "info.circle")
@@ -47,13 +69,23 @@ struct PasswordSheet: View {
                 Text("Le password non coincidono.").font(.callout).foregroundStyle(.red)
             }
             HStack {
-                Spacer()
                 Button("Annulla", role: .cancel) { onDone(nil, false); dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(isCreate ? String(localized: "Usa password") : String(localized: "Apri")) { onDone(password, remember); dismiss() }
-                    .buttonStyle(.glassProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!valid)
+                Spacer()
+                if isCreate, let legacyZipCrypto, legacyZipCrypto.wrappedValue {
+                    Button("Usa ZipCrypto") { onDone(password, remember); dismiss() }
+                        .buttonStyle(.glass)
+                        .disabled(!valid)
+                    Button("Usa AES-256") { legacyZipCrypto.wrappedValue = false; onDone(password, remember); dismiss() }
+                        .buttonStyle(.glassProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!valid)
+                } else {
+                    Button(isCreate ? String(localized: "Usa password") : String(localized: "Apri")) { onDone(password, remember); dismiss() }
+                        .buttonStyle(.glassProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!valid)
+                }
             }
         }
         .padding(24)

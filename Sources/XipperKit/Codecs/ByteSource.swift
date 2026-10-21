@@ -37,6 +37,8 @@ extension ByteSource {
 /// Compression framing recognized by magic bytes.
 enum StreamCompression: Sendable, Equatable {
     case none, gzip, bgzf, bzip2, xz, zstd
+    /// Read only: LZ4 frames (magic) and brotli (no magic: recognized by the file name).
+    case lz4, brotli
 
     /// Bytes needed by `detect` (BGZF is recognized from the gzip extra field).
     static let detectLength = 64
@@ -46,7 +48,15 @@ enum StreamCompression: Sendable, Equatable {
         if head.starts(with: [0x42, 0x5a, 0x68]) { return .bzip2 }  // "BZh"
         if head.starts(with: [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) { return .xz }
         if head.starts(with: [0x28, 0xB5, 0x2F, 0xFD]) { return .zstd }
+        if head.starts(with: [0x04, 0x22, 0x4D, 0x18]) { return .lz4 }
         return .none
+    }
+
+    /// Like `detect`, plus brotli by name (`.br`, `.tar.br`), which has no signature.
+    static func detect(_ head: [UInt8], name: String) -> StreamCompression {
+        let found = detect(head)
+        if found == .none && name.lowercased().hasSuffix(".br") { return .brotli }
+        return found
     }
 
     func decoder(threads: Int) throws -> StreamTransform {
@@ -57,6 +67,8 @@ enum StreamCompression: Sendable, Equatable {
         case .bzip2: return try Bzip2Decoder()
         case .xz: return try LZMACoder.xzDecoder(threads: threads)
         case .zstd: return try ZstdDecoder()
+        case .lz4: return LZ4FrameDecoder()
+        case .brotli: return try BrotliDecoder()
         }
     }
 
@@ -68,6 +80,7 @@ enum StreamCompression: Sendable, Equatable {
         case .bzip2: return ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
         case .xz: return try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount, cancel: cancel)
         case .zstd: return try ZstdEncoder(level: level, threads: workload.workerCount, cancel: cancel)
+        case .lz4, .brotli: throw XipperError.unsupported("\(self) is read only")
         }
     }
 }

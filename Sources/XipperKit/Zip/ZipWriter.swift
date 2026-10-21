@@ -16,8 +16,10 @@ public struct ZipOptions: Sendable {
     public var method: ZipMethod = .deflate
     /// deflate: 1…12 (libdeflate scale, 6 ≈ zip -6); zstd: 1…22.
     public var level: Int = 6
-    /// Enables WinZip AES-256 encryption of all file data.
+    /// Enables encryption of all file data: WinZip AES-256 unless `legacyZipCrypto`.
     public var password: String?
+    /// Traditional ZipCrypto instead of AES-256: weak, only for receivers without AES (UI_SPEC 2.7).
+    public var legacyZipCrypto = false
     /// Store files with already-compressed extensions (jpg, mp4, zip…) and big files that do not compress.
     public var storeAlreadyCompressed = true
     /// Always write ZIP64 structures (testing / huge-archive interop).
@@ -187,7 +189,7 @@ enum ZipWriter {
                 if let c = data.withUnsafeBytes({ zstdCompress($0, level: options.level) }) { payload = c } else { method = .store }
             }
             if let password {
-                let enc = try WinZipAESEncryptor(password: password)
+                let enc = try makeEncryptor(password, item: item, legacy: options.legacyZipCrypto)
                 enc.encrypt(&payload)
                 payload = enc.header + payload + enc.trailer
             }
@@ -219,6 +221,11 @@ enum ZipWriter {
             }
             return JobResult(payload: payload, crc: crc, inputLength: len, method: plan.method, completesEntry: last)
         }
+    }
+
+    static func makeEncryptor(_ password: [UInt8], item: ArchiveItem, legacy: Bool) throws -> ZipEntryEncryptor {
+        guard legacy else { return try WinZipAESEncryptor(password: password) }
+        return ZipCryptoEncryptor(password: password, check: UInt8(DOSDateTime.encode(item.modified).0 >> 8))
     }
 
     /// ZIP AES passwords are UTF-8 in NFC (WinZip convention). 7-Zip refuses non-ASCII
@@ -257,7 +264,7 @@ private final class ZipEmitter: @unchecked Sendable {
         var crc: UInt32 = 0
         var compressed: Int64 = 0
         var uncompressed: Int64 = 0
-        var encryptor: WinZipAESEncryptor?
+        var encryptor: ZipEntryEncryptor?
     }
 
     init(out: OutputFile, items: [ArchiveItem], plans: [ZipWriter.Plan], password: [UInt8]?, options: ZipOptions) {
@@ -295,6 +302,8 @@ private final class ZipEmitter: @unchecked Sendable {
         var name: [UInt8]
         var method: Zip.Method
         var encrypted: Bool
+        /// ZipCrypto: no AES extra field, real method, data descriptor after the data.
+        var legacy: Bool
         var aesVersion: UInt16
         var flags: UInt16
         var dosTime: UInt16
@@ -307,12 +316,12 @@ private final class ZipEmitter: @unchecked Sendable {
         var versionNeeded: UInt16 {
             var v: UInt16 = 20
             if zip64 { v = max(v, 45) }
-            if encrypted { v = max(v, 51) }
+            if encrypted && !legacy { v = max(v, 51) }
             if method == .zstd { v = max(v, 63) }
             return v
         }
 
-        var storedMethod: UInt16 { encrypted ? Zip.Method.aes.rawValue : method.rawValue }
+        var storedMethod: UInt16 { encrypted && !legacy ? Zip.Method.aes.rawValue : method.rawValue }
 
         func extras(central: Bool, usize: Int64, csize: Int64, offset: Int64) -> [UInt8] {
             var w = ByteWriter()
@@ -327,7 +336,7 @@ private final class ZipEmitter: @unchecked Sendable {
                 w.u16(Zip.Extra.zip64); w.u16(16); w.u64(UInt64(usize)); w.u64(UInt64(csize))
             }
             w.u16(Zip.Extra.extendedTimestamp); w.u16(5); w.u8(1); w.u32(mtime)
-            if encrypted {
+            if encrypted && !legacy {
                 w.u16(Zip.Extra.aes); w.u16(7); w.u16(aesVersion)
                 w.u8(UInt8(ascii: "A")); w.u8(UInt8(ascii: "E")); w.u8(WinZipAES.Strength.aes256.rawValue)
                 w.u16(method.rawValue)
@@ -343,6 +352,14 @@ private final class ZipEmitter: @unchecked Sendable {
             w.u32(zip64 ? UInt32.max : UInt32(csize)); w.u32(zip64 ? UInt32.max : UInt32(usize))
             w.u16(UInt16(name.count)); w.u16(UInt16(ext.count))
             w.append(name); w.append(ext)
+            return w.bytes
+        }
+
+        /// Signature, CRC and sizes after the data (8-byte sizes with ZIP64).
+        func dataDescriptor(crc: UInt32, csize: Int64, usize: Int64) -> [UInt8] {
+            var w = ByteWriter(capacity: 24)
+            w.u32(Zip.dataDescriptorSignature); w.u32(crc)
+            if zip64 { w.u64(UInt64(csize)); w.u64(UInt64(usize)) } else { w.u32(UInt32(csize)); w.u32(UInt32(usize)) }
             return w.bytes
         }
 
@@ -369,8 +386,10 @@ private final class ZipEmitter: @unchecked Sendable {
         let (t, d) = DOSDateTime.encode(item.modified)
         let typeBits: UInt32 = switch item.kind { case .directory: 0o040000; case .symlink: 0o120000; case .file: 0o100000 }
         var flags = Zip.Flag.utf8
+        let legacy = encrypted && options.legacyZipCrypto
         if encrypted { flags |= Zip.Flag.encrypted }
-        return HeaderFields(name: name, method: method, encrypted: encrypted, aesVersion: aesVersion, flags: flags,
+        if legacy { flags |= Zip.Flag.dataDescriptor }
+        return HeaderFields(name: name, method: method, encrypted: encrypted, legacy: legacy, aesVersion: aesVersion, flags: flags,
                             dosTime: t, dosDate: d,
                             mtime: UInt32(clamping: Int64(max(0, item.modified.timeIntervalSince1970))),
                             zip64: zip64, mode: typeBits | UInt32(item.permissions), isDir: isDir)
@@ -383,10 +402,11 @@ private final class ZipEmitter: @unchecked Sendable {
                             encrypted: Bool, zip64: Bool, isDir: Bool) throws {
         let av = aesVersion(usize)
         let f = try fields(item, method: method, encrypted: encrypted, aesVersion: av, zip64: zip64, isDir: isDir)
-        let storedCRC = encrypted && av == 2 ? 0 : crc
+        let storedCRC = encrypted && !f.legacy && av == 2 ? 0 : crc
         let offset = out.position
         try out.write(f.local(crc: storedCRC, csize: Int64(payload.count), usize: usize))
         try out.write(payload)
+        if f.legacy { try out.write(f.dataDescriptor(crc: crc, csize: Int64(payload.count), usize: usize)) }
         central.append(f.centralRecord(crc: storedCRC, csize: Int64(payload.count), usize: usize, offset: offset))
         count += 1
     }
@@ -395,7 +415,7 @@ private final class ZipEmitter: @unchecked Sendable {
         let item = items[job.item]
         let plan = plans[job.item]
         if job.chunk == 0 {
-            let enc = try password.map { try WinZipAESEncryptor(password: $0) }
+            let enc = try password.map { try ZipWriter.makeEncryptor($0, item: item, legacy: options.legacyZipCrypto) }
             let f = try fields(item, method: plan.method, encrypted: enc != nil, aesVersion: aesVersion(plan.size),
                                zip64: plan.zip64, isDir: false)
             open = OpenEntry(item: job.item, headerOffset: out.position, header: f, encryptor: enc)
@@ -414,7 +434,8 @@ private final class ZipEmitter: @unchecked Sendable {
             if !e.header.zip64 && (UInt64(e.compressed) >= Zip.max32 || UInt64(e.uncompressed) >= Zip.max32) {
                 throw XipperError.codec("entry outgrew its non-ZIP64 header: \(item.name)")
             }
-            let storedCRC = e.header.encrypted && e.header.aesVersion == 2 ? 0 : e.crc
+            let storedCRC = e.header.encrypted && !e.header.legacy && e.header.aesVersion == 2 ? 0 : e.crc
+            if e.header.legacy { try out.write(e.header.dataDescriptor(crc: e.crc, csize: e.compressed, usize: e.uncompressed)) }
             try out.patch(at: e.headerOffset, e.header.local(crc: storedCRC, csize: e.compressed, usize: e.uncompressed))
             central.append(e.header.centralRecord(crc: storedCRC, csize: e.compressed, usize: e.uncompressed, offset: e.headerOffset))
             count += 1

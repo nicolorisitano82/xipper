@@ -23,6 +23,8 @@ enum PrefKey {
     static let menuBarExtra = "showMenuBarExtra"
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
+    static let zipAppleDouble = "zipAppleDouble"
+    static let favoriteArchives = "favoriteArchives"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
 }
@@ -100,6 +102,7 @@ enum Preferences {
         o.scan.excludeMacMetadata = !defaults.bool(forKey: PrefKey.keepMacFiles)
         o.genomicsUsesBGZF = defaults.bool(forKey: PrefKey.genomicsBGZF)
         o.writeBGZFIndex = defaults.bool(forKey: PrefKey.bgzfIndex)
+        o.zipAppleDouble = defaults.bool(forKey: PrefKey.zipAppleDouble)
         o.encryptFileNames = defaults.bool(forKey: PrefKey.sevenZipEncryptNames)
         // nil = automatic solid blocks; 0 = one block per file.
         o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0
@@ -138,6 +141,12 @@ extension ArchiveFormat {
         case .xz: "xz (.xz)"
         case .zstd: "zstd (.zst)"
         case .sevenZip: "7z"
+        case .tarLz4: "tar.lz4"
+        case .lz4: "lz4 (.lz4)"
+        case .tarBrotli: "tar.br"
+        case .brotli: "brotli (.br)"
+        case .cpio: "cpio"
+        case .appleArchive: "Apple Archive (.aar)"
         }
     }
 

@@ -8,7 +8,7 @@ Usage: python3 scripts/translations-en.py
 import json, pathlib, sys
 
 # Keys whose English text is the same as the Italian one (names, formats, symbols).
-SAME = {"", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
+SAME = {"", "7z", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
@@ -386,6 +386,35 @@ EN = {
     "Mostra i lavori in corso e apre Xipper dalla barra dei menu.": "Shows running jobs and opens Xipper from the menu bar.",
     "Mostra rapporto": "Show Report",
     "Nessun lavoro attivo": "No active jobs",
+    # 7z, ZipCrypto, browser bars, compact HUD
+    "%@ sarà cifrato con ZipCrypto. Senza la password nessuno potrà aprirlo, nemmeno tu.": "%@ will be encrypted with ZipCrypto. Without the password nobody can open it, not even you.",
+    "%lld di %lld selezionati · %@ in %@": "%1$lld of %2$lld selected · %3$@ in %4$@",
+    "AES-256 (consigliata)": "AES-256 (recommended)",
+    "Aggiungi ai Preferiti": "Add to Favorites",
+    "Chi possiede anche uno solo dei file in chiaro (per esempio un PDF già inviato per email) può ricavare la chiave e aprire tutto l'archivio in pochi minuti.":
+        "Anyone who has even one of the files unencrypted (for example a PDF already sent by email) can recover the key and open the whole archive in minutes.",
+    "Completati": "Completed",
+    "Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)": "Solid compression (smaller archives, slower extraction of a single file)",
+    "Comprimi l'elenco": "Collapse the List",
+    "Con la password, cifra anche i nomi dei file": "With a password, also encrypt file names",
+    "Doppio clic su ZIP, 7z, tar, gz, xz, zst e BGZF apre Xipper invece di Utility Archivio.": "Double-clicking ZIP, 7z, tar, gz, xz, zst and BGZF opens Xipper instead of Archive Utility.",
+    "La password è disponibile solo per ZIP e 7z": "Passwords are available for ZIP and 7z only",
+    "Mostra i lavori": "Show the jobs",
+    "Nomi dei file cifrati": "Encrypted File Names",
+    "Preferiti": "Favorites",
+    "Questo archivio nasconde anche i nomi dei file. Inserisci la password per vederne il contenuto.": "This archive also hides its file names. Enter the password to see its contents.",
+    "Recenti": "Recents",
+    "Salva tag e attributi del Mac (cartella __MACOSX, come il Finder)": "Save Mac tags and attributes (__MACOSX folder, like the Finder)",
+    "Sì": "Yes",
+    "Togli dai Preferiti": "Remove from Favorites",
+    "Usa AES-256": "Use AES-256",
+    "Usa ZipCrypto": "Use ZipCrypto",
+    "Usalo solo se chi riceve ha un programma che non supporta AES. 7-Zip, WinRAR, Keka e Xipper aprono gli archivi AES-256.":
+        "Use it only if the recipient has a program without AES support. 7-Zip, WinRAR, Keka and Xipper open AES-256 archives.",
+    "ZipCrypto (compatibilità)": "ZipCrypto (compatibility)",
+    "ZipCrypto è una cifratura debole": "ZipCrypto is weak encryption",
+    "compatto": "compact",
+    "compatto, nomi cifrati": "compact, encrypted names",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
     "Comprimi “%@”": "Compress “%@”",
@@ -424,6 +453,8 @@ PLURAL = {
                                                                "The other entry is intact and can be extracted.", "The other %lld entries are intact and can be extracted."),
     "circa %lld minuti": ("circa %lld minuto", "circa %lld minuti", "about %lld minute", "about %lld minutes"),
     "circa %lld secondi": ("circa %lld secondo", "circa %lld secondi", "about %lld second", "about %lld seconds"),
+    "%lld lavori": ("%lld lavoro", "%lld lavori", "%lld job", "%lld jobs"),
+    "%lld elementi · %@ in %@": ("%lld elemento · %@ in %@", "%lld elementi · %@ in %@", "%lld item · %@ in %@", "%lld items · %@ in %@"),
     "%lld lavori attivi": ("%lld lavoro attivo", "%lld lavori attivi", "%lld active job", "%lld active jobs"),
     "Comprimi %lld elementi": ("Comprimi %lld elemento", "Comprimi %lld elementi", "Compress %lld Item", "Compress %lld Items"),
     "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)": (

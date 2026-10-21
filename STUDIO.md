@@ -130,7 +130,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 
 | Formato | Crea | Estrae | Password | Codec / origine |
 |---|---|---|---|---|
-| **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-2) · 📖 ZipCrypto legacy | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
+| **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-1/AE-2) · ZipCrypto solo su richiesta, con avviso (UI 2.7) | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
 | ZIP con **zstd (metodo 93)** | ✅ v1 | ✅ | ✅ AES-256 | zstd (BSD); leggibile da 7-Zip ≥ 21, WinZip, libarchive (non da Utility Archivio). Nell'app: «ZIP · zstd» nel menu Formato |
 | ZIP: bzip2, LZMA (14), xz (95) | ❌ | ✅ | — | lettura per compatibilità |
 | ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
@@ -142,8 +142,8 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | **tar.bz2**, **bzip2** | ✅ | ✅ | | libbz2 di sistema, parallelo per blocchi |
 | **tar.xz**, **xz** | ✅ | ✅ | | xz-embedded/liblzma (0BSD), xz multi-blocco parallelo |
 | **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
-| lz4, brotli | 🔜 | ✅ | | lz4 di sistema; brotli in scrittura vendorizzato (MIT) |
-| CPIO, `.aar` (Apple Archive) | ✅ | ✅ | ✅ (AEA) | sistema |
+| lz4, brotli (anche `tar.lz4`, `tar.br`) | 🔜 | ✅ fatto | | lz4: decoder del formato frame scritto da noi (blocchi indipendenti e collegati, xxHash32); brotli: Compression di sistema |
+| CPIO (newc, crc, odc), `.aar` (Apple Archive) | 🔜 | ✅ fatto | AEA 🔜 | cpio nostro; Apple Archive tramite il framework AppleArchive di sistema, con l'estrazione sicura di Xipper |
 | ISO 9660 / UDF | ❌ | 🔜 📖 | | nostro (lettura semplice) |
 | **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v2 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |

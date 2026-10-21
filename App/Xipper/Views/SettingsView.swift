@@ -48,6 +48,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.storeCompressed) private var store = true
     @AppStorage(PrefKey.keepMacFiles) private var keepMac = false
     @AppStorage(PrefKey.sevenZipEncryptNames) private var encryptNames = true
+    @AppStorage(PrefKey.zipAppleDouble) private var appleDouble = false
     @AppStorage(PrefKey.sevenZipSolid) private var solid = true
 
     var body: some View {
@@ -60,6 +61,7 @@ private struct FormatSettings: View {
                 }
                 Toggle("Non ricomprimere file già compressi (foto, video, archivi)", isOn: $store)
                 Toggle("Includi file nascosti del Mac (.DS_Store, ._*)", isOn: $keepMac)
+            Toggle("Salva tag e attributi del Mac (cartella __MACOSX, come il Finder)", isOn: $appleDouble)
             }
             Section("7z") {
                 Toggle("Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)", isOn: $solid)

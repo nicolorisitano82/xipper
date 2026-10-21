@@ -122,7 +122,14 @@ final class HMACSHA1 {
 }
 
 /// Encrypts one entry's compressed data. Usage: `header` → `encrypt` (any number of calls) → `trailer`.
-final class WinZipAESEncryptor {
+/// Encrypts the data of one ZIP entry: header before the data, trailer after it.
+protocol ZipEntryEncryptor: AnyObject {
+    var header: [UInt8] { get }
+    var trailer: [UInt8] { get }
+    func encrypt(_ bytes: inout [UInt8])
+}
+
+final class WinZipAESEncryptor: ZipEntryEncryptor {
     let header: [UInt8]
     private let ctr: AESCTRLittleEndian
     private let mac: HMACSHA1
@@ -175,8 +182,43 @@ final class WinZipAESDecryptor {
     }
 }
 
-/// Traditional PKWARE encryption ("ZipCrypto"). Cryptographically broken: Xipper only
-/// reads it, for compatibility with old archives.
+/// Traditional PKWARE encryption ("ZipCrypto"). Cryptographically broken: Xipper writes it
+/// only on explicit request, after a warning (UI_SPEC 2.7), for receivers without AES support.
+final class ZipCryptoEncryptor: ZipEntryEncryptor {
+    private var k0: UInt32 = 0x1234_5678
+    private var k1: UInt32 = 0x2345_6789
+    private var k2: UInt32 = 0x3456_7890
+    private(set) var header: [UInt8] = []
+    var trailer: [UInt8] { [] }
+
+    @inline(__always) private func update(_ b: UInt8) {
+        k0 = ZipCryptoDecryptor.crcStep(k0, b)
+        k1 = (k1 &+ (k0 & 0xff)) &* 134_775_813 &+ 1
+        k2 = ZipCryptoDecryptor.crcStep(k2, UInt8(truncatingIfNeeded: k1 >> 24))
+    }
+
+    @inline(__always) private func encryptByte(_ p: UInt8) -> UInt8 {
+        let t = UInt16(truncatingIfNeeded: k2 | 2)
+        let c = p ^ UInt8(truncatingIfNeeded: (UInt32(t) &* UInt32(t ^ 1)) >> 8)
+        update(p)
+        return c
+    }
+
+    /// `check` is the last header byte the reader verifies (here: the DOS time high byte,
+    /// because entries are written with a data descriptor).
+    init(password: [UInt8], check: UInt8) {
+        for b in password { update(b) }
+        var plain = [UInt8](repeating: 0, count: 12)
+        arc4random_buf(&plain, 11)
+        plain[11] = check
+        header = plain.map { encryptByte($0) }
+    }
+
+    func encrypt(_ bytes: inout [UInt8]) {
+        for i in bytes.indices { bytes[i] = encryptByte(bytes[i]) }
+    }
+}
+
 final class ZipCryptoDecryptor {
     private var k0: UInt32 = 0x1234_5678
     private var k1: UInt32 = 0x2345_6789
@@ -188,9 +230,10 @@ final class ZipCryptoDecryptor {
         return c
     }
 
-    @inline(__always) private static func crc(_ c: UInt32, _ b: UInt8) -> UInt32 {
+    @inline(__always) static func crcStep(_ c: UInt32, _ b: UInt8) -> UInt32 {
         table[Int((c ^ UInt32(b)) & 0xff)] ^ (c >> 8)
     }
+    @inline(__always) private static func crc(_ c: UInt32, _ b: UInt8) -> UInt32 { crcStep(c, b) }
 
     @inline(__always) private func update(_ b: UInt8) {
         k0 = Self.crc(k0, b)

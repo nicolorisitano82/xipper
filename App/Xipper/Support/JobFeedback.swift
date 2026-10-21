@@ -25,6 +25,7 @@ enum JobFeedback {
             if tile.contentView !== progressView { tile.contentView = progressView }
         }
         tile.display()
+        HUDPanel.update(jobs)
     }
 
     /// Asks once, quietly: provisional notifications land in Notification Center without a prompt.
