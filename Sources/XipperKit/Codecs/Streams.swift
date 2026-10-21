@@ -147,6 +147,9 @@ final class LZMACoder: StreamTransform {
     private let out = OutBuffer()
     private var ended = false
     private let name: String
+    /// LZMA1 with a known size: done once this many bytes came out. The optional end marker
+    /// after them is not waited for (liblzma rejects one split across two inputs).
+    private var expectedOutput: Int64?
     /// Checked between `lzma_code` calls; with the multi-threaded coders' 250 ms timeout this
     /// bounds how long a cancellation waits, even while workers compress a large block.
     var cancel: CancellationToken?
@@ -197,6 +200,7 @@ final class LZMACoder: StreamTransform {
         try c.check(lzma_properties_decode(&filter, nil, props.baseAddress?.assumingMemoryBound(to: UInt8.self), 5))
         let opts = filter.options!.assumingMemoryBound(to: lzma_options_lzma.self)
         opts.pointee.ext_flags = lzmaLZMA1EXTAllowEOPM
+        c.expectedOutput = knownSize
         opts.pointee.ext_size_low = UInt32(truncatingIfNeeded: knownSize)
         opts.pointee.ext_size_high = UInt32(truncatingIfNeeded: knownSize >> 32)
         var filters = [filter, lzma_filter(id: lzmaVLIUnknown, options: nil)]
@@ -216,6 +220,7 @@ final class LZMACoder: StreamTransform {
         let opts = filter.options!.assumingMemoryBound(to: lzma_options_lzma.self)
         opts.pointee.dict_size = UInt32(max(4096, min(Int64(opts.pointee.dict_size), unpackSize)))
         opts.pointee.ext_flags = lzmaLZMA1EXTAllowEOPM
+        c.expectedOutput = unpackSize
         opts.pointee.ext_size_low = UInt32(truncatingIfNeeded: unpackSize)
         opts.pointee.ext_size_high = UInt32(truncatingIfNeeded: unpackSize >> 32)
         var filters = [filter, lzma_filter(id: lzmaVLIUnknown, options: nil)]
@@ -257,8 +262,13 @@ final class LZMACoder: StreamTransform {
             strm.next_out = out.ptr.assumingMemoryBound(to: UInt8.self)
             strm.avail_out = outputChunk
             let r = lzma_code(&strm, action)
-            try out.emit(outputChunk - strm.avail_out, sink)
+            let produced = outputChunk - strm.avail_out
+            try out.emit(produced, sink)
             if r == LZMA_STREAM_END { ended = true; return }
+            if let e = expectedOutput {
+                expectedOutput = e - Int64(produced)
+                if e - Int64(produced) <= 0 && (r == LZMA_OK || r == LZMA_BUF_ERROR || r == LZMA_DATA_ERROR) { ended = true; return }
+            }
             if r == LZMA_BUF_ERROR && action == LZMA_FINISH { throw XipperError.corrupt("truncated \(name) stream") }
             if r != LZMA_OK && r != LZMA_BUF_ERROR { try check(r) }
             if strm.avail_in == 0 && strm.avail_out != 0 && action == LZMA_RUN { return }

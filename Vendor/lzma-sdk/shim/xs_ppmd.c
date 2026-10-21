@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "../C/Precomp.h"
 #include "../C/Ppmd7.h"
-#include "../include/CPpmd.h"
+#include "../include/CLzmaSDK.h"
 
 static void *xs_alloc(ISzAllocPtr p, size_t size) { (void)p; return malloc(size); }
 static void xs_free(ISzAllocPtr p, void *address) { (void)p; free(address); }

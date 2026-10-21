@@ -1,5 +1,5 @@
 import CLZMA
-import CPpmd
+import CLzmaSDK
 import Foundation
 
 // MARK: - Input: one archive or a set of volumes (.7z.001, .7z.002, …)
@@ -166,6 +166,87 @@ final class ReadAheadSource: ByteSource {
         let n = min(max, len - pos)
         dst.copyMemory(from: buf + pos, byteCount: n)
         pos += n
+        return n
+    }
+}
+
+/// Decodes `inner` on its own thread, a few MiB ahead of the consumer, so decoding overlaps
+/// with what the consumer does (CRC, writing files), as 7-Zip does.
+final class PipelinedSource: ByteSource {
+    private final class State: @unchecked Sendable {
+        let cond = NSCondition()
+        var queue: [[UInt8]] = []
+        var finished = false
+        var failure: Error?
+        var closed = false
+    }
+
+    private let state = State()
+    private var head: [UInt8] = []
+    private var headPos = 0
+    private static let piece = 1 << 20
+    private static let maxQueued = 8
+
+    init(_ inner: ByteSource, qos: QualityOfService) {
+        nonisolated(unsafe) let source = inner
+        let st = state
+        let t = Thread {
+            let buf = UnsafeMutableRawPointer.allocate(byteCount: Self.piece, alignment: 16384)
+            defer { buf.deallocate() }
+            do {
+                while true {
+                    var n = 0
+                    while n < Self.piece {  // fill whole pieces: fewer hand-overs
+                        let r = try source.read(into: buf + n, max: Self.piece - n)
+                        if r == 0 { break }
+                        n += r
+                    }
+                    if n == 0 { break }
+                    let chunk = Array(UnsafeRawBufferPointer(start: buf, count: n))
+                    st.cond.lock()
+                    while st.queue.count >= Self.maxQueued && !st.closed { st.cond.wait() }
+                    if st.closed { st.cond.unlock(); return }
+                    st.queue.append(chunk)
+                    st.cond.broadcast()
+                    st.cond.unlock()
+                }
+                st.cond.lock(); st.finished = true
+            } catch {
+                st.cond.lock(); st.failure = error; st.finished = true
+            }
+            st.cond.broadcast()
+            st.cond.unlock()
+        }
+        t.qualityOfService = qos
+        t.name = "xipper.7z.decode"
+        t.start()
+    }
+
+    deinit {
+        state.cond.lock()
+        state.closed = true
+        state.cond.broadcast()
+        state.cond.unlock()
+    }
+
+    func read(into buf: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        if headPos == head.count {
+            state.cond.lock()
+            while state.queue.isEmpty && !state.finished { state.cond.wait() }
+            if state.queue.isEmpty {
+                let e = state.failure
+                state.cond.unlock()
+                if let e { throw e }
+                return 0
+            }
+            head = state.queue.removeFirst()
+            headPos = 0
+            state.cond.broadcast()
+            state.cond.unlock()
+        }
+        let n = min(max, head.count - headPos)
+        head.withUnsafeBytes { buf.copyMemory(from: $0.baseAddress! + headPos, byteCount: n) }
+        headPos += n
         return n
     }
 }
@@ -552,7 +633,8 @@ struct SZFolderDecoder {
 
     func open() throws -> ByteSource {
         if workers > 1, let p = try parallelLZMA2() { return p }
-        return try source(forOut: folder.mainOutStream)
+        let s = try source(forOut: folder.mainOutStream)
+        return workers > 1 && folder.unpackSize > 8 << 20 ? PipelinedSource(s, qos: qos) : s
     }
 
     /// LZMA2 producing the folder's content, alone or followed by ARM64 (stateless, so segments
@@ -601,10 +683,10 @@ struct SZFolderDecoder {
         let start = c.props.count == 4 ? UInt32(c.props[0]) | UInt32(c.props[1]) << 8 | UInt32(c.props[2]) << 16 | UInt32(c.props[3]) << 24 : 0
         switch c.method {
         case M.copy: return inputs[0]
-        case M.lzma: return TransformSource(inputs[0], try LZMACoder.sevenZipLZMADecoder(props: c.props, unpackSize: size))
+        case M.lzma: return TransformSource(inputs[0], try SZLZMA.decoder(props: c.props, unpackSize: size))
         case M.lzma2:
             guard c.props.count == 1 else { throw XipperError.corrupt("bad 7z LZMA2 properties") }
-            return TransformSource(inputs[0], try LZMACoder.sevenZipLZMA2Decoder(prop: c.props[0], unpackSize: size))
+            return TransformSource(inputs[0], try SZLZMA.decoder2(prop: c.props[0], unpackSize: size))
         case M.ppmd: return try PPMdSource(inputs[0], props: c.props, size: size)
         case M.bzip2: return TransformSource(inputs[0], try Bzip2Decoder())
         case M.deflate: return TransformSource(inputs[0], try InflateDecoder(gzip: false))
@@ -632,6 +714,82 @@ struct SZFolderDecoder {
 /// An encrypted folder was reached without a password (mapped to `passwordRequired` with the entry name).
 struct SZNeedsPassword: Error {}
 
+// MARK: - LZMA / LZMA2 decoders
+
+/// Chooses the LZMA decoder: the LZMA SDK's, whose main loop is 7-Zip's ARM64 assembly
+/// (`Vendor/lzma-sdk/Asm/arm64/LzmaDecOpt.S`), or liblzma, the portable path.
+enum SZLZMA {
+    /// Set `XIPPER_PORTABLE_LZMA=1` to force liblzma (benchmarks, bug hunting).
+    nonisolated(unsafe) static var useAssembly = ProcessInfo.processInfo.environment["XIPPER_PORTABLE_LZMA"] != "1"
+
+    static func decoder(props: [UInt8], unpackSize: Int64, assembly: Bool = useAssembly) throws -> StreamTransform {
+        guard assembly else { return try LZMACoder.sevenZipLZMADecoder(props: props, unpackSize: unpackSize) }
+        return try SDKLZMADecoder(props: props, unpackSize: unpackSize)
+    }
+
+    static func decoder2(prop: UInt8, unpackSize: Int64, assembly: Bool = useAssembly) throws -> StreamTransform {
+        guard assembly else { return try LZMACoder.sevenZipLZMA2Decoder(prop: prop, unpackSize: unpackSize) }
+        return try SDKLZMADecoder(lzma2Prop: prop, unpackSize: unpackSize)
+    }
+}
+
+/// LZMA1 (known size, end marker optional) or LZMA2 (ends with its end marker) through the LZMA SDK.
+final class SDKLZMADecoder: StreamTransform {
+    private let d: OpaquePointer
+    private let lzma2: Bool
+    /// LZMA1 output still expected.
+    private var remaining: Int64
+    private var ended = false
+    private let out = UnsafeMutablePointer<UInt8>.allocate(capacity: 1 << 20)
+
+    private static func cap(_ size: Int64) -> UInt32 { UInt32(max(4096, min(size, Int64(UInt32.max)))) }
+
+    init(props: [UInt8], unpackSize: Int64) throws {
+        guard props.count == 5, let d = xs_lzma_dec_new(props, Self.cap(unpackSize)) else { throw XipperError.corrupt("bad 7z LZMA properties") }
+        self.d = d
+        lzma2 = false
+        remaining = unpackSize
+        ended = unpackSize == 0
+    }
+
+    init(lzma2Prop prop: UInt8, unpackSize: Int64) throws {
+        guard let d = xs_lzma2_dec_new(prop, Self.cap(unpackSize)) else { throw XipperError.corrupt("bad 7z LZMA2 properties") }
+        self.d = d
+        lzma2 = true
+        remaining = .max
+    }
+
+    deinit {
+        xs_lzdec_free(d)
+        out.deallocate()
+    }
+
+    private func run(_ input: UnsafeRawBufferPointer, last: Bool, _ sink: ByteSink) throws {
+        var rest = input
+        while !ended {
+            let capacity = lzma2 ? 1 << 20 : Int(min(Int64(1 << 20), remaining))
+            var used = 0, produced = 0
+            let st = xs_lzdec_run(d, rest.baseAddress?.assumingMemoryBound(to: UInt8.self), rest.count, &used,
+                                  out, capacity, &produced, lzma2 || Int64(capacity) < remaining ? 0 : 1)
+            if st < 0 { throw XipperError.corrupt("invalid \(lzma2 ? "lzma2" : "lzma") data") }
+            if produced > 0 { try sink(UnsafeRawBufferPointer(start: out, count: produced)) }
+            rest = UnsafeRawBufferPointer(rebasing: rest[used...])
+            if !lzma2 { remaining -= Int64(produced) }
+            if st == 1 || (!lzma2 && remaining == 0) { ended = true; return }
+            if used == 0 && produced == 0 {
+                if last { throw XipperError.corrupt("truncated \(lzma2 ? "lzma2" : "lzma") stream") }
+                return  // needs more input
+            }
+        }
+    }
+
+    func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws {
+        if !input.isEmpty { try run(input, last: false, sink) }
+    }
+
+    func finish(_ sink: ByteSink) throws { try run(UnsafeRawBufferPointer(start: nil, count: 0), last: true, sink) }
+}
+
 // MARK: - Parallel LZMA2
 
 /// Decodes an LZMA2 stream in parallel where it restarts with a dictionary reset (7-Zip's
@@ -656,8 +814,9 @@ final class ParallelLZMA2Source: ByteSource, @unchecked Sendable {
     /// Segments are cut only past this size (tiny segments cost more than they save).
     static let minSegment: Int64 = 1 << 20
     /// A segment growing past these sizes without a reset switches to the sequential decoder.
-    static let maxPackedSegment = 64 << 20
-    static let maxSegment: Int64 = 512 << 20
+    /// 7-Zip's blocks are 4× the dictionary (256 MiB at -mx6): those must still fit.
+    static let maxPackedSegment = Int(min(256 << 20, ProcessInfo.processInfo.physicalMemory / 32))
+    static let maxSegment = Int64(min(1 << 30, ProcessInfo.processInfo.physicalMemory / 16))
 
     private let packed: ByteSource
     private let prop: UInt8
@@ -764,9 +923,9 @@ final class ParallelLZMA2Source: ByteSource, @unchecked Sendable {
         let prefix = seg
         seg = []
         let source = ConcatSource(prefix, packed)
-        var t: ByteSource = TransformSource(source, (try? LZMACoder.sevenZipLZMA2Decoder(prop: prop, unpackSize: unpackSize - segStart)) ?? FailingTransform())
+        var t: ByteSource = TransformSource(source, (try? SZLZMA.decoder2(prop: prop, unpackSize: unpackSize - segStart)) ?? FailingTransform())
         if arm64 { t = TransformSource(t, BranchFilter(.arm64, encoding: false, startOffset: UInt32(truncatingIfNeeded: segStart))) }
-        tail = t
+        tail = PipelinedSource(t, qos: pool.qualityOfService)
     }
 
     private func submit() throws {
@@ -785,7 +944,7 @@ final class ParallelLZMA2Source: ByteSource, @unchecked Sendable {
     }
 
     private static func decode(_ j: Job, prop: UInt8, arm64: Bool) throws -> [UInt8] {
-        let coder = try LZMACoder.sevenZipLZMA2Decoder(prop: prop, unpackSize: j.unpackSize)
+        let coder = try SZLZMA.decoder2(prop: prop, unpackSize: j.unpackSize)
         var out = [UInt8](repeating: 0, count: Int(j.unpackSize))
         var filled = 0
         try out.withUnsafeMutableBytes { o in
