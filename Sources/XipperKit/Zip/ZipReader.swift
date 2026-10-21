@@ -9,8 +9,39 @@ final class ZipArchive: @unchecked Sendable {
     private let bias: Int64
     private let centralStart: Int64
 
+    /// The files of a split archive, in order, or just `path`.
+    /// PKZIP/WinZip/Info-ZIP split: `name.z01`, `name.z02`, …, `name.zip` (offsets are per part).
+    /// 7-Zip/`split` style: `name.zip.001`, `name.zip.002`, … (plain pieces of one file).
+    static func volumes(for path: String) -> [String] {
+        let fm = FileManager.default
+        let url = URL(fileURLWithPath: path)
+        let ext = url.pathExtension.lowercased()
+        let stem = url.deletingPathExtension().path
+        if ext.count == 3, ext.allSatisfy(\.isNumber), Int(ext) == 1 {
+            var parts: [String] = []
+            var n = 1
+            while case let p = stem + "." + String(format: "%03d", n), fm.fileExists(atPath: p) {
+                parts.append(p)
+                n += 1
+            }
+            return parts.isEmpty ? [path] : parts
+        }
+        let isZPart = ext.count == 3 && ext.hasPrefix("z") && ext.dropFirst().allSatisfy(\.isNumber)
+        guard ext == "zip" || isZPart else { return [path] }
+        var parts: [String] = []
+        var n = 1
+        while case let p = stem + ".z" + String(format: "%02d", n), fm.fileExists(atPath: p) {
+            parts.append(p)
+            n += 1
+        }
+        let last = stem + ".zip"
+        guard !parts.isEmpty, fm.fileExists(atPath: last) else { return [path] }
+        return parts + [last]
+    }
+
     init(path: String) throws {
-        reader = try FileReader(path: path)
+        reader = try FileReader(parts: Self.volumes(for: path))
+        let starts = reader.partStarts
         let size = reader.size
         if size < 22 { throw XipperError.corrupt("not a ZIP archive (too small)") }
 
@@ -35,14 +66,13 @@ final class ZipArchive: @unchecked Sendable {
         var eocdAbs = tailStart + Int64(eocd)
         try tail.withUnsafeBytes { t in
             var r = ByteReader(t, at: eocd + 4)
-            let disk = try r.u16(), cdDisk = try r.u16()
+            _ = try r.u16()  // this disk
+            let cdDisk = try r.u16()
             _ = try r.u16()
             entryCount = Int64(try r.u16())
             cdSize = Int64(try r.u32())
             cdOffset = Int64(try r.u32())
-            if disk != 0 && disk != 0xFFFF || cdDisk != 0 && cdDisk != 0xFFFF {
-                throw XipperError.unsupported("split (multi-volume) ZIP archives")
-            }
+            if cdDisk != 0xFFFF { cdOffset += try Self.partStart(Int(cdDisk), starts) }
         }
 
         // 2. ZIP64 locator right before the EOCD.
@@ -61,10 +91,12 @@ final class ZipArchive: @unchecked Sendable {
                 try rec.withUnsafeBytes { t in
                     var r = ByteReader(t)
                     if try r.u32() != Zip.zip64EndSignature { throw XipperError.corrupt("bad ZIP64 end record") }
-                    try r.skip(8 + 2 + 2 + 4 + 4 + 8)
+                    try r.skip(8 + 2 + 2 + 4)
+                    let cdDisk = Int(try r.u32())
+                    try r.skip(8)
                     entryCount = Int64(try r.u64())
                     cdSize = Int64(try r.u64())
-                    cdOffset = Int64(try r.u64())
+                    cdOffset = Int64(try r.u64()) + (try Self.partStart(cdDisk, starts))
                 }
                 eocdAbs = min(eocdAbs, at)
             }
@@ -90,7 +122,7 @@ final class ZipArchive: @unchecked Sendable {
             while r.remaining >= 46 {
                 let sig = try r.u32()
                 if sig != Zip.centralSignature { break }
-                records.append(try Self.parseCentral(&r, bias: shift))
+                records.append(try Self.parseCentral(&r, bias: shift, partStarts: starts))
             }
         }
         if records.isEmpty && entryCount > 0 { throw XipperError.corrupt("central directory has no entries") }
@@ -98,7 +130,14 @@ final class ZipArchive: @unchecked Sendable {
         try checkOverlaps()
     }
 
-    private static func parseCentral(_ r: inout ByteReader, bias: Int64) throws -> ZipEntryRecord {
+    /// Start of disk `n` in the joined stream; a plain archive has only disk 0.
+    private static func partStart(_ n: Int, _ starts: [Int64]) throws -> Int64 {
+        if starts.count == 1 { return 0 }  // single file (or `.001` pieces): offsets are already global
+        guard n < starts.count else { throw XipperError.corrupt("split archive: part \(n + 1) is missing") }
+        return starts[n]
+    }
+
+    private static func parseCentral(_ r: inout ByteReader, bias: Int64, partStarts: [Int64]) throws -> ZipEntryRecord {
         let madeBy = try r.u16()
         _ = try r.u16()  // version needed
         let flags = try r.u16()
@@ -107,7 +146,7 @@ final class ZipArchive: @unchecked Sendable {
         let crc = try r.u32()
         var csize = Int64(try r.u32()), usize = Int64(try r.u32())
         let nameLen = Int(try r.u16()), extraLen = Int(try r.u16()), commentLen = Int(try r.u16())
-        _ = try r.u16()  // disk
+        var disk = Int(try r.u16())
         _ = try r.u16()  // internal attributes
         let external = try r.u32()
         var offset = Int64(try r.u32())
@@ -128,6 +167,7 @@ final class ZipArchive: @unchecked Sendable {
                 if usize == 0xFFFF_FFFF, f.remaining >= 8 { usize = Int64(bitPattern: try f.u64()) }
                 if csize == 0xFFFF_FFFF, f.remaining >= 8 { csize = Int64(bitPattern: try f.u64()) }
                 if offset == 0xFFFF_FFFF, f.remaining >= 8 { offset = Int64(bitPattern: try f.u64()) }
+                if disk == 0xFFFF, f.remaining >= 4 { disk = Int(try f.u32()) }
             case Zip.Extra.extendedTimestamp:
                 if f.remaining >= 5, try f.u8() & 1 != 0 { mtime = Date(timeIntervalSince1970: Double(try f.u32())) }
             case Zip.Extra.unicodePath:
@@ -171,7 +211,8 @@ final class ZipArchive: @unchecked Sendable {
                                  permissions: unixMode != 0 ? unixMode & 0o7777 : nil,
                                  encryption: encryption, method: zipMethodName(actualMethod), linkTarget: nil)
         return ZipEntryRecord(entry: entry, rawName: rawName, method: method, flags: flags, crc: crc,
-                              compressedSize: csize, uncompressedSize: usize, localHeaderOffset: offset + bias,
+                              compressedSize: csize, uncompressedSize: usize,
+                              localHeaderOffset: offset + (try partStart(disk, partStarts)) + bias,
                               dosTime: dosTime, hostSystem: host)
     }
 

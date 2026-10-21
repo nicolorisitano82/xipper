@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Synchronization
 
@@ -83,7 +84,7 @@ enum ZipExtractor {
 
     /// Decodes every entry without writing; returns the entries that failed and why.
     static func test(_ archive: ZipArchive, password: [UInt8]?, workload: Workload,
-                     tracker: ProgressTracker, cancel: CancellationToken?) throws -> [SkippedEntry] {
+                     tracker: ProgressTracker, digests: DigestCollector? = nil, cancel: CancellationToken?) throws -> [SkippedEntry] {
         let records = archive.records.filter { $0.entry.kind != .directory }
             .sorted { $0.uncompressedSize > $1.uncompressedSize }
         tracker.setTotals(bytes: records.reduce(0) { $0 + $1.uncompressedSize }, entries: archive.records.count)
@@ -91,9 +92,12 @@ enum ZipExtractor {
         try parallelFor(records.count, workload: workload, cancel: cancel) { i in
             let r = records[i]
             do {
+                var hasher = digests != nil && r.entry.kind == .file ? SHA256() : nil
                 try ZipEntryDecoder.decode(r, in: archive, password: password, cancel: cancel) { chunk in
+                    hasher?.update(bufferPointer: chunk)
                     tracker.add(bytes: Int64(chunk.count))
                 }
+                if let hasher { digests?.add(r.entry.path, hasher) }
             } catch XipperError.cancelled {
                 throw XipperError.cancelled
             } catch let e as XipperError {

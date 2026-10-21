@@ -154,6 +154,27 @@ struct VerifyIntent: AppIntent {
     }
 }
 
+struct ListIntent: AppIntent {
+    static let title: LocalizedStringResource = "Elenca contenuto con Xipper"
+    static let description = IntentDescription("Restituisce i percorsi dei file contenuti nell'archivio, senza estrarlo.")
+
+    @Parameter(title: "Archivio", supportedContentTypes: [.archive, .data])
+    var archive: IntentFile
+
+    static var parameterSummary: some ParameterSummary { Summary("Elenca il contenuto di \(\.$archive)") }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<[String]> {
+        guard let url = try localURLs([archive]).first else { throw IntentFailure.noFiles }
+        guard AppState.isArchive(url) else { throw IntentFailure.notAnArchive(url.lastPathComponent) }
+        do {
+            let entries = try await Task.detached { try Xipper.list(url) }.value
+            return .result(value: entries.filter { $0.kind != .directory }.map(\.path))
+        } catch {
+            throw describe(error)
+        }
+    }
+}
+
 struct XipperShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: CompressIntent(), phrases: ["Comprimi con \(.applicationName)"],
@@ -162,5 +183,7 @@ struct XipperShortcuts: AppShortcutsProvider {
                     shortTitle: "Estrai", systemImageName: "arrow.down.to.line")
         AppShortcut(intent: VerifyIntent(), phrases: ["Verifica con \(.applicationName)"],
                     shortTitle: "Verifica", systemImageName: "checkmark.shield")
+        AppShortcut(intent: ListIntent(), phrases: ["Elenca contenuto con \(.applicationName)"],
+                    shortTitle: "Elenca contenuto", systemImageName: "list.bullet")
     }
 }

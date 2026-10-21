@@ -135,7 +135,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | ZIP: bzip2, LZMA (14), xz (95) | ❌ | ✅ | — | lettura per compatibilità |
 | ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
 | ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
-| ZIP multi-volume (`.z01`…) | 🔜 | ✅ | | nostro |
+| ZIP multi-volume (`.z01`…, `.zip.001`…) | 🔜 | ✅ fatto | | nostro (lettura di parti unite, da qualsiasi parte) |
 | **7z** | ✅ | ✅ | ✅ AES-256 + **cifratura dei nomi file** | LZMA SDK (public domain): LZMA/LZMA2, PPMd, filtri BCJ/**ARM64** |
 | **TAR** (ustar, pax, GNU) | ✅ | ✅ | — | nostro |
 | **tar.gz / .tgz**, **gzip** | ✅ | ✅ | | deflate parallelo (stile pigz) |
@@ -316,7 +316,7 @@ GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, 
   - Allocazione anticipata con `fcntl(F_PREALLOCATE)` per l'archivio in uscita.
   - Scrittura atomica: file temporaneo e poi `rename`, così un'interruzione non lascia archivi corrotti.
 - **SSD:** I/O concorrente con `DispatchIO`, coda profonda.
-- **Metal/GPU:** non è utile per i codec LZ, che sono sequenziali e pieni di diramazioni. Si scarta.
+- **Metal/GPU:** non è utile per i codec LZ, che sono sequenziali e pieni di diramazioni. **Regola del 21/10/2026:** assembler ARM64/NEON e GPU vanno usati dove un benchmark mostra un guadagno, con un percorso portabile di riserva e test che confrontano i due. Candidati da misurare: decodifica parallela per blocchi (BGZF, xz multi-blocco) e impronte di molti file piccoli; CRC32 usa già le istruzioni `CRC32X`/`PMULL` tramite libdeflate.
 
 ### 5.4 Obiettivi di prestazione (da validare con benchmark)
 - tar.zst livello 3 su M-series: velocità limitata dall'SSD (oltre 3 GB/s).
@@ -494,7 +494,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.7 Genomica 2 (GA4GH, locale)** | Creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum (§4.6) | circa 2 settimane |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
-| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | in corso dal 21/10/2026 → [FASE2.md](FASE2.md) |
+| **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta2 pubblicata il 21/10/2026; restano Developer ID e notarizzazione, Apple Archive / lz4 / brotli in lettura (dopo il merge del 7z), varianti dell'icona → [FASE2.md](FASE2.md) |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
 | **4. v2** | Montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
 

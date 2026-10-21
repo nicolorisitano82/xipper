@@ -371,6 +371,14 @@ EN = {
         "Xipper asks GitHub whether there is a new version and downloads it only when you say so. Installing stays manual: you drag Xipper into Applications like the first time.",
     "Xipper è aggiornato.": "Xipper is up to date.",
     "È disponibile Xipper %@.": "Xipper %@ is available.",
+    # Verification manifest and list action
+    "Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c": "Computes the SHA-256 of every file, in shasum -c format",
+    "Elenca contenuto": "List Contents",
+    "Elenca contenuto con Xipper": "List Contents with Xipper",
+    "Elenca il contenuto di ${archive}": "List the contents of ${archive}",
+    "Esporta SHA256SUMS…": "Export SHA256SUMS…",
+    "Impossibile calcolare le impronte": "Cannot compute the checksums",
+    "Restituisce i percorsi dei file contenuti nell'archivio, senza estrarlo.": "Returns the paths of the files in the archive, without extracting it.",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
     "Comprimi “%@”": "Compress “%@”",

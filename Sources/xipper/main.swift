@@ -24,7 +24,8 @@ usage: xipper <command> [options]
           --allow-external-symlinks
           --no-quarantine  do not copy the archive's quarantine attribute
       -p, --password / --password-stdin
-  test    [-p | --password-stdin] <archive>
+  test    [-p | --password-stdin] [--sha256] <archive>
+          --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
   list    [--long] <archive>
   mcp     [options]               MCP server on stdio for AI agents (see `xipper mcp --help`)
   bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
@@ -62,7 +63,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long"])
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite"]
@@ -241,8 +242,17 @@ case "test", "t":
     guard positional.count == 1 else { fail("test needs one archive", code: 2) }
     let pw = readPassword(confirm: false)
     run {
-        let r = try Xipper.test(URL(fileURLWithPath: positional[0]), password: pw, workload: workload, progress: progress, cancel: cancel)
+        let sums = flag("--sha256")
+        let r = try Xipper.test(URL(fileURLWithPath: positional[0]), password: pw, workload: workload, digests: sums,
+                                progress: progress, cancel: cancel)
         endProgress()
+        if sums {
+            // The manifest goes to stdout alone, so it can be redirected to a SHA256SUMS file.
+            print(r.sha256sums, terminator: "")
+            for f in r.failures { fputs("FAILED \(f.path): \(f.reason)\n", stderr) }
+            if !r.isOK { exit(3) }
+            return
+        }
         for f in r.failures { print("FAILED \(f.path): \(f.reason)") }
         print(r.isOK ? "OK: \(r.entries) entries, \(r.bytes.bytesText) verified in \(String(format: "%.2f", r.elapsed))s"
                      : "\(r.failures.count) of \(r.entries) entries failed")

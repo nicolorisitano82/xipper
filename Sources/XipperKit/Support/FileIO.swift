@@ -1,35 +1,70 @@
 import Darwin
 import Foundation
 
-/// Read-only file accessed with `pread`.
+/// Read-only file accessed with `pread`. It can also be several files read as one,
+/// back to back: the parts of a split archive (`.z01`, `.z02`, …, `.zip` or `.001`, `.002`, …).
 ///
 /// Inputs are deliberately not memory-mapped: a file truncated while we read it
 /// would raise SIGBUS on a mapping, while `pread` just returns a short count.
 final class FileReader: @unchecked Sendable {
-    let fd: Int32
-    let path: String
-    let size: Int64
-
-    init(path: String) throws {
-        fd = open(path, O_RDONLY | O_CLOEXEC)
-        if fd < 0 { throw XipperError.posix("open", path) }
-        var st = stat()
-        if fstat(fd, &st) != 0 { let e = XipperError.posix("fstat", path); close(fd); throw e }
-        self.path = path
-        size = Int64(st.st_size)
+    private struct Part {
+        let fd: Int32
+        let path: String
+        let start: Int64
+        let size: Int64
     }
 
-    deinit { close(fd) }
+    private let parts: [Part]
+    let path: String
+    let size: Int64
+    /// Where each part starts in the joined stream (one element for a plain file).
+    var partStarts: [Int64] { parts.map(\.start) }
+
+    convenience init(path: String) throws { try self.init(parts: [path]) }
+
+    init(parts paths: [String]) throws {
+        var opened: [Part] = []
+        var total: Int64 = 0
+        for p in paths {
+            let fd = open(p, O_RDONLY | O_CLOEXEC)
+            if fd < 0 {
+                let e = XipperError.posix("open", p)
+                opened.forEach { close($0.fd) }
+                throw e
+            }
+            var st = stat()
+            if fstat(fd, &st) != 0 {
+                let e = XipperError.posix("fstat", p)
+                close(fd)
+                opened.forEach { close($0.fd) }
+                throw e
+            }
+            opened.append(Part(fd: fd, path: p, start: total, size: Int64(st.st_size)))
+            total += Int64(st.st_size)
+        }
+        parts = opened
+        path = paths.last ?? ""
+        size = total
+    }
+
+    deinit { parts.forEach { close($0.fd) } }
+
+    /// The part holding `offset` (the last one at or past the end).
+    private func part(at offset: Int64) -> Part {
+        if parts.count == 1 { return parts[0] }
+        var lo = 0, hi = parts.count - 1
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2
+            if parts[mid].start <= offset { lo = mid } else { hi = mid - 1 }
+        }
+        return parts[lo]
+    }
 
     /// Reads exactly `count` bytes at `offset` into `dst`, or throws (truncated file).
     func read(at offset: Int64, into dst: UnsafeMutableRawPointer, count: Int) throws {
         var done = 0
         while done < count {
-            let n = pread(fd, dst + done, count - done, offset + Int64(done))
-            if n < 0 {
-                if errno == EINTR { continue }
-                throw XipperError.posix("read", path)
-            }
+            let n = try readSome(at: offset + Int64(done), into: dst + done, count: count - done)
             if n == 0 { throw XipperError.corrupt("\(path): unexpected end of file") }
             done += n
         }
@@ -41,12 +76,16 @@ final class FileReader: @unchecked Sendable {
         return buf
     }
 
-    /// Reads up to `count` bytes; returns the number read (0 at EOF).
+    /// Reads up to `count` bytes (never across a part boundary); returns the number read (0 at EOF).
     func readSome(at offset: Int64, into dst: UnsafeMutableRawPointer, count: Int) throws -> Int {
+        let p = part(at: offset)
+        let local = offset - p.start
+        let want = parts.count == 1 ? count : Int(min(Int64(count), max(0, p.size - local)))
+        if want == 0 { return 0 }
         while true {
-            let n = pread(fd, dst, count, offset)
+            let n = pread(p.fd, dst, want, local)
             if n >= 0 { return n }
-            if errno != EINTR { throw XipperError.posix("read", path) }
+            if errno != EINTR { throw XipperError.posix("read", p.path) }
         }
     }
 }

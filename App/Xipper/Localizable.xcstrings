@@ -915,6 +915,16 @@
         }
       }
     },
+    "Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Computes the SHA-256 of every file, in shasum -c format"
+          }
+        }
+      }
+    },
     "Cartella" : {
       "localizations" : {
         "en" : {
@@ -1627,6 +1637,36 @@
         }
       }
     },
+    "Elenca contenuto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "List Contents"
+          }
+        }
+      }
+    },
+    "Elenca contenuto con Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "List Contents with Xipper"
+          }
+        }
+      }
+    },
+    "Elenca il contenuto di ${archive}" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "List the contents of ${archive}"
+          }
+        }
+      }
+    },
     "Errore di disco (%@) %@: %@" : {
       "localizations" : {
         "en" : {
@@ -1679,6 +1719,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Result"
+          }
+        }
+      }
+    },
+    "Esporta SHA256SUMS…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export SHA256SUMS…"
           }
         }
       }
@@ -2219,6 +2269,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cannot open the archive"
+          }
+        }
+      }
+    },
+    "Impossibile calcolare le impronte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot compute the checksums"
           }
         }
       }
@@ -3229,6 +3289,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Report"
+          }
+        }
+      }
+    },
+    "Restituisce i percorsi dei file contenuti nell'archivio, senza estrarlo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returns the paths of the files in the archive, without extracting it."
           }
         }
       }

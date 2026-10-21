@@ -52,3 +52,24 @@ struct ProblemTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: t.path + "/dest").isEmpty)
     }
 }
+
+@Suite("SHA256SUMS from a test")
+struct DigestTests {
+    @Test(arguments: [ArchiveFormat.zip, .tarZstd, .gzip])
+    func digestsMatchShasum(format: ArchiveFormat) throws {
+        let t = TempDir()
+        t.write("src/a.bin", sampleData(3 << 20, seed: 3))
+        t.write("src/b.txt", "hello")
+        var o = CreateOptions()
+        o.format = format
+        let source = format == .gzip ? t.url("src/a.bin") : t.url("src")
+        let out = t.url("x." + format.fileExtension)
+        try Xipper.create(from: [source], to: out, options: o)
+        let r = try Xipper.test(out, digests: true)
+        #expect(r.isOK)
+        let expected = run("/usr/bin/shasum", ["-a", "256", "a.bin"], cwd: t.path + "/src").output.split(separator: " ").first.map(String.init)
+        let key = format == .gzip ? "x" : "src/a.bin"  // a single file is named after the archive
+        #expect(r.digests[key] == expected)
+        #expect(r.sha256sums.contains("  \(key)\n"))
+    }
+}

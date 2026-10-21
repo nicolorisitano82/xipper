@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Synchronization
 
@@ -344,7 +345,8 @@ enum TarExtractor {
 
     /// Decompresses and parses everything; codec checksums (gzip CRC, xz CRC64, zstd XXH64,
     /// bzip2 CRC) provide the integrity check, tar itself has none for data.
-    static func test(_ path: String, workload: Workload, tracker: ProgressTracker, cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
+    static func test(_ path: String, workload: Workload, tracker: ProgressTracker, digests: DigestCollector? = nil,
+                     cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
         var count = 0
         let (pipe, source, isTar, compression) = try open(path, workload: workload)
         defer { pipe.close() }
@@ -353,12 +355,28 @@ enum TarExtractor {
             if isTar {
                 let reader = TarReader(source: source)
                 while let e = try reader.next() {
-                    try reader.readData(cancel: cancel) { _ in tracker.add(bytes: pipe.compressedRead - tracker.completedBytes) }
+                    var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
+                    try reader.readData(cancel: cancel) { chunk in
+                        hasher?.update(bufferPointer: chunk)
+                        tracker.add(bytes: pipe.compressedRead - tracker.completedBytes)
+                    }
+                    if let hasher { digests?.add(e.entry.path, hasher) }
                     tracker.add(bytes: 0, entries: 1, current: e.entry.path)
                     count += 1
                 }
             } else if compression == .none {
                 throw XipperError.unsupported("not a recognized archive")
+            } else if let digests {
+                // A single compressed file: its digest is the one of the whole decoded stream.
+                var hasher = SHA256()
+                let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
+                defer { buf.deallocate() }
+                while case let n = try source.read(into: buf, max: 1 << 20), n > 0 {
+                    try cancel?.check()
+                    hasher.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: n))
+                    tracker.add(bytes: pipe.compressedRead - tracker.completedBytes)
+                }
+                digests.add(singleFileName(path), hasher)
             }
             try pipe.drainAndCheck()
         } catch let e as XipperError where e != .cancelled {

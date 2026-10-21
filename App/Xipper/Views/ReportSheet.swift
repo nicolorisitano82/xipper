@@ -1,10 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import XipperKit
 
 /// Verification result or skipped entries after an extraction.
 struct ReportSheet: View {
     let job: Job
     @Environment(\.dismiss) private var dismiss
+    @State private var exporting = false
 
     private var ok: Bool { job.verifyOK ?? job.report.isEmpty }
 
@@ -37,12 +39,44 @@ struct ReportSheet: View {
                     .foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 12)
             }
             HStack {
+                if case let .test(archive, password) = job.kind, ok {
+                    Button {
+                        exportSums(archive, password: password)
+                    } label: {
+                        if exporting { ProgressView().controlSize(.small) } else { Text("Esporta SHA256SUMS…") }
+                    }
+                    .buttonStyle(.glass)
+                    .disabled(exporting)
+                    .help("Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c")
+                }
                 Spacer()
                 Button("Chiudi") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             .padding(16)
         }
         .frame(width: 520)
+    }
+
+    /// A second pass that hashes every file (5.1); the manifest is saved next to the archive by default.
+    private func exportSums(_ archive: URL, password: String?) {
+        let panel = NSSavePanel()
+        panel.directoryURL = archive.deletingLastPathComponent()
+        panel.nameFieldStringValue = archive.lastPathComponent + ".sha256sums"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        exporting = true
+        Task {
+            let result = await Task.detached { Result { try Xipper.test(archive, password: password, workload: Preferences.workload, digests: true) } }.value
+            exporting = false
+            switch result {
+            case let .success(r): try? r.sha256sums.write(to: url, atomically: true, encoding: .utf8)
+            case let .failure(e):
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Impossibile calcolare le impronte")
+                alert.informativeText = (e as? XipperError).map(Job.localized) ?? e.localizedDescription
+                alert.runModal()
+            }
+        }
     }
 
     private var title: String {

@@ -119,3 +119,15 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 - **Download:** solo da GitHub in HTTPS. Il DMG viene confrontato con il file `.dmg.sha256` del rilascio (se non corrisponde viene eliminato) e poi messo nei Download.
 - **Installazione:** "Apri e chiudi Xipper" apre l'immagine ed esce (se ci sono lavori in corso, prima lo chiede); il trascinamento in Applicazioni resta manuale. In alternativa, "Mostra nel Finder" o "Più tardi".
 - **Verifica:** confronto delle versioni, lettura del feed reale (da 0.9.0-beta1 propone la beta2; dalla beta2 e dalla 0.9.0 nessuna proposta), host fidati e impronta SHA-256 del DMG della beta2, con uno script separato. Proposta, download e verifica dell'impronta provati nell'app con `XIPPER_DEMO_VERSION=0.9.0-beta1`.
+
+## Verso la v1: secondo controllo dello studio (21/10/2026)
+
+| Voce dello studio | Stato |
+|---|---|
+| ZIP multi-volume in lettura (§4.2) | **Fatto.** `FileReader` legge più file come uno solo; `ZipArchive` riconosce le parti PKZIP/Info-ZIP (`.z01`…`.zip`, offset per disco, anche nei campi ZIP64) e i pezzi 7-Zip/`split` (`.zip.001`…). L'archivio si apre da qualunque parte; una parte mancante è un errore chiaro. 3 test, anche contro `zip -s`. |
+| Voci sovrapposte nella directory centrale (§7.2) | Già presente (`checkOverlaps`): l'archivio viene rifiutato come danneggiato. |
+| Manifest `SHA256SUMS` (§7.5, schermata 5.1) | **Fatto.** `Xipper.test(…, digests: true)` calcola lo SHA-256 di ogni file nello stesso passaggio (ZIP in parallelo, tar in streaming, file singolo compresso); `TestReport.sha256sums` nel formato di `shasum -c`. Nell'app: "Esporta SHA256SUMS…" nell'esito positivo della verifica; nella CLI: `xipper test --sha256`. 3 test contro `shasum`. |
+| App Intents "Elenca contenuto" (§6) | **Fatto.** Restituisce i percorsi dei file. |
+| CRC32 hardware (§5.2), nomi CP437 (§4.3) | Già presenti (libdeflate con `PMULL`/`CRC32X`; decodifica CP437). |
+| Apple Archive, lz4, brotli in lettura (§4.2) | **Rimandati** a dopo il merge del 7z, che modifica lo stesso `ArchiveFormat`. |
+| Developer ID e notarizzazione | Dipende dall'iscrizione all'Apple Developer Program. |

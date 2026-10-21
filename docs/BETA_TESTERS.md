@@ -52,7 +52,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 | Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
 
 ## Limiti noti della beta2
-- **7z e RAR non sono supportati** (previsti più avanti). ZIP divisi in parti e ZIP Deflate64 non sono supportati.
+- **7z e RAR non sono supportati** (previsti più avanti). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
 - Gli **attributi estesi del Mac** (tag del Finder, metadati) non vengono ancora salvati negli archivi; permessi e date sì.
 - **Solo italiano.**
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.

@@ -59,7 +59,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     public static func detect(_ url: URL) throws -> ArchiveFormat? {
         let r = try FileReader(path: url.path)
         let head = try r.read(at: 0, count: Int(min(r.size, 512)))
-        if head.starts(with: [0x50, 0x4B, 0x03, 0x04]) || head.starts(with: [0x50, 0x4B, 0x05, 0x06]) { return .zip }
+        if head.starts(with: [0x50, 0x4B, 0x03, 0x04]) || head.starts(with: [0x50, 0x4B, 0x05, 0x06])
+            || head.starts(with: [0x50, 0x4B, 0x07, 0x08]) { return .zip }  // 07 08: first part of a split ZIP
         let byName = inferred(fromFileName: url.lastPathComponent)
         switch StreamCompression.detect(head) {
         case .gzip: return byName == .gzip ? .gzip : .tarGzip
@@ -111,7 +112,14 @@ public struct TestReport: Sendable {
     public var bytes: Int64
     public var failures: [SkippedEntry]
     public var elapsed: Double
+    /// SHA-256 (lowercase hex) of each intact file, when requested: entry path → digest.
+    public var digests: [String: String] = [:]
     public var isOK: Bool { failures.isEmpty }
+
+    /// `shasum -a 256` / `sha256sum` format, sorted by path.
+    public var sha256sums: String {
+        digests.sorted { $0.key < $1.key }.map { "\($0.value)  \($0.key)\n" }.joined()
+    }
 }
 
 /// XipperKit entry point. All calls are synchronous and thread-safe: run them off the main thread.
@@ -233,13 +241,16 @@ public enum Xipper {
 
     // MARK: test / list
 
-    public static func test(_ archive: URL, password: String? = nil, workload: Workload = .interactive,
+    /// Verifies every entry without writing anything. With `digests`, also computes the SHA-256
+    /// of each file's content (for a SHA256SUMS manifest) in the same pass.
+    public static func test(_ archive: URL, password: String? = nil, workload: Workload = .interactive, digests: Bool = false,
                             progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> TestReport {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         let tracker = ProgressTracker(totalBytes: 0, totalEntries: 0, handler: progress)
         let path = archive.standardizedFileURL.path
         let failures: [SkippedEntry]
         var entries = 0
+        let sums: DigestCollector? = digests ? DigestCollector() : nil
         if format == .bgzf {
             (_, failures) = try BGZFVerifier.verify(path, workload: workload, tracker: tracker, cancel: cancel)
             entries = 1
@@ -249,13 +260,18 @@ public enum Xipper {
             if password == nil, let enc = zip.records.first(where: { $0.entry.isEncrypted && $0.entry.kind == .file }) {
                 throw XipperError.passwordRequired(entry: enc.entry.path)
             }
-            failures = try ZipExtractor.test(zip, password: password.map(ZipWriter.passwordBytes), workload: workload, tracker: tracker, cancel: cancel)
+            failures = try ZipExtractor.test(zip, password: password.map(ZipWriter.passwordBytes), workload: workload, tracker: tracker,
+                                             digests: sums, cancel: cancel)
         } else {
-            (entries, failures) = try TarExtractor.test(path, workload: workload, tracker: tracker, cancel: cancel)
+            (entries, failures) = try TarExtractor.test(path, workload: workload, tracker: tracker, digests: sums, cancel: cancel)
         }
         tracker.finish()
-        return TestReport(entries: entries,
-                          bytes: tracker.completedBytes, failures: failures, elapsed: tracker.elapsed)
+        var report = TestReport(entries: entries, bytes: tracker.completedBytes, failures: failures, elapsed: tracker.elapsed)
+        if let sums {
+            let damaged = Set(failures.map(\.path))
+            report.digests = sums.all.filter { !damaged.contains($0.key) }
+        }
+        return report
     }
 
     public static func list(_ archive: URL, workload: Workload = .interactive) throws -> [ArchiveEntry] {
