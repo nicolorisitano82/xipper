@@ -221,16 +221,52 @@ Il file termina con un blocco vuoto di 28 byte che segnala la fine (EOF marker):
 Non comprime byte generici: **transcodifica** le letture FASTQ e gli allineamenti SAM/BAM in "record MPEG-G" (`.mgrec`) e li codifica con codec specifici per tipo di dato, cioè CABAC/GABAC e, per la qualità, CALQ con perdita. L'output è `.mgb` (eventualmente in un contenitore Part 1). La modalità con riferimento richiede il FASTA del genoma.
 
 **Stato dell'arte (ottobre 2026):**
-- **Implementazione open source: [Genie](https://github.com/mitogen/genie)** (Leibniz Universität Hannover, licenza BSD-3, C++, basata su SPRING e GABAC). Implementa principalmente la Part 2 e solo un *sottoinsieme* dello standard. Non gestisce alcuni record (per esempio gli half-aligned) e, nei benchmark, gli autori hanno rimosso allineamenti secondari e supplementari e i tag opzionali. In modalità global assembly le letture sono limitate a 511 basi.
+- **Implementazione open source: [Genie](https://github.com/tnt-LUH/genie)** (Leibniz Universität Hannover e UIUC; ex `MueFab/genie`, prima ancora `mitogen/genie`).
+  - Licenza BSD-3, C++17, circa 89.000 righe proprie, basata su SPRING e GABAC.
+  - Articolo: Müntefering et al., *Genie: the first open-source ISO/IEC encoder for genomic data*, Communications Biology 7:553 (9/5/2024).
+  - **Cosa implementa:**
+    - Part 2, con quattro modalità: global assembly (SPRING), low latency, local assembly e con riferimento;
+    - CABAC dello standard e GABAC, più zstd, lzma e bsc che sono fuori standard;
+    - Part 1, file `.mgg` tramite `capsulator`.
+  - **Cosa manca:**
+    - la Part 3, cioè l'API C: le 13 funzioni dell'header restituiscono solo un errore;
+    - la Part 6 esiste solo sul ramo `develop-part6`, con la CI che fallisce (ultimo commit 25/9/2026).
+  - **È un sottoinsieme dello standard:**
+    - mancano gli half-aligned, gli allineamenti secondari e supplementari e i tag opzionali, che nei benchmark sono stati filtrati;
+    - in global assembly le letture sono limitate a 511 basi;
+    - il SAM decompresso non torna nell'ordine originale (issue #11).
+  - **Maturità:**
+    - sul ramo principale l'ultimo commit è del 14/5/2025 e la v2.0 è solo una pre-release;
+    - 50 stelle, issue aperte ferme al 2020–2022;
+    - CI solo su Linux, macOS non testato.
+  - **Integrazione:**
+    - dipende da htslib, zlib, bzip2, liblzma, zstd e libbsc; libbsc va compilata a mano;
+    - su Apple CMake disattiva OpenMP, quindi su macOS gira a un solo thread;
+    - c'è solo un'API C++ dentro la CLI: in pratica si potrebbe solo includere il binario.
 - **Prestazioni riportate:**
   - FASTQ: rapporto mediano sotto 0,15 rispetto a gzip, ma codifica circa 7 volte più lenta di gzip;
-  - dati allineati: leggermente meglio di CRAM, ma molto più lento;
+  - dati allineati: leggermente meglio di CRAM, ma 3–4 volte più lento di DeeZ; oltre l'80% del tempo va in CABAC, che lavora bit per bit;
   - in entrambi i casi Genozip fa meglio;
   - un articolo del 2026 stima circa 4,3× di compressione in più rispetto ai compressori generici e circa 5× di prestazioni in meno.
 - **Brevetti e licenze: è il punto critico.**
   - Philips nel 2021 ha concesso a **GenomSys una licenza esclusiva** sui propri brevetti MPEG-G.
-  - Gli autori di Genie dichiarano di essere inventori di brevetti (EP3311318B1, EP3652862B1, US10938415B2, CN110915140B) implementati in parte nel software. La licenza di Genie dice testualmente che **non concede diritti sui brevetti**.
-  - Non abbiamo trovato termini pubblici di licenza: né patent pool, né FRAND, né royalty.
+  - GenomSys ha una famiglia di circa 12 domande PCT del 2016, tra cui:
+    - EP3526711B1, concesso nel 2023, scadenza attesa nel 2036;
+    - US11404143 (indicizzazione), US11386979 (archiviazione e accesso), US11763918 (unità di accesso).
+  - **Novità (analisi del 21/10/2026):** secondo Google Patents, US11404143 e US11386979 risultano **assegnati da GenomSys a Philips** (novembre 2025). Non ci sono comunicati: da verificare.
+  - Gli autori di Genie (Voges, Ostermann) dichiarano nei "competing interests" dell'articolo di essere inventori di brevetti (EP3311318B1, EP3652862B1, US10938415B2, CN110915140B) implementati in parte nel software.
+    - Il file `LICENSE` di Genie si apre con un preambolo: il software "may be subject to other third party and contributor rights, including patent rights, and no such rights are granted under this license".
+    - Usare o ridistribuire Genie copre quindi solo il diritto d'autore.
+  - Non esistono patent pool, FRAND né royalty pubblici.
+    - La FAQ ufficiale di MPEG-G dice: "there is currently no royalty rate in place".
+    - Non c'è nessuna esenzione per l'open source.
+    - Una licenza gratuita di GenomSys per la ricerca compariva solo in estratti di ricerca, non verificata; in ogni caso riguarda solo i brevetti GenomSys.
+  - Non risultano cause né opposizioni all'EPO. J. Bonfield (CRAM/htslib) contesta i brevetti per anteriorità (samcomp, Crumble, CRAM).
+  - **Rischio per Xipper (deduzione, non parere legale):**
+    - un encoder è più esposto, perché le rivendicazioni riguardano la rappresentazione e la codifica;
+    - un decoder lo è meno, ma non è al sicuro: ci sono rivendicazioni su accesso e indicizzazione;
+    - l'Europa non è un riparo: l'EPO concede queste invenzioni implementate al calcolatore e il Tribunale unificato dei brevetti, dal 2023, le fa valere in molti Stati insieme;
+    - l'esposizione dura fino al 2036–2038.
   - Il testo dello standard è a pagamento (ISO).
   - Parte della comunità bioinformatica è critica, e preferisce gli standard GA4GH (CRAM, VCF).
 - **Diffusione:** limitata. Ci sono attività commerciali di GenomSys, ma nei risultati delle ricerche nessuna delle grandi piattaforme genomiche annuncia supporto nel 2025–2026.
@@ -244,12 +280,17 @@ Non comprime byte generici: **transcodifica** le letture FASTQ e gli allineament
 
 | Passo | Contenuto | Condizione |
 |---|---|---|
-| **G0. Verifica legale** | Contatto con GenomSys e con i titolari dei brevetti (Philips, LUH) per i termini di licenza; acquisto delle parti 1–3 della ISO/IEC 23092 | **prima di scrivere codice MPEG-G** |
+| **G0. Verifica legale** | Contatto con GenomSys e con i titolari dei brevetti (Philips, ora anche per parte della famiglia GenomSys negli USA, e LUH) per una licenza scritta; parere di un avvocato brevettuale; acquisto delle parti 1–3 della ISO/IEC 23092 | **prima di scrivere codice MPEG-G** |
 | **G1. Riconoscimento** | Riconoscere i file `.mgb` e i contenitori MPEG-G, con icona, Quick Look delle informazioni di base (dimensione e, se il contenitore lo espone, numero di record e riferimento) e nessuna decodifica | solo parsing dell'header, rischio basso; da confermare con G0 |
 | **G2. Decodifica** | `.mgb` → FASTQ/SAM (con BGZF/BAM in uscita), un modulo basato su Genie vendorizzato, con un report delle eventuali perdite | licenza ottenuta |
 | **G3. Codifica** | FASTQ/BAM → `.mgb` come "Esporta in MPEG-G", con scelta della modalità (global assembly, low latency, con riferimento) e avviso sulla qualità con perdita | licenza ottenuta, domanda reale dagli utenti |
 
-> Nota: per la compressione specifica di dati genomici, le alternative aperte e molto più diffuse sono **CRAM** (GA4GH, implementazione htslib con licenza MIT/BSD) per gli allineamenti e BGZF per VCF/BED/FASTQ. Non sono state richieste qui, ma restano un'opzione da valutare se G0 desse esito negativo.
+> **Opzione preferita: CRAM.** Per la compressione specifica di dati genomici l'alternativa aperta e molto più diffusa è **CRAM 3.1** (GA4GH, implementazione htslib con licenza MIT/BSD), insieme a BGZF per VCF/BED/FASTQ, che Xipper gestisce già.
+> - Per gli allineamenti la compressione è più o meno pari a quella di Genie con riferimento.
+> - È molto più veloce e senza nodi brevettuali noti.
+> - Xipper ne verifica già la struttura (fase 1.7).
+>
+> Analisi del 21/10/2026: finché G0 non dà esito positivo, per MPEG-G si fa al massimo il passo G1 (riconoscimento), e la scrittura e lettura di CRAM diventa la candidata per la genomica compressa nella v2.
 
 ### 4.6 Standard GA4GH (analisi del 21/10/2026)
 

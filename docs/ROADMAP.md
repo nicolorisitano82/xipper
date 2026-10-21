@@ -97,7 +97,8 @@ Serve una specifica pubblica del formato.
 ### 8. Genomica
 
 - tabix per formati aggiuntivi;
-- MPEG-G solo dopo la verifica legale di brevetti e licenze (G0 in STUDIO).
+- **CRAM 3.1** in lettura e scrittura (GA4GH, nessun nodo brevettuale noto): è l'opzione preferita per la genomica compressa;
+- MPEG-G: al massimo il riconoscimento dei file `.mgb`/`.mgg`. Decodifica e codifica solo dopo la verifica legale (G0 in STUDIO §4.5, analisi del 21/10/2026).
 
 ---
 
