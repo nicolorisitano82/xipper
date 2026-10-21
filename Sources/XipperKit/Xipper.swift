@@ -85,6 +85,8 @@ public struct CreateOptions: Sendable {
     public var password: String?
     public var zipMethod: ZipMethod = .deflate
     public var storeAlreadyCompressed = true
+    /// tar formats: keep macOS extended attributes (Finder tags, resource forks…) as pax `SCHILY.xattr.*`.
+    public var storeExtendedAttributes = true
     public var forceZip64 = false
     public var scan = ScanOptions()
     public var workload: Workload = .interactive
@@ -150,7 +152,8 @@ public enum Xipper {
             return try ZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd:
             return try TarWriter.write(items: items, to: path, compression: options.format.compression, level: level,
-                                       workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
+                                       workload: options.workload, overwrite: options.overwrite,
+                                       extendedAttributes: options.storeExtendedAttributes, progress: progress, cancel: cancel)
         case .gzip, .bgzf, .bzip2, .xz, .zstd:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
             var compression = options.format.compression

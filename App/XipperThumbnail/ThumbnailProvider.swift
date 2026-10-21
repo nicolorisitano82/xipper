@@ -9,7 +9,7 @@ final class ThumbnailProvider: QLThumbnailProvider {
         let url = request.fileURL
         let format = (try? ArchiveFormat.detect(url)) ?? nil
         var count: Int?
-        if format == .zip { count = (try? Xipper.list(url))?.filter { $0.kind == .file }.count }
+        if format == .zip { count = (try? Xipper.list(url))?.filter { $0.kind == .file && !$0.isAppleDoubleMetadata }.count }
         let label = Self.label(format, url)
         let size = request.maximumSize
         let side = min(size.width, size.height)

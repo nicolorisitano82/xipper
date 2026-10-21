@@ -1,0 +1,90 @@
+import Foundation
+import Testing
+@testable import XipperKit
+
+/// Mutation fuzzing of every reader (STUDIO.md §7.6): valid archives get random byte flips,
+/// truncations and splices, then go through detect, list, test and extract. Any outcome is
+/// fine except a crash, a hang, or a write outside the destination.
+/// Deterministic (seeded); XIPPER_FUZZ_ITERATIONS raises the count for long runs.
+@Suite("Fuzzing", .serialized)
+struct FuzzTests {
+    struct SplitMix: RandomNumberGenerator {
+        var state: UInt64
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    static var iterations: Int { Int(ProcessInfo.processInfo.environment["XIPPER_FUZZ_ITERATIONS"] ?? "") ?? 60 }
+
+    func mutate(_ input: [UInt8], _ rng: inout SplitMix) -> [UInt8] {
+        var b = input
+        switch Int.random(in: 0..<5, using: &rng) {
+        case 0:  // flip a few bytes
+            for _ in 0..<Int.random(in: 1...8, using: &rng) where !b.isEmpty {
+                b[Int.random(in: 0..<b.count, using: &rng)] ^= UInt8.random(in: 1...255, using: &rng)
+            }
+        case 1:  // truncate
+            b = Array(b.prefix(Int.random(in: 0..<max(1, b.count), using: &rng)))
+        case 2:  // overwrite a run with 0xFF / 0x00 (sizes and counts become extreme)
+            if b.count > 8 {
+                let at = Int.random(in: 0..<(b.count - 8), using: &rng)
+                let v: UInt8 = Bool.random(using: &rng) ? 0xFF : 0x00
+                for i in at..<(at + Int.random(in: 1...8, using: &rng)) { b[i] = v }
+            }
+        case 3:  // duplicate a slice (repeated headers, overlapping data)
+            if b.count > 16 {
+                let from = Int.random(in: 0..<(b.count - 16), using: &rng)
+                let len = Int.random(in: 1...min(512, b.count - from), using: &rng)
+                b.insert(contentsOf: b[from..<(from + len)], at: Int.random(in: 0...b.count, using: &rng))
+            }
+        default:  // delete a slice
+            if b.count > 16 {
+                let from = Int.random(in: 0..<(b.count - 16), using: &rng)
+                b.removeSubrange(from..<min(b.count, from + Int.random(in: 1...256, using: &rng)))
+            }
+        }
+        return b
+    }
+
+    @Test(arguments: [ArchiveFormat.zip, .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .gzip, .bgzf, .xz, .zstd])
+    func mutatedArchivesNeverCrashOrEscape(format: ArchiveFormat) throws {
+        let t = TempDir()
+        t.write("src/a.txt", String(repeating: "Xipper fuzz ", count: 300))
+        t.write("src/sub/b.bin", sampleData(20 << 10, seed: 5))
+        t.symlink("src/link", to: "a.txt")
+        var o = CreateOptions()
+        o.format = format
+        let source = format.isSingleFile ? t.url("src/a.txt") : t.url("src")
+        let original = t.url("orig." + format.fileExtension)
+        try Xipper.create(from: [source], to: original, options: o)
+        let bytes = try [UInt8](Data(contentsOf: original))
+
+        var rng = SplitMix(state: UInt64(abs(format.rawValue.hashValue % 1_000_003)) &+ 17)
+        var limits = ExtractionLimits()
+        limits.maxTotalBytes = 64 << 20  // a mutated size field must not fill the disk
+        for i in 0..<Self.iterations {
+            let sample = t.url("m\(i)." + format.fileExtension)
+            try Data(mutate(bytes, &rng)).write(to: sample)
+            _ = try? ArchiveFormat.detect(sample)
+            _ = try? Xipper.list(sample)
+            _ = try? Xipper.test(sample, workload: .threads(2))
+            let dest = "out\(i)"
+            t.mkdir(dest)
+            var options = ExtractOptions()
+            options.limits = limits
+            options.workload = .threads(2)
+            _ = try? Xipper.extract(sample, to: t.url(dest), mode: .into, options: options)
+            // Nothing may appear next to the destination folders (traversal through a mutated name).
+            let stray = try FileManager.default.contentsOfDirectory(atPath: t.path)
+                .filter { !$0.hasPrefix("out") && !$0.hasPrefix("m") && $0 != "src" && !$0.hasPrefix("orig") }
+            #expect(stray.isEmpty, "iteration \(i) wrote \(stray)")
+            try? FileManager.default.removeItem(at: sample)
+            try? FileManager.default.removeItem(at: t.url(dest))
+        }
+    }
+}

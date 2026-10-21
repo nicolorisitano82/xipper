@@ -84,6 +84,11 @@ public struct ExtractOptions: Sendable {
     public var conflictHandler: ConflictHandler?
     /// When replacing, move the existing file to the Trash instead of overwriting it.
     public var trashReplacedFiles = false
+    /// Restore macOS extended attributes stored in the archive (Finder tags, resource forks…).
+    public var restoreExtendedAttributes = true
+    /// Merge AppleDouble files (`._name`, `__MACOSX/`) into the files they describe instead of
+    /// extracting them, as Archive Utility does.
+    public var mergeAppleDouble = true
     public var workload: Workload = .interactive
     public init() {}
 }
@@ -186,6 +191,42 @@ final class ExtractionContext: @unchecked Sendable {
     private let skippedList = Mutex<[SkippedEntry]>([])
     private let deferredLinks = Mutex<[(path: [String], target: String, hard: Bool, mtime: Date?)]>([])
     private let deferredDirs = Mutex<[String: (perm: UInt16?, mtime: Date?)]>([:])
+    private let appleDoubles = Mutex<[(target: String, data: [UInt8])]>([])
+
+    /// `__MACOSX` folders of Finder-made ZIPs: never created when AppleDouble files are merged.
+    func isAppleDoubleFolder(_ path: String) -> Bool {
+        options.mergeAppleDouble && (path == "__MACOSX" || path.hasPrefix("__MACOSX/"))
+    }
+
+    /// The file an AppleDouble entry describes ("a/._b" and "__MACOSX/a/._b" → "a/b"), or nil.
+    func appleDoubleTarget(_ path: String, size: Int64) -> String? {
+        guard options.mergeAppleDouble, size <= AppleDouble.maxSize else { return nil }
+        var comps = path.split(separator: "/").map(String.init)
+        if comps.first == "__MACOSX" { comps.removeFirst() }
+        guard let last = comps.last, last.hasPrefix("._"), last.count > 2 else { return nil }
+        comps[comps.count - 1] = String(last.dropFirst(2))
+        return comps.joined(separator: "/")
+    }
+
+    func stashAppleDouble(target: String, data: [UInt8]) {
+        appleDoubles.withLock { $0.append((target, data)) }
+    }
+
+    /// Applies the stashed AppleDouble attributes to the extracted files and folders.
+    private func mergeAppleDoubles() {
+        guard options.restoreExtendedAttributes else { return }
+        for (target, data) in appleDoubles.withLock({ $0 }) {
+            let attrs = AppleDouble.attributes(data)
+            guard !attrs.isEmpty, let full = sanitize(target) else { continue }
+            let comps = layout(full)
+            guard let dirFD = try? openDirectory(comps.dropLast(), entry: target) else { continue }
+            defer { close(dirFD) }
+            let fd = openat(dirFD, comps.last!, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { continue }  // orphan "._" file: dropped, as Archive Utility does
+            ExtendedAttributes.apply(attrs, fd: fd)
+            close(fd)
+        }
+    }
 
     init(root: String, archivePath: String, options: ExtractOptions) throws {
         rootPath = root
@@ -328,6 +369,14 @@ final class ExtractionContext: @unchecked Sendable {
         }
     }
 
+    /// Extended attributes of a folder created by `makeDirectory` (applied by path, without following links).
+    func setAttributes(_ xattrs: [(name: String, value: [UInt8])], onDirectory comps: [String]) {
+        guard options.restoreExtendedAttributes, !xattrs.isEmpty, !comps.isEmpty,
+              let fd = try? openDirectory(comps[...], entry: comps.joined(separator: "/")) else { return }
+        defer { close(fd) }
+        ExtendedAttributes.apply(xattrs, fd: fd)
+    }
+
     func makeDirectory(_ comps: [String], permissions: UInt16?, modified: Date?) throws {
         let fd = try openDirectory(comps[...], entry: comps.joined(separator: "/"))
         close(fd)
@@ -344,7 +393,7 @@ final class ExtractionContext: @unchecked Sendable {
     /// staging folder in smart mode, and a failed entry is removed. Only when a file of that name
     /// already exists is a temporary file written and moved according to the overwrite policy.
     func writeFile(_ comps: [String], permissions: UInt16?, modified: Date?, declaredSize: Int64? = nil,
-                   produce: (ByteSink) throws -> Void) throws {
+                   xattrs: [(name: String, value: [UInt8])] = [], produce: (ByteSink) throws -> Void) throws {
         let entry = comps.joined(separator: "/")
         let dirFD = try openDirectory(comps.dropLast(), entry: entry)
         defer { close(dirFD) }
@@ -375,6 +424,7 @@ final class ExtractionContext: @unchecked Sendable {
             }
             try w.flush()
             if mode & ~Self.processUmask != mode { fchmod(fd, mode) }
+            if options.restoreExtendedAttributes && !xattrs.isEmpty { ExtendedAttributes.apply(xattrs, fd: fd) }
             if let modified { var ts = Self.timespecs(modified); futimens(fd, &ts) }
             if let q = quarantine { _ = q.withUnsafeBytes { fsetxattr(fd, "com.apple.quarantine", $0.baseAddress, $0.count, 0, 0) } }
             close(fd)
@@ -477,6 +527,7 @@ final class ExtractionContext: @unchecked Sendable {
 
     /// Creates deferred links, then applies directory permissions/times deepest-first.
     func finalize() throws {
+        mergeAppleDoubles()
         // Hard links first: their targets must not be resolved through symlinks created here.
         let links = deferredLinks.withLock { $0 }.enumerated().sorted { ($0.element.hard ? 0 : 1, $0.offset) < ($1.element.hard ? 0 : 1, $1.offset) }.map(\.element)
         for l in links {

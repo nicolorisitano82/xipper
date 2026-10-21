@@ -6,6 +6,7 @@ struct XipperApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var jobs = JobCenter.shared
     @State private var appState = AppState.shared
+    @AppStorage(PrefKey.menuBarExtra) private var showMenuBar = false
 
     init() { Preferences.register() }
 
@@ -30,6 +31,12 @@ struct XipperApp: App {
         Settings {
             SettingsView()
         }
+
+        MenuBarExtra("Xipper", systemImage: "archivebox", isInserted: $showMenuBar) {
+            MenuBarJobsView()
+                .environment(jobs)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 

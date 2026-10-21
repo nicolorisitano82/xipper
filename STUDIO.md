@@ -496,7 +496,12 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta2 pubblicata il 21/10/2026; restano Developer ID e notarizzazione, Apple Archive / lz4 / brotli in lettura (dopo il merge del 7z), varianti dell'icona → [FASE2.md](FASE2.md) |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
-| **4. v2** | Montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
+| **4. v2** | ⭐ **Ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi: decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, con percorso portabile di riserva, benchmark e test di equivalenza (§5.3). Poi montaggio con FSKit, PAR2, modifica in place, cartelle sorvegliate, **RAR in sola lettura (clean-room, §4.2)**, ISO | aperta |
+
+---
+
+### Nuovo formato (studio del 21/10/2026)
+Un formato di archivio proprio, che unisce blocchi indipendenti con indice in coda, deduplicazione, ordinamento per similarità, dizionari addestrati e cifratura autenticata di dati e nomi: [docs/reports/Nuovo formato di compressione Xipper.md](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md). È un lavoro successivo alla v1; ZIP, 7z e tar restano i formati di scambio.
 
 ---
 

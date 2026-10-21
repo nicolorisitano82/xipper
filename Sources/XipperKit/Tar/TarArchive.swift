@@ -8,7 +8,7 @@ enum TarWriter {
     /// Writes a (compressed) tar. Compression runs in parallel inside the encoder:
     /// zstd and xz with their own worker threads, gzip/bzip2 with chunked parallel encoders.
     static func write(items: [ArchiveItem], to path: String, compression: StreamCompression, level: Int,
-                      workload: Workload, overwrite: Bool, progress: ProgressHandler?,
+                      workload: Workload, overwrite: Bool, extendedAttributes: Bool = true, progress: ProgressHandler?,
                       cancel: CancellationToken?) throws -> WriteReport {
         let tracker = ProgressTracker(totalBytes: items.reduce(0) { $0 + $1.size }, totalEntries: items.count, handler: progress)
         let out = try OutputFile(path: path)
@@ -30,7 +30,7 @@ enum TarWriter {
                 if reader.size != size {
                     throw XipperError.io("read (file changed while archiving)", path: item.sourcePath, errno: EAGAIN)
                 }
-                try emit(Tar.headerBlocks(for: item))
+                try emit(Tar.headerBlocks(for: item, xattrs: extendedAttributes ? ExtendedAttributes.read(item.sourcePath) : []))
                 var off: Int64 = 0
                 while off < size {
                     let n = Int(min(Int64(4 << 20), size - off))
@@ -43,7 +43,8 @@ enum TarWriter {
                 }
                 try emit([UInt8](repeating: 0, count: Tar.padding(size)))
             } else {
-                try emit(Tar.headerBlocks(for: item))
+                let isLink = if case .symlink = item.kind { true } else { false }
+                try emit(Tar.headerBlocks(for: item, xattrs: extendedAttributes && !isLink ? ExtendedAttributes.read(item.sourcePath) : []))
             }
             tracker.add(bytes: 0, entries: 1)
         }
@@ -115,6 +116,7 @@ final class TarReader {
     func next() throws -> Entry? {
         try skipData()
         var pax: [String: String] = [:]
+        var paxRaw: [String: [UInt8]] = [:]
         var longName: String?
         var longLink: String?
         while true {
@@ -130,7 +132,10 @@ final class TarReader {
                 if h.size > 0 { _ = try data.withUnsafeMutableBytes { try source.readExactly(into: $0.baseAddress!, count: Int(h.size)) } }
                 try source.skip(Int64(Tar.padding(h.size)))
                 switch h.type {
-                case Tar.TypeFlag.paxLocal.rawValue: pax.merge(Tar.parsePax(data)) { $1 }
+                case Tar.TypeFlag.paxLocal.rawValue:
+                    let raw = Tar.parsePaxRaw(data)
+                    paxRaw.merge(raw) { $1 }
+                    pax.merge(raw.mapValues { String(decoding: $0, as: UTF8.self) }) { $1 }
                 case Tar.TypeFlag.gnuLongName.rawValue: longName = String(decoding: data.prefix { $0 != 0 }, as: UTF8.self)
                 case Tar.TypeFlag.gnuLongLink.rawValue: longLink = String(decoding: data.prefix { $0 != 0 }, as: UTF8.self)
                 default: break  // global pax headers carry nothing Xipper uses
@@ -145,6 +150,16 @@ final class TarReader {
             if let m = pax["mtime"], let v = Double(m) { h.mtime = Date(timeIntervalSince1970: v) }
             if let u = pax["uid"], let v = UInt32(u) { h.uid = v }
             if let g = pax["gid"], let v = UInt32(g) { h.gid = v }
+            for (key, value) in paxRaw.sorted(by: { $0.key < $1.key }) {
+                if key.hasPrefix("SCHILY.xattr.") {
+                    h.xattrs.append((String(key.dropFirst("SCHILY.xattr.".count)), value))
+                } else if key.hasPrefix("LIBARCHIVE.xattr."),
+                          let name = String(key.dropFirst("LIBARCHIVE.xattr.".count)).removingPercentEncoding,
+                          case let text = String(decoding: value, as: UTF8.self),
+                          let decoded = Data(base64Encoded: text + String(repeating: "=", count: (4 - text.count % 4) % 4)) {
+                    if !h.xattrs.contains(where: { $0.name == name }) { h.xattrs.append((name, [UInt8](decoded))) }
+                }
+            }
             if h.size < 0 { throw XipperError.corrupt("negative tar entry size") }
 
             if h.path.hasSuffix("/") && h.type == Tar.TypeFlag.file.rawValue { h.type = Tar.TypeFlag.directory.rawValue }
@@ -276,12 +291,20 @@ enum TarExtractor {
                !(sel.contains(e.entry.path) || sel.contains { e.entry.path.hasPrefix($0 + "/") }) {
                 continue
             }
+            if e.entry.kind == .file, let target = ctx.appleDoubleTarget(e.entry.path, size: e.header.size) {
+                var data: [UInt8] = []
+                try reader.readData(cancel: cancel) { data.append(contentsOf: $0) }
+                reportCompressed()
+                ctx.stashAppleDouble(target: target, data: data)
+                continue
+            }
             guard let full = ctx.sanitize(e.entry.path) else { continue }
             if ctx.options.flatten && e.header.type == Tar.TypeFlag.directory.rawValue { continue }
             let comps = ctx.layout(full)
             switch e.header.type {
             case Tar.TypeFlag.directory.rawValue:
                 do { try ctx.makeDirectory(comps, permissions: e.entry.permissions, modified: e.entry.modified) } catch let XipperError.unsafeEntry(p, r) { ctx.skip(p, r, .throughSymlink) }
+                ctx.setAttributes(e.header.xattrs, onDirectory: comps)
             case Tar.TypeFlag.symlink.rawValue:
                 ctx.addSymlink(comps, target: e.header.linkTarget, modified: e.entry.modified)
             case Tar.TypeFlag.hardlink.rawValue:
@@ -295,11 +318,12 @@ enum TarExtractor {
                     try reader.readData(cancel: cancel) { data.append(contentsOf: $0) }
                     reportCompressed()
                     let entry = e.entry
+                    let attrs = e.header.xattrs
                     let content = data
                     try writes.submit {
                         do {
                             try ctx.writeFile(comps, permissions: entry.permissions, modified: entry.modified,
-                                              declaredSize: entry.uncompressedSize) { sink in
+                                              declaredSize: entry.uncompressedSize, xattrs: attrs) { sink in
                                 try content.withUnsafeBytes { try sink($0) }
                             }
                         } catch let XipperError.unsafeEntry(p, r) {
@@ -309,7 +333,7 @@ enum TarExtractor {
                 } else {
                     do {
                         try ctx.writeFile(comps, permissions: e.entry.permissions, modified: e.entry.modified,
-                                          declaredSize: e.entry.uncompressedSize) { sink in
+                                          declaredSize: e.entry.uncompressedSize, xattrs: e.header.xattrs) { sink in
                             try reader.readData(cancel: cancel) { chunk in
                                 try sink(chunk)
                                 reportCompressed()

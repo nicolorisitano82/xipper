@@ -20,6 +20,7 @@ enum PrefKey {
     static let vaultRequiresAuth = "vaultRequiresTouchID"
     static let onboardingDone = "onboardingDone"
     static let updatesAutomatic = "updatesAutomatic"
+    static let menuBarExtra = "showMenuBarExtra"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
 }

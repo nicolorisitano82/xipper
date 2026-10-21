@@ -53,7 +53,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 
 ## Limiti noti della beta2
 - **7z e RAR non sono supportati** (previsti più avanti). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
-- Gli **attributi estesi del Mac** (tag del Finder, metadati) non vengono ancora salvati negli archivi; permessi e date sì.
+- Gli **attributi estesi del Mac** (tag del Finder, resource fork) vengono salvati nei formati tar e riapplicati in estrazione, anche da ZIP del Finder e tar di macOS (`__MACOSX`, `._`). Negli ZIP creati da Xipper non vengono ancora salvati.
 - **Solo italiano.**
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
 - Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.

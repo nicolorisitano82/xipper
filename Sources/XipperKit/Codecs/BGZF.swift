@@ -87,6 +87,7 @@ enum BGZF {
             throw XipperError.corrupt("invalid BGZF block header")
         }
         let xlen = Int(block[10]) | Int(block[11]) << 8
+        guard 12 + xlen <= size - footerSize else { throw XipperError.corrupt("invalid BGZF extra field length") }
         let cdata = UnsafeRawBufferPointer(rebasing: block[(12 + xlen)..<(size - footerSize)])
         let crc = block.loadUnaligned(fromByteOffset: size - 8, as: UInt32.self).littleEndian
         let isize = Int(block.loadUnaligned(fromByteOffset: size - 4, as: UInt32.self).littleEndian)

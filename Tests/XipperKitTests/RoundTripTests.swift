@@ -185,3 +185,86 @@ struct CodecEdgeTests {
         #expect(a == b)
     }
 }
+
+@Suite("macOS extended attributes in tar")
+struct ExtendedAttributeTests {
+    @Test(arguments: [ArchiveFormat.tar, .tarZstd])
+    func finderTagsAndBinaryAttributesSurvive(format: ArchiveFormat) throws {
+        let t = TempDir()
+        t.write("src/doc.txt", "tagged")
+        t.mkdir("src/folder")
+        let tags = Array("bplist00\u{A1}\u{01}_\u{10}\u{05}Rosso\n6\u{08}\u{0A}".utf8)
+        let binary: [UInt8] = (0..<300).map { UInt8($0 % 256) }  // NUL, newline and '=' bytes included
+        for (path, name, value) in [(t.path + "/src/doc.txt", "com.apple.metadata:_kMDItemUserTags", tags),
+                                    (t.path + "/src/doc.txt", "app.xipper.test", binary),
+                                    (t.path + "/src/folder", "app.xipper.dir", Array("dir".utf8)),
+                                    (t.path + "/src/doc.txt", "com.apple.quarantine", Array("0081;0;Test;".utf8))] {
+            #expect(value.withUnsafeBytes { setxattr(path, name, $0.baseAddress, value.count, 0, 0) } == 0)
+        }
+        var o = CreateOptions()
+        o.format = format
+        let archive = t.url("a." + format.fileExtension)
+        try Xipper.create(from: [t.url("src")], to: archive, options: o)
+        t.mkdir("out")
+        var x = ExtractOptions()
+        x.propagateQuarantine = false
+        try Xipper.extract(archive, to: t.url("out"), mode: .into, options: x)
+        let file = t.path + "/out/src/doc.txt"
+        #expect(ExtendedAttributes.read(file).first { $0.name == "com.apple.metadata:_kMDItemUserTags" }?.value == tags)
+        #expect(ExtendedAttributes.read(file).first { $0.name == "app.xipper.test" }?.value == binary)
+        #expect(ExtendedAttributes.read(t.path + "/out/src/folder").first { $0.name == "app.xipper.dir" } != nil)
+        // Quarantine never travels inside the archive.
+        #expect(getxattr(file, "com.apple.quarantine", nil, 0, 0, 0) < 0)
+    }
+
+    @Test(.enabled(if: toolExists("/usr/bin/tar")))
+    func bsdtarSeesOurAttributes() throws {
+        let t = TempDir()
+        t.write("src/doc.txt", "x")
+        let v = Array("hello".utf8)
+        _ = v.withUnsafeBytes { setxattr(t.path + "/src/doc.txt", "app.xipper.bsd", $0.baseAddress, v.count, 0, 0) }
+        var o = CreateOptions()
+        o.format = .tar
+        try Xipper.create(from: [t.url("src")], to: t.url("a.tar"), options: o)
+        t.mkdir("bsd")
+        // macOS tar restores pax attributes with --xattrs (by default it only uses AppleDouble ._ files).
+        #expect(run("/usr/bin/tar", ["--xattrs", "-xf", t.path + "/a.tar", "-C", t.path + "/bsd"]).status == 0)
+        #expect(ExtendedAttributes.read(t.path + "/bsd/src/doc.txt").first { $0.name == "app.xipper.bsd" }?.value == v)
+    }
+}
+
+@Suite("AppleDouble from Finder and macOS tar")
+struct AppleDoubleTests {
+    func taggedFolder(_ t: TempDir) -> [UInt8] {
+        t.write("src/doc.txt", "tagged")
+        let v = Array("Rosso\n6".utf8)
+        _ = v.withUnsafeBytes { setxattr(t.path + "/src/doc.txt", "app.xipper.ad", $0.baseAddress, v.count, 0, 0) }
+        return v
+    }
+
+    /// `ditto -c -k --sequesterRsrc` writes ZIPs like the Finder's "Compress": metadata in __MACOSX/…/._name.
+    @Test(.enabled(if: toolExists("/usr/bin/ditto")))
+    func finderZipMetadataIsMergedNotExtracted() throws {
+        let t = TempDir()
+        let v = taggedFolder(t)
+        #expect(run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", t.path + "/src", t.path + "/f.zip"]).status == 0)
+        #expect(try Xipper.list(t.url("f.zip")).contains { $0.path.hasPrefix("__MACOSX") })
+        t.mkdir("out")
+        try Xipper.extract(t.url("f.zip"), to: t.url("out"), mode: .into)
+        #expect(!FileManager.default.fileExists(atPath: t.path + "/out/__MACOSX"))
+        #expect(ExtendedAttributes.read(t.path + "/out/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
+    }
+
+    /// macOS tar (bsdtar with copyfile) stores attributes as "._name" entries next to the file.
+    @Test(.enabled(if: toolExists("/usr/bin/tar")))
+    func macTarDotUnderscoreIsMerged() throws {
+        let t = TempDir()
+        let v = taggedFolder(t)
+        #expect(run("/usr/bin/tar", ["-cf", t.path + "/m.tar", "src"], cwd: t.path).status == 0)
+        #expect(try Xipper.list(t.url("m.tar")).contains { $0.path.hasSuffix("._doc.txt") })
+        t.mkdir("out")
+        try Xipper.extract(t.url("m.tar"), to: t.url("out"), mode: .into)
+        #expect(!FileManager.default.fileExists(atPath: t.path + "/out/src/._doc.txt"))
+        #expect(ExtendedAttributes.read(t.path + "/out/src/doc.txt").first { $0.name == "app.xipper.ad" }?.value == v)
+    }
+}

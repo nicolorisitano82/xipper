@@ -126,6 +126,7 @@ private struct GenomicsSettings: View {
 private struct IntegrationSettings: View {
     @AppStorage(PrefKey.mcpFolders) private var foldersRaw = ""
     @AppStorage(PrefKey.mcpReadOnly) private var readOnly = false
+    @AppStorage(PrefKey.menuBarExtra) private var menuBar = false
     @State private var copied = false
 
     private var folders: [String] { foldersRaw.split(separator: "\n").map(String.init) }
@@ -133,6 +134,11 @@ private struct IntegrationSettings: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Icona nella barra dei menu", isOn: $menuBar)
+                Text("Mostra i lavori in corso e apre Xipper dalla barra dei menu.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             Section {
                 ForEach(folders, id: \.self) { f in
                     HStack {

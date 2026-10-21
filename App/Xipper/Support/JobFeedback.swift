@@ -29,6 +29,13 @@ enum JobFeedback {
 
     /// Asks once, quietly: provisional notifications land in Notification Center without a prompt.
     static func prepare() {
+        let reveal = UNNotificationAction(identifier: "reveal", title: String(localized: "Mostra nel Finder"))
+        let verify = UNNotificationAction(identifier: "verify", title: String(localized: "Verifica"))
+        let report = UNNotificationAction(identifier: "report", title: String(localized: "Mostra rapporto"), options: [.foreground])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: "created", actions: [reveal, verify], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "verifyFailed", actions: [report], intentIdentifiers: []),
+        ])
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .provisional]) { _, _ in }
     }
 
@@ -55,7 +62,13 @@ enum JobFeedback {
         case .running, .cancelled:
             return
         }
-        if let output = job.output { content.userInfo = ["reveal": output.path] }
+        if let output = job.output { content.userInfo["reveal"] = output.path }
+        if case .create = job.kind, case .finished = job.state { content.categoryIdentifier = "created" }
+        if case let .test(archive, _) = job.kind, job.verifyOK == false {
+            content.categoryIdentifier = "verifyFailed"
+            content.userInfo["archive"] = archive.path
+            content.userInfo["job"] = job.id.uuidString
+        }
         let request = UNNotificationRequest(identifier: job.id.uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
@@ -83,7 +96,24 @@ private final class DockProgressView: NSView {
 /// Clicking a notification shows the result in the Finder.
 final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let path = response.notification.request.content.userInfo["reveal"] as? String else { return }
-        await MainActor.run { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+        let raw = response.notification.request.content.userInfo
+        // Only the strings cross to the main actor.
+        let info: [String: String] = Dictionary(uniqueKeysWithValues: raw.compactMap { k, v in
+            (k as? String).flatMap { key in (v as? String).map { (key, $0) } }
+        })
+        let action = response.actionIdentifier
+        await MainActor.run {
+            if action == "verify", let path = info["reveal"] {
+                JobCenter.shared.start(.test(archive: URL(fileURLWithPath: path), password: nil))
+            } else if let archive = info["archive"] {
+                // "Mostra rapporto" (or a click): the damaged entries in the archive window (5.2).
+                let url = URL(fileURLWithPath: archive)
+                if let id = info["job"].flatMap(UUID.init(uuidString:)) { AppState.shared.reportRequests[url] = id }
+                AppState.shared.open([url])
+                NSApp.activate()
+            } else if let path = info["reveal"] {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            }
+        }
     }
 }

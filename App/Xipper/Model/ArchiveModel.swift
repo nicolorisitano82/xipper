@@ -48,7 +48,9 @@ final class ArchiveModel {
         let result = await Task.detached { () -> Result<(ArchiveFormat?, [ArchiveEntry], BGZFInfo?), Error> in
             Result {
                 let f = try ArchiveFormat.detect(url)
-                var entries = try Xipper.list(url)
+                // AppleDouble metadata ("__MACOSX/", "._name") is merged into the files on extraction:
+                // the browser does not show it either.
+                var entries = try Xipper.list(url).filter { !$0.isAppleDoubleMetadata }
                 if f == .bgzf {
                     // Sizes come from the block chain without decompressing.
                     let info = try Xipper.bgzfInfo(url)

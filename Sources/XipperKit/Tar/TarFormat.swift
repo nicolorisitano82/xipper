@@ -21,12 +21,14 @@ enum Tar {
         var gid: UInt32
         var mtime: Date
         var linkTarget: String
+        /// macOS extended attributes from pax `SCHILY.xattr.*` (GNU tar, bsdtar) or `LIBARCHIVE.xattr.*`.
+        var xattrs: [(name: String, value: [UInt8])] = []
     }
 
     // MARK: writing
 
     /// Header blocks for one item: optional pax record + ustar header.
-    static func headerBlocks(for item: ArchiveItem) -> [UInt8] {
+    static func headerBlocks(for item: ArchiveItem, xattrs: [(name: String, value: [UInt8])] = []) -> [UInt8] {
         let isDir = item.kind == .directory
         let name = isDir ? item.name + "/" : item.name
         let type: TypeFlag
@@ -46,9 +48,17 @@ enum Tar {
         if frac != 0 { pax.append(("mtime", String(format: "%.9f", item.modified.timeIntervalSince1970))) }
 
         var out: [UInt8] = []
-        if !pax.isEmpty {
+        if !pax.isEmpty || !xattrs.isEmpty {
             var data: [UInt8] = []
             for (k, v) in pax { data += paxRecord(k, v) }
+            // Both spellings, as bsdtar writes them: macOS tar restores LIBARCHIVE.* by default,
+            // GNU tar reads SCHILY.*.
+            for (k, v) in xattrs {
+                let escaped = k.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: ".-_:"))) ?? k
+                let base64 = Data(v).base64EncodedString().replacingOccurrences(of: "=", with: "")
+                data += paxRecord("LIBARCHIVE.xattr." + escaped, base64)
+                data += paxRecord("SCHILY.xattr." + k, v)
+            }
             out += ustar(name: asciiTruncated("PaxHeader/" + (name as NSString).lastPathComponent, 100), prefix: "",
                          mode: 0o644, uid: 0, gid: 0, size: Int64(data.count), mtime: item.modified,
                          type: TypeFlag.paxLocal.rawValue, link: "")
@@ -87,11 +97,14 @@ enum Tar {
     }
 
     /// "%d key=value\n" where %d counts the whole record including itself.
-    private static func paxRecord(_ key: String, _ value: String) -> [UInt8] {
-        let body = " \(key)=\(value)\n"
-        var len = body.utf8.count + 1
-        while String(len).count + body.utf8.count != len { len = String(len).count + body.utf8.count }
-        return Array((String(len) + body).utf8)
+    private static func paxRecord(_ key: String, _ value: String) -> [UInt8] { paxRecord(key, Array(value.utf8)) }
+
+    /// Values are length-delimited, so binary data (extended attributes) is stored as is.
+    private static func paxRecord(_ key: String, _ value: [UInt8]) -> [UInt8] {
+        let body = Array(" \(key)=".utf8) + value + [0x0A]
+        var len = body.count + 1
+        while String(len).count + body.count != len { len = String(len).count + body.count }
+        return Array(String(len).utf8) + body
     }
 
     private static func ustar(name: String, prefix: String, mode: UInt16, uid: UInt32, gid: UInt32,
@@ -182,7 +195,12 @@ enum Tar {
 
     /// Parses pax "len key=value\n" records.
     static func parsePax(_ data: [UInt8]) -> [String: String] {
-        var out: [String: String] = [:]
+        parsePaxRaw(data).mapValues { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// The same records with raw values (extended attributes are binary).
+    static func parsePaxRaw(_ data: [UInt8]) -> [String: [UInt8]] {
+        var out: [String: [UInt8]] = [:]
         var i = 0
         while i < data.count {
             var j = i
@@ -190,7 +208,7 @@ enum Tar {
             guard j < data.count, let len = Int(String(decoding: data[i..<j], as: UTF8.self)), len > 0, i + len <= data.count else { break }
             let rec = data[(j + 1)..<(i + len - 1)]  // drop trailing "\n"
             if let eq = rec.firstIndex(of: UInt8(ascii: "=")) {
-                out[String(decoding: rec[rec.startIndex..<eq], as: UTF8.self)] = String(decoding: rec[(eq + 1)...], as: UTF8.self)
+                out[String(decoding: rec[rec.startIndex..<eq], as: UTF8.self)] = Array(rec[(eq + 1)...])
             }
             i += len
         }

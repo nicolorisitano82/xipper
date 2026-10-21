@@ -409,6 +409,46 @@
         }
       }
     },
+    "%lld lavori attivi" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld active job"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld active jobs"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lavoro attivo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lavori attivi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld problemi trovati" : {
       "localizations" : {
         "en" : {
@@ -695,6 +735,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open"
+          }
+        }
+      }
+    },
+    "Apri Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Xipper"
           }
         }
       }
@@ -2213,6 +2263,16 @@
         }
       }
     },
+    "Icona nella barra dei menu" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu bar icon"
+          }
+        }
+      }
+    },
     "Il download non è riuscito." : {
       "localizations" : {
         "en" : {
@@ -2289,6 +2349,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set"
+          }
+        }
+      }
+    },
+    "Impostazioni…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings…"
           }
         }
       }
@@ -2743,6 +2813,16 @@
         }
       }
     },
+    "Mostra i lavori in corso e apre Xipper dalla barra dei menu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows running jobs and opens Xipper from the menu bar."
+          }
+        }
+      }
+    },
     "Mostra il risultato nel Finder al termine" : {
       "localizations" : {
         "en" : {
@@ -2769,6 +2849,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show or hide the inspector"
+          }
+        }
+      }
+    },
+    "Mostra rapporto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Report"
           }
         }
       }
@@ -2819,6 +2909,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No file was created."
+          }
+        }
+      }
+    },
+    "Nessun lavoro attivo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No active jobs"
           }
         }
       }

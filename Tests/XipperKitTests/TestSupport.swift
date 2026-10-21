@@ -53,14 +53,20 @@ func run(_ tool: String, _ args: [String], stdin: String? = nil, cwd: String? = 
     let pipe = Pipe()
     p.standardOutput = pipe
     p.standardError = pipe
-    if let stdin {
-        let inPipe = Pipe()
-        p.standardInput = inPipe
-        inPipe.fileHandleForWriting.write(stdin.data(using: .utf8)!)
-        try? inPipe.fileHandleForWriting.close()
-    }
+    let inPipe = stdin.map { _ in Pipe() }
+    if let inPipe { p.standardInput = inPipe }
     try! p.run()
+    // Feed stdin from another thread while this one drains stdout: writing first and reading
+    // afterwards can deadlock when either pipe fills up (it hung the MCP end-to-end test).
+    let writer = DispatchGroup()
+    if let inPipe, let bytes = stdin?.data(using: .utf8) {
+        DispatchQueue.global().async(group: writer) {
+            try? inPipe.fileHandleForWriting.write(contentsOf: bytes)
+            try? inPipe.fileHandleForWriting.close()
+        }
+    }
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    writer.wait()
     p.waitUntilExit()
     return ToolResult(status: p.terminationStatus, output: String(decoding: data, as: UTF8.self))
 }

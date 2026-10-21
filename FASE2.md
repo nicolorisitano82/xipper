@@ -131,3 +131,32 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 | CRC32 hardware (§5.2), nomi CP437 (§4.3) | Già presenti (libdeflate con `PMULL`/`CRC32X`; decodifica CP437). |
 | Apple Archive, lz4, brotli in lettura (§4.2) | **Rimandati** a dopo il merge del 7z, che modifica lo stesso `ArchiveFormat`. |
 | Developer ID e notarizzazione | Dipende dall'iscrizione all'Apple Developer Program. |
+
+## Chiusura della V1: robustezza e metadati del Mac (21/10/2026)
+
+| Voce | Stato |
+|---|---|
+| **Fuzzing (§7.6)** | `FuzzTests`: archivi validi dei 10 formati vengono mutati (byte invertiti, troncamenti, campi a 0xFF/0x00, porzioni duplicate o cancellate) e passano da detect, list, test ed extract con un limite di 64 MB. Si accetta qualsiasi esito tranne crash, blocco o scrittura fuori destinazione. 60 mutazioni per formato nella suite normale; `XIPPER_FUZZ_ITERATIONS=3000` per i giri lunghi. |
+| **Bug trovato dal fuzzing** | BGZF: un `XLEN` alterato più lungo del blocco faceva crollare il programma (`Range requires lowerBound <= upperBound`) in list, test ed extract. Ora è un errore "archivio danneggiato". Il giro lungo (3000 × 10 formati) passa. |
+| **Attributi estesi nei tar (§4.3)** | Tag e informazioni del Finder, resource fork, commenti di Spotlight: scritti come record pax `LIBARCHIVE.xattr.*` (base64) e `SCHILY.xattr.*` (binari), come fa bsdtar, e ripristinati in estrazione (file e cartelle, via descrittore). Quarantena, provenance e attributi di sicurezza non viaggiano mai. Opzioni `CreateOptions.storeExtendedAttributes` ed `ExtractOptions.restoreExtendedAttributes`, attive di default. `tar --xattrs` di macOS li legge. |
+| **AppleDouble (`._nome`, `__MACOSX/`)** | Gli ZIP del Finder ("Comprimi") e i tar di macOS mettono i metadati in file AppleDouble. In estrazione Xipper li riapplica ai file (Finder info, resource fork, attributi estesi), come Utility Archivio, invece di lasciare `__MACOSX` e `._` nella cartella; browser, Quick Look e miniature non li mostrano. Provato con `ditto -c -k --sequesterRsrc` e con `tar` di macOS. |
+| **Barra dei menu (7.2)** | `MenuBarExtra` facoltativo (Impostazioni › Integrazioni): lavori con barra e Annulla, "Apri Xipper", "Impostazioni…". |
+| **Azioni nelle notifiche (7.2)** | "Archivio creato": Mostra nel Finder, Verifica. "Verifica non riuscita": Mostra rapporto, che apre le voci danneggiate nella finestra dell'archivio. |
+| **Roadmap** | Nella v2, come punto principale, le ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile) sui punti caldi. |
+
+## Stato della V1 e cosa manca (21/10/2026)
+
+**Fatto:** UI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Azioni rapide, Quick Look e miniature, Comandi Rapidi (comprimi, estrai, verifica, elenca), Portachiavi e Touch ID, notifiche con azioni, Dock, barra dei menu, onboarding, aggiornamenti manuali, inglese, accessibilità, avvisi di sicurezza, voci danneggiate, SHA256SUMS, ZIP divisi, attributi estesi e AppleDouble, fuzzing; Genomica 1.7 unita.
+
+**Test:** il blocco intermittente della suite era nell'helper `run()` dei test, che scriveva lo stdin del processo figlio prima di avviarlo e di leggerne l'output (si fermava nel test end-to-end del server MCP, circa 1 giro su 20). Ora lo stdin viene scritto su un altro thread mentre si legge l'output.
+
+**Per chiudere la V1:**
+1. **7z** (fase 3 della roadmap, ma nella matrice dei formati è ✅ v1): pronto sul branch `claude/gifted-greider-c8e9b6`, con decodifica LZMA/LZMA2 in assembler ARM64; da unire.
+2. Dopo il 7z: **Apple Archive (`.aar`), CPIO, lz4 e brotli** in lettura (matrice §4.2), che toccano lo stesso `ArchiveFormat`.
+3. **Attributi estesi negli ZIP creati da Xipper** (AppleDouble `__MACOSX/` solo su richiesta, come dice lo studio §4.3).
+4. **Specifica UI ancora aperta:** 3.1 (Recenti/Preferiti nella barra laterale, barra del percorso, barra di stato), 7.1 (capsula compatta e `NSPanel` senza finestre), 2.7 (ZipCrypto in scrittura con avviso).
+5. **Benchmark ripetibili** (§5.4), che servono anche alla fase 0 del nuovo formato.
+6. **Icona `.icon`** di Icon Composer per le varianti scura, tinta e trasparente.
+7. **Developer ID e notarizzazione:** dipendono dall'iscrizione all'Apple Developer Program.
+
+**Studio del nuovo formato:** [docs/reports/Nuovo formato di compressione Xipper.md](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md), con gli appunti della ricerca in `docs/research_notes/`.

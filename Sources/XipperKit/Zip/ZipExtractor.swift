@@ -37,6 +37,18 @@ enum ZipExtractor {
 
         var files: [(ZipEntryRecord, [String])] = []
         for r in records {
+            if ctx.isAppleDoubleFolder(r.entry.path) && r.entry.kind == .directory { tracker.add(bytes: 0, entries: 1); continue }
+            if r.entry.kind == .file, let target = ctx.appleDoubleTarget(r.entry.path, size: r.uncompressedSize) {
+                var data: [UInt8] = []
+                do {
+                    try ZipEntryDecoder.decode(r, in: archive, password: password, cancel: cancel) { data.append(contentsOf: $0) }
+                    ctx.stashAppleDouble(target: target, data: data)
+                } catch XipperError.cancelled {
+                    throw XipperError.cancelled
+                } catch {}  // a damaged "._" file only loses metadata
+                tracker.add(bytes: r.uncompressedSize, entries: 1)
+                continue
+            }
             guard let full = ctx.sanitize(r.entry.path) else { continue }
             if ctx.options.flatten && r.entry.kind == .directory { continue }
             let comps = ctx.layout(full)

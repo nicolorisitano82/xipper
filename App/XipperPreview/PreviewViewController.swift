@@ -55,7 +55,7 @@ struct ArchiveSummary: Sendable {
                 s.note = String(localized: "Archivio grande: aprilo in Xipper per vedere il contenuto")
                 return s
             }
-            let all = try Xipper.list(url)
+            let all = try Xipper.list(url).filter { !$0.isAppleDoubleMetadata }
             s.totalEntries = all.count
             s.uncompressed = all.reduce(0) { $0 + max(0, $1.uncompressedSize) }
             s.encrypted = all.contains(where: \.isEncrypted)

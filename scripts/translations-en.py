@@ -379,6 +379,13 @@ EN = {
     "Esporta SHA256SUMS…": "Export SHA256SUMS…",
     "Impossibile calcolare le impronte": "Cannot compute the checksums",
     "Restituisce i percorsi dei file contenuti nell'archivio, senza estrarlo.": "Returns the paths of the files in the archive, without extracting it.",
+    # Menu bar extra and notification actions
+    "Apri Xipper": "Open Xipper",
+    "Icona nella barra dei menu": "Menu bar icon",
+    "Impostazioni…": "Settings…",
+    "Mostra i lavori in corso e apre Xipper dalla barra dei menu.": "Shows running jobs and opens Xipper from the menu bar.",
+    "Mostra rapporto": "Show Report",
+    "Nessun lavoro attivo": "No active jobs",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
     "Comprimi “%@”": "Compress “%@”",
@@ -417,6 +424,7 @@ PLURAL = {
                                                                "The other entry is intact and can be extracted.", "The other %lld entries are intact and can be extracted."),
     "circa %lld minuti": ("circa %lld minuto", "circa %lld minuti", "about %lld minute", "about %lld minutes"),
     "circa %lld secondi": ("circa %lld secondo", "circa %lld secondi", "about %lld second", "about %lld seconds"),
+    "%lld lavori attivi": ("%lld lavoro attivo", "%lld lavori attivi", "%lld active job", "%lld active jobs"),
     "Comprimi %lld elementi": ("Comprimi %lld elemento", "Comprimi %lld elementi", "Compress %lld Item", "Compress %lld Items"),
     "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)": (
         "BGZF · %lld blocco · marcatore di fine MANCANTE (file troncato?)", "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)",
