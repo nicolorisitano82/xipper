@@ -11,3 +11,5 @@ spike/xipzip/.build/
 
 # release artifacts
 dist/
+spike/fskit/build/
+spike/webdav/.build/

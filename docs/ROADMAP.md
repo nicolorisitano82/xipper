@@ -23,18 +23,22 @@ Restano **fuori dalla 1.0** per scelta: XIZ (BETA dietro l'interruttore), RAR, Z
 
 ## 2.0
 
-### 1. ⭐ Montaggio degli archivi con FSKit (prima priorità)
+### 1. ⭐ Montaggio degli archivi come volume (prima priorità)
 
 L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le app aprono i file senza estrarre. Nessun concorrente lo offre in modo nativo.
 
-- **Spike (prima di tutto):**
-  - verificare che un modulo FSKit (`FSUnaryFileSystem`, macOS 15.4+) si possa caricare con la firma self-signed: l'estensione richiede l'entitlement `com.apple.developer.fskit.fsmodule`, che potrebbe richiedere un profilo di provisioning;
-  - se serve, valutare un account sviluppatore gratuito o rivedere la decisione sulla distribuzione;
-  - misurare la latenza delle letture casuali.
-- **MVP:**
-  - estensione `XipperFS` in sola lettura per ZIP (anche AES con la password dal portachiavi), tar non compresso e tar.zst/XIZ con accesso casuale ai frame;
+- **Spike fatto il 21/10/2026 → [FSKIT.md](FSKIT.md):**
+  - il modulo si registra e si attiva, e `FSPathURLResource` (macOS 26) monta un file;
+  - ma `com.apple.developer.fskit.fsmodule` è un **entitlement riservato**: con la firma self-signed AMFI rifiuta l'estensione ("No matching profile found").
+- **Decisione del 21/10/2026: niente account Apple.** Si usa l'opzione C, un **server WebDAV locale** in sola lettura montato con il client di macOS.
+  - Lo spike funziona: montaggio come utente, contenuto identico, si smonta da solo se il server cade.
+  - Limite: il client scarica l'intero file alla prima apertura.
+  - Dettagli in [FSKIT.md](FSKIT.md).
+- **MVP (su WebDAV; con FSKit se un giorno ci sarà un account):**
+  - volume in sola lettura per ZIP (anche AES con la password dal portachiavi), tar non compresso e tar.zst/XIZ con accesso casuale ai frame;
   - azione «Monta» nel browser, nel menu del Finder e nella CLI (`xipper mount`), «Espelli» dal Finder;
-  - cache dei blocchi decompressi con limite di memoria, metadati (permessi, date, xattr) esposti come nel Finder.
+  - GET in streaming e cache dei blocchi decompressi con limite di memoria; credenziali casuali per ogni montaggio (NetFS);
+  - date e dimensioni come nell'archivio. Permessi e xattr solo con FSKit o NFS.
 - **Poi:**
   - 7z non solido (i blocchi solidi richiedono decompressione sequenziale: cache per cartella);
   - tar.gz/xz senza indice: letture sequenziali con avviso, oppure indice costruito al primo montaggio;
@@ -46,7 +50,7 @@ L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le
   - montaggio e smontaggio automatici;
   - confronto byte per byte con l'estrazione;
   - accesso concorrente da più app;
-  - Spotlight e Quick Look sul volume.
+  - Quick Look sul volume; server terminato con il volume montato.
 
 ### 2. ⭐ Ottimizzazioni in assembler ARM64/NEON e GPU
 
