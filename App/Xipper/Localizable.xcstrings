@@ -1116,6 +1116,7 @@
       }
     },
     "BETA" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2547,6 +2548,7 @@
       }
     },
     "Formato XIZ" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2577,6 +2579,7 @@
       }
     },
     "Funzioni sperimentali" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2717,6 +2720,7 @@
       }
     },
     "Il formato di Xipper: frame indipendenti, indice in coda, deduplicazione dei file identici e metadati del Mac. È una BETA: il formato può cambiare prima della versione 1 e per ora non supporta la password. Tieni anche una copia in un formato standard." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3037,11 +3041,22 @@
       }
     },
     "La password è disponibile per ZIP, 7z e Apple Archive" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Passwords are available for ZIP, 7z and Apple Archive"
+          }
+        }
+      }
+    },
+    "La password è disponibile per ZIP, 7z, XIZ e Apple Archive" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords are available for ZIP, 7z, XIZ and Apple Archive"
           }
         }
       }

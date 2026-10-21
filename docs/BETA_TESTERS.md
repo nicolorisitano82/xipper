@@ -61,7 +61,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
 - Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.
 - Mancano ancora le cartelle sorvegliate.
-- **XIZ** (Impostazioni › Generali › Funzioni sperimentali) è una BETA: il formato può cambiare prima della versione 1 e non supporta ancora la password. Tieni anche una copia in un formato standard.
+- **XIZ** è stabile dalla versione 1.0 del formato (con password, AES-256). Gli archivi XIZ delle beta precedenti si aprono ancora.
 
 ## Segnalare un problema
 Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:

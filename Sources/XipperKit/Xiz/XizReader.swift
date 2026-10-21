@@ -2,46 +2,68 @@ import CryptoKit
 import Foundation
 import Synchronization
 
-/// Reads XIZ v0. Everything the extractor acts on comes from the catalog, validated up front:
-/// frames strictly increasing and non-overlapping, extents inside their frames and summing to the
-/// declared size, declared total checked against free space and limits before writing anything.
+/// Reads XIZ 1.0 (and 0.1 from the beta). Everything the extractor acts on comes from the catalog,
+/// validated up front: frames strictly increasing and non-overlapping, extents inside their frames
+/// and summing to the declared size, declared total checked against free space and limits before
+/// writing anything. Encrypted archives authenticate the catalog and every frame (AES-256-GCM).
 final class XizArchive: @unchecked Sendable {
     let reader: FileReader
     let catalog: Xiz.Catalog
     let footer: Xiz.Footer
+    let superblock: Xiz.Superblock
+    /// Set for encrypted archives (opened with the right password).
+    let keys: XizKeys?
+
+    var isEncrypted: Bool { keys != nil }
 
     static func looksLike(_ head: [UInt8]) -> Bool { head.starts(with: Xiz.superMagic) }
 
-    init(path: String) throws {
+    /// `passwordRequired` for an encrypted archive opened without a password, `wrongPassword` when it does not fit.
+    init(path: String, password: String? = nil) throws {
         reader = try FileReader(path: path)
         let size = reader.size
         guard size >= Int64(Xiz.superblockSize + Xiz.footerSize) else { throw XipperError.corrupt("XIZ archive too small") }
-        let sb = try reader.read(at: 0, count: Xiz.superblockSize)
-        guard sb.starts(with: Xiz.superMagic) else { throw XipperError.corrupt("not a XIZ archive") }
-        let sbCRC = sb.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 60, as: UInt32.self).littleEndian }
-        guard sbCRC == Xiz.crc32c(Array(sb[0..<60])) else { throw XipperError.corrupt("XIZ superblock checksum mismatch") }
-        let major = sb.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt16.self).littleEndian }
-        guard major == Xiz.versionMajor else { throw XipperError.unsupported("XIZ version \(major)") }
+        let sbBytes = try reader.read(at: 0, count: Xiz.superblockSize)
+        let sb = try Xiz.Superblock.decode(sbBytes)
+        superblock = sb
+        let dataStart = Int64(Xiz.superblockSize) + Int64(sb.keysLength)
+        if sb.required.contains(.encrypted) {
+            guard let password else { throw XipperError.passwordRequired(entry: (path as NSString).lastPathComponent) }
+            guard dataStart + Int64(Xiz.footerSize) <= size else { throw XipperError.corrupt("XIZ keys block") }
+            let block = try reader.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength))
+            let fileKey: SymmetricKey
+            do {
+                fileKey = try XizKeys.open(keysBlock: block, superblock: sbBytes, password: password)
+            } catch XipperError.wrongPassword {
+                throw XipperError.wrongPassword(entry: (path as NSString).lastPathComponent)
+            }
+            keys = XizKeys(fileKey: fileKey, archiveID: sb.archiveID)
+        } else {
+            keys = nil
+        }
 
         let footerStart = size - Int64(Xiz.footerSize)
         let footer = try Xiz.Footer.decode(try reader.read(at: footerStart, count: Xiz.footerSize))
-        guard footer.catalogOffset >= Int64(Xiz.superblockSize), footer.catalogCSize > 0,
+        guard footer.major == sb.major, footer.previousFooter == 0 else { throw XipperError.corrupt("XIZ footer does not match the superblock") }
+        guard footer.catalogOffset >= dataStart, footer.catalogCSize > 0,
               footer.catalogCSize <= Int64(Xiz.maxCatalog), footer.catalogUSize <= Int64(Xiz.maxCatalog),
               footer.catalogOffset + footer.catalogCSize == footerStart else {
             throw XipperError.corrupt("invalid XIZ catalog location")
         }
-        let packed = try reader.read(at: footer.catalogOffset, count: Int(footer.catalogCSize))
+        var packed = try reader.read(at: footer.catalogOffset, count: Int(footer.catalogCSize))
         guard Xiz.sha256(packed) == footer.catalogSHA256 else { throw XipperError.corrupt("XIZ catalog hash mismatch") }
+        if let keys { packed = try keys.openCatalog(packed, footer: footer) }
         let raw = try packed.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(footer.catalogUSize)) }
         let c = try Xiz.decodeCatalog(raw)
         guard c.frames.count == Int(footer.frameCount), c.entries.count == Int(footer.entryCount) else {
             throw XipperError.corrupt("XIZ catalog does not match its footer")
         }
-        // Frames: strictly increasing, non-overlapping, before the catalog, bounded.
-        var next = Int64(Xiz.superblockSize)
+        // Frames: strictly increasing, non-overlapping, after the keys and before the catalog, bounded.
+        let overhead = UInt32(keys == nil ? 0 : Xiz.tagSize)
+        var next = dataStart
         for f in c.frames {
             guard f.offset == next, f.usize <= UInt32(Xiz.maxFrameData), f.csize <= UInt32(Xiz.maxFrameData) + 4096,
-                  f.codec != .store || f.csize == f.usize else {
+                  f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead else {
                 throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
             }
             next = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
@@ -68,26 +90,43 @@ final class XizArchive: @unchecked Sendable {
     }
 
     var entries: [ArchiveEntry] {
-        catalog.entries.map { e in
+        let encryption: EntryEncryption = isEncrypted ? .aes(strength: 3, vendorVersion: 0, actualMethod: 0) : .none
+        return catalog.entries.map { e in
             ArchiveEntry(path: e.path, kind: e.type == .directory ? .directory : e.type == .symlink ? .symlink : .file,
                          uncompressedSize: Int64(e.size), compressedSize: 0, modified: e.modified, permissions: e.mode,
-                         encryption: .none, method: "xiz", linkTarget: e.type == .symlink ? e.link : nil)
+                         encryption: e.type == .file ? encryption : .none, method: "xiz", linkTarget: e.type == .symlink ? e.link : nil)
         }
     }
 
-    /// One frame's data, checked against the catalog (header fields, CRC-32C, exact size).
+    /// The digest stored for file content: SHA-256, or HMAC-SHA-256 under the archive's key.
+    func digest(_ chunks: [UnsafeRawBufferPointer]) -> [UInt8] {
+        if let keys {
+            var h = keys.fileDigest()
+            for c in chunks { h.update(data: c) }
+            return Array(h.finalize())
+        }
+        var h = SHA256()
+        for c in chunks { h.update(bufferPointer: c) }
+        return Array(h.finalize())
+    }
+
+    /// One frame's data, checked against the catalog (header fields, CRC-32C, authentication,
+    /// exact decompressed size).
     func frameData(_ index: Int) throws -> [UInt8] {
         let f = catalog.frames[index]
         let header = try reader.read(at: f.offset, count: Xiz.frameHeaderSize)
         let expected = Xiz.frameHeader(index: UInt32(index), f)
         guard header == expected else { throw XipperError.corrupt("XIZ frame \(index) header does not match the catalog") }
-        let payload = try reader.read(at: f.offset + Int64(Xiz.frameHeaderSize), count: Int(f.csize))
+        var payload = try reader.read(at: f.offset + Int64(Xiz.frameHeaderSize), count: Int(f.csize))
         let crc = Xiz.crc32c(payload)
         guard crc == f.crc else {
             throw XipperError.checksumMismatch(entry: "frame \(index)", expected: f.crc, actual: crc)
         }
+        if let keys { payload = try keys.openFrame(payload, index: UInt32(index), f) }
         switch f.codec {
-        case .store: return payload
+        case .store:
+            guard payload.count == Int(f.usize) else { throw XipperError.corrupt("XIZ frame \(index) size") }
+            return payload
         case .zstd: return try payload.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(f.usize)) }
         }
     }
@@ -191,7 +230,7 @@ enum XizExtractor {
                 let f = try cache.frame(Int(x.frame))
                 data.append(contentsOf: f[Int(x.offset)..<Int(x.offset + x.length)])
             }
-            if let h = e.sha256, Xiz.sha256(data) != h {
+            if let h = e.sha256, data.withUnsafeBytes({ a.digest([$0]) }) != h {
                 throw XipperError.integrity(entry: e.path, detail: "SHA-256 mismatch")
             }
             for x in e.extents where lastUse[Int(x.frame)] == pos { cache.evict(Int(x.frame)) }
@@ -245,12 +284,18 @@ enum XizExtractor {
         for e in entries where e.type == .file {
             try cancel?.check()
             do {
+                // SHA-256 for the manifest; the stored digest is keyed in encrypted archives.
                 var h = SHA256()
+                var keyed = a.keys?.fileDigest()
                 for x in e.extents {
                     let f = try cache.frame(Int(x.frame))
-                    f.withUnsafeBytes { h.update(bufferPointer: UnsafeRawBufferPointer(rebasing: $0[Int(x.offset)..<Int(x.offset + x.length)])) }
+                    f.withUnsafeBytes {
+                        let piece = UnsafeRawBufferPointer(rebasing: $0[Int(x.offset)..<Int(x.offset + x.length)])
+                        h.update(bufferPointer: piece)
+                        keyed?.update(data: piece)
+                    }
                 }
-                let digest = Array(h.finalize())
+                let digest = keyed.map { Array($0.finalize()) } ?? Array(h.finalize())
                 if let expected = e.sha256, expected != digest {
                     failures.append(SkippedEntry(path: e.path, error: .integrity(entry: e.path, detail: "SHA-256 mismatch")))
                 } else {

@@ -25,7 +25,6 @@ enum PrefKey {
     static let sevenZipSolid = "sevenZipSolid"
     static let zipAppleDouble = "zipAppleDouble"
     static let favoriteArchives = "favoriteArchives"
-    static let betaXiz = "betaXizFormat"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
 }
@@ -149,16 +148,12 @@ extension ArchiveFormat {
         case .brotli: "brotli (.br)"
         case .cpio: "cpio"
         case .appleArchive: "Apple Archive (.aar)"
-        case .xiz: "XIZ · BETA"
+        case .xiz: "XIZ"
         }
     }
 
     /// Formats offered when compressing several items or a folder.
-    /// XIZ joins the list only with the BETA switch on (Settings › General).
-    static var multiItem: [ArchiveFormat] {
-        [.zip, .sevenZip, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar, .appleArchive, .cpio]
-            + (Preferences.defaults.bool(forKey: PrefKey.betaXiz) ? [.xiz] : [])
-    }
+    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .xiz, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar, .appleArchive, .cpio]
     static let singleFile: [ArchiveFormat] = [.gzip, .bgzf, .zstd, .xz, .bzip2]
 }
 

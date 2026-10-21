@@ -60,7 +60,7 @@ Finder actions always create new files next to the originals (`name.zip`, `name 
 - The Finder extension only reads the names of the selected files and hands the request to the app; it never reads file contents.
 - Saved passwords belong to the archive's path: if you move the archive, Xipper asks again.
 - Watched folders are not there yet.
-- **XIZ** (Settings › General › Experimental features) is a BETA: the format may change before version 1 and does not support passwords yet. Keep a copy in a standard format too.
+- **XIZ** is stable as of format version 1.0 (with passwords, AES-256). XIZ archives from earlier betas still open.
 
 ## Reporting a problem
 Open an issue at <https://github.com/nicolorisitano82/xipper/issues> with:

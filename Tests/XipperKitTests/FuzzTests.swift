@@ -59,25 +59,43 @@ struct FuzzTests {
         t.symlink("src/link", to: "a.txt")
         var o = CreateOptions()
         o.format = format
+        try fuzz(format, o, password: nil, t)
+    }
+
+    /// Encrypted XIZ: the keys block, the STREAM catalog and the AEAD frames under mutation.
+    @Test func mutatedEncryptedXizNeverCrashesOrEscapes() throws {
+        let t = TempDir()
+        t.write("src/a.txt", String(repeating: "Xipper fuzz ", count: 300))
+        t.write("src/sub/b.bin", sampleData(20 << 10, seed: 5))
+        t.symlink("src/link", to: "a.txt")
+        var o = CreateOptions()
+        o.format = .xiz
+        o.password = "fuzz"
+        o.xizKDF = .minimum
+        try fuzz(.xiz, o, password: "fuzz", t)
+    }
+
+    func fuzz(_ format: ArchiveFormat, _ o: CreateOptions, password: String?, _ t: TempDir) throws {
         let source = format.isSingleFile ? t.url("src/a.txt") : t.url("src")
         let original = t.url("orig." + format.fileExtension)
         try Xipper.create(from: [source], to: original, options: o)
         let bytes = try [UInt8](Data(contentsOf: original))
 
-        var rng = SplitMix(state: UInt64(abs(format.rawValue.hashValue % 1_000_003)) &+ 17)
+        var rng = SplitMix(state: UInt64(abs(format.rawValue.hashValue % 1_000_003)) &+ (password == nil ? 17 : 29))
         var limits = ExtractionLimits()
         limits.maxTotalBytes = 64 << 20  // a mutated size field must not fill the disk
         for i in 0..<Self.iterations {
             let sample = t.url("m\(i)." + format.fileExtension)
             try Data(mutate(bytes, &rng)).write(to: sample)
             _ = try? ArchiveFormat.detect(sample)
-            _ = try? Xipper.list(sample)
-            _ = try? Xipper.test(sample, workload: .threads(2))
+            _ = try? Xipper.list(sample, password: password)
+            _ = try? Xipper.test(sample, password: password, workload: .threads(2))
             let dest = "out\(i)"
             t.mkdir(dest)
             var options = ExtractOptions()
             options.limits = limits
             options.workload = .threads(2)
+            options.password = password
             _ = try? Xipper.extract(sample, to: t.url(dest), mode: .into, options: options)
             // Nothing may appear next to the destination folders (traversal through a mutated name).
             let stray = try FileManager.default.contentsOfDirectory(atPath: t.path)

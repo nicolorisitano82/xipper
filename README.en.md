@@ -2,7 +2,7 @@
 
 *[Italiano](README.md) · English*
 
-A native archiver for macOS on Apple Silicon. It creates, extracts, verifies and encrypts ZIP, 7z, tar (gz, bz2, xz, zst), cpio and Apple Archive files. It also reads lz4, brotli and split ZIP archives, and handles single compressed files and BGZF/bgzip for genomics (tabix/CSI indexes, VCF/BCF/BAM/CRAM checks, checksum manifests).
+A native archiver for macOS on Apple Silicon. It creates, extracts, verifies and encrypts ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive and XIZ, Xipper's own format ([specification](docs/XIZ_SPEC.md)). It also reads lz4, brotli and split ZIP archives, and handles single compressed files and BGZF/bgzip for genomics (tabix/CSI indexes, VCF/BCF/BAM/CRAM checks, checksum manifests).
 
 It needs no third-party software at run time: the open-source codecs are compiled into the app (see [Vendor/README.md](Vendor/README.md)). The project documents are written in Italian.
 
@@ -22,6 +22,7 @@ It needs no third-party software at run time: the open-source codecs are compile
   - ZIP: AES-256 by default; ZipCrypto only on request, after a warning.
   - 7z: AES-256 with encrypted file names.
   - Apple Archive: AEA encryption.
+  - XIZ: Argon2id and AES-256-GCM over data, names and metadata.
   - Passwords can be saved in the Keychain and unlocked with Touch ID.
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.

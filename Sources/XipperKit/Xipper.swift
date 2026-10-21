@@ -28,8 +28,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     case cpio
     /// Apple Archive (`.aar`), read through the system AppleArchive framework.
     case appleArchive = "aar"
-    /// XIZ v0, Xipper's own format (BETA): independent zstd frames, catalog at the end,
-    /// whole-file dedup, Mac metadata. Not stable yet: the layout may change before v1.
+    /// XIZ 1.0, Xipper's own format (docs/XIZ_SPEC.md): independent zstd frames, catalog at the end,
+    /// file and chunk dedup, Mac metadata, optional authenticated encryption (Argon2id, AES-256-GCM).
     case xiz
 
     public var fileExtension: String { self == .bgzf ? "gz" : rawValue }
@@ -38,7 +38,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli].contains(self) }
     /// Formats Xipper can write.
     public var canCreate: Bool { ![.tarLz4, .lz4, .tarBrotli, .brotli].contains(self) }
-    public var supportsPassword: Bool { self == .zip || self == .sevenZip || self == .appleArchive }
+    public var supportsPassword: Bool { self == .zip || self == .sevenZip || self == .appleArchive || self == .xiz }
 
     var compression: StreamCompression {
         switch self {
@@ -137,6 +137,8 @@ public struct CreateOptions: Sendable {
     public var solidBlockSize: Int64?
     /// 7z with a password: also encrypt the header, so file names stay hidden.
     public var encryptFileNames = true
+    /// XIZ key derivation (tests use the cheapest parameters a reader accepts).
+    var xizKDF = XizKeys.KDF.standard
     /// 7z: ARM64 branch filter for arm64 executables (Mach-O, ELF): smaller binaries.
     public var executableFilter = true
     /// 7z: split into volumes of this many bytes (`name.7z.001`, `.002`, …).
@@ -247,8 +249,8 @@ public enum Xipper {
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
-            if options.password != nil { throw XipperError.unsupported("XIZ encryption is not available in the beta") }
-            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, extendedAttributes: options.storeExtendedAttributes,
+            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, password: options.password, kdf: options.xizKDF,
+                                       extendedAttributes: options.storeExtendedAttributes,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .tarLz4, .lz4, .tarBrotli, .brotli:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
@@ -296,7 +298,7 @@ public enum Xipper {
                 let a = try SevenZipArchive(path: archivePath, password: options.password)
                 try SevenZipExtractor.extract(a, ctx: ctx, tracker: tracker, cancel: cancel)
             } else if format == .xiz {
-                try XizExtractor.extract(try XizArchive(path: archivePath), ctx: ctx, tracker: tracker, cancel: cancel)
+                try XizExtractor.extract(try XizArchive(path: archivePath, password: options.password), ctx: ctx, tracker: tracker, cancel: cancel)
             } else {
                 try TarExtractor.extract(archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
             }
@@ -370,11 +372,13 @@ public enum Xipper {
                                              digests: sums, cancel: cancel)
         } else if format == .xiz {
             do {
-                let a = try XizArchive(path: path)
+                let a = try XizArchive(path: path, password: password)
                 entries = a.catalog.entries.count
                 failures = try XizExtractor.test(a, workload: workload, tracker: tracker, digests: sums, cancel: cancel)
             } catch let e as XipperError where e != .cancelled {
-                // A catalog that cannot be read or validated fails the whole archive.
+                // A missing or wrong password is asked again; any other catalog problem fails the archive.
+                if case .passwordRequired = e { throw e }
+                if case .wrongPassword = e { throw e }
                 entries = max(entries, 1)
                 failures = [SkippedEntry(path: archive.lastPathComponent, error: e)]
             }
@@ -409,7 +413,7 @@ public enum Xipper {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }
         if format == .sevenZip { return try SevenZipArchive(path: archive.standardizedFileURL.path, password: password).entries }
-        if format == .xiz { return try XizArchive(path: archive.standardizedFileURL.path).entries }
+        if format == .xiz { return try XizArchive(path: archive.standardizedFileURL.path, password: password).entries }
         return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload, password: password)
     }
 }
@@ -481,7 +485,7 @@ extension Xipper {
                 }
             }
             if format == .xiz {
-                let a = try XizArchive(path: archivePath)
+                let a = try XizArchive(path: archivePath, password: password)
                 guard let i = a.catalog.entries.firstIndex(where: { $0.path == path }) else {
                     throw XipperError.invalidArgument("no entry named \(path)")
                 }

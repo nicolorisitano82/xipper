@@ -541,8 +541,8 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 
 ---
 
-### Nuovo formato XIZ (studio del 21/10/2026, BETA dal 21/10/2026)
-Nome ed estensione: **XIZ**, **`.xiz`** (`.xip` è già di Apple; `.xiz` è usata solo dagli strumenti di ZynAddSubFX, con cui non c'è ambiguità: riconosciamo i file dai byte iniziali e dichiariamo il tipo `app.xipper.xiz`). La fase 1 del piano (MVP non cifrato) è nell'app come funzione BETA, da attivare in Impostazioni › Generali; vedi [FASE2.md](FASE2.md). Un formato di archivio proprio, che unisce blocchi indipendenti con indice in coda, deduplicazione, ordinamento per similarità, dizionari addestrati e cifratura autenticata di dati e nomi: [docs/reports/Nuovo formato di compressione Xipper.md](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md). È un lavoro successivo alla v1; ZIP, 7z e tar restano i formati di scambio.
+### Nuovo formato XIZ (studio del 21/10/2026, BETA dal 21/10/2026, stabile 1.0 dal 22/10/2026)
+Nome ed estensione: **XIZ**, **`.xiz`** (`.xip` è già di Apple; `.xiz` è usata solo dagli strumenti di ZynAddSubFX, con cui non c'è ambiguità: riconosciamo i file dai byte iniziali e dichiariamo il tipo `app.xipper.xiz`). La fase 1 del piano (MVP non cifrato) è entrata nell'app come BETA il 21/10/2026. Il 22/10/2026 il formato è diventato **XIZ 1.0 stabile**: cifratura autenticata, deduplicazione a blocchi, catalogo estensibile. Specifica pubblica in [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md); XIZ è nei formati normali dell'app. Un formato di archivio proprio, che unisce blocchi indipendenti con indice in coda, deduplicazione, ordinamento per similarità, dizionari addestrati e cifratura autenticata di dati e nomi: [docs/reports/Nuovo formato di compressione Xipper.md](docs/reports/Nuovo%20formato%20di%20compressione%20Xipper.md). È un lavoro successivo alla v1; ZIP, 7z e tar restano i formati di scambio.
 
 ---
 

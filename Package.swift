@@ -74,6 +74,14 @@ let package = Package(
                 .define("NDEBUG", .when(configuration: .release)),
             ]
         ),
+        // Argon2id (password KDF of encrypted XIZ archives): P-H-C reference code, portable C, CC0/Apache-2.0.
+        .target(
+            name: "CArgon2",
+            path: "Vendor/argon2",
+            sources: ["src/argon2.c", "src/core.c", "src/encoding.c", "src/ref.c", "src/thread.c", "src/blake2/blake2b.c"],
+            publicHeadersPath: "include",
+            cSettings: [.define("NDEBUG", .when(configuration: .release))]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -82,7 +90,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.

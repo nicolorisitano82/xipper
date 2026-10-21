@@ -243,3 +243,27 @@ ChatGPT ha generato lo sprite A ([docs/design/sprites/sprite-a-app.png](docs/des
 - **Non integrati di proposito:**
   - estrai, verifica e i badge cifrato, danneggiato e beta: l'app usa gli SF Symbols di sistema, come vuole la specifica;
   - DNA, tutto a posto e progresso: le sorgenti SVG restano pronte per lo sprite B e per le icone dei formati.
+
+## XIZ 1.0 stabile (22/10/2026)
+
+Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi implementa, è [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md); il codice è in `Sources/XipperKit/Xiz/`.
+
+- **Formato congelato:**
+  - superblock con flag delle funzioni obbligatorie (un lettore rifiuta quelle che non conosce, con un messaggio chiaro) e facoltative (le ignora);
+  - catalogo con campi TLV e bit "critico";
+  - posti riservati per dizionari, append e dati di recupero.
+- **Compatibilità:** superblock, header dei frame e footer della 0.1 sono un caso particolare della 1.0, quindi gli archivi XIZ delle beta si aprono ancora (test con un archivio scritto da beta4).
+- **Cifratura autenticata:**
+  - file key casuale, protetta da Argon2id con 256 MiB, 3 passaggi e 4 thread (circa 0,13 s ad apertura sui core M; implementazione PHC di riferimento in `Vendor/argon2`, CC0/Apache-2.0);
+  - HKDF-SHA-256 per le chiavi derivate;
+  - frame AES-256-GCM, con l'AAD di tutto ciò su cui il decoder agisce;
+  - catalogo cifrato in stile STREAM a blocchi da 64 KiB;
+  - nomi, dimensioni e metadati solo dentro il catalogo cifrato; digest dei file con chiave (HMAC).
+- **Deduplicazione a blocchi:** FastCDC con normalizzazione (min 16 KiB, medi 64 KiB, max 256 KiB) per i file da 8 MiB in su. Due versioni dello stesso file da 12 MiB, con 1000 byte inseriti nel mezzo, occupano meno di 14 MiB invece di 24. Negli archivi cifrati la tabella del chunker deriva dalla chiave.
+- **App:**
+  - XIZ è nei formati normali, dopo ZIP e 7z, ed è sparito l'interruttore "Funzioni sperimentali";
+  - la password è disponibile anche per XIZ;
+  - gli archivi XIZ cifrati si comportano come i 7z con nomi cifrati: il browser chiede la password per elencarli.
+- **Test:**
+  - suite "XIZ 1.0" con 8 test: vettore ufficiale di Argon2id, cifratura (niente nomi o contenuto in chiaro, password mancante o sbagliata), manomissioni (bit cambiati in ogni sezione, CRC "riparato" da un attaccante ma tag AEAD che rifiuta), FastCDC, funzione obbligatoria sconosciuta, archivio 0.1;
+  - fuzzing anche sulla variante cifrata.

@@ -10,6 +10,7 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 | [libdeflate](https://github.com/ebiggers/libdeflate) | 1.24 | MIT (`libdeflate/COPYING`) | `libdeflate/` (lib, x86/riscv code removed) | ZIP deflate, CRC-32 (PMULL), Adler-32 |
 | [XZ Utils / liblzma](https://github.com/tukaani-project/xz) | 5.8.1 | 0BSD (`xz/COPYING.0BSD`) | `xz/src/liblzma`, `xz/src/common/tuklib_*` | tar.xz, ZIP methods 14 (LZMA) and 95 (xz), 7z LZMA/LZMA2 and the ARM64/RISC-V filters |
 | [LZMA SDK](https://github.com/ip7z/7zip) (7-Zip `C/`) | 26.05 | public domain (stated in each file header) | `lzma-sdk/C` (PPMd variant H and LZMA/LZMA2 decoders), `lzma-sdk/Asm/arm64` (`LzmaDecOpt.S`), `lzma-sdk/shim` | 7z PPMd (030401); LZMA/LZMA2 decoding with 7-Zip's ARM64 assembly loop (liblzma stays the portable path) |
+| [Argon2](https://github.com/P-H-C/phc-winner-argon2) (PHC reference) | 20190702 (`62358ba`) | CC0 1.0 or Apache-2.0 (`argon2/LICENSE`) | `argon2/include`, `argon2/src` (portable `ref.c`, BLAKE2b, threads) | Argon2id password KDF of encrypted XIZ archives |
 
 From the system (part of macOS, not vendored): zlib (streaming inflate, chunked deflate,
 `crc32_combine`), bzip2, CommonCrypto (AES, HMAC-SHA1, PBKDF2).
@@ -20,6 +21,7 @@ From the system (part of macOS, not vendored): zlib (streaming inflate, chunked 
 - `xz/src/liblzma/api/module.modulemap`: exposes only `lzma.h` (the `lzma/*.h` headers must not be included directly).
 - liblzma is configured with the same `-D` defines its CMake build uses on macOS arm64 (see `Package.swift`).
 - zstd is built with `ZSTD_MULTITHREAD`, `ZSTD_DISABLE_ASM`, `XXH_NAMESPACE=ZSTD_`.
+- Argon2: only `argon2.c`, `core.c`, `encoding.c`, `ref.c`, `thread.c`, `blake2/blake2b.c` and their headers, unmodified (no `opt.c`: it needs x86 SSE).
 - LZMA SDK: only `Ppmd7.c`, `Ppmd7Dec.c`, `LzmaDec.c`, `Lzma2Dec.c`, `Asm/arm64/LzmaDecOpt.S`, `Asm/arm64/7zAsm.S`
   and the headers they need, unmodified, built with `Z7_LZMA_DEC_OPT`. `lzma-sdk/shim/*` and
   `lzma-sdk/include/CLzmaSDK.h` are ours (small wrappers, the only API visible to Swift).

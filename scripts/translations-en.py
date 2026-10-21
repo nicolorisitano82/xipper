@@ -425,6 +425,7 @@ EN = {
     "Gli Apple Archive cifrati richiedono almeno %lld caratteri.": "Encrypted Apple Archives need at least %lld characters.",
     "In pausa": "Paused",
     "La password è disponibile per ZIP, 7z e Apple Archive": "Passwords are available for ZIP, 7z and Apple Archive",
+    "La password è disponibile per ZIP, 7z, XIZ e Apple Archive": "Passwords are available for ZIP, 7z, XIZ and Apple Archive",
     "Pausa": "Pause",
     "Quarantena": "Quarantine",
     "Riprendi": "Resume",

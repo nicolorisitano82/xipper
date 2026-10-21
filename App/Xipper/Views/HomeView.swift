@@ -268,7 +268,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!format.supportsPassword)
-                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z e Apple Archive"))
+                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive"))
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)

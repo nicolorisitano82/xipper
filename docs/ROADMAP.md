@@ -17,7 +17,7 @@ Aggiornata al 21/10/2026. Le decisioni di fondo sono in [STUDIO.md](../STUDIO.md
 | 5 | Controllo del marchio "Xipper" (EUIPO/UIBM/USPTO, classi 9 e 42) | da fare prima del lancio pubblico |
 | 6 | Tag `v1.0.0` non pre-release: l'aggiornamento lo propone a tutti, beta comprese | ultimo passo |
 
-Restano **fuori dalla 1.0** per scelta: XIZ (BETA dietro l'interruttore), RAR, ZIP Deflate64, scrittura di lz4 e brotli.
+Restano **fuori dalla 1.0** per scelta: RAR, ZIP Deflate64, scrittura di lz4 e brotli. XIZ è diventato stabile il 22/10/2026 (formato 1.0, vedi sotto).
 
 ---
 
@@ -67,16 +67,16 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 ### 3. XIZ stabile (v1 del formato)
 
-Il formato si congela (niente più cambi incompatibili) ed esce dalla beta. Fasi 2 e 3 dello [studio del formato](reports/):
+**Fatto il 22/10/2026: XIZ 1.0, formato congelato, fuori dalla beta.** Specifica pubblica: [XIZ_SPEC.md](XIZ_SPEC.md).
 
-- cifratura autenticata di dati e nomi;
-- chunking basato sul contenuto (deduplicazione dentro i file);
-- dizionari addestrati per i file piccoli;
-- ordinamento per somiglianza;
-- dati di recupero;
-- aggiunta di file a un archivio esistente.
-
-Serve una specifica pubblica del formato.
+- ✅ cifratura autenticata di dati e nomi (Argon2id, AES-256-GCM, catalogo STREAM);
+- ✅ chunking basato sul contenuto (FastCDC, deduplicazione dentro i file);
+- ✅ catalogo estensibile (campi TLV con bit "critico") e flag delle funzioni obbligatorie e facoltative;
+- da fare nelle versioni 1.x, già previsti dal formato:
+  - dizionari addestrati per i file piccoli (funzione obbligatoria `dictionaries`);
+  - dati di recupero (funzione facoltativa `recovery`);
+  - aggiunta di file a un archivio esistente (funzione `append_chain`);
+- ordinamento per somiglianza: è una scelta del compressore, il formato non cambia.
 
 ### 4. Robustezza e riparazione
 

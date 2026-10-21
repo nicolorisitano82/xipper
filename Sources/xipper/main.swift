@@ -10,10 +10,10 @@ usage: xipper <command> [options]
 
   create  [options] <archive> <file|folder>...
       -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio,
-                           xiz (BETA), gz, bz2, xz, zst
+                           xiz, gz, bz2, xz, zst
       -l, --level N        compression level (zip 1-12, zstd 1-22, xz/7z 0-9, bzip2 1-9)
       -m, --method M       zip method: deflate (default), zstd, store
-      -p, --password       encrypt (zip, 7z: AES-256); prompts for the password
+      -p, --password       encrypt (zip, 7z, xiz: AES-256; aar: AEA); prompts for the password
           --solid SIZE     7z solid block size (e.g. 64m, 2g; "off" = one block per file)
       -v, --volume SIZE    7z: split into volumes of SIZE (name.7z.001, .002, …)
           --plain-names    7z with a password: leave file names readable
