@@ -139,6 +139,7 @@ private struct JobCapsule: View {
         switch job.state {
         case .running:
             if job.paused { return String(localized: "In pausa: un file esiste già") }
+            if job.userPaused { return String(localized: "In pausa") }
             guard let p = job.progress else { return "\(job.verb) in corso…" }
             let pct = p.totalBytes > 0 ? String(localized: "\(Int(p.fraction * 100))% · ") : ""
             return "\(pct)\(Int(job.smoothedSpeed / 1e6)) MB/s" + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
@@ -153,8 +154,12 @@ private struct JobCapsule: View {
     @ViewBuilder private var actions: some View {
         switch job.state {
         case .running:
+            Button(job.userPaused ? "Riprendi" : "Pausa", systemImage: job.userPaused ? "play.fill" : "pause.fill") { job.togglePause() }
+                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .help(job.userPaused ? "Riprendi" : "Pausa")
             Button("Annulla", systemImage: "xmark") { job.cancelJob() }
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .help("Annulla")
         case .finished, .failed:
             if !job.report.isEmpty || job.verifyOK != nil {
                 Button("Dettagli", systemImage: "list.bullet.rectangle") { showDetails() }

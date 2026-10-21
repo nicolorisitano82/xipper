@@ -85,6 +85,8 @@ public struct ArchiveEntry: Sendable, Equatable {
     public var method: String
     /// Symlink / hard link target.
     public var linkTarget: String?
+    /// CRC-32 of the content when the archive stores it (ZIP, 7z).
+    public var crc32: UInt32? = nil
 
     public var isEncrypted: Bool { encryption != .none }
 }

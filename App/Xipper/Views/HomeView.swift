@@ -79,7 +79,8 @@ struct HomeView: View {
         .sheet(isPresented: $askPassword) {
             PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }
-            }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil)
+            }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil,
+               minimumLength: format == .appleArchive ? AppleArchiveWriter.minimumPasswordLength : 1)
         }
         #if DEBUG
         .task {
@@ -263,7 +264,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!format.supportsPassword)
-                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile solo per ZIP e 7z"))
+                .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z e Apple Archive"))
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
@@ -334,6 +335,8 @@ struct HomeView: View {
         case .zip: String(localized: "si apre ovunque")
         case .tarZstd: String(localized: "il più veloce")
         case .sevenZip: String(localized: "compatto, nomi cifrati")
+        case .appleArchive: String(localized: "formato Apple, cifratura AEA")
+        case .cpio: String(localized: "Unix, initramfs")
         case .tarXz: String(localized: "compatto")
         case .tarGzip: String(localized: "Linux e server")
         case .tarBzip2: String(localized: "compatibilità")

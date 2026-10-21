@@ -142,6 +142,7 @@ final class SevenZipArchive: @unchecked Sendable {
                 rec.offset = offset
                 rec.size = streams.subSizes[stream]
                 rec.crc = streams.subCRCs[stream]
+                rec.entry.crc32 = rec.crc
                 rec.entry.uncompressedSize = rec.size
                 rec.entry.compressedSize = inFolder == 0 ? (0..<fo.packedStreams.count).reduce(0) { $0 + streams.packSizes[fo.firstPackStream + $1] } : 0
                 rec.entry.method = fo.methodDescription

@@ -107,6 +107,22 @@
         }
       }
     },
+    "%@ · verificato senza scrivere su disco · %@ s · %@/s" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · verified without writing to disk · %2$@ s · %3$@/s"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · verificato senza scrivere su disco · %2$@ s · %3$@/s"
+          }
+        }
+      }
+    },
     "%@ è integro (%lld elementi)." : {
       "localizations" : {
         "en" : {
@@ -219,6 +235,16 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%@: usa questo preset per un nuovo archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: use this preset for a new archive"
           }
         }
       }
@@ -471,6 +497,46 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld integre · %2$lld errori"
+          }
+        }
+      }
+    },
+    "%lld integre · 0 errori" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld intact · 0 errors"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld intact · 0 errors"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld integra · 0 errori"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld integre · 0 errori"
+                }
+              }
+            }
           }
         }
       }
@@ -966,6 +1032,7 @@
       }
     },
     "Archivio integro" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1097,6 +1164,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "CRC non corrispondente (atteso %1$@, letto %2$@)"
+          }
+        }
+      }
+    },
+    "CRC-32" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CRC-32"
           }
         }
       }
@@ -1507,6 +1584,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "With a password, also encrypt file names"
+          }
+        }
+      }
+    },
+    "Condivisione" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharing"
           }
         }
       }
@@ -2340,6 +2427,16 @@
         }
       }
     },
+    "Fine" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
     "Formati" : {
       "localizations" : {
         "en" : {
@@ -2406,6 +2503,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "GitHub answered %lld."
+          }
+        }
+      }
+    },
+    "Gli Apple Archive cifrati richiedono almeno %lld caratteri." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted Apple Archives need at least %lld characters."
           }
         }
       }
@@ -2556,6 +2663,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Settings…"
+          }
+        }
+      }
+    },
+    "In pausa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused"
           }
         }
       }
@@ -2770,7 +2887,18 @@
         }
       }
     },
+    "La password è disponibile per ZIP, 7z e Apple Archive" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwords are available for ZIP, 7z and Apple Archive"
+          }
+        }
+      }
+    },
     "La password è disponibile solo per ZIP e 7z" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3170,6 +3298,16 @@
         }
       }
     },
+    "No" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
+          }
+        }
+      }
+    },
     "Nome" : {
       "localizations" : {
         "en" : {
@@ -3420,6 +3558,16 @@
         }
       }
     },
+    "Pausa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        }
+      }
+    },
     "Percorso fuori dalla destinazione" : {
       "localizations" : {
         "en" : {
@@ -3580,6 +3728,16 @@
         }
       }
     },
+    "Quarantena" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quarantine"
+          }
+        }
+      }
+    },
     "Questa versione non ha un'immagine disco." : {
       "localizations" : {
         "en" : {
@@ -3730,6 +3888,16 @@
         }
       }
     },
+    "Riprendi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        }
+      }
+    },
     "Riprova" : {
       "localizations" : {
         "en" : {
@@ -3740,12 +3908,32 @@
         }
       }
     },
+    "Riservato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private"
+          }
+        }
+      }
+    },
     "Robustezza" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Strength"
+          }
+        }
+      }
+    },
+    "SHA-256" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256"
           }
         }
       }
@@ -4127,6 +4315,16 @@
         }
       }
     },
+    "Sì, scaricato con %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes, downloaded with %@"
+          }
+        }
+      }
+    },
     "Tempo" : {
       "localizations" : {
         "en" : {
@@ -4197,7 +4395,48 @@
         }
       }
     },
+    "Tutte le %lld voci sono integre" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The only entry is intact"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "All %lld entries are intact"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "L'unica voce è integra"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tutte le %lld voci sono integre"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Tutte le voci hanno superato il controllo (CRC, codici di autenticazione, checksum dei codec)." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4213,6 +4452,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All (trusted archives)"
+          }
+        }
+      }
+    },
+    "Unix, initramfs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unix, initramfs"
           }
         }
       }
@@ -4293,6 +4542,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verify ${archive}"
+          }
+        }
+      }
+    },
+    "Verifica archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify Archive"
           }
         }
       }
@@ -4699,6 +4958,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "up to %@"
+          }
+        }
+      }
+    },
+    "formato Apple, cifratura AEA" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple format, AEA encryption"
           }
         }
       }

@@ -151,6 +151,13 @@ final class Job: Identifiable {
     }
 
     func cancelJob() { cancel.cancel() }
+
+    /// Paused by the user (7.1): workers wait at their next check; the activity is released meanwhile.
+    var userPaused = false
+    func togglePause() {
+        userPaused.toggle()
+        if userPaused { cancel.pause() } else { cancel.resume() }
+    }
 }
 
 /// Runs XipperKit operations off the main thread and publishes their progress.

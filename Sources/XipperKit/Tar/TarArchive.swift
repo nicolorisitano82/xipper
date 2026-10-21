@@ -257,7 +257,8 @@ enum TarExtractor {
     static func extract(_ path: String, ctx: ExtractionContext, tracker: ProgressTracker, cancel: CancellationToken?) throws {
         if AppleArchiveReader.isAppleArchive(path) {
             tracker.setTotals(bytes: 0, entries: 0)
-            try extractEntries(try AppleArchiveReader(path: path), ctx: ctx, tracker: tracker, cancel: cancel, reportCompressed: {})
+            try extractEntries(try AppleArchiveReader(path: path, password: ctx.options.password), ctx: ctx, tracker: tracker,
+                               cancel: cancel, reportCompressed: {})
             return
         }
         let (pipe, source, isTar, compression) = try open(path, workload: ctx.options.workload)
@@ -367,9 +368,9 @@ enum TarExtractor {
         try ctx.finalize()
     }
 
-    static func list(_ path: String, workload: Workload) throws -> [ArchiveEntry] {
+    static func list(_ path: String, workload: Workload, password: String? = nil) throws -> [ArchiveEntry] {
         if AppleArchiveReader.isAppleArchive(path) {
-            let reader = try AppleArchiveReader(path: path)
+            let reader = try AppleArchiveReader(path: path, password: password)
             var out: [ArchiveEntry] = []
             while let e = try reader.next() { out.append(e.entry) }
             return out
@@ -390,12 +391,12 @@ enum TarExtractor {
     /// Decompresses and parses everything; codec checksums (gzip CRC, xz CRC64, zstd XXH64,
     /// bzip2 CRC) provide the integrity check, tar itself has none for data.
     static func test(_ path: String, workload: Workload, tracker: ProgressTracker, digests: DigestCollector? = nil,
-                     cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
+                     password: String? = nil, cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
         var count = 0
         if AppleArchiveReader.isAppleArchive(path) {
             // AppleArchive checks the data as it decodes it; reading every entry is the test.
             do {
-                let reader = try AppleArchiveReader(path: path)
+                let reader = try AppleArchiveReader(path: path, password: password)
                 while let e = try reader.next() {
                     var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
                     try reader.readData(cancel: cancel) { chunk in
@@ -407,6 +408,8 @@ enum TarExtractor {
                     count += 1
                 }
             } catch let e as XipperError where e != .cancelled {
+                if case .passwordRequired = e { throw e }
+                if case .wrongPassword = e { throw e }
                 return (count, [SkippedEntry(path: (path as NSString).lastPathComponent, error: e)])
             }
             return (count, [])

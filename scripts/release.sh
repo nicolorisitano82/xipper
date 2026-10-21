@@ -43,6 +43,7 @@ spctl --assess --type execute "$APP" 2>&1 | sed 's/^/gatekeeper: /' || true
 
 echo "==> packaging"
 cp docs/BETA_TESTERS.md "$DIST/$NAME/LEGGIMI - beta.md" 2>/dev/null || true
+cp docs/BETA_TESTERS.en.md "$DIST/$NAME/README - beta.md" 2>/dev/null || true
 ln -s /Applications "$DIST/$NAME/Applicazioni"
 rm -f "$DIST/$NAME.dmg"
 hdiutil create -quiet -volname "Xipper $VERSION $SUFFIX" -srcfolder "$DIST/$NAME" -format UDZO -ov "$DIST/$NAME.dmg"

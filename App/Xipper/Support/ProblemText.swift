@@ -51,3 +51,7 @@ extension SkippedEntry {
 extension SkippedEntry: @retroactive Identifiable {
     public var id: String { path }
 }
+
+extension ArchiveEntry: @retroactive Identifiable {
+    public var id: String { path }
+}

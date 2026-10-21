@@ -176,4 +176,18 @@ Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
 
 **Benchmark ripetibili (§5.4):** `scripts/benchmark.sh [MB] [esecuzioni]` genera un corpus deterministico (sorgenti, testi, dati già compressi, un file grande) e confronta Xipper con ditto, Info-ZIP, `tar | zstd` e 7-Zip; risultati in [docs/BENCHMARK.md](docs/BENCHMARK.md). Su M3 Max, 316 MB: ZIP in 0,33 s contro 6,57 s di ditto (circa 20×) e 5,48 s di Info-ZIP; tar.zst 5× più veloce di `tar | zstd -T0`; 7z 3,5× più veloce di `7zz -mx5` con un rapporto quasi uguale; verifica ZIP 0,09 s contro 1,78 s di `unzip -t`; estrazione ZIP 4× più veloce di ditto. L'obiettivo dello studio ("ZIP almeno 4× Utility Archivio") è superato.
 
-**Resta per la V1:** varianti dell'icona (`.icon` di Icon Composer) e Developer ID con notarizzazione, che dipendono dall'iscrizione all'Apple Developer Program.
+**Resta per la V1:** Developer ID con notarizzazione, che dipende dall'iscrizione all'Apple Developer Program.
+
+## Chiusura della V1: CPIO e Apple Archive in scrittura, dettagli UI, inglese, icona (21/10/2026)
+
+| Voce | Stato |
+|---|---|
+| **Apple Archive in scrittura** | `AppleArchiveWriter` sul framework di sistema: LZ4 (Veloce), LZFSE (Normale), LZMA (Massimo); attributi estesi nel campo XAT (prima dei dati, così il lettore li ha prima di scrivere il file); con la password, archivio **AEA** cifrato (profilo scrypt + AES-CTR + HMAC) che `aea decrypt` apre. macOS rifiuta le password AEA sotto i 20 byte ("Password is too short", anche con `aea encrypt`): errore chiaro nel core e requisito nello sheet. Il lettore apre anche gli AEA e ricostruisce gli attributi (blob XAT decodificato da noi, perché l'API non li espone). |
+| **CPIO in scrittura** | `CpioWriter` in formato newc (file fino a 4 GiB, symlink, padding a 512 come `cpio(1)`); `cpio -idm` lo estrae. |
+| **Inspector (3.1)** | CRC-32 della voce (ZIP e 7z, in monospazio), permessi in monospazio, SHA-256 dell'archivio calcolato in background, riga Quarantena ("Sì, scaricato con Safari" dall'attributo `com.apple.quarantine`), pulsante "Verifica archivio". |
+| **Esito della verifica (5.1)** | "Tutte le N voci sono integre", tempo e velocità, filtro Tutte / Solo errori, tabella Voce · Dimensione · CRC-32 · Esito, "Esporta SHA256SUMS…" e "Fine". |
+| **Pausa (7.1)** | `CancellationToken.pause()/resume()`: i worker si fermano al controllo successivo; nell'HUD Pausa/Riprendi e "In pausa". |
+| **Preset nella barra laterale (3.1)** | Condivisione (ZIP), Backup veloce (tar.zst), Archivio lungo termine (tar.xz), Riservato (7z): un clic imposta formato e livello e apre "Nuovo archivio". |
+| **Inglese** | `README.en.md` e `docs/BETA_TESTERS.en.md`, con link fra le lingue; il DMG contiene "LEGGIMI - beta.md" e "README - beta.md". |
+| **Icona (10.3)** | `App/Xipper/AppIcon.icon` (Icon Composer): gradiente #4AA3FF → #0A57D4 e glifo X con la cerniera in SVG; macOS ne ricava le varianti scura, tinta e trasparente, Xcode anche l'`.icns` di riserva. Generato da `scripts/make-app-icon.py`; il vecchio asset PNG è stato rimosso. Il glifo semplificato sotto i 32 pt resta da fare a mano in Icon Composer. |
+| **Test** | 102 test, tutti verdi, compresi Apple Archive contro `aa` e `aea`, CPIO contro `cpio`. |

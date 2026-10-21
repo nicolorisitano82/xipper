@@ -12,13 +12,14 @@ struct ReportSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Summary banner: the only glass here, tinted only to carry meaning (errors).
+            // Summary banner: tinted only to carry meaning (errors); "Il vetro non si tinge" when intact (5.1).
             HStack(spacing: 12) {
-                Image(systemName: ok ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
-                    .font(.largeTitle).foregroundStyle(ok ? .green : .red)
-                VStack(alignment: .leading) {
+                Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.shield.fill")
+                    .font(.system(size: 40)).foregroundStyle(ok ? .green : .red)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.title3.weight(.semibold))
-                    Text(job.title).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
             .padding(16)
@@ -26,17 +27,16 @@ struct ReportSheet: View {
             .accessibleGlass(tint: ok ? nil : .red, in: RoundedRectangle(cornerRadius: 18))
             .padding(16)
 
-            if !job.report.isEmpty {
+            if isTest && ok {
+                verifiedTable
+            } else if !job.report.isEmpty {
                 List(job.report, id: \.path) { item in
                     VStack(alignment: .leading, spacing: 2) {
                         Label(item.path, systemImage: "xmark.octagon").foregroundStyle(.primary)
-                        Text(item.reason).font(.caption).foregroundStyle(.secondary)
+                        Text(item.problem.message).font(.caption).foregroundStyle(.secondary).help(item.reason)
                     }
                 }
                 .frame(minHeight: 220)
-            } else {
-                Text("Tutte le voci hanno superato il controllo (CRC, codici di autenticazione, checksum dei codec).")
-                    .foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 12)
             }
             HStack {
                 if case let .test(archive, password) = job.kind, ok {
@@ -50,11 +50,57 @@ struct ReportSheet: View {
                     .help("Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c")
                 }
                 Spacer()
-                Button("Chiudi") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button(isTest && ok ? String(localized: "Fine") : String(localized: "Chiudi")) { dismiss() }
+                    .buttonStyle(.glassProminent)
+                    .keyboardShortcut(.defaultAction)
             }
             .padding(16)
         }
-        .frame(width: 520)
+        .frame(width: isTest && ok ? 640 : 520)
+        .task {
+            guard isTest, ok, case let .test(archive, password) = job.kind else { return }
+            entries = await Task.detached { (try? Xipper.list(archive, password: password)) ?? [] }.value
+                .filter { $0.kind == .file && !$0.isAppleDoubleMetadata }
+        }
+    }
+
+    private var isTest: Bool { if case .test = job.kind { true } else { false } }
+    @State private var entries: [ArchiveEntry] = []
+    @State private var onlyErrors = false
+
+    private var subtitle: String {
+        guard isTest, let r = job.testReport else { return job.title }
+        let speed = r.elapsed > 0 ? Double(r.bytes) / r.elapsed : 0
+        return String(localized: "\(job.title) · verificato senza scrivere su disco · \(r.elapsed.formatted(.number.precision(.fractionLength(1)))) s · \(Int64(speed).byteText)/s")
+    }
+
+    /// 5.1: Tutte / Solo errori, then Voce · Dimensione · CRC-32 · Esito.
+    private var verifiedTable: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Picker("Mostra", selection: $onlyErrors) {
+                    Text("Tutte").tag(false)
+                    Text("Solo errori").tag(true)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                Spacer()
+                Text("\(entries.count) integre · 0 errori").foregroundStyle(.secondary).monospacedDigit()
+            }
+            .padding(.horizontal, 16).padding(.bottom, 8)
+            Table(onlyErrors ? [] : entries) {
+                TableColumn("Voce") { e in Text(e.path).lineLimit(1).truncationMode(.middle) }
+                    .width(min: 200, ideal: 300)
+                TableColumn("Dimensione") { e in Text(e.uncompressedSize >= 0 ? e.uncompressedSize.byteText : "—").monospacedDigit().foregroundStyle(.secondary) }
+                    .width(min: 70, ideal: 90)
+                TableColumn("CRC-32") { e in
+                    Text(e.crc32.map { String(format: "%08X", $0) } ?? "—").font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
+                }
+                .width(min: 80, ideal: 90)
+                TableColumn("Esito") { _ in Label("Integra", systemImage: "checkmark").foregroundStyle(.green) }
+                    .width(min: 70, ideal: 80)
+            }
+            .frame(minHeight: 260)
+        }
     }
 
     /// A second pass that hashes every file (5.1); the manifest is saved next to the archive by default.
@@ -81,7 +127,7 @@ struct ReportSheet: View {
 
     private var title: String {
         switch job.kind {
-        case .test: ok ? String(localized: "Archivio integro") : String(localized: "Problemi di integrità")
+        case .test: ok ? String(localized: "Tutte le \(entries.isEmpty ? (job.testReport?.entries ?? 0) : entries.count) voci sono integre") : String(localized: "Problemi di integrità")
         case .extract: String(localized: "Voci non estratte per sicurezza")
         case .create: String(localized: "Report")
         }

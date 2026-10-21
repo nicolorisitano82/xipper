@@ -42,10 +42,20 @@ public enum CPUTopology {
 /// Cooperative cancellation shared between the caller and worker threads.
 public final class CancellationToken: Sendable {
     private let flag = Atomic<Bool>(false)
+    private let pausedFlag = Atomic<Bool>(false)
     public init() {}
     public func cancel() { flag.store(true, ordering: .relaxed) }
     public var isCancelled: Bool { flag.load(ordering: .relaxed) }
-    func check() throws { if isCancelled { throw XipperError.cancelled } }
+
+    /// Pause (UI_SPEC 7.1): workers wait at their next check until `resume()` or `cancel()`.
+    public func pause() { pausedFlag.store(true, ordering: .relaxed) }
+    public func resume() { pausedFlag.store(false, ordering: .relaxed) }
+    public var isPaused: Bool { pausedFlag.load(ordering: .relaxed) }
+
+    func check() throws {
+        while isPaused && !isCancelled { usleep(50_000) }
+        if isCancelled { throw XipperError.cancelled }
+    }
 }
 
 /// Snapshot delivered to progress handlers.

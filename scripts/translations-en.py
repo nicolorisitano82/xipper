@@ -8,7 +8,7 @@ Usage: python3 scripts/translations-en.py
 import json, pathlib, sys
 
 # Keys whose English text is the same as the Italian one (names, formats, symbols).
-SAME = {"", "7z", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
+SAME = {"", "7z", "CRC-32", "SHA-256", "No", "%@", "%lld", "%lld MB/s", "%lld%%", "%lld%% · ", "1 : %@", "1 GB", "10 GB", "50 GB", "MB/s", "Xipper",
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
@@ -415,6 +415,22 @@ EN = {
     "ZipCrypto è una cifratura debole": "ZipCrypto is weak encryption",
     "compatto": "compact",
     "compatto, nomi cifrati": "compact, encrypted names",
+    # Inspector, 5.1, pause, presets, Apple Archive and cpio
+    "%@ · verificato senza scrivere su disco · %@ s · %@/s": "%1$@ · verified without writing to disk · %2$@ s · %3$@/s",
+    "%@: usa questo preset per un nuovo archivio": "%@: use this preset for a new archive",
+    "Condivisione": "Sharing",
+    "Fine": "Done",
+    "Gli Apple Archive cifrati richiedono almeno %lld caratteri.": "Encrypted Apple Archives need at least %lld characters.",
+    "In pausa": "Paused",
+    "La password è disponibile per ZIP, 7z e Apple Archive": "Passwords are available for ZIP, 7z and Apple Archive",
+    "Pausa": "Pause",
+    "Quarantena": "Quarantine",
+    "Riprendi": "Resume",
+    "Riservato": "Private",
+    "Sì, scaricato con %@": "Yes, downloaded with %@",
+    "Unix, initramfs": "Unix, initramfs",
+    "Verifica archivio": "Verify Archive",
+    "formato Apple, cifratura AEA": "Apple format, AEA encryption",
     # Finder extension
     "Apri in Xipper": "Open in Xipper",
     "Comprimi “%@”": "Compress “%@”",
@@ -455,6 +471,8 @@ PLURAL = {
     "circa %lld secondi": ("circa %lld secondo", "circa %lld secondi", "about %lld second", "about %lld seconds"),
     "%lld lavori": ("%lld lavoro", "%lld lavori", "%lld job", "%lld jobs"),
     "%lld elementi · %@ in %@": ("%lld elemento · %@ in %@", "%lld elementi · %@ in %@", "%lld item · %@ in %@", "%lld items · %@ in %@"),
+    "%lld integre · 0 errori": ("%lld integra · 0 errori", "%lld integre · 0 errori", "%lld intact · 0 errors", "%lld intact · 0 errors"),
+    "Tutte le %lld voci sono integre": ("L'unica voce è integra", "Tutte le %lld voci sono integre", "The only entry is intact", "All %lld entries are intact"),
     "%lld lavori attivi": ("%lld lavoro attivo", "%lld lavori attivi", "%lld active job", "%lld active jobs"),
     "Comprimi %lld elementi": ("Comprimi %lld elemento", "Comprimi %lld elementi", "Compress %lld Item", "Compress %lld Items"),
     "BGZF · %lld blocchi · marcatore di fine MANCANTE (file troncato?)": (

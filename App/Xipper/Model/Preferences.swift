@@ -151,7 +151,7 @@ extension ArchiveFormat {
     }
 
     /// Formats offered when compressing several items or a folder.
-    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar]
+    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar, .appleArchive, .cpio]
     static let singleFile: [ArchiveFormat] = [.gzip, .bgzf, .zstd, .xz, .bzip2]
 }
 

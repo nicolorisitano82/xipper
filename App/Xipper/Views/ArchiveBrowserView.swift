@@ -46,7 +46,9 @@ struct ArchiveBrowserView: View {
         } detail: {
             content
                 .inspector(isPresented: Binding(get: { showInspector && !showDamaged }, set: { showInspector = $0 })) {
-                    ArchiveInspector(model: model, selection: selectedItems)
+                    ArchiveInspector(model: model, selection: selectedItems) {
+                        verifyJob = jobs.start(.test(archive: url, password: model.password))
+                    }
                         .inspectorColumnWidth(min: 240, ideal: 262)
                 }
         }
@@ -377,6 +379,24 @@ private struct FolderSidebar: View {
     @AppStorage(PrefKey.favoriteArchives) private var favoritesRaw = ""
 
     private static let otherArchive = "\u{1}archive:"
+    private static let presetTag = "\u{1}preset:"
+    @AppStorage(PrefKey.defaultFormat) private var formatRaw = ArchiveFormat.zip.rawValue
+    @AppStorage(PrefKey.levelPreset) private var presetRaw = LevelPreset.balanced.rawValue
+
+    /// Presets of the format menu (2.2): applied to the next archive, in the "Nuovo archivio" window.
+    private struct Preset: Identifiable {
+        let id: String
+        let title: String
+        let format: ArchiveFormat
+        let level: LevelPreset
+        var subtitle: String { "\(format.displayName) · \(level.title)" }
+    }
+    private var presets: [Preset] {
+        [Preset(id: "share", title: String(localized: "Condivisione"), format: .zip, level: .balanced),
+         Preset(id: "backup", title: String(localized: "Backup veloce"), format: .tarZstd, level: .fast),
+         Preset(id: "archive", title: String(localized: "Archivio lungo termine"), format: .tarXz, level: .best),
+         Preset(id: "private", title: String(localized: "Riservato"), format: .sevenZip, level: .best)]
+    }
     private var favorites: [URL] {
         favoritesRaw.split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -392,6 +412,12 @@ private struct FolderSidebar: View {
             // Other archives open in their own window; this one keeps its folder.
             if let value, value.hasPrefix(Self.otherArchive) {
                 openWindow(id: "archive", value: URL(fileURLWithPath: String(value.dropFirst(Self.otherArchive.count))))
+                return
+            }
+            if let value, value.hasPrefix(Self.presetTag), let p = presets.first(where: { $0.id == value.dropFirst(Self.presetTag.count) }) {
+                formatRaw = p.format.rawValue
+                presetRaw = p.level.rawValue
+                openWindow(id: "home")
                 return
             }
             model.currentFolder = value ?? ""
@@ -416,6 +442,13 @@ private struct FolderSidebar: View {
                     }
                 }
             }
+            Section("Preset") {
+                ForEach(presets) { p in
+                    Label(p.title, systemImage: "square.stack.3d.up")
+                        .tag(Self.presetTag + p.id)
+                        .help(String(localized: "\(p.subtitle): usa questo preset per un nuovo archivio"))
+                }
+            }
             if !recents.isEmpty {
                 Section("Recenti") {
                     ForEach(recents, id: \.self) { u in
@@ -432,7 +465,10 @@ private struct FolderSidebar: View {
 private struct ArchiveInspector: View {
     let model: ArchiveModel
     let selection: [BrowserItem]
+    /// "Verifica archivio" (3.1).
+    var verify: () -> Void = {}
     @State private var preview: Preview?
+    @State private var sha256: String?
 
     enum Preview: Equatable { case text(String), image(NSImage), none(String) }
 
@@ -446,7 +482,12 @@ private struct ArchiveInspector: View {
                     if let e = item.entry {
                         LabeledContent("Metodo", value: e.method)
                         if let m = e.modified { LabeledContent("Modificato", value: m.formatted(date: .abbreviated, time: .shortened)) }
-                        if let p = e.permissions { LabeledContent("Permessi", value: String(p, radix: 8)) }
+                        if let c = e.crc32 {
+                            LabeledContent("CRC-32") { Text(String(format: "%08X", c)).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
+                        }
+                        if let p = e.permissions {
+                            LabeledContent("Permessi") { Text(String(p, radix: 8)).font(.system(.body, design: .monospaced)) }
+                        }
                         if e.isEncrypted { LabeledContent("Cifratura", value: encryptionName(e.encryption)) }
                         if let t = e.linkTarget { LabeledContent("Collegamento a", value: t) }
                     }
@@ -469,6 +510,19 @@ private struct ArchiveInspector: View {
                         LabeledContent("Rapporto", value: "\(Int((Double(model.archiveSize) / Double(model.totalSize) * 100).rounded()))%")
                     }
                     LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì") : "No")
+                    LabeledContent("SHA-256") {
+                        if let sha256 {
+                            Text(String(sha256.prefix(16)) + "…").font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled).help(sha256)
+                        } else {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
+                    LabeledContent("Quarantena", value: quarantine)
+                }
+                Section {
+                    Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
+                        .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
                 }
                 if let b = model.bgzf {
                     Section("BGZF (genomica)") {
@@ -480,6 +534,21 @@ private struct ArchiveInspector: View {
         }
         .formStyle(.grouped)
         .task(id: "\(selection.first?.path ?? "")|\(model.password != nil)") { await loadPreview() }
+        .task(id: model.url) {
+            let url = model.url
+            sha256 = await Task.detached { try? Updates.sha256(of: url) }.value
+        }
+    }
+
+    /// "Sì, scaricato con Safari" from the quarantine attribute ("flags;time;agent;uuid"), or "No".
+    private var quarantine: String {
+        let size = getxattr(model.url.path, "com.apple.quarantine", nil, 0, 0, 0)
+        guard size > 0 else { return String(localized: "No") }
+        var buf = [UInt8](repeating: 0, count: size)
+        _ = getxattr(model.url.path, "com.apple.quarantine", &buf, size, 0, 0)
+        let fields = String(decoding: buf, as: UTF8.self).split(separator: ";", omittingEmptySubsequences: false)
+        if fields.count > 2, !fields[2].isEmpty { return String(localized: "Sì, scaricato con \(String(fields[2]))") }
+        return String(localized: "Sì")
     }
 
     @ViewBuilder private var previewView: some View {

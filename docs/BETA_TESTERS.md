@@ -1,5 +1,7 @@
 # Xipper 0.9.0 beta3: note per i tester
 
+*Italiano · [English](BETA_TESTERS.en.md)*
+
 Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica ed estrae archivi in modo veloce e sicuro.
 
 ## Installazione
@@ -28,7 +30,7 @@ Al primo avvio Xipper mostra un'introduzione con tre passaggi facoltativi: esten
 - **Azioni rapide / Servizi:** **Comprimi con Xipper**, **Estrai con Xipper**, **Verifica con Xipper**. Si trovano nel menu contestuale, sotto **Azioni rapide** o **Servizi**. Se non compaiono, attivale in **Impostazioni di Sistema › Tastiera › Scorciatoie da tastiera › Servizi › File e cartelle**.
 
 - **Quick Look:** seleziona un archivio nel Finder e premi la barra spaziatrice per vederne il contenuto. Le icone degli archivi mostrano il formato (e, per gli ZIP, il numero di file).
-- **Comandi Rapidi:** nell'app Comandi Rapidi cerca "Xipper": Comprimi, Estrai e Verifica.
+- **Comandi Rapidi:** nell'app Comandi Rapidi cerca "Xipper": Comprimi, Estrai, Verifica ed Elenca contenuto.
 
 Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`, `nome 2`…) e non sovrascrivono mai nulla.
 
@@ -52,13 +54,13 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 | Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
 
 ## Limiti noti della beta3
-- **7z** è supportato in lettura e scrittura (anche con nomi cifrati e volumi). **RAR** non è supportato (previsto più avanti, in sola lettura). ZIP Deflate64 non è supportato. Gli ZIP divisi in parti (`.z01`…, `.zip.001`…) si aprono da qualsiasi parte.
-- **lz4, brotli, cpio e Apple Archive (`.aar`)** si aprono, si verificano e si estraggono, ma non si creano.
-- Gli **attributi estesi del Mac** (tag del Finder, resource fork) vengono salvati nei formati tar e riapplicati in estrazione, anche da ZIP del Finder e tar di macOS (`__MACOSX`, `._`). Negli ZIP creati da Xipper non vengono ancora salvati.
-- **Solo italiano.**
+- **RAR** non è supportato (previsto più avanti, in sola lettura), e nemmeno ZIP Deflate64.
+- **lz4 e brotli** si aprono, si verificano e si estraggono, ma non si creano.
+- Gli Apple Archive cifrati (AEA) richiedono una password di almeno 20 caratteri: è un limite di macOS.
+- Gli **attributi del Mac** negli ZIP si salvano solo attivando l'opzione in **Impostazioni › Formati** (cartella `__MACOSX`, come il Finder).
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
 - Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.
-- Mancano ancora: varianti dell'icona (scura, tinta, trasparente) e cartelle sorvegliate.
+- Mancano ancora le cartelle sorvegliate.
 
 ## Segnalare un problema
 Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:

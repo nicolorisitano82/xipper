@@ -143,7 +143,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | **tar.xz**, **xz** | ✅ | ✅ | | xz-embedded/liblzma (0BSD), xz multi-blocco parallelo |
 | **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
 | lz4, brotli (anche `tar.lz4`, `tar.br`) | 🔜 | ✅ fatto | | lz4: decoder del formato frame scritto da noi (blocchi indipendenti e collegati, xxHash32); brotli: Compression di sistema |
-| CPIO (newc, crc, odc), `.aar` (Apple Archive) | 🔜 | ✅ fatto | AEA 🔜 | cpio nostro; Apple Archive tramite il framework AppleArchive di sistema, con l'estrazione sicura di Xipper |
+| CPIO (newc, crc, odc), `.aar` (Apple Archive) | ✅ fatto | ✅ fatto | ✅ AEA (password di almeno 20 caratteri, limite di macOS) | cpio nostro (scrittura newc); Apple Archive tramite il framework AppleArchive di sistema (LZ4/LZFSE/LZMA, attributi estesi), con l'estrazione sicura di Xipper |
 | ISO 9660 / UDF | ❌ | 🔜 📖 | | nostro (lettura semplice) |
 | **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v2 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |

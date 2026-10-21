@@ -25,11 +25,11 @@ struct ReadOnlyFormatTests {
         try Xipper.extract(t.url(archive), to: t.url(out), mode: .into)
         let (same, why) = treesEqual(t.path + "/src", t.path + "/" + out + (nested ? "/src" : ""))
         #expect(same, "\(archive): \(why)")
-        #expect(throws: XipperError.self) {
+        if !format.canCreate { #expect(throws: XipperError.self) {
             var o = CreateOptions()
             o.format = format
             try Xipper.create(from: [t.url("src")], to: t.url("never." + format.fileExtension), options: o)
-        }
+        } }
     }
 
     @Test(.enabled(if: lz4 != nil), arguments: ["-BI", "-BD", "--content-size"])
@@ -115,5 +115,83 @@ struct ReadOnlyFormatTests {
         let abc = Array("abc".utf8)
         abc.withUnsafeBytes { h.update($0) }
         #expect(h.digest() == 0x32D1_53FF)
+    }
+}
+
+@Suite("Writing cpio and Apple Archive (also AEA)")
+struct CpioAppleArchiveWriteTests {
+    func tree(_ t: TempDir) -> [UInt8] {
+        t.write("src/a.txt", String(repeating: "Apple Archive ", count: 5000))
+        t.write("src/sub/b.bin", sampleData(900 << 10, seed: 31))
+        t.symlink("src/link", to: "a.txt")
+        let v = Array("Verde\n2".utf8)
+        _ = v.withUnsafeBytes { setxattr(t.path + "/src/a.txt", "app.xipper.aar", $0.baseAddress, v.count, 0, 0) }
+        return v
+    }
+
+    @Test(arguments: [1, 6, 9])
+    func appleArchiveReadByAaAndUs(level: Int) throws {
+        let t = TempDir()
+        let v = tree(t)
+        var o = CreateOptions()
+        o.format = .appleArchive
+        o.level = level
+        try Xipper.create(from: [t.url("src")], to: t.url("a.aar"), options: o)
+        #expect(try ArchiveFormat.detect(t.url("a.aar")) == .appleArchive)
+        #expect(try Xipper.test(t.url("a.aar")).isOK)
+        // macOS's own tool extracts it, attributes included.
+        t.mkdir("aa")
+        #expect(run("/usr/bin/aa", ["extract", "-i", t.path + "/a.aar", "-d", t.path + "/aa"]).status == 0)
+        #expect(treesEqual(t.path + "/src", t.path + "/aa/src").0)
+        #expect(ExtendedAttributes.read(t.path + "/aa/src/a.txt").first { $0.name == "app.xipper.aar" }?.value == v)
+        t.mkdir("ours")
+        try Xipper.extract(t.url("a.aar"), to: t.url("ours"), mode: .into)
+        #expect(treesEqual(t.path + "/src", t.path + "/ours/src").0)
+        #expect(ExtendedAttributes.read(t.path + "/ours/src/a.txt").first { $0.name == "app.xipper.aar" }?.value == v)
+    }
+
+    @Test func encryptedAEAWithPassword() throws {
+        let t = TempDir()
+        _ = tree(t)
+        var o = CreateOptions()
+        o.format = .appleArchive
+        #expect(throws: XipperError.self) {  // AEA needs at least 20 bytes
+            var short = CreateOptions()
+            short.format = .appleArchive
+            short.password = "corta"
+            try Xipper.create(from: [t.url("src")], to: t.url("short.aar"), options: short)
+        }
+        o.password = "una parola segreta lunga"
+        try Xipper.create(from: [t.url("src")], to: t.url("s.aar"), options: o)
+        let bytes = try Data(contentsOf: t.url("s.aar"))
+        #expect(bytes.starts(with: Array("AEA1".utf8)))
+        #expect(bytes.range(of: Data("b.bin".utf8)) == nil)  // names are encrypted too
+        #expect(throws: XipperError.passwordRequired(entry: "s.aar")) { _ = try Xipper.list(t.url("s.aar")) }
+        #expect(throws: XipperError.self) { _ = try Xipper.test(t.url("s.aar"), password: "sbagliata") }
+        #expect(try Xipper.test(t.url("s.aar"), password: "una parola segreta lunga").isOK)
+        // macOS decrypts it with aea and the same password.
+        #expect(run("/usr/bin/aea", ["decrypt", "-i", t.path + "/s.aar", "-o", t.path + "/plain.aar",
+                                     "-password-value", "una parola segreta lunga"]).status == 0)
+        t.mkdir("aa")
+        #expect(run("/usr/bin/aa", ["extract", "-i", t.path + "/plain.aar", "-d", t.path + "/aa"]).status == 0)
+        #expect(treesEqual(t.path + "/src", t.path + "/aa/src").0)
+        t.mkdir("ours")
+        var x = ExtractOptions()
+        x.password = "una parola segreta lunga"
+        try Xipper.extract(t.url("s.aar"), to: t.url("ours"), mode: .into, options: x)
+        #expect(treesEqual(t.path + "/src", t.path + "/ours/src").0)
+    }
+
+    @Test(.enabled(if: toolExists("/usr/bin/cpio")))
+    func cpioReadByCpio() throws {
+        let t = TempDir()
+        _ = tree(t)
+        var o = CreateOptions()
+        o.format = .cpio
+        try Xipper.create(from: [t.url("src")], to: t.url("c.cpio"), options: o)
+        #expect(try Xipper.test(t.url("c.cpio")).isOK)
+        t.mkdir("cp")
+        #expect(run("/bin/sh", ["-c", "/usr/bin/cpio -idm < ../c.cpio"], cwd: t.path + "/cp").status == 0)
+        #expect(treesEqual(t.path + "/src", t.path + "/cp/src").0)
     }
 }

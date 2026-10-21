@@ -1,0 +1,23 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "extended-srgb:0.29020,0.63922,1.00000,1.00000",
+      "extended-srgb:0.03922,0.34118,0.83137,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "glyph.svg",
+          "name": "glyph"
+        }
+      ]
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

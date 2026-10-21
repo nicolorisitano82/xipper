@@ -34,8 +34,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli].contains(self) }
     public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli].contains(self) }
     /// Formats Xipper can write.
-    public var canCreate: Bool { ![.tarLz4, .lz4, .tarBrotli, .brotli, .cpio, .appleArchive].contains(self) }
-    public var supportsPassword: Bool { self == .zip || self == .sevenZip }
+    public var canCreate: Bool { ![.tarLz4, .lz4, .tarBrotli, .brotli].contains(self) }
+    public var supportsPassword: Bool { self == .zip || self == .sevenZip || self == .appleArchive }
 
     var compression: StreamCompression {
         switch self {
@@ -236,7 +236,13 @@ public enum Xipper {
             z.volumeSize = options.volumeSize
             z.workload = options.workload
             return try SevenZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
-        case .tarLz4, .lz4, .tarBrotli, .brotli, .cpio, .appleArchive:
+        case .appleArchive:
+            return try AppleArchiveWriter.write(items: items, to: path, level: level, password: options.password,
+                                                extendedAttributes: options.storeExtendedAttributes, overwrite: options.overwrite,
+                                                progress: progress, cancel: cancel)
+        case .cpio:
+            return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
+        case .tarLz4, .lz4, .tarBrotli, .brotli:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
         case .gzip, .bgzf, .bzip2, .xz, .zstd:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
@@ -367,7 +373,7 @@ public enum Xipper {
                 }
             }
         } else {
-            (entries, failures) = try TarExtractor.test(path, workload: workload, tracker: tracker, digests: sums, cancel: cancel)
+            (entries, failures) = try TarExtractor.test(path, workload: workload, tracker: tracker, digests: sums, password: password, cancel: cancel)
         }
         tracker.finish()
         var report = TestReport(entries: entries, bytes: tracker.completedBytes, failures: failures, elapsed: tracker.elapsed)
@@ -383,7 +389,7 @@ public enum Xipper {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }
         if format == .sevenZip { return try SevenZipArchive(path: archive.standardizedFileURL.path, password: password).entries }
-        return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload)
+        return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload, password: password)
     }
 }
 

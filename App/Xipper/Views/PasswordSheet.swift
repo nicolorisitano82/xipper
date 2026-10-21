@@ -10,6 +10,8 @@ struct PasswordSheet: View {
     let onDone: (String?, _ remember: Bool) -> Void
     /// ZIP creation only: AES-256 (false) or ZipCrypto (true), offered with a warning (UI_SPEC 2.7).
     var legacyZipCrypto: Binding<Bool>?
+    /// Apple Archive (AEA) needs at least 20 characters.
+    var minimumLength = 1
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirm = ""
@@ -17,7 +19,9 @@ struct PasswordSheet: View {
 
     private var isCreate: Bool { if case .create = mode { true } else { false } }
     private var nonASCII: Bool { password.unicodeScalars.contains { !$0.isASCII } }
-    private var valid: Bool { !password.isEmpty && (!isCreate || password == confirm) }
+    private var valid: Bool {
+        !password.isEmpty && password.utf8.count >= minimumLength && (!isCreate || password == confirm)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -64,6 +68,10 @@ struct PasswordSheet: View {
             if isCreate && nonASCII {
                 Label("Le password con caratteri accentati o speciali non si possono inserire in 7-Zip.", systemImage: "info.circle")
                     .font(.callout).foregroundStyle(.orange)
+            }
+            if isCreate && minimumLength > 1 && password.utf8.count < minimumLength {
+                Text("Gli Apple Archive cifrati richiedono almeno \(minimumLength) caratteri.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             if isCreate && !confirm.isEmpty && password != confirm {
                 Text("Le password non coincidono.").font(.callout).foregroundStyle(.red)

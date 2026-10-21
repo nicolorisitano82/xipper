@@ -206,10 +206,12 @@ final class ZipArchive: @unchecked Sendable {
         while name.hasSuffix("/") { name.removeLast() }
 
         let actualMethod: UInt16 = if case let .aes(_, _, m) = encryption { m } else { method }
+        // AE-2 entries hide the CRC (stored as 0).
+        let storedCRC: UInt32? = kind == .file && !(crc == 0 && usize > 0) ? crc : nil
         let entry = ArchiveEntry(path: name, kind: kind, uncompressedSize: usize, compressedSize: csize,
                                  modified: mtime ?? DOSDateTime.decode(time: dosTime, date: dosDate),
                                  permissions: unixMode != 0 ? unixMode & 0o7777 : nil,
-                                 encryption: encryption, method: zipMethodName(actualMethod), linkTarget: nil)
+                                 encryption: encryption, method: zipMethodName(actualMethod), linkTarget: nil, crc32: storedCRC)
         return ZipEntryRecord(entry: entry, rawName: rawName, method: method, flags: flags, crc: crc,
                               compressedSize: csize, uncompressedSize: usize,
                               localHeaderOffset: offset + (try partStart(disk, partStarts)) + bias,
