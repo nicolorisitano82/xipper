@@ -67,5 +67,8 @@ Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:
 
 Per i problemi con gli assistenti AI allega le righe pertinenti di `~/Library/Logs/Xipper/mcp-audit.jsonl`. Non contiene password né il contenuto dei file.
 
+## Aggiornamenti
+Una volta al giorno Xipper chiede a GitHub se c'è una versione nuova; puoi farlo anche da **Xipper › Cerca aggiornamenti…**. Se c'è, ti chiede se scaricarla: l'immagine disco va nei **Download** e viene controllata con l'impronta SHA-256 del rilascio. Poi Xipper la apre e si chiude, e tu trascini Xipper in **Applicazioni** come la prima volta. Il controllo giornaliero si spegne in **Impostazioni › Generali › Aggiornamenti**.
+
 ## Privacy
-Xipper non si collega a Internet e non raccoglie dati. Tutto avviene sul tuo Mac.
+Xipper non raccoglie dati. L'unico collegamento a Internet è la domanda a GitHub sugli aggiornamenti, che invia solo il nome e la versione dell'app; si può disattivare. Tutto il resto avviene sul tuo Mac.

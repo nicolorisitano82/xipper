@@ -20,6 +20,7 @@ private struct GeneralSettings: View {
     @AppStorage(PrefKey.defaultFormat) private var format = ArchiveFormat.zip.rawValue
     @AppStorage(PrefKey.levelPreset) private var preset = LevelPreset.balanced.rawValue
     @AppStorage(PrefKey.revealAfter) private var reveal = true
+    @AppStorage(PrefKey.updatesAutomatic) private var updates = true
 
     var body: some View {
         Form {
@@ -30,6 +31,13 @@ private struct GeneralSettings: View {
                 ForEach(LevelPreset.allCases) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Mostra il risultato nel Finder al termine", isOn: $reveal)
+            Section("Aggiornamenti") {
+                Toggle("Cerca aggiornamenti ogni giorno", isOn: $updates)
+                LabeledContent("Versione", value: Updates.runningVersion)
+                Button("Cerca aggiornamenti…") { UpdateController.shared.checkForUpdates() }
+                Text("Xipper chiede a GitHub se c'è una versione nuova e la scarica solo se glielo dici. L'installazione resta manuale: trascini Xipper in Applicazioni come la prima volta.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

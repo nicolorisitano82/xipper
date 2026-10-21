@@ -46,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UNUserNotificationCenter.current().delegate = notifications
         MainActor.assumeIsolated { JobFeedback.prepare() }
         NSApp.servicesProvider = services
+        #if !DEBUG
+        MainActor.assumeIsolated { UpdateController.shared.checkQuietlyIfDue() }
+        #endif
         NSUpdateDynamicServices()
     }
 

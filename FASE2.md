@@ -110,3 +110,12 @@ Ai livelli -7 e -8 si usa 1× dizionario, privilegiando la velocità.
 | **Accessibilità (0.3, 10.1, 10.2)** | `accessibleGlass`: con Riduci trasparenza o Aumenta contrasto il vetro personalizzato diventa una superficie piena con bordo (1,5 pt `.primary` con contrasto aumentato). Con Riduci movimento i morph diventano dissolvenze da 150 ms e niente rimbalzi o pulsazioni dei simboli. Zona di rilascio con azione VoiceOver "Scegli i file", icone decorative nascoste, `.help` sui pulsanti solo icona. |
 | **Inglese** | String Catalog (`Localizable.xcstrings`) in app ed estensioni, lingua sorgente italiano, 366 stringhe con l'inglese e i plurali singolare/plurale in entrambe le lingue. I testi AppKit (alert, pannelli, notifiche, menu del Finder) passano da `String(localized:)`. `scripts/sync-strings.sh` aggiorna i cataloghi dopo una build da riga di comando; `scripts/translations-en.py` contiene le traduzioni e segnala quelle mancanti. Restano in italiano i nomi dei Servizi in Info.plist. |
 | **Icona** | Quella del design (A3): X bianca con i denti della cerniera su gradiente #4AA3FF → #0A57D4; sotto i 32 pt solo la X. Generata da `scripts/make-app-icon.swift`. |
+
+## Aggiornamenti manuali (21/10/2026)
+
+Come in Neko e Underdock, senza Sparkle e senza installazioni automatiche:
+- **Controllo:** all'avvio (build Release), al massimo una volta al giorno e disattivabile in Impostazioni › Generali; oppure **Xipper › Cerca aggiornamenti…**, che risponde anche quando non c'è niente di nuovo. Ogni versione viene annunciata in automatico una volta sola.
+- **Feed:** `api.github.com/repos/nicolorisitano82/xipper/releases`. Le pre-release vengono proposte solo a chi usa una beta; il confronto tra versioni capisce `0.9.0-beta10 > 0.9.0-beta9` e `0.9.0 > 0.9.0-beta2`. `release.sh` scrive `XipperReleaseVersion` (per esempio `0.9.0-beta2`) nell'Info.plist.
+- **Download:** solo da GitHub in HTTPS. Il DMG viene confrontato con il file `.dmg.sha256` del rilascio (se non corrisponde viene eliminato) e poi messo nei Download.
+- **Installazione:** "Apri e chiudi Xipper" apre l'immagine ed esce (se ci sono lavori in corso, prima lo chiede); il trascinamento in Applicazioni resta manuale. In alternativa, "Mostra nel Finder" o "Più tardi".
+- **Verifica:** confronto delle versioni, lettura del feed reale (da 0.9.0-beta1 propone la beta2; dalla beta2 e dalla 0.9.0 nessuna proposta), host fidati e impronta SHA-256 del DMG della beta2, con uno script separato. Proposta, download e verifica dell'impronta provati nell'app con `XIPPER_DEMO_VERSION=0.9.0-beta1`.

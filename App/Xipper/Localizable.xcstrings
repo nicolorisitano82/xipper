@@ -549,6 +549,16 @@
         }
       }
     },
+    "Aggiornamenti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        }
+      }
+    },
     "Aggiungi" : {
       "localizations" : {
         "en" : {
@@ -705,6 +715,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Folder"
+          }
+        }
+      }
+    },
+    "Apri e chiudi Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open and Quit Xipper"
           }
         }
       }
@@ -961,6 +981,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Folders"
+          }
+        }
+      }
+    },
+    "Cerca aggiornamenti ogni giorno" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for updates every day"
+          }
+        }
+      }
+    },
+    "Cerca aggiornamenti…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates…"
           }
         }
       }
@@ -1567,6 +1607,16 @@
         }
       }
     },
+    "Download in corso…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading…"
+          }
+        }
+      }
+    },
     "Elementi" : {
       "localizations" : {
         "en" : {
@@ -2053,6 +2103,16 @@
         }
       }
     },
+    "GitHub ha risposto %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub answered %lld."
+          }
+        }
+      }
+    },
     "Gli archivi tar.zst sono i più veloci e compatti per backup e scambio tra Mac e Linux; ZIP resta il più compatibile con Windows." : {
       "localizations" : {
         "en" : {
@@ -2083,6 +2143,46 @@
         }
       }
     },
+    "Hai la %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have %@."
+          }
+        }
+      }
+    },
+    "Hai la versione %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have version %@."
+          }
+        }
+      }
+    },
+    "Il download non è riuscito." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download failed."
+          }
+        }
+      }
+    },
+    "Il file non viene da GitHub." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That file does not come from GitHub."
+          }
+        }
+      }
+    },
     "Il volume di destinazione è in sola lettura" : {
       "localizations" : {
         "en" : {
@@ -2099,6 +2199,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The volume is no longer available"
+          }
+        }
+      }
+    },
+    "Immagine disco: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk image: %@."
           }
         }
       }
@@ -2293,12 +2403,52 @@
         }
       }
     },
+    "L'ho eliminata. Riprova più tardi o scaricala dalla pagina del rilascio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I deleted it. Try again later or download it from the release page."
+          }
+        }
+      }
+    },
+    "L'immagine scaricata non corrisponde all'impronta SHA-256 del rilascio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded image does not match the release's SHA-256 checksum."
+          }
+        }
+      }
+    },
+    "La apro e chiudo Xipper? Poi trascina Xipper in Applicazioni, sostituendo quello che c'è, e riaprilo. Mi chiudo prima, così la copia che sostituisci non è quella in uso." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shall I open it and quit Xipper? Then drag Xipper into Applications, replacing the one there, and open it again. I quit first so the copy you replace is not the one running."
+          }
+        }
+      }
+    },
     "La compressione si è fermata al %lld%%." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compression stopped at %lld%%."
+          }
+        }
+      }
+    },
+    "La scarico nei Download; poi la apro e Xipper si chiude, così lo trascini in Applicazioni al posto di questa copia." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I download it to Downloads; then I open it and Xipper quits, so you can drag it into Applications in place of this copy."
           }
         }
       }
@@ -2693,12 +2843,52 @@
         }
       }
     },
+    "Non ora" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Now"
+          }
+        }
+      }
+    },
     "Non ricomprimere file già compressi (foto, video, archivi)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Don't recompress already compressed files (photos, videos, archives)"
+          }
+        }
+      }
+    },
+    "Non sono riuscito a chiedere a GitHub." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not ask GitHub."
+          }
+        }
+      }
+    },
+    "Non sono riuscito a metterla nei Download." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not put it in Downloads."
+          }
+        }
+      }
+    },
+    "Non sono riuscito a verificare l'impronta SHA-256." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify the SHA-256 checksum."
           }
         }
       }
@@ -2719,6 +2909,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Normal"
+          }
+        }
+      }
+    },
+    "Note di rilascio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release Notes"
           }
         }
       }
@@ -2883,6 +3083,16 @@
         }
       }
     },
+    "Più tardi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
+    },
     "Possibile zip bomb: estrazione fermata prima di scrivere" : {
       "localizations" : {
         "en" : {
@@ -2969,6 +3179,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zip bomb protection"
+          }
+        }
+      }
+    },
+    "Questa versione non ha un'immagine disco." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That release has no disk image."
           }
         }
       }
@@ -3149,6 +3369,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saved in Keychain"
+          }
+        }
+      }
+    },
+    "Scarica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        }
+      }
+    },
+    "Scaricala dalla pagina del rilascio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download it from the release page."
           }
         }
       }
@@ -3619,6 +3859,16 @@
         }
       }
     },
+    "Versione" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
     "Voce" : {
       "localizations" : {
         "en" : {
@@ -3679,6 +3929,26 @@
         }
       }
     },
+    "Xipper %@ è nei Download." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper %@ is in Downloads."
+          }
+        }
+      }
+    },
+    "Xipper chiede a GitHub se c'è una versione nuova e la scarica solo se glielo dici. L'installazione resta manuale: trascini Xipper in Applicazioni come la prima volta." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper asks GitHub whether there is a new version and downloads it only when you say so. Installing stays manual: you drag Xipper into Applications like the first time."
+          }
+        }
+      }
+    },
     "Xipper estrae finché i dati non superano il limite che scegli, poi si ferma ed elimina quanto scritto." : {
       "localizations" : {
         "en" : {
@@ -3705,6 +3975,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xipper never writes outside the destination folder, does not follow links while extracting and removes setuid permissions."
+          }
+        }
+      }
+    },
+    "Xipper è aggiornato." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper is up to date."
           }
         }
       }
@@ -4051,6 +4331,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "use the saved password of %@"
+          }
+        }
+      }
+    },
+    "È disponibile Xipper %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper %@ is available."
           }
         }
       }

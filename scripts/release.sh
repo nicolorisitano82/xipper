@@ -25,6 +25,10 @@ rm -rf "$DIST/$NAME" && mkdir -p "$DIST/$NAME"
 APP="$DIST/$NAME/Xipper.app"
 ditto "$DERIVED/Build/Products/Release/Xipper.app" "$APP"
 
+# The full release name, for the update check (Updates.runningVersion): "0.9.0-beta2".
+/usr/libexec/PlistBuddy -c "Add :XipperReleaseVersion string $VERSION-$SUFFIX" "$APP/Contents/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :XipperReleaseVersion $VERSION-$SUFFIX" "$APP/Contents/Info.plist"
+
 echo "==> signing with \"$IDENTITY\""
 sign() { codesign --force --keychain "$KC" -s "$IDENTITY" --options runtime --timestamp=none "$@"; }
 sign "$APP/Contents/Helpers/xipper"

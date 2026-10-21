@@ -45,6 +45,9 @@ struct XipperCommands: Commands {
             Button("Nuovo archivio") { openWindow(id: "home") }
                 .keyboardShortcut("n")
         }
+        CommandGroup(after: .appInfo) {
+            Button("Cerca aggiornamenti…") { UpdateController.shared.checkForUpdates() }
+        }
         CommandGroup(before: .help) {
             Button("Introduzione a Xipper") {
                 openWindow(id: "home")

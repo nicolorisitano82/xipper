@@ -19,6 +19,9 @@ enum PrefKey {
     static let mcpReadOnly = "mcpReadOnly"
     static let vaultRequiresAuth = "vaultRequiresTouchID"
     static let onboardingDone = "onboardingDone"
+    static let updatesAutomatic = "updatesAutomatic"
+    static let updatesLastCheck = "updatesLastCheck"
+    static let updatesAnnounced = "updatesAnnounced"
 }
 
 /// Speed/size trade-off shown in the UI instead of raw per-codec levels.
@@ -68,6 +71,7 @@ enum Preferences {
             PrefKey.useEfficiencyCores: false,
             PrefKey.mcpReadOnly: false,
             PrefKey.vaultRequiresAuth: true,
+            PrefKey.updatesAutomatic: true,
         ])
     }
 
