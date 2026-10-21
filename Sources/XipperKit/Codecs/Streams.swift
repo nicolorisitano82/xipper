@@ -7,7 +7,8 @@ import Foundation
 private let lzmaConcatenated: UInt32 = 0x08
 private let lzmaFilterLZMA1EXT: lzma_vli = 0x4000_0000_0000_0002
 private let lzmaLZMA1EXTAllowEOPM: UInt32 = 0x01
-private let lzmaVLIUnknown: lzma_vli = .max
+let lzmaFilterLZMA2: lzma_vli = 0x21
+let lzmaVLIUnknown: lzma_vli = .max
 
 typealias ByteSink = (UnsafeRawBufferPointer) throws -> Void
 
@@ -202,6 +203,39 @@ final class LZMACoder: StreamTransform {
         let r = lzma_raw_decoder(&c.strm, &filters)
         free(filter.options)
         try c.check(r)
+        return c
+    }
+
+    /// 7z LZMA (030101): 5 property bytes, raw LZMA1, end marker optional.
+    /// The dictionary is capped to the output size: no match can reach further back.
+    static func sevenZipLZMADecoder(props: [UInt8], unpackSize: Int64) throws -> LZMACoder {
+        guard props.count == 5 else { throw XipperError.corrupt("bad 7z LZMA properties") }
+        let c = LZMACoder(name: "lzma")
+        var filter = lzma_filter(id: lzmaFilterLZMA1EXT, options: nil)
+        try c.check(lzma_properties_decode(&filter, nil, props, 5))
+        let opts = filter.options!.assumingMemoryBound(to: lzma_options_lzma.self)
+        opts.pointee.dict_size = UInt32(max(4096, min(Int64(opts.pointee.dict_size), unpackSize)))
+        opts.pointee.ext_flags = lzmaLZMA1EXTAllowEOPM
+        opts.pointee.ext_size_low = UInt32(truncatingIfNeeded: unpackSize)
+        opts.pointee.ext_size_high = UInt32(truncatingIfNeeded: unpackSize >> 32)
+        var filters = [filter, lzma_filter(id: lzmaVLIUnknown, options: nil)]
+        let r = lzma_raw_decoder(&c.strm, &filters)
+        free(filter.options)
+        try c.check(r)
+        return c
+    }
+
+    /// 7z LZMA2 (21): one property byte (dictionary size).
+    static func sevenZipLZMA2Decoder(prop: UInt8, unpackSize: Int64) throws -> LZMACoder {
+        if prop > 40 { throw XipperError.corrupt("bad 7z LZMA2 properties") }
+        let c = LZMACoder(name: "lzma2")
+        var opts = lzma_options_lzma()
+        let declared = Int64(SZLZMA2.dictionarySize(prop))
+        opts.dict_size = UInt32(max(4096, min(declared, unpackSize, Int64(UInt32.max))))
+        try withUnsafeMutablePointer(to: &opts) { o in
+            var filters = [lzma_filter(id: lzmaFilterLZMA2, options: o), lzma_filter(id: lzmaVLIUnknown, options: nil)]
+            try c.check(lzma_raw_decoder(&c.strm, &filters))
+        }
         return c
     }
 

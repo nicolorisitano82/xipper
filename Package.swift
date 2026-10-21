@@ -62,6 +62,13 @@ let package = Package(
             publicHeadersPath: "liblzma/api",
             cSettings: lzmaDefines
         ),
+        .target(
+            name: "CPpmd",
+            path: "Vendor/lzma-sdk",
+            sources: ["C/Ppmd7.c", "C/Ppmd7Dec.c", "shim/xs_ppmd.c"],
+            publicHeadersPath: "include",
+            cSettings: [.define("NDEBUG", .when(configuration: .release))]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -70,7 +77,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CXipShims"]
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CPpmd", "CXipShims"]
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
         .target(

@@ -17,16 +17,18 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     case bzip2 = "bz2"
     case xz
     case zstd = "zst"
+    /// 7z: LZMA2 (multi-threaded), solid blocks, ARM64 filter for executables, AES-256 with encrypted names.
+    case sevenZip = "7z"
 
     public var fileExtension: String { self == .bgzf ? "gz" : rawValue }
 
     public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd].contains(self) }
     public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd].contains(self) }
-    public var supportsPassword: Bool { self == .zip }
+    public var supportsPassword: Bool { self == .zip || self == .sevenZip }
 
     var compression: StreamCompression {
         switch self {
-        case .zip, .tar: return .none
+        case .zip, .tar, .sevenZip: return .none
         case .tarGzip, .gzip: return .gzip
         case .bgzf: return .bgzf
         case .tarBzip2, .bzip2: return .bzip2
@@ -50,16 +52,21 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         let table: [(String, ArchiveFormat)] = [
             (".tar.gz", .tarGzip), (".tgz", .tarGzip), (".tar.bz2", .tarBzip2), (".tbz2", .tarBzip2), (".tbz", .tarBzip2),
             (".tar.xz", .tarXz), (".txz", .tarXz), (".tar.zst", .tarZstd), (".tzst", .tarZstd),
-            (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
+            (".7z", .sevenZip), (".7z.001", .sevenZip), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
         ]
         return table.first { n.hasSuffix($0.0) }?.1
     }
 
     /// Detects the format from the file content (magic bytes), falling back to the name.
     public static func detect(_ url: URL) throws -> ArchiveFormat? {
+        // Later volumes of a split 7z (.7z.002…) have no signature of their own.
+        if let first = SevenZipInput.firstVolume(url.path), first != url.path, FileManager.default.fileExists(atPath: first) {
+            return try detect(URL(fileURLWithPath: first))
+        }
         let r = try FileReader(path: url.path)
         let head = try r.read(at: 0, count: Int(min(r.size, 512)))
         if head.starts(with: [0x50, 0x4B, 0x03, 0x04]) || head.starts(with: [0x50, 0x4B, 0x05, 0x06]) { return .zip }
+        if head.starts(with: SevenZip.signature) { return .sevenZip }
         let byName = inferred(fromFileName: url.lastPathComponent)
         switch StreamCompression.detect(head) {
         case .gzip: return byName == .gzip ? .gzip : .tarGzip
@@ -80,7 +87,7 @@ public struct CreateOptions: Sendable {
     public var format: ArchiveFormat = .zip
     /// nil = the format's default level.
     public var level: Int?
-    /// ZIP only (WinZip AES-256).
+    /// ZIP (WinZip AES-256) and 7z (AES-256).
     public var password: String?
     public var zipMethod: ZipMethod = .deflate
     public var storeAlreadyCompressed = true
@@ -95,6 +102,15 @@ public struct CreateOptions: Sendable {
     public var genomicsUsesBGZF = true
     /// With BGZF output, also write the `.gzi` index next to it (like `bgzip -i`).
     public var writeBGZFIndex = false
+    /// 7z: maximum content bytes per solid block; 0 = not solid (one block per file);
+    /// nil = automatic (64× the dictionary, 512 MiB at the default level).
+    public var solidBlockSize: Int64?
+    /// 7z with a password: also encrypt the header, so file names stay hidden.
+    public var encryptFileNames = true
+    /// 7z: ARM64 branch filter for arm64 executables (Mach-O, ELF): smaller binaries.
+    public var executableFilter = true
+    /// 7z: split into volumes of this many bytes (`name.7z.001`, `.002`, …).
+    public var volumeSize: Int64?
     public init() {}
 }
 
@@ -123,7 +139,10 @@ public enum Xipper {
                               progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> WriteReport {
         if sources.isEmpty { throw XipperError.invalidArgument("nothing to archive") }
         if options.password != nil && !options.format.supportsPassword {
-            throw XipperError.invalidArgument("\(options.format.rawValue) does not support passwords (use zip)")
+            throw XipperError.invalidArgument("\(options.format.rawValue) does not support passwords (use zip or 7z)")
+        }
+        if options.volumeSize != nil && options.format != .sevenZip {
+            throw XipperError.invalidArgument("only 7z archives can be split into volumes")
         }
         let items = try SourceScanner.scan(sources, options: options.scan)
         let level = options.level ?? (options.format == .zip && options.zipMethod == .zstd ? 3 : options.format.defaultLevel)
@@ -143,6 +162,17 @@ public enum Xipper {
         case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd:
             return try TarWriter.write(items: items, to: path, compression: options.format.compression, level: level,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
+        case .sevenZip:
+            var z = SevenZipOptions()
+            z.level = level
+            z.password = options.password
+            z.encryptHeader = options.encryptFileNames
+            z.solidBlockSize = options.solidBlockSize
+            z.executableFilter = options.executableFilter
+            z.storeAlreadyCompressed = options.storeAlreadyCompressed
+            z.volumeSize = options.volumeSize
+            z.workload = options.workload
+            return try SevenZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .gzip, .bgzf, .bzip2, .xz, .zstd:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
             var compression = options.format.compression
@@ -183,6 +213,9 @@ public enum Xipper {
             if format == .zip {
                 let zip = try ZipArchive(path: archivePath)
                 try ZipExtractor.extract(zip, ctx: ctx, password: options.password.map(ZipWriter.passwordBytes), tracker: tracker, cancel: cancel)
+            } else if format == .sevenZip {
+                let a = try SevenZipArchive(path: archivePath, password: options.password)
+                try SevenZipExtractor.extract(a, ctx: ctx, tracker: tracker, cancel: cancel)
             } else {
                 try TarExtractor.extract(archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
             }
@@ -224,7 +257,7 @@ public enum Xipper {
     /// "photos.tar.gz" → "photos" (name of the folder an archive extracts into).
     public static func baseName(_ archiveName: String) -> String {
         let lower = archiveName.lowercased()
-        for ext in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".zip", ".tar", ".gz", ".bz2", ".xz", ".zst"]
+        for ext in [".7z.001", ".7z", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".zip", ".tar", ".gz", ".bz2", ".xz", ".zst"]
             where lower.hasSuffix(ext) && lower.count > ext.count {
             return String(archiveName.dropLast(ext.count))
         }
@@ -250,6 +283,20 @@ public enum Xipper {
                 throw XipperError.passwordRequired(entry: enc.entry.path)
             }
             failures = try ZipExtractor.test(zip, password: password.map(ZipWriter.passwordBytes), workload: workload, tracker: tracker, cancel: cancel)
+        } else if format == .sevenZip {
+            do {
+                let a = try SevenZipArchive(path: path, password: password)
+                entries = a.entries.count
+                failures = try SevenZipExtractor.test(a, workload: workload, tracker: tracker, cancel: cancel)
+            } catch let e as XipperError {
+                // Headers that cannot be read (truncation, wrong header password) fail the whole archive.
+                switch e {
+                case .passwordRequired, .cancelled, .unsupported, .io: throw e
+                default:
+                    entries = max(entries, 1)
+                    failures = [SkippedEntry(path: archive.lastPathComponent, reason: e.description)]
+                }
+            }
         } else {
             (entries, failures) = try TarExtractor.test(path, workload: workload, tracker: tracker, cancel: cancel)
         }
@@ -258,9 +305,11 @@ public enum Xipper {
                           bytes: tracker.completedBytes, failures: failures, elapsed: tracker.elapsed)
     }
 
-    public static func list(_ archive: URL, workload: Workload = .interactive) throws -> [ArchiveEntry] {
+    /// `password` is needed only for 7z archives with encrypted names.
+    public static func list(_ archive: URL, password: String? = nil, workload: Workload = .interactive) throws -> [ArchiveEntry] {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }
+        if format == .sevenZip { return try SevenZipArchive(path: archive.standardizedFileURL.path, password: password).entries }
         return try TarExtractor.list(archive.standardizedFileURL.path, workload: workload)
     }
 }
@@ -301,6 +350,15 @@ extension Xipper {
             } catch is EnoughBytes {}
             return EntryContent(entry: rec.entry, data: data, truncated: truncated)
         }
+        if format == .sevenZip {
+            let a = try SevenZipArchive(path: archivePath, password: password)
+            guard let rec = a.records.first(where: { $0.entry.path == path && !$0.isAnti }) else {
+                throw XipperError.invalidArgument("no entry named \(path)")
+            }
+            guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
+            do { try SevenZipExtractor.read(a, record: rec, sink: collect) } catch is EnoughBytes {}
+            return EntryContent(entry: rec.entry, data: data, truncated: truncated)
+        }
         let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
         defer { pipe.close() }
         if !isTar {
@@ -335,9 +393,9 @@ extension Xipper {
     /// Entries (files and links) whose destination already exists when extracting `archive` into
     /// `directory` (mode `.into`): lets the UI say "apply to the other N conflicts".
     public static func plannedConflicts(_ archive: URL, into directory: URL, selection: Set<String>? = nil,
-                                        flatten: Bool = false) throws -> [String] {
+                                        flatten: Bool = false, password: String? = nil) throws -> [String] {
         let root = directory.standardizedFileURL.path
-        return try list(archive).filter { e in
+        return try list(archive, password: password).filter { e in
             guard e.kind != .directory else { return false }
             if let selection, !selection.isEmpty,
                !(selection.contains(e.path) || selection.contains { e.path.hasPrefix($0 + "/") }) { return false }

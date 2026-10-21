@@ -115,8 +115,9 @@ enum XipperTools {
 
     static let info = Tool(
         name: "archive_info", title: "Archive information",
-        description: "Format, entry count, sizes and encryption of an archive (zip, tar, tar.gz/bz2/xz/zst, gz, BGZF incl. BAM/BCF). Fast: does not extract.",
-        inputSchema: schema(["path": str(pathDoc)], required: ["path"]),
+        description: "Format, entry count, sizes and encryption of an archive (zip, 7z, tar, tar.gz/bz2/xz/zst, gz, BGZF incl. BAM/BCF). Fast: does not extract.",
+        inputSchema: schema(["path": str(pathDoc), "password_ref": str(passwordRefDoc + " Only needed for 7z archives with encrypted file names.")],
+                            required: ["path"]),
         readOnly: true, destructive: false, idempotent: true
     ) { args, ctx in
         let path = try ctx.policy.resolve(try args.requiredString("path"), mustExist: true)
@@ -131,7 +132,7 @@ enum XipperTools {
             o["uncompressedSize"] = .int(i.uncompressedSize)
             text += ", BGZF \(i.blocks) blocks, \(bytes(i.uncompressedSize)) uncompressed" + (i.endsWithEOFMarker ? "" : ", EOF MARKER MISSING (truncated?)")
         } else {
-            let entries = try Xipper.list(url, workload: ctx.config.workload)
+            let entries = try Xipper.list(url, password: try password(args, ctx), workload: ctx.config.workload)
             let files = entries.filter { $0.kind == .file }
             let total = files.reduce(Int64(0)) { $0 + max(0, $1.uncompressedSize) }
             let encrypted = entries.contains(where: \.isEncrypted)
@@ -149,12 +150,13 @@ enum XipperTools {
         name: "archive_list", title: "List archive contents",
         description: "Lists entries of an archive, paginated. Use `glob` (fnmatch pattern on the entry path, e.g. \"*.vcf.gz\") to filter.",
         inputSchema: schema(["path": str(pathDoc), "glob": str("Optional fnmatch pattern on entry paths."),
-                             "cursor": str("Opaque cursor from a previous call."), "limit": int("Entries per page (default 200).", min: 1, max: 1000)],
+                             "cursor": str("Opaque cursor from a previous call."), "limit": int("Entries per page (default 200).", min: 1, max: 1000),
+                             "password_ref": str(passwordRefDoc + " Only needed for 7z archives with encrypted file names.")],
                             required: ["path"]),
         readOnly: true, destructive: false, idempotent: true
     ) { args, ctx in
         let path = try ctx.policy.resolve(try args.requiredString("path"), mustExist: true)
-        var entries = try Xipper.list(URL(fileURLWithPath: path), workload: ctx.config.workload)
+        var entries = try Xipper.list(URL(fileURLWithPath: path), password: try password(args, ctx), workload: ctx.config.workload)
         if let g = args["glob"]?.string { entries = entries.filter { fnmatch(g, $0.path, 0) == 0 } }
         let start = Int(args["cursor"]?.string ?? "0") ?? 0
         let limit = min(args["limit"]?.int ?? 200, ctx.config.maxListEntries)
@@ -267,11 +269,12 @@ enum XipperTools {
 
     static let create = Tool(
         name: "archive_create", title: "Create archive",
-        description: "Creates an archive from files/folders. Format from `format` or the output extension: zip, tar, tar.gz, tar.bz2, tar.xz, tar.zst, gz, bgzf, bz2, xz, zst. Fails if `output` exists unless overwrite is confirmed by the user. Encryption (zip, AES-256) needs password_ref.",
+        description: "Creates an archive from files/folders. Format from `format` or the output extension: zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, gz, bgzf, bz2, xz, zst. Fails if `output` exists unless overwrite is confirmed by the user. Encryption (zip or 7z, AES-256) needs password_ref; 7z then also hides the file names.",
         inputSchema: schema(["sources": strArray("Files or folders to archive (allowed folders only)."), "output": str("Archive path to create."),
                              "format": ["type": "string", "enum": .array(ArchiveFormat.allCases.map { .string($0.rawValue) })],
                              "level": int("Compression level (format default if omitted).", min: 0, max: 22),
-                             "password_ref": str(passwordRefDoc + " Encrypts a zip with AES-256."),
+                             "password_ref": str(passwordRefDoc + " Encrypts a zip or 7z with AES-256."),
+                             "solid": bool("7z only: one solid block (default, smaller) or false for one block per file (faster partial extraction)."),
                              "overwrite": bool("Replace an existing archive. Requires the user's confirmation.")],
                             required: ["sources", "output"]),
         readOnly: false, destructive: false, idempotent: false
@@ -289,6 +292,7 @@ enum XipperTools {
             o.format = fmt
         }
         o.level = args["level"]?.int
+        if let solid = args["solid"]?.bool, !solid { o.solidBlockSize = 0 }
         o.password = try password(args, ctx)
         o.workload = ctx.config.workload
         if FileManager.default.fileExists(atPath: output) {
