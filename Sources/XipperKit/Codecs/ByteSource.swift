@@ -66,8 +66,8 @@ enum StreamCompression: Sendable, Equatable {
         case .gzip: return ParallelGzipEncoder(level: level, workload: workload, cancel: cancel)
         case .bgzf: return BGZFEncoder(level: level, workload: workload, cancel: cancel)
         case .bzip2: return ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
-        case .xz: return try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount)
-        case .zstd: return try ZstdEncoder(level: level, threads: workload.workerCount)
+        case .xz: return try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount, cancel: cancel)
+        case .zstd: return try ZstdEncoder(level: level, threads: workload.workerCount, cancel: cancel)
         }
     }
 }

@@ -120,17 +120,64 @@ struct JobPanel: View {
         VStack(alignment: .leading, spacing: 18) {
             switch job.state {
             case let .failed(message):
-                header(symbol: "xmark.circle.fill", color: .red, title: "Compressione non riuscita", subtitle: message)
-                Text("Il file parziale è stato eliminato. Gli originali sono intatti.").foregroundStyle(.secondary)
+                header(symbol: "xmark.circle.fill", color: .red, title: failureTitle(message),
+                       subtitle: "La compressione si è fermata al \(Int((job.progress?.fraction ?? 0) * 100))%.")
+                if job.progress?.fraction ?? 0 > 0 {
+                    ProgressView(value: job.progress?.fraction ?? 0).tint(.red)
+                }
+                Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
+                    if case .diskFull = job.failure {
+                        if let free = job.freeSpace {
+                            GridRow { Text("Spazio libero in \(job.destinationFolder?.lastPathComponent ?? "destinazione")").foregroundStyle(.secondary); Text(free.byteText) }
+                        }
+                        if let p = job.progress, p.totalBytes > p.completedBytes {
+                            GridRow { Text("Spazio ancora necessario").foregroundStyle(.secondary); Text("fino a \((p.totalBytes - p.completedBytes).byteText)") }
+                        }
+                    } else if job.failure != nil && job.failure != .other || !message.isEmpty {
+                        GridRow { Text("Motivo").foregroundStyle(.secondary); Text(message).lineLimit(2) }
+                    }
+                    GridRow { Text("File parziale").foregroundStyle(.secondary); Text("eliminato") }
+                    GridRow { Text("Originali").foregroundStyle(.secondary); Text("intatti, nessun file è stato modificato") }
+                }
+                .font(.callout)
+                HStack {
+                    Button("Chiudi") { onClose() }.buttonStyle(.glass)
+                    Spacer()
+                    Button("Riprova") { center.retry(job) ; onClose() }.buttonStyle(.glass)
+                    Button("Salva altrove…") { saveElsewhere() }.buttonStyle(.glassProminent)
+                }
             default:
                 header(symbol: "xmark.circle", color: .secondary, title: "Compressione annullata",
                        subtitle: "Nessun file è stato creato.")
-            }
-            HStack {
-                Spacer()
-                Button("Chiudi") { onClose() }.buttonStyle(.glassProminent)
+                HStack {
+                    Spacer()
+                    Button("Chiudi") { onClose() }.buttonStyle(.glassProminent)
+                }
             }
         }
+    }
+
+    private func failureTitle(_ message: String) -> String {
+        switch job.failure {
+        case .diskFull?: "Spazio su disco esaurito"
+        case .permission?: "Permessi insufficienti"
+        case .readOnly?: "Volume in sola lettura"
+        case .volumeGone?: "Volume non disponibile"
+        default: "Compressione non riuscita"
+        }
+    }
+
+    /// Picks another folder and restarts the same creation there (2.8).
+    private func saveElsewhere() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Salva qui"
+        panel.message = "Scegli dove salvare l'archivio"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        center.relocate(job, to: folder)
+        onClose()
     }
 
     // MARK: helpers

@@ -19,6 +19,8 @@ public enum XipperError: Error, Sendable, Equatable, CustomStringConvertible {
     case unsafeEntry(entry: String, reason: String)
     /// A configured safety limit (size, ratio, count) was exceeded.
     case limitExceeded(String)
+    /// Not enough free space on the destination volume (checked before and while writing).
+    case insufficientSpace(needed: Int64, available: Int64)
     /// The destination already exists and the overwrite policy forbids replacing it.
     case alreadyExists(path: String)
     case invalidArgument(String)
@@ -37,6 +39,8 @@ public enum XipperError: Error, Sendable, Equatable, CustomStringConvertible {
         case let .integrity(e, d): return "integrity check failed for \(e): \(d)"
         case let .unsafeEntry(e, r): return "unsafe entry \(e): \(r)"
         case let .limitExceeded(m): return "safety limit exceeded: \(m)"
+        case let .insufficientSpace(needed, available):
+            return "not enough free space: \(needed) bytes needed, \(available) available"
         case let .alreadyExists(p): return "already exists: \(p)"
         case let .invalidArgument(m): return "invalid argument: \(m)"
         case let .codec(m): return "codec error: \(m)"

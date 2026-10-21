@@ -30,6 +30,8 @@ enum ZipExtractor {
         let records = selected(archive, ctx.options.selection)
         try precheck(records, limits: ctx.options.limits, password: password)
         let declared = records.reduce(Int64(0)) { $0 + ($1.entry.kind == .file ? $1.uncompressedSize : 0) }
+        // Fail before writing anything when the content cannot fit.
+        if declared > ctx.maxBytes { throw ctx.overLimit(needed: declared) }
         tracker.setTotals(bytes: declared, entries: records.count)
 
         var files: [(ZipEntryRecord, [String])] = []

@@ -11,6 +11,7 @@
 		44D174581D60FF2C9D49DE39 /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6E4BF73485E6CF8546848255 /* XipperKit */; };
 		0FBEB4154E63E77CE57AB61C /* XipperMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 83CF2B4CC02CAFFC63B0B1A9 /* XipperMCP */; };
 		147C814D6497546DE43CF7CF /* xipper in Embed CLI */ = {isa = PBXBuildFile; fileRef = FEEDB67F42835527FE7A3D72 /* xipper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		2DACDF572C30AA9C37539F81 /* XipperFinder.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = AAE659256FA71CF7DAD5086F /* XipperFinder.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,6 +21,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A019ABBA0614667BC8CA8AF7;
 			remoteInfo = "xipper-cli";
+		};
+		F2B0DCEAF59FD934DED22519 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 816B446FED34437D03212AAA;
+			remoteInfo = XipperFinder;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -35,11 +43,23 @@
 			name = "Embed CLI";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9EF0278D6BB2140628313851 /* Embed Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2DACDF572C30AA9C37539F81 /* XipperFinder.appex in Embed Extensions */,
+			);
+			name = "Embed Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		D2A57DC1D883FD21FB995169 /* Xipper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Xipper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEEDB67F42835527FE7A3D72 /* xipper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xipper; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAE659256FA71CF7DAD5086F /* XipperFinder.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = XipperFinder.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -49,6 +69,14 @@
 				Info.plist,
 			);
 			target = 42AEFBAE01D2DFD981F7DA7D /* Xipper */;
+		};
+		CACE7783043D5072DF211214 /* Exceptions for "XipperFinder" folder in "XipperFinder" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				XipperFinder.entitlements,
+			);
+			target = 816B446FED34437D03212AAA /* XipperFinder */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -65,6 +93,14 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = xipper;
 			path = ../Sources/xipper;
+			sourceTree = "<group>";
+		};
+		FBB46E6CE7260F73C4575C02 /* XipperFinder */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CACE7783043D5072DF211214 /* Exceptions for "XipperFinder" folder in "XipperFinder" target */,
+			);
+			path = XipperFinder;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -87,6 +123,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E925FA2EF93FF1307BCB5A88 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -94,6 +137,7 @@
 			isa = PBXGroup;
 			children = (
 				20F4BD606C0F6D1645AE4919 /* Xipper */,
+				FBB46E6CE7260F73C4575C02 /* XipperFinder */,
 				83A21DD89330134E58F886CE /* xipper */,
 				86024CAD1E83101D97359D73 /* Products */,
 			);
@@ -103,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				D2A57DC1D883FD21FB995169 /* Xipper.app */,
+				AAE659256FA71CF7DAD5086F /* XipperFinder.appex */,
 				FEEDB67F42835527FE7A3D72 /* xipper */,
 			);
 			name = Products;
@@ -119,11 +164,13 @@
 				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
 				55B558C7EF820E6E00E5993B /* Resources */,
 				5CAAD659DC38446B0CC2C00C /* Embed CLI */,
+				9EF0278D6BB2140628313851 /* Embed Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				F995CD704EFD9C07DC4AC601 /* PBXTargetDependency */,
+				DC40B7677B27F0CBD5F97D89 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				20F4BD606C0F6D1645AE4919 /* Xipper */,
@@ -159,6 +206,26 @@
 			productReference = FEEDB67F42835527FE7A3D72 /* xipper */;
 			productType = "com.apple.product-type.tool";
 		};
+		816B446FED34437D03212AAA /* XipperFinder */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CFA517DF4752CBBD170B14B /* Build configuration list for PBXNativeTarget "XipperFinder" */;
+			buildPhases = (
+				F71EBA7DC5D52244B6862AF7 /* Sources */,
+				E925FA2EF93FF1307BCB5A88 /* Frameworks */,
+				DA2DE2D2A417000CE554BBD5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FBB46E6CE7260F73C4575C02 /* XipperFinder */,
+			);
+			name = XipperFinder;
+			productName = XipperFinder;
+			productReference = AAE659256FA71CF7DAD5086F /* XipperFinder.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -189,12 +256,20 @@
 			targets = (
 				42AEFBAE01D2DFD981F7DA7D /* Xipper */,
 				A019ABBA0614667BC8CA8AF7 /* xipper */,
+				816B446FED34437D03212AAA /* XipperFinder */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA2DE2D2A417000CE554BBD5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -218,6 +293,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F71EBA7DC5D52244B6862AF7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -225,6 +307,11 @@
 			isa = PBXTargetDependency;
 			target = A019ABBA0614667BC8CA8AF7 /* xipper */;
 			targetProxy = 698A515506D158D341FCFC3D /* PBXContainerItemProxy */;
+		};
+		DC40B7677B27F0CBD5F97D89 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 816B446FED34437D03212AAA /* XipperFinder */;
+			targetProxy = F2B0DCEAF59FD934DED22519 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -280,6 +367,7 @@
 		E67DED621DA82404399DCDC1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -292,7 +380,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
 				PRODUCT_NAME = Xipper;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -303,6 +391,7 @@
 		8951287761002419191396D2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -315,7 +404,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
 				PRODUCT_NAME = Xipper;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -349,6 +438,48 @@
 			};
 			name = Release;
 		};
+		6869B3FE243A30684FA1952B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = XipperFinder/XipperFinder.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = XipperFinder/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Xipper nel Finder";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 0.9.0;
+				CURRENT_PROJECT_VERSION = 1;
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
+				PRODUCT_NAME = XipperFinder;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		53DCE16365F27ED8CDE30ECE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = XipperFinder/XipperFinder.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = XipperFinder/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Xipper nel Finder";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 0.9.0;
+				CURRENT_PROJECT_VERSION = 1;
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.FinderSync;
+				PRODUCT_NAME = XipperFinder;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -375,6 +506,15 @@
 			buildConfigurations = (
 				87AB9056AFFC43F1E35C148E /* Debug */,
 				8C4602B9BCD9F104F2994DE6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CFA517DF4752CBBD170B14B /* Build configuration list for PBXNativeTarget "XipperFinder" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6869B3FE243A30684FA1952B /* Debug */,
+				53DCE16365F27ED8CDE30ECE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

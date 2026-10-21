@@ -6,6 +6,7 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
 - Core e CLI (fase 1): [FASE1.md](FASE1.md)
 - App SwiftUI (fase 2, in corso): [FASE2.md](FASE2.md) · specifica UI: [docs/UI_SPEC.md](docs/UI_SPEC.md)
+- Beta per i tester: [docs/BETA_TESTERS.md](docs/BETA_TESTERS.md)
 
 ## Struttura
 
@@ -32,6 +33,12 @@ App (Xcode 27, macOS 26):
 
 ```bash
 xcodebuild -project App/Xipper.xcodeproj -scheme Xipper -derivedDataPath .build/xcode build
+```
+
+Beta firmata (self-signed) con DMG in `dist/`:
+
+```bash
+scripts/release.sh beta1
 ```
 
 Core e CLI:

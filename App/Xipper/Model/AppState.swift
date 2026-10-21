@@ -26,14 +26,28 @@ final class AppState {
         return panel.runModal() == .OK ? panel.urls : []
     }
 
-    static func isArchive(_ url: URL) -> Bool {
+    nonisolated static func isArchive(_ url: URL) -> Bool {
         (try? ArchiveFormat.detect(url)) != nil
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let services = ServiceProvider()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.servicesProvider = services
+        NSUpdateDynamicServices()
+    }
+
+    /// Files from the Finder/Dock, and `xipper://` actions from the Finder extension.
     func application(_ application: NSApplication, open urls: [URL]) {
-        MainActor.assumeIsolated { AppState.shared.open(urls) }
+        MainActor.assumeIsolated {
+            for url in urls where url.scheme == "xipper" {
+                if let action = ExternalAction(url: url) { ExternalActionRunner.run(action) }
+            }
+            let files = urls.filter(\.isFileURL)
+            if !files.isEmpty { AppState.shared.open(files) }
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

@@ -54,6 +54,25 @@ final class Job: Identifiable {
     var paused = false
     /// Final numbers of a creation, for the completion panel (2.5).
     var writeReport: WriteReport?
+    /// Why a job failed, when the UI can say something specific (2.8).
+    var failure: Failure?
+
+    enum Failure: Equatable {
+        case diskFull(available: Int64?)
+        case permission
+        case readOnly
+        case volumeGone
+        case other
+    }
+
+    /// Where the job writes (for free-space checks and "Salva altrove").
+    var destinationFolder: URL? {
+        switch kind {
+        case let .create(_, dest, _, _, _): dest.deletingLastPathComponent()
+        case let .extract(r): r.destination ?? r.archive.deletingLastPathComponent()
+        case .test: nil
+        }
+    }
     let started = Date()
     fileprivate let cancel = CancellationToken()
 
@@ -131,6 +150,16 @@ final class JobCenter {
         jobsChanged()
         run(job, kind)
         return job
+    }
+
+    /// "Salva altrove…": runs the same creation into another folder.
+    func relocate(_ job: Job, to folder: URL) {
+        guard case let .create(sources, dest, format, preset, password) = job.kind else { return }
+        remove(job)
+        // The panel closes: the new job is followed in the HUD.
+        focused.remove(job.id)
+        start(.create(sources: sources, destination: uniqueURL(folder.appendingPathComponent(dest.lastPathComponent)),
+                      format: format, preset: preset, password: password))
     }
 
     func remove(_ job: Job) {
@@ -257,10 +286,34 @@ extension Job {
             case .passwordRequired?: state = .needsPassword(wrong: false)
             case .wrongPassword?: state = .needsPassword(wrong: true)
             case let .limitExceeded(m)?: state = .needsOverride(m)
-            case let x?: state = .failed(Self.localized(x))
+            case let .insufficientSpace(needed, available)?:
+                failure = .diskFull(available: available)
+                state = .failed("Spazio su disco insufficiente: servono \(needed.byteText), liberi \(max(0, available).byteText)")
+            case let .io(_, _, err)? where [ENOSPC, EDQUOT].contains(err):
+                failure = .diskFull(available: freeSpace)
+                state = .failed("Spazio su disco esaurito")
+            case let .io(_, path, err)? where [EACCES, EPERM].contains(err):
+                failure = .permission
+                state = .failed("Permessi insufficienti\(path.map { " per \(($0 as NSString).lastPathComponent)" } ?? "")")
+            case .io(_, _, EROFS)?:
+                failure = .readOnly
+                state = .failed("Il volume di destinazione è in sola lettura")
+            case let .io(_, _, err)? where [ENXIO, ENODEV, EIO].contains(err):
+                failure = .volumeGone
+                state = .failed("Il volume non è più disponibile")
+            case let x?:
+                failure = .other
+                state = .failed(Self.localized(x))
             case nil: state = .failed(e.localizedDescription)
             }
         }
+    }
+
+    /// Free space where the job writes ("important usage" capacity, as the Finder shows).
+    var freeSpace: Int64? {
+        guard let folder = destinationFolder,
+              let v = try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]) else { return nil }
+        return v.volumeAvailableCapacityForImportantUsage
     }
 
     private func revealIfWanted() {

@@ -112,7 +112,10 @@ final class ExtractionContext: @unchecked Sendable {
     let options: ExtractOptions
     private let rootFD: Int32
     private let quarantine: [UInt8]?
-    private let maxBytes: Int64
+    /// Bytes that may still be written: an explicit limit, or free space minus 1 GiB.
+    let maxBytes: Int64
+    /// True when `maxBytes` comes from the free space rather than from a configured limit.
+    let limitIsFreeSpace: Bool
     private let written = Atomic<Int64>(0)
     private let counts = Mutex<(files: Int, dirs: Int, links: Int)>((0, 0, 0))
     private let skippedList = Mutex<[SkippedEntry]>([])
@@ -125,6 +128,7 @@ final class ExtractionContext: @unchecked Sendable {
         rootFD = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         if rootFD < 0 { throw XipperError.posix("open destination", root) }
         quarantine = options.propagateQuarantine ? Self.readXattr(archivePath, "com.apple.quarantine") : nil
+        limitIsFreeSpace = options.limits.maxTotalBytes <= 0
         if options.limits.maxTotalBytes > 0 {
             maxBytes = options.limits.maxTotalBytes
         } else {
@@ -143,6 +147,11 @@ final class ExtractionContext: @unchecked Sendable {
     var bytesWritten: Int64 { written.load(ordering: .relaxed) }
     var skipped: [SkippedEntry] { skippedList.withLock { $0 } }
     var stats: (files: Int, dirs: Int, links: Int) { counts.withLock { $0 } }
+
+    func overLimit(needed: Int64) -> XipperError {
+        limitIsFreeSpace ? .insufficientSpace(needed: needed, available: maxBytes)
+                         : .limitExceeded("extraction would write more than \(maxBytes) bytes")
+    }
 
     // MARK: conflicts
 
@@ -289,9 +298,7 @@ final class ExtractionContext: @unchecked Sendable {
             let w = FDWriter(fd: fd, entry: entry)
             try produce { chunk in
                 let total = self.written.add(Int64(chunk.count), ordering: .relaxed).newValue
-                if total > self.maxBytes {
-                    throw XipperError.limitExceeded("extraction would write more than \(self.maxBytes) bytes")
-                }
+                if total > self.maxBytes { throw self.overLimit(needed: total) }
                 try w.write(chunk)
             }
             try w.flush()

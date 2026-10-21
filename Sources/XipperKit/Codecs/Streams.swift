@@ -146,6 +146,9 @@ final class LZMACoder: StreamTransform {
     private let out = OutBuffer()
     private var ended = false
     private let name: String
+    /// Checked between `lzma_code` calls; with the multi-threaded coders' 250 ms timeout this
+    /// bounds how long a cancellation waits, even while workers compress a large block.
+    var cancel: CancellationToken?
 
     private init(name: String) { self.name = name }
     deinit { lzma_end(&strm) }
@@ -158,14 +161,17 @@ final class LZMACoder: StreamTransform {
         mt.flags = lzmaConcatenated
         mt.memlimit_threading = UInt64(min(ProcessInfo.processInfo.physicalMemory / 4, 4 << 30))
         mt.memlimit_stop = UInt64.max
+        mt.timeout = 250
         try c.check(lzma_stream_decoder_mt(&c.strm, &mt))
         return c
     }
 
     /// .xz encoder; `threads > 1` splits the input into independently compressed blocks.
-    static func xzEncoder(preset: Int, threads: Int) throws -> LZMACoder {
+    static func xzEncoder(preset: Int, threads: Int, cancel: CancellationToken? = nil) throws -> LZMACoder {
         let c = LZMACoder(name: "xz")
+        c.cancel = cancel
         var mt = lzma_mt()
+        mt.timeout = 250
         mt.threads = UInt32(max(1, threads))
         mt.preset = UInt32(max(0, min(9, preset)))
         mt.check = LZMA_CHECK_CRC64
@@ -213,6 +219,7 @@ final class LZMACoder: StreamTransform {
         strm.next_in = input.baseAddress?.assumingMemoryBound(to: UInt8.self)
         strm.avail_in = input.count
         while true {
+            try cancel?.check()
             strm.next_out = out.ptr.assumingMemoryBound(to: UInt8.self)
             strm.avail_out = outputChunk
             let r = lzma_code(&strm, action)
@@ -276,8 +283,10 @@ final class ZstdDecoder: StreamTransform {
 final class ZstdEncoder: StreamTransform {
     private let c: OpaquePointer
     private let out = OutBuffer()
+    private let cancel: CancellationToken?
 
-    init(level: Int, threads: Int, longDistance: Bool = false, checksum: Bool = true) throws {
+    init(level: Int, threads: Int, longDistance: Bool = false, checksum: Bool = true, cancel: CancellationToken? = nil) throws {
+        self.cancel = cancel
         guard let c = ZSTD_createCCtx() else { throw XipperError.codec("zstd init") }
         self.c = c
         ZSTD_CCtx_setParameter(c, ZSTD_c_compressionLevel, Int32(max(1, min(22, level))))
@@ -293,6 +302,7 @@ final class ZstdEncoder: StreamTransform {
     private func run(_ input: UnsafeRawBufferPointer, _ mode: ZSTD_EndDirective, _ sink: ByteSink) throws {
         var inb = ZSTD_inBuffer(src: input.baseAddress, size: input.count, pos: 0)
         while true {
+            try cancel?.check()
             var outb = ZSTD_outBuffer(dst: out.ptr, size: outputChunk, pos: 0)
             let remaining = ZSTD_compressStream2(c, &outb, &inb, mode)
             if ZSTD_isError(remaining) != 0 { throw XipperError.codec("zstd: \(String(cString: ZSTD_getErrorName(remaining)))") }

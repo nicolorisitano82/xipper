@@ -8,3 +8,6 @@ spike/Vendor/
 spike/build/
 spike/corpus/
 spike/xipzip/.build/
+
+# release artifacts
+dist/

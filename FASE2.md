@@ -67,3 +67,18 @@ Ai livelli -7 e -8 si usa 1× dizionario, privilegiando la velocità.
 - velocità smussata che resiste alle pause degli encoder;
 - i lavori "in primo piano" non vengono ripetuti nell'HUD;
 - nuovi agganci di debug (`XIPPER_DEMO_ITEMS`, `XIPPER_DEMO_FORMAT`, `XIPPER_DEMO_COMPRESS`, `XIPPER_DEMO_EXTRACT_SHEET`, `XIPPER_DEMO_CONFLICT`), verificati con catture delle finestre (compresi alert e sheet).
+
+## Beta1 (0.9.0-beta1, 21/10/2026)
+
+| Area | Stato |
+|---|---|
+| **Firma** | Identità self-signed "Xipper Self-Signed" in un portachiavi dedicato (`scripts/create-signing-identity.sh`): il portachiavi di login e le impostazioni di attendibilità restano intatti, e la chiave sta in `~/.xipper-signing` (fuori dal repo). Firma dall'interno verso l'esterno con hardened runtime: CLI, estensione (con entitlement sandbox), app. Gatekeeper rifiuta la beta perché non è notarizzata: i tester usano "Apri comunque" (vedi [docs/BETA_TESTERS.md](docs/BETA_TESTERS.md)). |
+| **Release** | `scripts/release.sh beta1` esegue build Release, firma, verifica, DMG (UDZO, con link ad Applicazioni e note per i tester) e SHA-256 → `dist/` (escluso da git). |
+| **Icona** | Generata da `scripts/make-app-icon.swift` (asset catalog, tutte le dimensioni). Da rifare in Icon Composer con i livelli in vetro. |
+| **Azioni rapide (Servizi)** | "Comprimi con Xipper", "Estrai con Xipper", "Verifica con Xipper" (`NSServices`), verificate con `NSPerformService`. |
+| **Finder Sync extension** | Target `XipperFinder.appex`, sandboxed: sottomenu "Xipper" (Comprimi / Estrai qui / Verifica / Apri in Xipper) e pulsante in toolbar. Passa la selezione all'app con `xipper://`. Verificata con la firma self-signed: registrata, attivata, processo avviato dal Finder, poi disattivata. |
+| **Schema `xipper://`** | compress / extract (smart) / test / open: crea solo file nuovi, non sovrascrive mai. |
+| **Errori (2.8)** | Nuovo errore di core `insufficientSpace`, con controllo preventivo prima di estrarre (prima veniva scambiato per una zip bomb). Classificazione disco pieno / permessi / sola lettura / volume scollegato; pannello con "Riprova" e "Salva altrove…". Provato su un volume da 16 MB: il file parziale viene eliminato e gli originali restano intatti. |
+| **Annullamento** | Bug trovato dai nuovi test: tar.xz/zst ignoravano l'annullamento durante la fase finale dell'encoder. Ora il token arriva agli encoder e liblzma MT usa un timeout di 250 ms. |
+| **Test** | 46 test più `zip64OverFourGiB` (voce da 4,5 GiB, deflate e store, verificata da 7-Zip; attivo solo con `XIPPER_BIG_TESTS=1`). |
+| **Versioni** | App ed estensione 0.9.0 (build 1); CLI e server MCP 0.9.0. |

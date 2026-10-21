@@ -1,0 +1,62 @@
+# Xipper 0.9.0 beta1: note per i tester
+
+Grazie per provare Xipper! È un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica ed estrae archivi in modo veloce e sicuro.
+
+## Installazione
+1. Apri `Xipper-0.9.0-beta1.dmg` e trascina **Xipper** nella cartella **Applicazioni**.
+2. **Primo avvio.** La beta è firmata con un certificato di sviluppo, non con un Developer ID Apple, quindi macOS la blocca la prima volta.
+   - Apri Xipper. Al messaggio "non è possibile verificare lo sviluppatore" scegli **Fine**.
+   - Vai in **Impostazioni di Sistema › Privacy e sicurezza**, scorri fino a "Xipper è stata bloccata" e premi **Apri comunque**. Conferma con la password o Touch ID.
+   - In alternativa, da Terminale:
+
+     ```bash
+     xattr -dr com.apple.quarantine /Applications/Xipper.app
+     ```
+
+3. Verifica, se vuoi: l'impronta SHA-256 del DMG è nel file `.sha256` che lo accompagna.
+
+## Integrazione con il Finder
+- **Menu Xipper e pulsante nella toolbar** (Finder Sync): vai in **Impostazioni di Sistema › Generali › Elementi login ed estensioni › Estensioni del Finder** e attiva **Xipper nel Finder**. Nel menu contestuale compare **Xipper ▸** con le voci:
+  - Comprimi;
+  - Estrai qui;
+  - Verifica;
+  - Apri in Xipper.
+
+  Per il pulsante in toolbar: tasto destro sulla toolbar del Finder › **Personalizza barra strumenti…** › trascina "Xipper".
+- **Azioni rapide / Servizi:** **Comprimi con Xipper**, **Estrai con Xipper**, **Verifica con Xipper**. Si trovano nel menu contestuale, sotto **Azioni rapide** o **Servizi**. Se non compaiono, attivale in **Impostazioni di Sistema › Tastiera › Scorciatoie da tastiera › Servizi › File e cartelle**.
+
+Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`, `nome 2`…) e non sovrascrivono mai nulla.
+
+## Cosa provare
+
+| Area | Prova | Cosa ti aspetti |
+|---|---|---|
+| Comprimere | Trascina file e cartelle nella finestra, cambia nome, cartella, formato e livello, poi **Comprimi** | Pannello con velocità e tempo stimato; a fine lavoro i riquadri con dimensione, tempo e velocità |
+| Password | Con ZIP: **Password**, poi riapri l'archivio | Richiesta di password; con quella sbagliata compare "Password errata" |
+| Aprire | Doppio clic su uno .zip / .tar.gz / .tar.zst / .tar.xz | Browser con cartelle, anteprima e dettagli |
+| Estrarre | **Estrai** (accanto all'archivio), oppure seleziona voci, oppure ⌥ + **Estrai** | Lo sheet con destinazione, struttura e conflitti; "Mantieni entrambi" / "Sostituisci" (nel Cestino) / "Salta" |
+| Verificare | **Verifica** nel browser o dal Finder | Esito "Integro" oppure l'elenco delle voci danneggiate |
+| Annullare | Un archivio grande in **Massimo**, poi **Annulla** | Si ferma subito e non resta nessun file parziale |
+| Disco pieno | Comprimi su una chiavetta quasi piena | "Spazio su disco esaurito", con **Riprova** / **Salva altrove…** |
+| Genomica | Comprimi un `.vcf`: diventa `.vcf.gz` BGZF; poi `tabix -p vcf` | Indicizzabile da tabix / bcftools |
+| Sicurezza | Apri uno zip scaricato da Internet ed estrai | I file estratti restano in quarantena (Gatekeeper li controlla) |
+| Assistenti AI | **Impostazioni › Integrazioni**: aggiungi una cartella, poi **Copia comando per Claude Code** | Claude Code vede il server "xipper" |
+
+## Limiti noti della beta1
+- **7z e RAR non sono supportati** (previsti più avanti). ZIP divisi in parti e ZIP Deflate64 non sono supportati.
+- Gli **attributi estesi del Mac** (tag del Finder, metadati) non vengono ancora salvati negli archivi; permessi e date sì.
+- **Solo italiano.**
+- Le password non vengono ancora salvate nel Portachiavi dall'app (prevista per la beta2 con Touch ID).
+- L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
+- Mancano ancora: Quick Look degli archivi nel Finder, miniature, Comandi Rapidi, notifiche e avanzamento sull'icona del Dock.
+
+## Segnalare un problema
+Apri una issue su <https://github.com/nicolorisitano82/xipper/issues> indicando:
+- versione di macOS e modello del Mac;
+- cosa hai fatto, cosa ti aspettavi e cosa è successo;
+- se possibile, un archivio di esempio (o come crearlo).
+
+Per i problemi con gli assistenti AI allega le righe pertinenti di `~/Library/Logs/Xipper/mcp-audit.jsonl`. Non contiene password né il contenuto dei file.
+
+## Privacy
+Xipper non si collega a Internet e non raccoglie dati. Tutto avviene sul tuo Mac.

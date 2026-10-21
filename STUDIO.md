@@ -251,6 +251,39 @@ Non comprime byte generici: **transcodifica** le letture FASTQ e gli allineament
 
 > Nota: per la compressione specifica di dati genomici, le alternative aperte e molto più diffuse sono **CRAM** (GA4GH, implementazione htslib con licenza MIT/BSD) per gli allineamenti e BGZF per VCF/BED/FASTQ. Non sono state richieste qui, ma restano un'opzione da valutare se G0 desse esito negativo.
 
+### 4.6 Standard GA4GH (analisi del 21/10/2026)
+
+GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, indici) e diverse API per i dati in rete. Per un archiviatore contano i **formati e gli indici**, i **checksum** e, come client, **DRS** e **htsget**. Le API di federazione non riguardano i file.
+
+| Standard | Stato | Cosa può fare Xipper | Priorità |
+|---|---|---|---|
+| **tabix (.tbi) e CSI** | hts-specs | Creare l'indice di VCF/BED/GFF ordinati e compressi BGZF: "bgzip + tabix" in un solo gesto, nel Finder, nella CLI e via MCP | **Alta** |
+| **Coerenza degli indici** (.tbi/.csi/.bai/.gzi) | hts-specs | Verificare che i virtual offset cadano su confini BGZF validi e che l'indice non sia più vecchio del file (estende la §4.4) | **Alta** |
+| **CRAM 3.0/3.1**, verifica strutturale | CRAM 3.0 approvato; il testo 3.1 aggiunge 4 codec | Controllare i CRC32 di container e blocchi e il container EOF **senza decodificare** | **Alta** |
+| **VCF 4.5 / BCF**, verifica | hts-specs | VCF.gz: BGZF valido più l'header `##fileformat`; BCF: BGZF più il magic | **Alta** |
+| **Checksum** (convenzioni DRS/IANA) | DRS `checksums` | Generare e verificare manifest sha-256 / md5 / crc32c con nomi compatibili DRS/IANA (anche `sha256` senza trattino); sha512t24u opzionale | **Alta** |
+| **DRS 1.4/1.5**, client | approvato (Apache-2.0) | `drs://host/id` → access URL → download → verifica del checksum → estrazione o verifica BGZF | Media |
+| **htsget 1.3**, client | approvato | Scaricare una regione `chr:start-end` di BAM/CRAM/VCF in un file locale verificato (con indice) | Media |
+| **BAI/CSI per BAM** | hts-specs | Indicizzare BAM: richiede il parsing dei record e il calcolo dei bin | Media |
+| **RO-Crate (+ BagIt)** | *non GA4GH* (ResearchObject/ELIXIR) | Esportare uno zip RO-Crate con manifest, per pubblicazione e workflow | Media |
+| **CRAM 3.1**, decodifica | htscodecs BSD, htslib MIT | Container, slice, rANS Nx16, arithmetic coder, fqzcomp, tokenizer dei nomi, più il riferimento via refget | Bassa |
+| **refget v2** | approvato 2023 | Recuperare sequenze di riferimento per MD5 (`@SQ M5`); serve solo per decodificare CRAM | Bassa |
+| **CRAM 3.1**, codifica; **CRAI** | — | Porting di htscodecs: un progetto a sé | Bassa |
+| Data Connect, Beacon v2, Phenopackets, TES/WES, Passports | approvati | Non riguardano file né compressione (al massimo un bearer token per DRS/htsget) | Esclusi |
+| Crypt4GH | — | — | **Escluso** (decisione del 21/10/2026) |
+
+**Vincoli:**
+- I client DRS e htsget introducono **accesso di rete**. Oggi Xipper non si collega mai a Internet (vedi le note della beta), quindi servono un opt-in esplicito, un token fornito dall'utente e la registrazione nel log di audit.
+- Licenze: htslib MIT/BSD e htscodecs BSD/pubblico dominio sono compatibili con MIT, mantenendo gli avvisi. Il testo delle specifiche hts-specs non ha una licenza dichiarata, ma l'implementazione da specifica non pone problemi pratici.
+- **Da confermare:** l'approvazione formale di CRAM 3.1 e VCF 4.5 sulle pagine GA4GH, e la data di DRS 1.4 (sito e GitHub non coincidono).
+
+**Piano proposto:**
+- **Fase 1.7 "Genomica 2"** (circa 2 settimane, solo locale): creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum. Arriva su CLI (`xipper tabix`, `xipper manifest`), Finder e MCP (`genomics_index`, `genomics_check`, `checksum_manifest`).
+- **Fase 2.x "Genomica in rete"** (opt-in): client DRS e htsget.
+- **Più avanti, su richiesta:** decodifica CRAM con refget.
+
+> Fonti: ga4gh.org (pagine prodotto SAM/BAM, CRAM, refget, htsget, DRS); github.com/samtools/hts-specs (CRAMv3.tex, CRAMcodecs.tex, htsget.md, refget.md); github.com/ga4gh/data-repository-service-schemas (release 1.4.0 e 1.5.0, Checksum.yaml); htslib e htscodecs (LICENSE); researchobject.org (RO-Crate 1.3).
+
 ## 5. Ottimizzazioni Apple Silicon (arm64)
 
 ### 5.1 CPU e parallelismo
@@ -459,6 +492,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1. Core** ✅ | XipperKit: ZIP/ZIP64 (lettura e scrittura, AES), TAR, gzip/bzip2/xz/zstd, sicurezza, verifica, CLI → [FASE1.md](FASE1.md) | completata il 21/10/2026 (restano alcuni punti rimandati) |
 | **1.5 CLI + MCP** ✅ | Server MCP `xipper mcp` (2026-07-28 + 2025-11-25), 9 tool, allowlist, sola lettura, `password_ref` nel Portachiavi, conferme via elicitation/MRTR, audit, `.mcpb` (§6-ter) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
+| **1.7 Genomica 2 (GA4GH, locale)** | Creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum (§4.6) | circa 2 settimane |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | in corso dal 21/10/2026 → [FASE2.md](FASE2.md) |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |
