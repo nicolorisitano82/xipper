@@ -298,6 +298,7 @@ enum SevenZipExtractor {
                         var target: [UInt8] = []
                         try copy(src, size: r.size, crc: r.crc, entry: r.entry.path, buf: buf, cancel: cancel) { target.append(contentsOf: $0) }
                         ctx.addSymlink(comps, target: String(decoding: target, as: UTF8.self), modified: r.entry.modified)
+                        tracker.add(bytes: r.size)
                     } else if r.size <= BackgroundWrites.inlineLimit {
                         var data = [UInt8]()
                         data.reserveCapacity(Int(r.size))

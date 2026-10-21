@@ -1,10 +1,10 @@
 # Xipper
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP, 7z e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
-- Core e CLI (fase 1): [FASE1.md](FASE1.md)
+- Core e CLI (fase 1, con 7z della fase 3): [FASE1.md](FASE1.md)
 - App SwiftUI (fase 2, in corso): [FASE2.md](FASE2.md) · specifica UI: [docs/UI_SPEC.md](docs/UI_SPEC.md)
 - Beta per i tester: [docs/BETA_TESTERS.md](docs/BETA_TESTERS.md)
 
@@ -12,14 +12,15 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 
 ```
 Package.swift            SwiftPM: codec C + XipperKit + CLI + test (macOS 26, arm64)
-Vendor/                  zstd, libdeflate, liblzma (sorgenti vendorizzati)
+Vendor/                  zstd, libdeflate, liblzma, PPMd del LZMA SDK (sorgenti vendorizzati)
 Sources/CXipShims/       wrapper C su zlib/bzip2 di sistema
 Sources/XipperKit/       core Swift
   Xipper.swift           API pubblica: create / extract / test / list, riconoscimento del formato
   Zip/                   writer parallelo (ZIP64, AES-256, zstd), reader, estrazione e verifica parallele
   Tar/                   tar ustar/pax/GNU, compressione e decompressione in streaming
+  SevenZip/              7z: header, grafo dei coder, filtri BCJ/BCJ2, LZMA2 parallelo, volumi
   Codecs/                deflate, gzip/bzip2 paralleli, xz/zstd multi-thread, CRC-32
-  Crypto/                WinZip AES (CTR little-endian su AES-ECB hardware), ZipCrypto (sola lettura)
+  Crypto/                WinZip AES (CTR little-endian su AES-ECB hardware), 7z AES-256-CBC, ZipCrypto (sola lettura)
   Extraction/            estrazione sicura comune a tutti i formati
   Support/               concorrenza P/E-core, I/O, scansione delle sorgenti
 Sources/xipper/          CLI
@@ -65,6 +66,10 @@ I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema
 
 ```bash
 .build/release/xipper create -f tar.zst backup.tar.zst progetto/
+```
+
+```bash
+.build/release/xipper create -p --volume 2g privato.7z archivio/
 ```
 
 ```bash
