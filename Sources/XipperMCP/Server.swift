@@ -177,7 +177,8 @@ public final class MCPServer: @unchecked Sendable {
         s += "Only paths inside the user's allowed folders are accepted"
         s += policy.roots.isEmpty ? " (none configured yet). " : ": \(policy.roots.joined(separator: ", ")). "
         s += "Never ask the user to type an archive password in chat: use password_ref (a Keychain entry name). "
-        s += "Prefer archive_info/archive_list before extracting; extraction never overwrites unless the user confirms."
+        s += "Prefer archive_info/archive_list before extracting; extraction never overwrites unless the user confirms. "
+        s += "Genomics: genomics_check verifies VCF.gz/BCF/BAM/CRAM files and their indexes, genomics_index builds tabix/CSI indexes, checksum_manifest creates and verifies sha-256/md5/crc32c manifests."
         if config.readOnly { s += " The server is in read-only mode." }
         return s
     }

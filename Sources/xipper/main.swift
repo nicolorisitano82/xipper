@@ -38,6 +38,7 @@ usage: xipper <command> [options]
       -f, --force          overwrite existing files;  -k accepted (originals are always kept)
           --convert        recompress a plain .gz as BGZF in place
           --info           block count, sizes, end-of-file marker
+\(genomics2Usage)
 
 common options:
   -j, --threads N          worker threads (default: performance cores)
@@ -51,6 +52,7 @@ var args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first else { print(usage); exit(2) }
 args.removeFirst()
 if command == "mcp" { runMCP(args) }
+if genomics2Commands.contains(command) { runGenomics2(command, args) }
 
 // MARK: argument helpers
 
@@ -462,6 +464,9 @@ func buildBundle(executable: String, output: String) throws {
         ["name": "bgzf_compress", "description": "Genomics: compress with BGZF (bgzip)"],
         ["name": "bgzf_check", "description": "Genomics: verify BGZF, BAM, BCF"],
         ["name": "bgzf_convert", "description": "Genomics: convert plain gzip to BGZF"],
+        ["name": "genomics_index", "description": "Genomics: build tabix (.tbi) / CSI indexes of VCF, BED, GFF"],
+        ["name": "genomics_check", "description": "Genomics: verify VCF.gz, BCF, BAM, CRAM and their indexes"],
+        ["name": "checksum_manifest", "description": "Create and verify sha-256 / md5 / crc32c manifests (DRS names)"],
     ]
     let manifest: [String: Any] = [
         "manifest_version": "0.3",

@@ -104,7 +104,7 @@ struct MCPTests {
         let unknown = h.request("initialize", ["protocolVersion": "2099-01-01", "capabilities": [:]])
         #expect(unknown["result"]?["protocolVersion"]?.string == "2025-11-25")
         let tools = h.request("tools/list")["result"]?["tools"]?.array ?? []
-        #expect(tools.count == 9)
+        #expect(tools.count == 12)
         let extract = tools.first { $0["name"]?.string == "archive_extract" }
         #expect(extract?["annotations"]?["destructiveHint"]?.bool == true)
         #expect(tools.allSatisfy { $0["inputSchema"]?["type"]?.string == "object" })
@@ -155,7 +155,7 @@ struct MCPTests {
         let h = harness(t, readOnly: true)
         h.initializeLegacy()
         let names = (h.request("tools/list")["result"]?["tools"]?.array ?? []).compactMap { $0["name"]?.string }
-        #expect(Set(names) == ["archive_info", "archive_list", "archive_test", "archive_read_entry", "bgzf_check"])
+        #expect(Set(names) == ["archive_info", "archive_list", "archive_test", "archive_read_entry", "bgzf_check", "genomics_check", "checksum_manifest"])
         let r = h.request("tools/call", ["name": "archive_extract", "arguments": [:]])
         #expect(r["error"]?["code"]?.int == MCPError.invalidParams)
     }

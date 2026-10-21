@@ -278,7 +278,7 @@ GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, 
 - **Da confermare:** l'approvazione formale di CRAM 3.1 e VCF 4.5 sulle pagine GA4GH, e la data di DRS 1.4 (sito e GitHub non coincidono).
 
 **Piano proposto:**
-- **Fase 1.7 "Genomica 2"** (circa 2 settimane, solo locale): creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum. Arriva su CLI (`xipper tabix`, `xipper manifest`), Finder e MCP (`genomics_index`, `genomics_check`, `checksum_manifest`).
+- **Fase 1.7 "Genomica 2"** ✅ (completata il 21/10/2026, vedi [FASE1.md](FASE1.md); resta l'integrazione con il Finder, che arriva con l'app) (circa 2 settimane, solo locale): creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum. Arriva su CLI (`xipper tabix`, `xipper manifest`), Finder e MCP (`genomics_index`, `genomics_check`, `checksum_manifest`).
 - **Fase 2.x "Genomica in rete"** (opt-in): client DRS e htsget.
 - **Più avanti, su richiesta:** decodifica CRAM con refget.
 
@@ -492,7 +492,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1. Core** ✅ | XipperKit: ZIP/ZIP64 (lettura e scrittura, AES), TAR, gzip/bzip2/xz/zstd, sicurezza, verifica, CLI → [FASE1.md](FASE1.md) | completata il 21/10/2026 (restano alcuni punti rimandati) |
 | **1.5 CLI + MCP** ✅ | Server MCP `xipper mcp` (2026-07-28 + 2025-11-25), 9 tool, allowlist, sola lettura, `password_ref` nel Portachiavi, conferme via elicitation/MRTR, audit, `.mcpb` (§6-ter) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
-| **1.7 Genomica 2 (GA4GH, locale)** | Creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum (§4.6) | circa 2 settimane |
+| **1.7 Genomica 2 (GA4GH, locale)** ✅ | Creazione di tabix/CSI compatibile htslib (query identiche a `tabix`), verifica degli indici `.tbi`/`.csi`/`.bai`/`.gzi`/`.crai`, verifica strutturale di CRAM 3.0/3.1 e di VCF.gz/BCF, manifest sha-256/md5/crc32c (JSON DRS, `sha256sum`/`md5sum`); CLI `xipper tabix`/`index-check`/`manifest`, MCP `genomics_index`/`genomics_check`/`checksum_manifest` (§4.6) | completata il 21/10/2026 → [FASE1.md](FASE1.md) (Finder: con l'app) |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** 🚧 | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | in corso dal 21/10/2026 → [FASE2.md](FASE2.md) |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |

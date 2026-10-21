@@ -109,8 +109,8 @@ enum XipperTools {
     }
 
     static func all(readOnly: Bool) -> [Tool] {
-        let tools = [info, list, test, readEntry, bgzfCheck, extract, create, bgzfCompress, bgzfConvert]
-        return readOnly ? tools.filter(\.readOnly) : tools
+        let tools = [info, list, test, readEntry, bgzfCheck, extract, create, bgzfCompress, bgzfConvert] + genomics
+        return readOnly ? tools.filter(\.readOnly) + [checksumManifestVerifyOnly] : tools
     }
 
     static let info = Tool(
