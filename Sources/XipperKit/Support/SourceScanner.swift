@@ -115,6 +115,7 @@ enum AlreadyCompressed {
 
     static func matches(_ name: String) -> Bool {
         guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return false }
-        return extensions.contains(name[name.index(after: dot)...].lowercased())
+        let ext = name[name.index(after: dot)...].lowercased()
+        return extensions.contains(ext) || Genomics.compressedExtensions.contains(ext)
     }
 }

@@ -10,20 +10,23 @@ public enum ArchiveFormat: String, Sendable, CaseIterable {
     case tarZstd = "tar.zst"
     /// Single file compressed without tar.
     case gzip = "gz"
+    /// Blocked gzip (bgzip): gunzip-compatible, indexable; the standard for VCF/BED/FASTA and BAM/BCF.
+    case bgzf
     case bzip2 = "bz2"
     case xz
     case zstd = "zst"
 
-    public var fileExtension: String { rawValue }
+    public var fileExtension: String { self == .bgzf ? "gz" : rawValue }
 
     public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd].contains(self) }
-    public var isSingleFile: Bool { [.gzip, .bzip2, .xz, .zstd].contains(self) }
+    public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd].contains(self) }
     public var supportsPassword: Bool { self == .zip }
 
     var compression: StreamCompression {
         switch self {
         case .zip, .tar: return .none
         case .tarGzip, .gzip: return .gzip
+        case .bgzf: return .bgzf
         case .tarBzip2, .bzip2: return .bzip2
         case .tarXz, .xz: return .xz
         case .tarZstd, .zstd: return .zstd
@@ -45,7 +48,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable {
         let table: [(String, ArchiveFormat)] = [
             (".tar.gz", .tarGzip), (".tgz", .tarGzip), (".tar.bz2", .tarBzip2), (".tbz2", .tarBzip2), (".tbz", .tarBzip2),
             (".tar.xz", .tarXz), (".txz", .tarXz), (".tar.zst", .tarZstd), (".tzst", .tarZstd),
-            (".zip", .zip), (".tar", .tar), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
+            (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
         ]
         return table.first { n.hasSuffix($0.0) }?.1
     }
@@ -58,6 +61,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable {
         let byName = inferred(fromFileName: url.lastPathComponent)
         switch StreamCompression.detect(head) {
         case .gzip: return byName == .gzip ? .gzip : .tarGzip
+        case .bgzf: return byName == .tarGzip ? .tarGzip : .bgzf
         case .bzip2: return byName == .bzip2 ? .bzip2 : .tarBzip2
         case .xz: return byName == .xz ? .xz : .tarXz
         case .zstd: return byName == .zstd ? .zstd : .tarZstd
@@ -84,6 +88,11 @@ public struct CreateOptions: Sendable {
     /// Replace an existing archive at the destination.
     public var overwrite = false
     public var memoryBudget = 512 << 20
+    /// gzip of VCF/BED/GFF/FASTA/FASTQ/SAM files is written as BGZF (bgzip), which tabix,
+    /// bcftools and samtools require. Output stays readable by any gunzip.
+    public var genomicsUsesBGZF = true
+    /// With BGZF output, also write the `.gzi` index next to it (like `bgzip -i`).
+    public var writeBGZFIndex = false
     public init() {}
 }
 
@@ -132,10 +141,15 @@ public enum Xipper {
         case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd:
             return try TarWriter.write(items: items, to: path, compression: options.format.compression, level: level,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
-        case .gzip, .bzip2, .xz, .zstd:
+        case .gzip, .bgzf, .bzip2, .xz, .zstd:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
-            return try TarWriter.compressSingle(items[0], to: path, compression: options.format.compression, level: level,
-                                                workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            var compression = options.format.compression
+            // Genomics preference: text formats indexed by tabix/samtools must be BGZF, not plain gzip.
+            if compression == .gzip && options.genomicsUsesBGZF && Genomics.prefersBGZF(items[0].name) { compression = .bgzf }
+            let index = compression == .bgzf && options.writeBGZFIndex ? path + ".gzi" : nil
+            return try TarWriter.compressSingle(items[0], to: path, compression: compression, level: level,
+                                                workload: options.workload, overwrite: options.overwrite, indexPath: index,
+                                                progress: progress, cancel: cancel)
         }
     }
 
@@ -147,6 +161,10 @@ public enum Xipper {
                                cancel: CancellationToken? = nil) throws -> ExtractReport {
         let archivePath = archive.standardizedFileURL.path
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
+        let lower = archive.lastPathComponent.lowercased()
+        if format == .bgzf && (lower.hasSuffix(".bam") || lower.hasSuffix(".bcf")) {
+            throw XipperError.unsupported("BAM/BCF files are BGZF containers read directly by samtools/bcftools; use test to verify them")
+        }
         let parent = (directory ?? archive.deletingLastPathComponent()).standardizedFileURL.path
         let tracker = ProgressTracker(totalBytes: 0, totalEntries: 0, handler: progress)
 
@@ -220,7 +238,10 @@ public enum Xipper {
         let path = archive.standardizedFileURL.path
         let failures: [SkippedEntry]
         var entries = 0
-        if format == .zip {
+        if format == .bgzf {
+            (_, failures) = try BGZFVerifier.verify(path, workload: workload, tracker: tracker, cancel: cancel)
+            entries = 1
+        } else if format == .zip {
             let zip = try ZipArchive(path: path)
             entries = zip.records.count
             if password == nil, let enc = zip.records.first(where: { $0.entry.isEncrypted && $0.entry.kind == .file }) {

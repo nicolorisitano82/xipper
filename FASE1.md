@@ -89,3 +89,54 @@ Ottimizzazioni arrivate dalle misure:
 - **ZIP con 10.000 file piccoli** (4,8 s contro 2,7 s del tar): da profilare.
 - 7z (fase 3), Deflate64 in lettura, ZIP multi-volume, RAR (valutazione legale).
 - CLI + server MCP (fase 1.5, vedi STUDIO.md §6-ter).
+
+---
+
+# Fase 1.6: BGZF / bgzip (genomica)
+
+*21 ottobre 2026 · stessa macchina · htslib 1.24 (Homebrew, compilato con libdeflate) come riferimento*
+
+## Cosa c'è
+- **Codec BGZF** (`Codecs/BGZF.swift`):
+  - encoder parallelo con blocchi da 0xFF00 byte, blocco *stored* quando la compressione non conviene, marker EOF sempre scritto;
+  - decoder parallelo che ricava i confini dei blocchi da `BSIZE`, conosce la dimensione d'uscita da `ISIZE` e controlla il CRC di ogni blocco.
+- **Riconoscimento dal contenuto:** un gzip con extra field `BC` viene riconosciuto come BGZF, anche per `.bam` e `.bcf`.
+- **Livelli** sulla scala 0–9 di bgzip, con la stessa tabella zlib→libdeflate di htslib (1,2,3,5,6,7,8,10,12): le dimensioni d'uscita coincidono con quelle di `bgzip -l N`.
+- **API:**
+  - `ArchiveFormat.bgzf`;
+  - `CreateOptions.genomicsUsesBGZF`: gzip di VCF/BED/GFF/FASTA/FASTQ/SAM produce BGZF, attivo di default;
+  - `CreateOptions.writeBGZFIndex`;
+  - `Xipper.bgzfInfo`: blocchi, dimensioni e marker EOF, senza decomprimere;
+  - `Xipper.writeBGZFIndex`: `.gzi` identico a `bgzip -r`;
+  - `Xipper.convert`: gzip↔BGZF, anche sul posto, con l'elenco degli indici `.tbi`/`.csi`/`.gzi` non più validi;
+  - `Xipper.decompressSingle` e `Xipper.stream`.
+- **Verifica:** CRC di ogni blocco più il marker EOF. Un file troncato esattamente a un confine di blocco viene comunque segnalato. Funziona anche su BAM e BCF; la loro estrazione invece viene rifiutata, con un messaggio chiaro.
+- **Smart store:** BAM, CRAM, BCF, `.bgz`, SRA e gli indici (`.bai`, `.crai`, `.tbi`, `.csi`, `.gzi`) non vengono ricompressi negli ZIP.
+- **CLI `xipper bgzip`:** `-c`, `-d`, `-i`, `-I`, `-r`, `-t`, `-l 0-9`, `-@`, `-f`, `-k` (gli originali sono sempre conservati), `--convert`, `--info`.
+- **Test:** 8 nuovi test (12 casi):
+  - confini dei blocchi (0, 1, 65280, 65281 byte, 3 MB) e dati incomprimibili;
+  - compatibilità con gunzip;
+  - htslib: `bgzip -t`, `tabix` con query per regione, `.gzi` identico byte per byte, lettura dell'output di bgzip;
+  - livelli entro l'1% di bgzip;
+  - preferenza Genomica;
+  - conversione sul posto con indice tabix segnalato come non valido;
+  - troncamento e corruzione;
+  - BAM creato con samtools.
+  
+  Totale: 30 test, tutti verdi.
+
+## Prestazioni
+VCF sintetico da 243 MB (320.000 varianti × 6), cache calda.
+
+| Operazione | Xipper | htslib 1.24 |
+|---|---|---|
+| Compressione, livello 6 (default) | **0,59 s** → 50,13 MB | `bgzip -@10` 0,58 s → 50,14 MB |
+| Compressione, livello 9 | 8,79 s → 45,40 MB | `bgzip -@10 -l 9` 8,44 s → 45,40 MB |
+| Decompressione | **0,05–0,06 s** | `bgzip -d -@10` 0,05 s · `bgzip -d` 0,19 s · `gunzip` 0,20 s |
+| Verifica | **0,04 s** | `bgzip -t` 0,17 s (4× più lento) |
+
+Siamo alla pari con htslib multi-thread, che usa la stessa libdeflate, e 4 volte più veloci nella verifica. Il vantaggio per l'utente Mac sta nel non dover installare htslib e nell'integrazione con Finder e Comandi Rapidi; la conversione automatica gzip→BGZF evita gli errori di `tabix`/`bcftools`.
+
+## Note
+- htslib 1.24 allinea i blocchi alle righe nei file di testo. Xipper usa blocchi fissi da 0xFF00 byte: entrambe le scelte sono valide per la specifica, e tabix e bcftools funzionano con entrambe.
+- Rimandato a v2: la creazione di indici tabix (`.tbi`/`.csi`), che richiede di interpretare VCF/BED/GFF, e la decompressione di BAM/BCF in forma non compressa.

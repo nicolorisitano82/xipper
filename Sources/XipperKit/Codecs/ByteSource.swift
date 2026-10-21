@@ -36,10 +36,13 @@ extension ByteSource {
 
 /// Compression framing recognized by magic bytes.
 enum StreamCompression: Sendable, Equatable {
-    case none, gzip, bzip2, xz, zstd
+    case none, gzip, bgzf, bzip2, xz, zstd
+
+    /// Bytes needed by `detect` (BGZF is recognized from the gzip extra field).
+    static let detectLength = 64
 
     static func detect(_ head: [UInt8]) -> StreamCompression {
-        if head.starts(with: [0x1f, 0x8b]) { return .gzip }
+        if head.starts(with: [0x1f, 0x8b]) { return BGZF.isBGZF(head) ? .bgzf : .gzip }
         if head.starts(with: [0x42, 0x5a, 0x68]) { return .bzip2 }  // "BZh"
         if head.starts(with: [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) { return .xz }
         if head.starts(with: [0x28, 0xB5, 0x2F, 0xFD]) { return .zstd }
@@ -50,9 +53,21 @@ enum StreamCompression: Sendable, Equatable {
         switch self {
         case .none: return PassthroughTransform()
         case .gzip: return try InflateDecoder(gzip: true)
+        case .bgzf: return BGZFDecoder(workload: .threads(threads), cancel: nil)
         case .bzip2: return try Bzip2Decoder()
         case .xz: return try LZMACoder.xzDecoder(threads: threads)
         case .zstd: return try ZstdDecoder()
+        }
+    }
+
+    func encoder(level: Int, workload: Workload, cancel: CancellationToken?) throws -> StreamTransform {
+        switch self {
+        case .none: return PassthroughTransform()
+        case .gzip: return ParallelGzipEncoder(level: level, workload: workload, cancel: cancel)
+        case .bgzf: return BGZFEncoder(level: level, workload: workload, cancel: cancel)
+        case .bzip2: return ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
+        case .xz: return try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount)
+        case .zstd: return try ZstdEncoder(level: level, threads: workload.workerCount)
         }
     }
 }

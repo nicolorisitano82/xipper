@@ -1,6 +1,6 @@
 # Xipper
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP e tar (gz, bz2, xz, zst), più file singoli compressi. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
@@ -61,6 +61,20 @@ I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema
 
 ```bash
 .build/release/xipper list --long foto.zip
+```
+
+Genomica (BGZF, compatibile con `bgzip`):
+
+```bash
+.build/release/xipper bgzip -i varianti.vcf
+```
+
+```bash
+.build/release/xipper bgzip --convert vecchio.vcf.gz
+```
+
+```bash
+.build/release/xipper bgzip -t campione.bam
 ```
 
 Uscita: `0` ok, `1` errore, `2` uso errato, `3` voci saltate o verifica fallita, `4` password mancante o errata, `130` annullato (Ctrl-C).

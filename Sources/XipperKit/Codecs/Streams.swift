@@ -311,11 +311,11 @@ class ParallelChunkEncoder: StreamTransform {
     private var filled = 0
     private var startedOutput = false
 
-    init(chunkSize: Int, workload: Workload, cancel: CancellationToken?) {
+    init(chunkSize: Int, workload: Workload, cancel: CancellationToken?, chunksPerWorker: Int = 2) {
         self.chunkSize = chunkSize
         self.workload = workload
         self.cancel = cancel
-        batchCapacity = chunkSize * max(1, workload.workerCount) * 2
+        batchCapacity = chunkSize * max(1, workload.workerCount) * max(2, chunksPerWorker)
         buffer = .allocate(byteCount: batchCapacity, alignment: 16384)
     }
     deinit { buffer.deallocate() }
@@ -324,6 +324,8 @@ class ParallelChunkEncoder: StreamTransform {
     func header() -> [UInt8] { [] }
     func compressChunk(_ chunk: UnsafeRawBufferPointer, previous: UnsafeRawBufferPointer?, last: Bool) throws -> [UInt8] { fatalError("abstract") }
     func chunkDone(_ chunk: UnsafeRawBufferPointer, crc: UInt32) {}
+    /// Called in output order with the size of each chunk before and after compression.
+    func chunkWritten(input: Int, output: Int) {}
     func trailer() -> [UInt8] { [] }
     var needsCRC: Bool { false }
 
@@ -372,7 +374,9 @@ class ParallelChunkEncoder: StreamTransform {
         for i in 0..<count {
             let (out, crc) = results.take(i)!
             let start = i * chunkSize
-            chunkDone(UnsafeRawBufferPointer(start: base + start, count: max(0, min(chunkSize, total - start))), crc: crc)
+            let inputCount = max(0, min(chunkSize, total - start))
+            chunkDone(UnsafeRawBufferPointer(start: base + start, count: inputCount), crc: crc)
+            chunkWritten(input: inputCount, output: out.count)
             try emit(out, to: sink)
         }
         let consumed = count * chunkSize

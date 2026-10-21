@@ -11,15 +11,7 @@ enum TarWriter {
                       cancel: CancellationToken?) throws -> WriteReport {
         let tracker = ProgressTracker(totalBytes: items.reduce(0) { $0 + $1.size }, totalEntries: items.count, handler: progress)
         let out = try OutputFile(path: path)
-        let threads = workload.workerCount
-        let encoder: StreamTransform
-        switch compression {
-        case .none: encoder = PassthroughTransform()
-        case .gzip: encoder = ParallelGzipEncoder(level: level, workload: workload, cancel: cancel)
-        case .bzip2: encoder = ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
-        case .xz: encoder = try LZMACoder.xzEncoder(preset: level, threads: threads)
-        case .zstd: encoder = try ZstdEncoder(level: level, threads: threads)
-        }
+        let encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
         let sink: ByteSink = { try out.write($0) }
         var written: Int64 = 0
         func emit(_ bytes: [UInt8]) throws {
@@ -66,19 +58,14 @@ enum TarWriter {
     }
 
     /// Single file compressed without tar (file.gz, file.zst, …).
+    /// `indexPath`: for BGZF, also write a `.gzi` index there (htslib format).
     static func compressSingle(_ item: ArchiveItem, to path: String, compression: StreamCompression, level: Int,
-                               workload: Workload, overwrite: Bool, progress: ProgressHandler?,
+                               workload: Workload, overwrite: Bool, indexPath: String? = nil, progress: ProgressHandler?,
                                cancel: CancellationToken?) throws -> WriteReport {
         guard case let .file(size) = item.kind else { throw XipperError.invalidArgument("only a single file can be compressed without tar") }
         let tracker = ProgressTracker(totalBytes: size, totalEntries: 1, handler: progress)
         let out = try OutputFile(path: path)
-        let encoder: StreamTransform = switch compression {
-        case .none: PassthroughTransform()
-        case .gzip: ParallelGzipEncoder(level: level, workload: workload, cancel: cancel)
-        case .bzip2: ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
-        case .xz: try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount)
-        case .zstd: try ZstdEncoder(level: level, threads: workload.workerCount)
-        }
+        let encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
         let sink: ByteSink = { try out.write($0) }
         let reader = try FileReader(path: item.sourcePath)
         let piece = UnsafeMutableRawPointer.allocate(byteCount: 4 << 20, alignment: 16384)
@@ -95,6 +82,11 @@ enum TarWriter {
         try encoder.finish(sink)
         try out.flush()
         try out.commit(overwrite: overwrite)
+        if let indexPath, let bgzf = encoder as? BGZFEncoder {
+            let idx = try OutputFile(path: indexPath)
+            try idx.write(BGZFLayout.gziBytes(bgzf.index))
+            try idx.commit(overwrite: true)
+        }
         tracker.add(bytes: 0, entries: 1)
         tracker.finish()
         return WriteReport(entries: 1, inputBytes: off, outputBytes: out.position, elapsed: tracker.elapsed)
@@ -235,7 +227,7 @@ enum TarExtractor {
     /// Opens `path` as a possibly-compressed stream; reports whether it holds a tar archive.
     static func open(_ path: String, workload: Workload) throws -> (pipe: DecodingPipe, source: PeekSource, isTar: Bool, compression: StreamCompression) {
         let file = try FileReader(path: path)
-        let magic = try file.read(at: 0, count: Int(min(file.size, 6)))
+        let magic = try file.read(at: 0, count: Int(min(file.size, Int64(StreamCompression.detectLength))))
         let compression = StreamCompression.detect(magic)
         let pipe = try DecodingPipe(file: file, compression: compression, threads: workload.workerCount,
                                     qos: workload == .background ? .utility : .userInitiated)
@@ -374,7 +366,7 @@ enum TarExtractor {
 
     static func singleFileName(_ path: String) -> String {
         let base = (path as NSString).lastPathComponent
-        for ext in [".gz", ".bz2", ".xz", ".zst", ".tgz", ".tbz2", ".txz", ".tzst"] where base.lowercased().hasSuffix(ext) {
+        for ext in [".gz", ".bgz", ".bz2", ".xz", ".zst", ".tgz", ".tbz2", ".txz", ".tzst"] where base.lowercased().hasSuffix(ext) {
             let stem = String(base.dropLast(ext.count))
             return ext.hasPrefix(".t") && ext.count > 4 ? stem + ".tar" : stem
         }

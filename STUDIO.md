@@ -456,7 +456,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **0. Spike** ✅ | Benchmark dei codec (sistema contro vendorizzati) su M-series, prototipo di ZIP parallelo, decisione A/B, **scelta del nome** → [SPIKE_FASE0.md](SPIKE_FASE0.md) | completata il 21/10/2026 |
 | **1. Core** ✅ | XipperKit: ZIP/ZIP64 (lettura e scrittura, AES), TAR, gzip/bzip2/xz/zstd, sicurezza, verifica, CLI → [FASE1.md](FASE1.md) | completata il 21/10/2026 (restano alcuni punti rimandati) |
 | **1.5 CLI + MCP** | Server MCP come sottocomando `xipper mcp` (§6-ter), allowlist, audit, installazione `.mcpb` / `claude mcp add` | 1–2 settimane |
-| **1.6 Genomica: BGZF** | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | 1–2 settimane |
+| **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | 6 settimane |
 | **3. 7z** | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | 4–6 settimane |

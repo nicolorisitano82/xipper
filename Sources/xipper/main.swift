@@ -25,6 +25,17 @@ usage: xipper <command> [options]
       -p, --password / --password-stdin
   test    [-p | --password-stdin] <archive>
   list    [--long] <archive>
+  bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
+      (default)            compress FILE to FILE.gz (the original is kept)
+      -d, --decompress     decompress (gz, BGZF, bz2, xz, zst)
+      -c, --stdout         write to standard output
+      -i, --index          also write the .gzi index;  -I, --index-name FILE
+      -r, --reindex        (re)build FILE.gzi for an existing BGZF file
+      -t, --test           verify every block and the end-of-file marker
+      -l, --compress-level N   0-9 as in bgzip (default 6);  -@, --threads N
+      -f, --force          overwrite existing files;  -k accepted (originals are always kept)
+          --convert        recompress a plain .gz as BGZF in place
+          --info           block count, sizes, end-of-file marker
 
 common options:
   -j, --threads N          worker threads (default: performance cores)
@@ -43,10 +54,15 @@ args.removeFirst()
 var flags = Set<String>()
 var values: [String: String] = [:]
 var positional: [String] = []
-let knownFlags: Set<String> = ["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
-                                "--allow-external-symlinks", "--no-quarantine", "--long", "--background", "-q", "--quiet",
-                                "-h", "--help"]
-let valueOptions: Set<String> = ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite"]
+let commonFlags: Set<String> = ["--background", "-q", "--quiet", "-h", "--help"]
+let knownFlags: Set<String> = command == "bgzip"
+    ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
+                         "-f", "--force", "-k", "--keep", "--convert", "--info"])
+    : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
+                         "--allow-external-symlinks", "--no-quarantine", "--long"])
+let valueOptions: Set<String> = command == "bgzip"
+    ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
+    : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite"]
 do {
     var i = 0
     while i < args.count {
@@ -86,7 +102,7 @@ func fail(_ message: String, code: Int32 = 1) -> Never {
 }
 
 let workload: Workload = {
-    if let j = value("-j", "--threads") {
+    if let j = value("-j", "--threads", "-@") {
         guard let n = Int(j), n > 0 else { fail("invalid thread count \(j)", code: 2) }
         return .threads(n)
     }
@@ -246,6 +262,69 @@ case "list", "l":
                 print("\(kind) \(lock) \(size.leftPad(12)) \(e.modified.map(df.string) ?? "                ") \(e.method.leftPad(8))  \(name)\(e.linkTarget.map { " -> \($0)" } ?? "")")
             } else {
                 print(name)
+            }
+        }
+    }
+
+case "bgzip":
+    guard !positional.isEmpty else { fail("bgzip needs at least one file", code: 2) }
+    let level = value("-l", "--compress-level").map { s -> Int in
+        guard let n = Int(s), (0...9).contains(n) else { fail("invalid level \(s) (0-9)", code: 2) }
+        return n
+    }
+    let toStdout = flag("-c", "--stdout")
+    let force = flag("-f", "--force")
+    run {
+        for path in positional {
+            let url = URL(fileURLWithPath: path)
+            if flag("--info") {
+                let i = try Xipper.bgzfInfo(url)
+                print("\(path): BGZF, \(i.blocks) blocks, \(i.compressedSize.bytesText) → \(i.uncompressedSize.bytesText), EOF marker \(i.endsWithEOFMarker ? "present" : "MISSING")")
+            } else if flag("-t", "--test") {
+                let r = try Xipper.test(url, workload: workload, progress: progress, cancel: cancel)
+                endProgress()
+                for f in r.failures { print("FAILED \(f.path): \(f.reason)") }
+                if !r.isOK { exit(3) }
+                print("\(path): OK")
+            } else if flag("-r", "--reindex") {
+                let dest = value("-I", "--index-name").map { URL(fileURLWithPath: $0) }
+                print(try Xipper.writeBGZFIndex(for: url, to: dest).path)
+            } else if flag("--convert") {
+                let r = try Xipper.convert(url, format: .bgzf, level: level, writeIndex: flag("-i", "--index"),
+                                           workload: workload, progress: progress, cancel: cancel)
+                endProgress()
+                print("\(path): converted to BGZF (\(r.outputBytes.bytesText))")
+                for s in r.staleIndexes { fputs("warning: \(s.lastPathComponent) no longer matches \(url.lastPathComponent): rebuild it (tabix/samtools index)\n", stderr) }
+            } else if toStdout {
+                try Xipper.stream(url, compress: !flag("-d", "--decompress"), level: level, workload: workload, cancel: cancel) { chunk in
+                    var done = 0
+                    while done < chunk.count {
+                        let n = write(STDOUT_FILENO, chunk.baseAddress! + done, chunk.count - done)
+                        if n < 0 { if errno == EINTR { continue }; throw XipperError.io("write", path: "stdout", errno: errno) }
+                        done += n
+                    }
+                }
+            } else if flag("-d", "--decompress") {
+                let dest = try Xipper.decompressSingle(url, overwrite: force, workload: workload, progress: progress, cancel: cancel)
+                endProgress()
+                if !flag("-q", "--quiet") { print(dest.path) }
+            } else {
+                var o = CreateOptions()
+                o.format = .bgzf
+                o.level = level
+                o.overwrite = force
+                o.workload = workload
+                o.writeBGZFIndex = flag("-i", "--index") && value("-I", "--index-name") == nil
+                let dest = URL(fileURLWithPath: path + ".gz")
+                let r = try Xipper.create(from: [url], to: dest, options: o, progress: progress, cancel: cancel)
+                if let name = value("-I", "--index-name"), flag("-i", "--index") {
+                    try Xipper.writeBGZFIndex(for: dest, to: URL(fileURLWithPath: name))
+                }
+                endProgress()
+                if !flag("-q", "--quiet") {
+                    print(String(format: "%@ → %@ (%.1f%%) in %.2fs", path, dest.lastPathComponent,
+                                 r.inputBytes > 0 ? Double(r.outputBytes) / Double(r.inputBytes) * 100 : 0, r.elapsed))
+                }
             }
         }
     }
