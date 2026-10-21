@@ -1,6 +1,6 @@
 # Xipper
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica (con indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e manifest dei checksum). Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
@@ -91,6 +91,24 @@ Genomica (BGZF, compatibile con `bgzip`):
 
 ```bash
 .build/release/xipper bgzip -t campione.bam
+```
+
+Indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e dei loro indici, manifest dei checksum:
+
+```bash
+.build/release/xipper tabix --bgzip varianti.vcf
+```
+
+```bash
+.build/release/xipper index-check campione.cram varianti.vcf.gz
+```
+
+```bash
+.build/release/xipper manifest create -o consegna.json dati/
+```
+
+```bash
+.build/release/xipper manifest verify consegna.json
 ```
 
 Server MCP per agenti AI (Claude Code, Claude Desktop):

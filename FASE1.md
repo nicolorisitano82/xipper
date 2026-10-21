@@ -92,6 +92,82 @@ Ottimizzazioni arrivate dalle misure:
 
 ---
 
+# Fase 1.7: Genomica 2 (GA4GH, locale)
+
+*21 ottobre 2026 · stessa macchina · htslib 1.24 (Homebrew: `tabix`, `bcftools`, `samtools`) come riferimento, usato solo nei test · nessun accesso di rete*
+
+## Cosa c'è
+Codice nuovo in `Sources/XipperKit/Genomics/` (più `crc32c.c` in `CXipShims`, `Sources/xipper/Genomics2Commands.swift` e `Sources/XipperMCP/GenomicsTools.swift`).
+
+- **Indici tabix (`.tbi`) e CSI** di VCF, BED e GFF ordinati e compressi BGZF (`Tabix.swift`):
+  - preset come `tabix -p vcf|bed|gff`, dedotti dal nome; colonne personalizzate (`-s -b -e -0 -c -S`);
+  - stessa logica di htslib 1.24 (`hts_idx_push`, `update_loff`, fusione dei chunk nello stesso blocco). La fine dei record VCF segue `tbx_parse1`: la più lunga tra REF, `INFO/END`, `|SVLEN|` degli alleli simbolici e `FORMAT/LEN` dei blocchi gVCF `<*>`/`<NON_REF>`. Dove htslib è più selettivo teniamo la fine più ampia: un record in un bin più largo viene comunque trovato;
+  - CSI con `min_shift` 14 e profondità di default di htslib (8 livelli, oltre 100 Gbp); `.tbi` rifiuta le posizioni oltre 512 Mbp e suggerisce CSI;
+  - parsing parallelo per blocco BGZF, poi un passaggio sequenziale che costruisce l'indice; le righe a cavallo di più blocchi sono gestite a parte;
+  - errori chiari: file non ordinato (con numero di riga e posizione, suggerisce `bcftools sort`), cromosoma ripetuto in blocchi separati, gzip normale (suggerisce `bgzf_convert`), file non compresso (suggerisce `bgzf_compress`), marker EOF mancante, riga non interpretabile.
+  - **Criterio di accettazione verificato:** le query `tabix file chr:start-end` sul nostro indice danno esattamente le stesse righe che con l'indice di `tabix -p`/`tabix -C`. Il test confronta circa 120 regioni casuali per file, su VCF (SNP, indel, `END=`, `<DEL>`/`<DUP>` con SVLEN, gVCF con LEN), BED e GFF, sia con il nostro BGZF (blocchi fissi) sia con quello di `bgzip` (blocchi allineati alle righe). Anche `bcftools view -r` legge i nostri indici.
+- **Verifica degli indici** `.tbi`, `.csi`, `.bai`, `.gzi` e anche `.crai` (`IndexCheck.swift`):
+  - ogni virtual offset (chunk, indice lineare, `loffset` CSI, offset del pseudo-bin) deve cadere su un blocco BGZF esistente, con offset interno non oltre la dimensione del blocco; le coppie del `.gzi` devono coincidere con blocchi e offset non compressi; per `.crai` gli offset devono essere inizi di container e i landmark delle slice;
+  - il numero di riferimenti del `.bai`/`.csi` è confrontato con l'header BAM;
+  - un indice più vecchio del dato produce un avviso; i problemi ripetuti sono raggruppati (primi 8 per tipo più il conteggio).
+- **Verifica strutturale di CRAM 3.0/3.1** senza decodificare (`CRAM.swift`): file definition, CRC32 di ogni header di container e di ogni blocco, somma dei blocchi uguale alla lunghezza del container, compression header in testa, landmark sui blocchi slice header, container EOF standard da 38 byte. CRAM 2.x: solo la struttura, con un avviso (non ha CRC).
+- **Verifica di VCF.gz e BCF** (`GenomicsCheck.swift`): BGZF completo (CRC di ogni blocco e marker EOF), poi l'header. VCF: `##fileformat=VCFv…` e la riga `#CHROM…INFO`. BCF: magic `BCF\2\1`/`BCF\2\2`, `l_text` e lo stesso header testuale. Avvisi per l'assenza di `##contig`. `Xipper.genomicsCheck` riconosce dal contenuto VCF, BCF, BAM, CRAM e altro BGZF, e controlla ogni indice accanto al file.
+- **Manifest dei checksum** (`ChecksumManifest.swift`):
+  - algoritmi con i nomi DRS/IANA: `sha-256`, `md5`, `crc32c`, più `sha-512`, `sha-1` e `sha512t24u` (GA4GH refget/VRS). In lettura sono normalizzati anche `sha256`, `SHA-256`, `sha2-256`, `crc-32c`;
+  - formati: JSON con i campi degli oggetti DRS (`id`, `name`, `size`, `created_time`, `updated_time`, `checksums: [{type, checksum}]`); testo in formato `sha256sum`/`md5sum` (anche con l'escape di `\` e newline di coreutils); in verifica anche lo stile BSD (`MD5 (file) = …`);
+  - il formato si deduce dal nome (`.json`, `.sha256`, `.md5`, `md5sum.txt`, `MD5SUMS`, `.crc32c`…); i percorsi sono relativi alla cartella del manifest;
+  - in verifica percorsi assoluti e `..` vengono rifiutati, i tipi sconosciuti (es. `etag`) elencati, le dimensioni del JSON confrontate;
+  - CRC-32C con le istruzioni ARMv8 `crc32c*` su tre corsie combinate con tabelle precalcolate; ogni algoritmo gira su un core diverso; file diversi in parallelo.
+- **API** (sul modello di `Genomics.swift`): `Xipper.tabixIndex`, `TabixConfig`, `Xipper.checkIndex`, `Xipper.indexes(for:)`, `Xipper.dataFile(forIndex:)`, `Xipper.checkCRAM`, `Xipper.genomicsCheck`, `Xipper.createManifest`, `Xipper.verifyManifest`, `Xipper.checksum`, `ChecksumAlgorithm`.
+- **CLI:**
+  - `xipper tabix [-p vcf|bed|gff] [-C] [-m N] [--bgzip] [-f] file.gz…`; con `--bgzip`, "bgzip + tabix" in un solo comando;
+  - `xipper index-check file…` controlla un dato e i suoi indici, oppure un indice (`--data` per indicare il dato); `--no-index`;
+  - `xipper manifest create [-a sha-256,md5,crc32c] -o m.json|m.sha256|… file|cartella…` e `xipper manifest verify m…`.
+
+  Codice d'uscita 3 se la verifica fallisce.
+- **MCP:** 3 tool nuovi, 12 in totale:
+  - `genomics_index` (scrive; sovrascrive un indice solo con conferma);
+  - `genomics_check` (sola lettura; anche gli indici accanto, filtrati dall'allowlist anche se sono symlink);
+  - `checksum_manifest` (create/verify; in sola lettura resta disponibile solo `verify`).
+
+  Ogni percorso passa dall'allowlist, compresi quelli dentro un manifest: un manifest con `../` o con un symlink verso una cartella non consentita li vede rifiutati, senza rivelare se il file esiste.
+- **Test:** 11 nuovi (12 casi), **57 in totale, tutti verdi**:
+  - tabix/CSI uguale a htslib su VCF, BED e GFF;
+  - righe più lunghe di un blocco (fino a 3 blocchi), ultima riga senza newline, `-S`;
+  - errori: file non ordinato, contig ripetuti, gzip normale, non compresso, oltre 512 Mbp → CSI, troncato;
+  - indici di htslib accettati (`tabix`, `tabix -C`, `bgzip -r`, `samtools index` BAI/CSI, `.crai`);
+  - indici incoerenti: dato ricompresso, offset alterati, dato troncato, `.gzi` di un altro file, indice spazzatura;
+  - CRAM 3.0 e 3.1 di samtools: integri, troncati (EOF mancante, a metà) e con un bit invertito (CRC);
+  - VCF/BCF: header mancante, gzip normale, troncato, BCF con un byte corrotto;
+  - CRC-32C contro un'implementazione bit a bit e i vettori noti, SHA-256/MD5;
+  - manifest compatibili con `shasum -c` e `md5`, JSON DRS, manomissioni, file mancanti, percorsi fuori cartella;
+  - tool MCP, compresi allowlist, conferme e sola lettura.
+
+## Prestazioni
+Build release, cache calda, M-series. VCF sintetico di 140 MB (1,98 milioni di varianti × 6 campioni, 22 contig) → 19 MB BGZF; BAM di 229 MB e CRAM 3.1 di 185 MB (2 milioni di read casuali da 100 bp); un file da 1 GB per i checksum.
+
+| Operazione | Xipper | Riferimento |
+|---|---|---|
+| Indice `.tbi` del VCF | **0,25 s** | `tabix -p vcf` 0,45 s |
+| Indice CSI del VCF | **0,23 s** | `tabix -C -p vcf` 0,49 s |
+| Verifica VCF.gz (blocchi, EOF, header) | **0,03 s** | `bgzip -t` 0,07 s |
+| Verifica `.tbi` contro il dato | 0,05 s | — (htslib non ha un equivalente) |
+| Verifica BAM + `.bai` (229 MB) | **0,13 s** | `bgzip -t -@8` 0,09 s, `bgzip -t` 0,64 s (solo i blocchi) |
+| Verifica strutturale CRAM 3.1 (185 MB) | **0,02 s** (≈ 9 GB/s, CRC32 di libdeflate) | `samtools quickcheck` controlla solo header ed EOF |
+| SHA-256 di 1 GB | **0,44 s** | `shasum -a 256` 2,37 s |
+| MD5 di 1 GB | 1,37 s | `md5` 1,47 s |
+| CRC-32C di 1 GB | **0,13 s** | — |
+| Manifest JSON sha-256 + md5 + crc32c di 1 GB | 1,5–1,8 s (limitato da MD5) | — |
+
+L'indicizzazione è circa 2 volte più veloce di htslib grazie al parsing parallelo; le query restituiscono righe identiche. Gli indici hanno la stessa dimensione di quelli di htslib (1,38 MB il `.tbi`); il CSI è un po' più grande (1,37 MB contro 1,15 MB) perché non spostiamo i bin piccoli nel bin padre (`compress_binning`), un'ottimizzazione che non cambia i risultati.
+
+## Note e rimandi
+- La verifica CRAM non decodifica i dati e non controlla gli MD5 delle sequenze (`@SQ M5`), che richiederebbero refget: è prevista nella decodifica CRAM (STUDIO.md §4.6, bassa priorità).
+- Non implementati, in quanto fuori dalla fase: l'indicizzazione di BAM (BAI/CSI), che richiede il parsing dei record; i client DRS e htsget, che richiedono la rete (fase 2.x); l'integrazione con il Finder (spetta all'app, `App/`).
+- Il CSI usa la profondità di default di htslib senza leggere le lunghezze `##contig`: è valido per htslib, ma i numeri dei bin possono differire da quelli di `tabix -C` quando l'header dichiara contig molto lunghi.
+
+---
+
 # Fase 1.6: BGZF / bgzip (genomica)
 
 *21 ottobre 2026 · stessa macchina · htslib 1.24 (Homebrew, compilato con libdeflate) come riferimento*

@@ -45,3 +45,8 @@ void xs_bunzip_free(xs_bunzip *s);
 /// One-shot bzip2 compression of an independent stream (parallel bzip2 = concatenated streams).
 /// Returns compressed length, or 0 on error.
 size_t xs_bzip2_compress(const uint8_t *in, size_t inLen, int level, uint8_t *out, size_t outCap);
+
+// MARK: - CRC-32C (Castagnoli), ARMv8 CRC instructions (crc32c.c)
+
+/// Updates a CRC-32C with `len` bytes. Start with crc = 0; the value is pre/post-inverted inside.
+uint32_t xs_crc32c(uint32_t crc, const uint8_t *data, size_t len);
