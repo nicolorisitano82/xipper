@@ -1,0 +1,268 @@
+import SwiftUI
+import UniformTypeIdentifiers
+import XipperKit
+
+/// Archive browser: system sidebar and toolbar (glass by default), opaque Table content,
+/// inspector with details and a quick preview.
+struct ArchiveBrowserView: View {
+    let url: URL
+    @Environment(JobCenter.self) private var jobs
+    @State private var model: ArchiveModel
+    @State private var selection = Set<BrowserItem.ID>()
+    @State private var showInspector = true
+    @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
+
+    init(url: URL) {
+        self.url = url
+        _model = State(initialValue: ArchiveModel(url: url))
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            FolderSidebar(model: model)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+        } detail: {
+            content
+                .inspector(isPresented: $showInspector) {
+                    ArchiveInspector(model: model, selection: selectedItems)
+                        .inspectorColumnWidth(min: 240, ideal: 262)
+                }
+        }
+        .navigationTitle(url.lastPathComponent)
+        .navigationSubtitle(model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder)
+        .searchable(text: $model.search, placement: .toolbar, prompt: "Cerca nell'archivio")
+        .toolbar { toolbar }
+        .overlay(alignment: .bottomTrailing) { JobsHUD().padding(16) }
+        .task { await model.load() }
+    }
+
+    private var subtitle: String {
+        guard let f = model.format else { return "" }
+        return "\(f.displayName) · \(model.fileCount) file · \(model.totalSize.byteText)"
+    }
+
+    private var selectedItems: [BrowserItem] { model.items.filter { selection.contains($0.id) } }
+
+    @ViewBuilder private var content: some View {
+        if model.loading {
+            ProgressView("Lettura dell'archivio…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let error = model.error {
+            ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
+        } else {
+            Table(model.items.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+                TableColumn("Nome", value: \.name) { item in
+                    Label {
+                        Text(item.name).lineLimit(1).truncationMode(.middle)
+                    } icon: {
+                        Image(nsImage: icon(for: item)).resizable().frame(width: 16, height: 16)
+                    }
+                }
+                .width(min: 220, ideal: 360)
+                TableColumn("Dimensione", value: \.size) { Text($0.size >= 0 ? $0.size.byteText : "—").monospacedDigit().foregroundStyle(.secondary) }
+                    .width(min: 70, ideal: 90)
+                TableColumn("Compresso", value: \.compressed) { Text($0.compressed > 0 ? $0.compressed.byteText : "—").monospacedDigit().foregroundStyle(.secondary) }
+                    .width(min: 70, ideal: 90)
+                TableColumn("Rapporto") { item in
+                    Text(item.ratio.map { "\(Int(($0 * 100).rounded()))%" } ?? "—").monospacedDigit().foregroundStyle(.secondary)
+                }
+                .width(min: 64, ideal: 72)
+                TableColumn("Modificato") { item in
+                    Text(item.entry?.modified.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "").foregroundStyle(.secondary)
+                }
+                .width(min: 110, ideal: 140)
+                TableColumn("") { item in
+                    if item.entry?.isEncrypted == true { Image(systemName: "lock.fill").foregroundStyle(.secondary) }
+                }
+                .width(20)
+            }
+            .contextMenu(forSelectionType: BrowserItem.ID.self) { ids in
+                Button("Estrai…") { extract(selection: ids) }
+                if ids.count == 1, let id = ids.first, model.folders.contains(id) {
+                    Button("Apri cartella") { model.currentFolder = id }
+                }
+            } primaryAction: { ids in
+                if ids.count == 1, let id = ids.first, model.folders.contains(id) {
+                    model.search = ""
+                    model.currentFolder = id
+                    selection.removeAll()
+                }
+            }
+            .scrollEdgeEffectStyle(.hard, for: .top)
+            .onDrag(selection: selection)
+        }
+    }
+
+    private func icon(for item: BrowserItem) -> NSImage {
+        if item.isFolder { return NSWorkspace.shared.icon(for: .folder) }
+        let ext = (item.name as NSString).pathExtension
+        return NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+    }
+
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            Button("Indietro", systemImage: "chevron.left") {
+                model.currentFolder = (model.currentFolder as NSString).deletingLastPathComponent
+            }
+            .disabled(model.currentFolder.isEmpty)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                extract(selection: selection.isEmpty ? nil : selection)
+            } label: {
+                Label(selection.isEmpty ? "Estrai" : "Estrai selezione", systemImage: "arrow.down.to.line")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.glassProminent)
+            .help("Estrai accanto all'archivio (⌥ per scegliere la cartella)")
+            .disabled(model.loading || model.error != nil)
+        }
+        ToolbarSpacer(.fixed)
+        ToolbarItemGroup {
+            Button("Verifica", systemImage: "checkmark.shield") {
+                jobs.start(.test(archive: url, password: nil))
+            }
+            .disabled(model.loading || model.error != nil)
+            Button("Info", systemImage: "info.circle") { showInspector.toggle() }
+                .help("Mostra o nasconde l'inspector")
+        }
+    }
+
+    /// Extracts next to the archive (smart mode) or into a chosen folder (⌥ = ask).
+    private func extract(selection ids: Set<String>?) {
+        var destination: URL?
+        if NSEvent.modifierFlags.contains(.option) {
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Estrai qui"
+            guard panel.runModal() == .OK, let u = panel.url else { return }
+            destination = u
+        }
+        jobs.start(.extract(archive: url, destination: destination, selection: ids, password: nil, ratioOverride: nil))
+    }
+}
+
+private extension View {
+    /// Placeholder for dragging entries out (promise files): planned with the File Provider work.
+    func onDrag(selection: Set<String>) -> some View { self }
+}
+
+/// Folder outline of the archive.
+private struct FolderSidebar: View {
+    @Bindable var model: ArchiveModel
+
+    var body: some View {
+        List(selection: Binding(get: { model.currentFolder }, set: { model.currentFolder = $0 ?? ""; model.search = "" })) {
+            Section("Archivio") {
+                Label(model.url.lastPathComponent, systemImage: "archivebox").tag("")
+            }
+            if !model.folders.isEmpty {
+                Section("Cartelle") {
+                    ForEach(model.folders, id: \.self) { f in
+                        Label((f as NSString).lastPathComponent, systemImage: "folder")
+                            .padding(.leading, CGFloat(f.split(separator: "/").count - 1) * 12)
+                            .tag(f)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+    }
+}
+
+/// Details of the archive or of the selected entries, plus a preview of text and images.
+private struct ArchiveInspector: View {
+    let model: ArchiveModel
+    let selection: [BrowserItem]
+    @State private var preview: Preview?
+
+    enum Preview: Equatable { case text(String), image(NSImage), none(String) }
+
+    var body: some View {
+        Form {
+            if let item = selection.first, selection.count == 1 {
+                Section(item.isFolder ? "Cartella" : "File") {
+                    LabeledContent("Nome", value: item.name)
+                    LabeledContent("Dimensione", value: item.size >= 0 ? item.size.byteText : "—")
+                    if item.compressed > 0 { LabeledContent("Compresso", value: item.compressed.byteText) }
+                    if let e = item.entry {
+                        LabeledContent("Metodo", value: e.method)
+                        if let m = e.modified { LabeledContent("Modificato", value: m.formatted(date: .abbreviated, time: .shortened)) }
+                        if let p = e.permissions { LabeledContent("Permessi", value: String(p, radix: 8)) }
+                        if e.isEncrypted { LabeledContent("Cifratura", value: encryptionName(e.encryption)) }
+                        if let t = e.linkTarget { LabeledContent("Collegamento a", value: t) }
+                    }
+                }
+                if !item.isFolder && item.entry?.kind == .file && item.entry?.isEncrypted == false {
+                    Section("Anteprima") { previewView }
+                }
+            } else if selection.count > 1 {
+                Section("Selezione") {
+                    LabeledContent("Elementi", value: "\(selection.count)")
+                    LabeledContent("Dimensione", value: selection.reduce(Int64(0)) { $0 + max(0, $1.size) }.byteText)
+                }
+            } else {
+                Section("Archivio") {
+                    LabeledContent("Formato", value: model.format?.displayName ?? "—")
+                    LabeledContent("Dimensione", value: model.archiveSize.byteText)
+                    LabeledContent("Contenuto", value: model.totalSize.byteText)
+                    LabeledContent("File", value: "\(model.fileCount)")
+                    if model.totalSize > 0 {
+                        LabeledContent("Rapporto", value: "\(Int((Double(model.archiveSize) / Double(model.totalSize) * 100).rounded()))%")
+                    }
+                    LabeledContent("Cifrato", value: model.isEncrypted ? "Sì (AES/ZipCrypto)" : "No")
+                }
+                if let b = model.bgzf {
+                    Section("BGZF (genomica)") {
+                        LabeledContent("Blocchi", value: "\(b.blocks)")
+                        LabeledContent("Marcatore di fine", value: b.endsWithEOFMarker ? "Presente" : "Mancante: file troncato?")
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task(id: selection.first?.path) { await loadPreview() }
+    }
+
+    @ViewBuilder private var previewView: some View {
+        switch preview {
+        case let .text(t)?:
+            ScrollView { Text(t).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+                .frame(height: 220)
+        case let .image(img)?:
+            Image(nsImage: img).resizable().scaledToFit().frame(maxHeight: 220)
+        case let .none(reason)?:
+            Text(reason).foregroundStyle(.secondary)
+        case nil:
+            ProgressView()
+        }
+    }
+
+    private func encryptionName(_ e: EntryEncryption) -> String {
+        switch e {
+        case .none: "Nessuna"
+        case .zipCrypto: "ZipCrypto (debole)"
+        case let .aes(strength, _, _): "AES-\([128, 192, 256][max(0, min(2, Int(strength) - 1))])"
+        }
+    }
+
+    private func loadPreview() async {
+        preview = nil
+        guard let item = selection.first, selection.count == 1, !item.isFolder else { return }
+        let url = model.url
+        let path = item.path
+        let isImage = ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains((path as NSString).pathExtension.lowercased())
+        let result = await Task.detached { () -> Result<EntryContent, Error> in
+            Result { try Xipper.readEntry(url, path: path, maxBytes: isImage ? 8 << 20 : 32 << 10) }
+        }.value
+        guard case let .success(c) = result else { preview = .none("Anteprima non disponibile"); return }
+        if isImage, !c.truncated, let img = NSImage(data: Data(c.data)) {
+            preview = .image(img)
+        } else if let s = String(bytes: c.data, encoding: .utf8), !c.data.contains(0) {
+            preview = .text(s + (c.truncated ? "\n…" : ""))
+        } else {
+            preview = .none("File binario")
+        }
+    }
+}

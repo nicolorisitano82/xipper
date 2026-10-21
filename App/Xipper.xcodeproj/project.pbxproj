@@ -1,0 +1,409 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		26655C066897D8200BCC7ED5 /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2BAFBE90D711F96380E9193E /* XipperKit */; };
+		44D174581D60FF2C9D49DE39 /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6E4BF73485E6CF8546848255 /* XipperKit */; };
+		0FBEB4154E63E77CE57AB61C /* XipperMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 83CF2B4CC02CAFFC63B0B1A9 /* XipperMCP */; };
+		147C814D6497546DE43CF7CF /* xipper in Embed CLI */ = {isa = PBXBuildFile; fileRef = FEEDB67F42835527FE7A3D72 /* xipper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		698A515506D158D341FCFC3D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A019ABBA0614667BC8CA8AF7;
+			remoteInfo = "xipper-cli";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5CAAD659DC38446B0CC2C00C /* Embed CLI */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				147C814D6497546DE43CF7CF /* xipper in Embed CLI */,
+			);
+			name = "Embed CLI";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		D2A57DC1D883FD21FB995169 /* Xipper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Xipper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FEEDB67F42835527FE7A3D72 /* xipper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xipper; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		19AD27801B95BD1F2C6C2BF8 /* Exceptions for "Xipper" folder in "Xipper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 42AEFBAE01D2DFD981F7DA7D /* Xipper */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		20F4BD606C0F6D1645AE4919 /* Xipper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				19AD27801B95BD1F2C6C2BF8 /* Exceptions for "Xipper" folder in "Xipper" target */,
+			);
+			path = Xipper;
+			sourceTree = "<group>";
+		};
+		83A21DD89330134E58F886CE /* xipper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = xipper;
+			path = ../Sources/xipper;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26655C066897D8200BCC7ED5 /* XipperKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB475683109228029686D127 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				44D174581D60FF2C9D49DE39 /* XipperKit in Frameworks */,
+				0FBEB4154E63E77CE57AB61C /* XipperMCP in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		FAD58DE7366495DB4650CFEF = {
+			isa = PBXGroup;
+			children = (
+				20F4BD606C0F6D1645AE4919 /* Xipper */,
+				83A21DD89330134E58F886CE /* xipper */,
+				86024CAD1E83101D97359D73 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D2A57DC1D883FD21FB995169 /* Xipper.app */,
+				FEEDB67F42835527FE7A3D72 /* xipper */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* Xipper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97C3CCC2320F36428F396148 /* Build configuration list for PBXNativeTarget "Xipper" */;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557 /* Sources */,
+				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				55B558C7EF820E6E00E5993B /* Resources */,
+				5CAAD659DC38446B0CC2C00C /* Embed CLI */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F995CD704EFD9C07DC4AC601 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				20F4BD606C0F6D1645AE4919 /* Xipper */,
+			);
+			name = Xipper;
+			packageProductDependencies = (
+				2BAFBE90D711F96380E9193E /* XipperKit */,
+			);
+			productName = Xipper;
+			productReference = D2A57DC1D883FD21FB995169 /* Xipper.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A019ABBA0614667BC8CA8AF7 /* xipper-cli */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCE811FE189F30FB2ECC278F /* Build configuration list for PBXNativeTarget "xipper-cli" */;
+			buildPhases = (
+				C52F171611EF63BD335DAACC /* Sources */,
+				EB475683109228029686D127 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				83A21DD89330134E58F886CE /* xipper */,
+			);
+			name = "xipper-cli";
+			packageProductDependencies = (
+				6E4BF73485E6CF8546848255 /* XipperKit */,
+				83CF2B4CC02CAFFC63B0B1A9 /* XipperMCP */,
+			);
+			productName = "xipper-cli";
+			productReference = FEEDB67F42835527FE7A3D72 /* xipper */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = B70BFAED9452B281FBE6DE10 /* Build configuration list for PBXProject "Xipper" */;
+			developmentRegion = it;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				it,
+				en,
+				Base,
+			);
+			mainGroup = FAD58DE7366495DB4650CFEF;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* Xipper */,
+				A019ABBA0614667BC8CA8AF7 /* xipper */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C52F171611EF63BD335DAACC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F995CD704EFD9C07DC4AC601 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A019ABBA0614667BC8CA8AF7 /* xipper */;
+			targetProxy = 698A515506D158D341FCFC3D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6F0B85FC643AF9C218F627EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+				ARCHS = arm64;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		1B05A9D10F61E514E88AF240 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+				ARCHS = arm64;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		E67DED621DA82404399DCDC1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Xipper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Xipper;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
+				PRODUCT_NAME = Xipper;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		8951287761002419191396D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Xipper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Xipper;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 nicolorisitano82 — MIT";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper;
+				PRODUCT_NAME = Xipper;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
+		87AB9056AFFC43F1E35C148E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_MODULE_NAME = XipperCLI;
+				PRODUCT_NAME = xipper;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		8C4602B9BCD9F104F2994DE6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_MODULE_NAME = XipperCLI;
+				PRODUCT_NAME = xipper;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B70BFAED9452B281FBE6DE10 /* Build configuration list for PBXProject "Xipper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F0B85FC643AF9C218F627EA /* Debug */,
+				1B05A9D10F61E514E88AF240 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		97C3CCC2320F36428F396148 /* Build configuration list for PBXNativeTarget "Xipper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E67DED621DA82404399DCDC1 /* Debug */,
+				8951287761002419191396D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CCE811FE189F30FB2ECC278F /* Build configuration list for PBXNativeTarget "xipper-cli" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				87AB9056AFFC43F1E35C148E /* Debug */,
+				8C4602B9BCD9F104F2994DE6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2BAFBE90D711F96380E9193E /* XipperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = XipperKit;
+		};
+		6E4BF73485E6CF8546848255 /* XipperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */;
+			productName = XipperKit;
+		};
+		83CF2B4CC02CAFFC63B0B1A9 /* XipperMCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */;
+			productName = XipperMCP;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

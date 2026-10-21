@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>com.facebook.zstandard-archive</string>
+				<string>app.xipper.tar-zstd</string>
+				<string>app.xipper.bgzf</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.facebook.zstandard-archive</string>
+			<key>UTTypeDescription</key>
+			<string>Zstandard archive</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>zst</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.tar-zstd</string>
+			<key>UTTypeDescription</key>
+			<string>tar.zst archive</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>tzst</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.bgzf</string>
+			<key>UTTypeDescription</key>
+			<string>BGZF (bgzip) file</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>bgz</string><string>bam</string><string>bcf</string></array></dict>
+		</dict>
+	</array>
+</dict>
+</plist>

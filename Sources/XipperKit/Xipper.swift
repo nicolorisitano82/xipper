@@ -1,7 +1,9 @@
 import Darwin
 import Foundation
 
-public enum ArchiveFormat: String, Sendable, CaseIterable {
+public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
+    public var id: String { rawValue }
+
     case zip
     case tar
     case tarGzip = "tar.gz"

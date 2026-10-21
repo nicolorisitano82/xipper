@@ -336,7 +336,7 @@ case "help", "-h", "--help":
     print(usage)
 
 case "version", "--version":
-    print("xipper 0.1.0 (XipperKit, arm64)")
+    print("xipper \(MCPServer.serverVersion) (XipperKit, arm64)")
 
 default:
     fail("unknown command \(command)\n\(usage)", code: 2)
