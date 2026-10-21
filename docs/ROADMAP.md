@@ -34,7 +34,8 @@ L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le
   - Lo spike funziona: montaggio come utente, contenuto identico, si smonta da solo se il server cade.
   - Limite: il client scarica l'intero file alla prima apertura.
   - Dettagli in [FSKIT.md](FSKIT.md).
-- **MVP (su WebDAV; con FSKit se un giorno ci sarà un account):**
+- **Fatto il 21/10/2026: montaggio in lettura e scrittura su WebDAV.** CLI `xipper mount`, «Monta»/«Espelli» nel browser e nel Finder, salvataggio delle modifiche all'espulsione. Dettagli in [FSKIT.md](FSKIT.md), sezione "Implementazione".
+- **Da completare (con FSKit se un giorno ci sarà un account):**
   - volume in sola lettura per ZIP (anche AES con la password dal portachiavi), tar non compresso e tar.zst/XIZ con accesso casuale ai frame;
   - azione «Monta» nel browser, nel menu del Finder e nella CLI (`xipper mount`), «Espelli» dal Finder;
   - GET in streaming e cache dei blocchi decompressi con limite di memoria; credenziali casuali per ogni montaggio (NetFS);

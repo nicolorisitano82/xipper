@@ -55,6 +55,9 @@ struct ArchiveBrowserView: View {
         .navigationTitle(showDamaged ? String(localized: "Verifica di \(url.lastPathComponent)") : url.lastPathComponent)
         .navigationSubtitle(showDamaged ? "" : pausedExtraction ?? (model.currentFolder.isEmpty ? subtitle : "/" + model.currentFolder))
         .sheet(item: $intactReport) { ReportSheet(job: $0) }
+        .onReceive(NotificationCenter.default.publisher(for: .xipperArchiveDidChange)) { note in
+            if (note.object as? URL)?.standardizedFileURL == url.standardizedFileURL { Task { await model.load() } }
+        }
         .onChange(of: verifyJob?.verifyOK) { _, ok in
             guard let job = verifyJob, let ok else { return }
             if ok { intactReport = job } else { withAnimation(reduceMotion ? nil : .default) { showDamaged = true } }
@@ -352,6 +355,16 @@ struct ArchiveBrowserView: View {
             }
             .help("Verifica l'integrità senza estrarre")
             .disabled(model.loading || model.error != nil || model.namesLocked)
+            if let m = MountCenter.shared.mounted(url) {
+                Button("Espelli", systemImage: "eject") { MountCenter.shared.eject(url) }
+                    .help("Espelli il volume «\(m.point.lastPathComponent)»\(m.writable ? String(localized: " e salva le modifiche") : "")")
+            } else {
+                Button("Monta", systemImage: "externaldrive") {
+                    withPassword(for: Set(model.entries.map(\.path))) { MountCenter.shared.mount(url, password: model.password) }
+                }
+                .help("Monta l'archivio come volume: lo apri e lo modifichi nel Finder senza estrarlo")
+                .disabled(model.loading || model.error != nil || model.namesLocked || MountCenter.shared.busy.contains(url.standardizedFileURL))
+            }
             Button(isFavorite ? "Togli dai Preferiti" : "Aggiungi ai Preferiti", systemImage: isFavorite ? "star.fill" : "star") {
                 toggleFavorite()
             }

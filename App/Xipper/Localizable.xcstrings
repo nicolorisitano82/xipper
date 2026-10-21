@@ -11,6 +11,16 @@
         }
       }
     },
+    " e salva le modifiche" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " and save the changes"
+          }
+        }
+      }
+    },
     " · .DS_Store e __MACOSX esclusi (%lld)" : {
       "localizations" : {
         "en" : {
@@ -834,6 +844,16 @@
         }
       }
     },
+    "Alcuni file del volume sono ancora aperti. Chiudili e riprova." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some files on the volume are still open. Close them and try again."
+          }
+        }
+      }
+    },
     "Altra cartella…" : {
       "localizations" : {
         "en" : {
@@ -1337,6 +1357,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "Ci sono archivi montati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archives are mounted"
           }
         }
       }
@@ -2070,6 +2100,42 @@
         }
       }
     },
+    "Espelli" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject"
+          }
+        }
+      }
+    },
+    "Espelli ed esci" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject and Quit"
+          }
+        }
+      }
+    },
+    "Espelli il volume «%@»%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject the “%@” volume%@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Espelli il volume «%1$@»%2$@"
+          }
+        }
+      }
+    },
     "Esporta SHA256SUMS…" : {
       "localizations" : {
         "en" : {
@@ -2610,6 +2676,16 @@
         }
       }
     },
+    "Hai modificato il volume montato. Xipper ricostruisce l'archivio con le modifiche e sostituisce l'originale solo quando il nuovo è completo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You changed the mounted volume. Xipper rebuilds the archive with your changes and replaces the original only once the new one is complete."
+          }
+        }
+      }
+    },
     "Icona nella barra dei menu" : {
       "localizations" : {
         "en" : {
@@ -2696,6 +2772,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cannot compute the checksums"
+          }
+        }
+      }
+    },
+    "Impossibile espellere “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t eject “%@”"
+          }
+        }
+      }
+    },
+    "Impossibile montare “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t mount “%@”"
           }
         }
       }
@@ -3181,6 +3277,36 @@
         }
       }
     },
+    "Modifiche non salvate in “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes not saved to “%@”"
+          }
+        }
+      }
+    },
+    "Monta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mount"
+          }
+        }
+      }
+    },
+    "Monta l'archivio come volume: lo apri e lo modifichi nel Finder senza estrarlo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mount the archive as a volume: open and edit it in the Finder without extracting"
+          }
+        }
+      }
+    },
     "Mostra" : {
       "localizations" : {
         "en" : {
@@ -3437,6 +3563,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Don't recompress already compressed files (photos, videos, archives)"
+          }
+        }
+      }
+    },
+    "Non salvare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t Save"
           }
         }
       }
@@ -4001,6 +4137,16 @@
         }
       }
     },
+    "Salva" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
     "Salva altrove…" : {
       "localizations" : {
         "en" : {
@@ -4037,6 +4183,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save Mac tags and attributes (__MACOSX folder, like the Finder)"
+          }
+        }
+      }
+    },
+    "Salvare le modifiche in “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the changes to “%@”?"
           }
         }
       }
@@ -4765,6 +4921,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xipper extracts until the data exceeds the limit you choose, then stops and deletes what it wrote."
+          }
+        }
+      }
+    },
+    "Xipper li espelle prima di uscire e salva le modifiche negli archivi." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper ejects them before quitting and saves the changes into the archives."
           }
         }
       }

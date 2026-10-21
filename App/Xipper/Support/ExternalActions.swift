@@ -9,8 +9,9 @@ enum ExternalAction: Equatable {
     case extract([URL])
     case test([URL])
     case open([URL])
+    case mount(URL)
 
-    /// `xipper://compress?p=/path&p=/path` (also extract, test, open).
+    /// `xipper://compress?p=/path&p=/path` (also extract, test, open, mount).
     init?(url: URL) {
         guard url.scheme == "xipper", let c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
         let files = (c.queryItems ?? []).filter { $0.name == "p" }.compactMap(\.value)
@@ -22,6 +23,9 @@ enum ExternalAction: Equatable {
         case "extract": self = .extract(files.filter(AppState.isArchive))
         case "test": self = .test(files.filter(AppState.isArchive))
         case "open": self = .open(files.filter(AppState.isArchive))
+        case "mount":
+            guard let a = files.first(where: AppState.isArchive) else { return nil }
+            self = .mount(a)
         default: return nil
         }
     }
@@ -53,6 +57,13 @@ enum ExternalActionRunner {
             for a in archives { jobs.start(.test(archive: a, password: nil)) }
         case let .open(archives):
             AppState.shared.open(archives)
+        case let .mount(archive):
+            // Encrypted content needs the password: the browser asks for it (Keychain first).
+            Task {
+                let encrypted = await Task.detached { ((try? Xipper.list(archive)) ?? []).contains(where: \.isEncrypted) }.value
+                let saved = PasswordVault.has(archive) ? await PasswordVault.password(for: archive) : nil
+                if encrypted && saved == nil { AppState.shared.open([archive]) } else { MountCenter.shared.mount(archive, password: saved) }
+            }
         }
         NSApp.activate()
     }

@@ -81,6 +81,16 @@
         }
       }
     },
+    "Monta come volume" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mount as a Volume"
+          }
+        }
+      }
+    },
     "Verifica" : {
       "localizations" : {
         "en" : {

@@ -68,6 +68,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Mounted archives first: their server lives in this process.
+        let mounted = MainActor.assumeIsolated { !MountCenter.shared.mounts.isEmpty }
+        if mounted {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Ci sono archivi montati")
+            alert.informativeText = String(localized: "Xipper li espelle prima di uscire e salva le modifiche negli archivi.")
+            alert.addButton(withTitle: String(localized: "Espelli ed esci"))
+            alert.addButton(withTitle: String(localized: "Annulla"))
+            guard alert.runModal() == .alertFirstButtonReturn,
+                  MainActor.assumeIsolated({ MountCenter.shared.ejectAllForQuit() }) else { return .terminateCancel }
+        }
         let running = MainActor.assumeIsolated { JobCenter.shared.jobs.contains(where: \.isRunning) }
         guard running else { return .terminateNow }
         let alert = NSAlert()

@@ -2,7 +2,7 @@
 
 *Italiano · [English](README.en.md)*
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP, 7z e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica (con indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e manifest dei checksum). Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP, 7z e tar (gz, bz2, xz, zst), più file singoli compressi e BGZF/bgzip per la genomica (con indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e manifest dei checksum). Monta anche un archivio come volume, in lettura e scrittura: lo apri e lo modifichi nel Finder, e alla fine Xipper salva le modifiche nell'archivio. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
@@ -25,6 +25,7 @@ Sources/XipperKit/       core Swift
   Codecs/                deflate, gzip/bzip2 paralleli, xz/zstd multi-thread, CRC-32
   Crypto/                WinZip AES (CTR little-endian su AES-ECB hardware), 7z AES-256-CBC, ZipCrypto (sola lettura)
   Extraction/            estrazione sicura comune a tutti i formati
+  Mount/                 archivio montato come volume: albero copy-on-write, server WebDAV locale, NetFS
   Support/               concorrenza P/E-core, I/O, scansione delle sorgenti
 Sources/xipper/          CLI
 Tests/XipperKitTests/    interoperabilità, sicurezza, round trip
@@ -85,6 +86,12 @@ I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema
 
 ```bash
 .build/release/xipper list --long foto.zip
+```
+
+Montare un archivio come volume (`/Volumes/<nome>`) finché non lo espelli o premi Ctrl-C. Le modifiche vengono salvate nell'archivio; con `--read-only` il volume è in sola lettura, con `--discard` le modifiche si scartano:
+
+```bash
+.build/release/xipper mount foto.zip
 ```
 
 Genomica (BGZF, compatibile con `bgzip`):

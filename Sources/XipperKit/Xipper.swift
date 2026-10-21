@@ -430,65 +430,122 @@ extension Xipper {
     /// For single-file compressed streams (gz, BGZF, bz2, xz, zst) `path` is ignored.
     public static func readEntry(_ archive: URL, path: String, password: String? = nil, maxBytes: Int = 64 << 10,
                                  workload: Workload = .interactive) throws -> EntryContent {
-        guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
-        let archivePath = archive.standardizedFileURL.path
         var data: [UInt8] = []
         var truncated = false
-        let collect: (UnsafeRawBufferPointer) throws -> Void = { chunk in
-            let room = maxBytes - data.count
-            data.append(contentsOf: chunk.prefix(room))
-            if chunk.count > room { truncated = true; throw EnoughBytes() }
-        }
-        if format == .zip {
-            let zip = try ZipArchive(path: archivePath)
-            guard let rec = zip.records.first(where: { $0.entry.path == path }) else {
-                throw XipperError.invalidArgument("no entry named \(path)")
+        var entry: ArchiveEntry?
+        do {
+            entry = try streamEntry(archive, path: path, password: password, workload: workload) { chunk in
+                let room = maxBytes - data.count
+                data.append(contentsOf: chunk.prefix(room))
+                if chunk.count > room { truncated = true; throw EnoughBytes() }
             }
-            guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
-            do {
-                try ZipEntryDecoder.decode(rec, in: zip, password: password.map(ZipWriter.passwordBytes), cancel: nil, sink: collect)
-            } catch is EnoughBytes {}
-            return EntryContent(entry: rec.entry, data: data, truncated: truncated)
+        } catch let stop as EntryStopped {
+            entry = stop.entry
         }
-        if format == .xiz { return try XizExtractor.read(try XizArchive(path: archivePath), path: path, maxBytes: maxBytes) }
-        if format == .sevenZip {
-            let a = try SevenZipArchive(path: archivePath, password: password)
-            guard let rec = a.records.first(where: { $0.entry.path == path && !$0.isAnti }) else {
-                throw XipperError.invalidArgument("no entry named \(path)")
+        return EntryContent(entry: entry!, data: data, truncated: truncated)
+    }
+
+    /// Streams the content of one entry to `body`, in order, from byte `offset` on: the archive is
+    /// never extracted to disk and only one chunk is in memory at a time (mounted archives, 7.x).
+    /// XIZ jumps straight to the frame holding `offset`; the other formats decode and discard what
+    /// comes before it. Symlinks give their target. For single-file compressed streams (gz, BGZF,
+    /// bz2, xz, zst) `path` is ignored. Returns the entry (size -1 when the stream does not say).
+    @discardableResult
+    public static func streamEntry(_ archive: URL, path: String, password: String? = nil, from offset: Int64 = 0,
+                                   workload: Workload = .interactive, cancel: CancellationToken? = nil,
+                                   _ body: (UnsafeRawBufferPointer) throws -> Void) throws -> ArchiveEntry {
+        guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
+        let archivePath = archive.standardizedFileURL.path
+        return try withoutActuallyEscaping(body) { body in
+            var skip = max(0, offset)
+            let sink: (UnsafeRawBufferPointer) throws -> Void = { chunk in
+                if skip >= Int64(chunk.count) { skip -= Int64(chunk.count); return }
+                let rest = UnsafeRawBufferPointer(rebasing: chunk[Int(skip)...])
+                skip = 0
+                try cancel?.check()
+                try body(rest)
             }
-            guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
-            do { try SevenZipExtractor.read(a, record: rec, sink: collect) } catch is EnoughBytes {}
-            return EntryContent(entry: rec.entry, data: data, truncated: truncated)
-        }
-        let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
-        defer { pipe.close() }
-        if !isTar {
-            do {
-                let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 16, alignment: 16)
-                defer { buf.deallocate() }
-                while true {
-                    let n = try source.read(into: buf, max: 1 << 16)
-                    if n == 0 { break }
-                    try collect(UnsafeRawBufferPointer(start: buf, count: n))
+            // A caller that stops early (EnoughBytes) still learns which entry it read.
+            func run(_ entry: ArchiveEntry, _ work: () throws -> Void) throws -> ArchiveEntry {
+                do { try work() } catch is EnoughBytes { throw EntryStopped(entry: entry) }
+                return entry
+            }
+            if format == .zip {
+                let zip = try ZipArchive(path: archivePath)
+                guard let rec = zip.records.first(where: { $0.entry.path == path }) else {
+                    throw XipperError.invalidArgument("no entry named \(path)")
                 }
-            } catch is EnoughBytes {}
-            let entry = ArchiveEntry(path: TarExtractor.singleFileName(archivePath), kind: .file, uncompressedSize: -1,
-                                     compressedSize: 0, modified: nil, permissions: nil, encryption: .none,
-                                     method: format.rawValue, linkTarget: nil)
-            return EntryContent(entry: entry, data: data, truncated: truncated)
-        }
-        let reader = Cpio.reader(for: source, head: source.head)
-        while let e = try reader.next() {
-            guard e.entry.path == path else { continue }
-            if e.entry.kind == .symlink || e.entry.kind == .hardlink {
-                return EntryContent(entry: e.entry, data: Array((e.entry.linkTarget ?? "").utf8), truncated: false)
+                guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
+                return try run(rec.entry) {
+                    try ZipEntryDecoder.decode(rec, in: zip, password: password.map(ZipWriter.passwordBytes), cancel: cancel, sink: sink)
+                }
             }
-            do { try reader.readData(cancel: nil, collect) } catch is EnoughBytes {}
-            return EntryContent(entry: e.entry, data: data, truncated: truncated)
+            if format == .xiz {
+                let a = try XizArchive(path: archivePath)
+                guard let i = a.catalog.entries.firstIndex(where: { $0.path == path }) else {
+                    throw XipperError.invalidArgument("no entry named \(path)")
+                }
+                let e = a.catalog.entries[i]
+                return try run(a.entries[i]) {
+                    if e.type == .symlink { return try Array(e.link.utf8).withUnsafeBytes(sink) }
+                    var start: Int64 = 0
+                    for x in e.extents {
+                        let end = start + Int64(x.length)
+                        defer { start = end }
+                        if end <= offset { continue }  // random access: the frame is never read
+                        let f = try a.frameData(Int(x.frame))
+                        skip = max(0, offset - start)
+                        try f[Int(x.offset)..<Int(x.offset + x.length)].withUnsafeBytes(sink)
+                    }
+                }
+            }
+            if format == .sevenZip {
+                let a = try SevenZipArchive(path: archivePath, password: password)
+                guard let rec = a.records.first(where: { $0.entry.path == path && !$0.isAnti }) else {
+                    throw XipperError.invalidArgument("no entry named \(path)")
+                }
+                guard rec.entry.kind == .file || rec.entry.kind == .symlink else { throw XipperError.invalidArgument("\(path) is a \(rec.entry.kind)") }
+                return try run(rec.entry) { try SevenZipExtractor.read(a, record: rec, sink: sink) }
+            }
+            // Entry streams: Apple Archive has its own reader, tar and cpio share the pipeline below.
+            func stream(_ reader: EntryStreamReader) throws -> ArchiveEntry {
+                while let e = try reader.next() {
+                    try cancel?.check()
+                    guard e.entry.path == path else { continue }
+                    return try run(e.entry) {
+                        if e.entry.kind == .symlink || e.entry.kind == .hardlink {
+                            try Array((e.entry.linkTarget ?? "").utf8).withUnsafeBytes(sink)
+                        } else {
+                            try reader.readData(cancel: cancel, sink)
+                        }
+                    }
+                }
+                throw XipperError.invalidArgument("no entry named \(path)")
+            }
+            if format == .appleArchive { return try stream(try AppleArchiveReader(path: archivePath, password: password)) }
+            let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
+            defer { pipe.close() }
+            if !isTar {
+                let entry = ArchiveEntry(path: TarExtractor.singleFileName(archivePath), kind: .file, uncompressedSize: -1,
+                                         compressedSize: 0, modified: nil, permissions: nil, encryption: .none,
+                                         method: format.rawValue, linkTarget: nil)
+                return try run(entry) {
+                    let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 16, alignment: 16)
+                    defer { buf.deallocate() }
+                    while true {
+                        let n = try source.read(into: buf, max: 1 << 16)
+                        if n == 0 { break }
+                        try sink(UnsafeRawBufferPointer(start: buf, count: n))
+                    }
+                }
+            }
+            return try stream(Cpio.reader(for: source, head: source.head))
         }
-        throw XipperError.invalidArgument("no entry named \(path)")
     }
 }
+
+/// Carries the entry out of `streamEntry` when the caller stopped early.
+private struct EntryStopped: Error { var entry: ArchiveEntry }
 
 extension Xipper {
     /// Entries (files and links) whose destination already exists when extracting `archive` into

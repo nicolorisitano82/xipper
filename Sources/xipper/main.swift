@@ -31,6 +31,11 @@ usage: xipper <command> [options]
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
+  mount   [options] <archive>   mount as a volume (/Volumes/<name>) until ejected or Ctrl-C
+          --read-only      do not allow changes
+          --discard        drop the changes instead of saving them into the archive
+          --at DIR         mount on DIR instead of /Volumes
+      -p, --password / --password-stdin
   mcp     [options]               MCP server on stdio for AI agents (see `xipper mcp --help`)
   bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
       (default)            compress FILE to FILE.gz (the original is kept)
@@ -69,11 +74,12 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names"])
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names",
+                         "--read-only", "--discard"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
-       "--solid", "-v", "--volume"]
+       "--solid", "-v", "--volume", "--at"]
 do {
     var i = 0
     while i < args.count {
@@ -302,6 +308,30 @@ case "list", "l":
                 print(name)
             }
         }
+    }
+
+case "mount":
+    guard positional.count == 1 else { fail("mount needs one archive", code: 2) }
+    let pw = readPassword(confirm: false)
+    run {
+        let archive = URL(fileURLWithPath: positional[0])
+        let m = try ArchiveMount(archive: archive, password: pw, writable: !flag("--read-only"))
+        let point = try m.mount(at: value("--at").map { URL(fileURLWithPath: $0, isDirectory: true) })
+        print("mounted \(archive.lastPathComponent) on \(point.path)\(m.tree.writable ? "" : " (read-only)")")
+        print("eject it from the Finder, or press Ctrl-C, to unmount\(m.tree.writable && !flag("--discard") ? " and save the changes" : "")")
+        m.waitUntilUnmounted(cancel: cancel)
+        if m.isMounted {
+            do { try m.unmount() } catch {
+                fputs("xipper: the volume is in use; close the files on it and eject it from the Finder\n", stderr)
+                m.waitUntilUnmounted()
+            }
+        }
+        let save = !flag("--discard")
+        if save && m.tree.hasChanges { print("saving the changes into \(archive.lastPathComponent)…") }
+        else if m.tree.hasChanges { print("changes discarded") }
+        try m.finish(save: save, progress: progress)
+        endProgress()
+        print("unmounted")
     }
 
 case "bgzip":

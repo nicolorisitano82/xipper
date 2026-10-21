@@ -45,7 +45,10 @@ final class FinderSync: FIFinderSync {
             let extractable = archives.filter { !["bam", "bcf"].contains($0.pathExtension.lowercased()) }
             if !extractable.isEmpty { add(target, String(localized: "Estrai qui"), "arrow.down.to.line", #selector(extract(_:))) }
             add(target, String(localized: "Verifica"), "checkmark.shield", #selector(test(_:)))
-            if archives.count == 1 { add(target, String(localized: "Apri in Xipper"), "eye", #selector(open(_:))) }
+            if archives.count == 1 {
+                add(target, String(localized: "Apri in Xipper"), "eye", #selector(open(_:)))
+                add(target, String(localized: "Monta come volume"), "externaldrive", #selector(mount(_:)))
+            }
         }
         return menu
     }
@@ -73,6 +76,7 @@ final class FinderSync: FIFinderSync {
     @objc func extract(_ sender: AnyObject?) { send("extract", selection.filter(Self.isArchive)) }
     @objc func test(_ sender: AnyObject?) { send("test", selection.filter(Self.isArchive)) }
     @objc func open(_ sender: AnyObject?) { send("open", selection.filter(Self.isArchive)) }
+    @objc func mount(_ sender: AnyObject?) { send("mount", selection.filter(Self.isArchive)) }
 
     private func send(_ verb: String, _ files: [URL]) {
         guard !files.isEmpty else { return }

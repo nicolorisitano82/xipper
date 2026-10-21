@@ -24,6 +24,7 @@ It needs no third-party software at run time: the open-source codecs are compile
   - Apple Archive: AEA encryption.
   - Passwords can be saved in the Keychain and unlocked with Touch ID.
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
+- **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**
   - Finder extension, Quick Actions, Quick Look previews and thumbnails.
   - Shortcuts actions (compress, extract, verify, list).
@@ -46,6 +47,7 @@ Sources/XipperKit/       Swift core
   Crypto/                WinZip AES, 7z AES-256-CBC, ZipCrypto
   Extraction/            safe extraction shared by every format
   Genomics/              tabix/CSI, index and CRAM/VCF/BCF checks, checksum manifests
+  Mount/                 archives mounted as volumes: copy-on-write tree, local WebDAV server, NetFS
   Support/               P/E-core concurrency, I/O, source scanning, extended attributes, AppleDouble
 Sources/XipperMCP/       MCP server
 Sources/xipper/          CLI
@@ -114,6 +116,12 @@ scripts/benchmark.sh 600 3
 
 ```bash
 .build/release/xipper list --long photos.zip
+```
+
+Mount an archive as a volume (`/Volumes/<name>`) until you eject it or press Ctrl-C. Changes are saved into the archive; `--read-only` mounts it read-only, `--discard` drops the changes:
+
+```bash
+.build/release/xipper mount photos.zip
 ```
 
 Genomics (BGZF, compatible with `bgzip`), tabix/CSI indexes and checksum manifests:

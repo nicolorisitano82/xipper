@@ -115,6 +115,46 @@ Lo spike è stato poi rimosso dalla registrazione (`lsregister -u`, `pluginkit -
 4. Password degli archivi cifrati dal portachiavi; voci cifrate senza password: 403.
 5. Test: montaggio automatico, confronto byte per byte, server terminato, voci enormi, nomi Unicode e caratteri speciali negli URL.
 
+## Implementazione (21/10/2026): montaggio in lettura e scrittura
+
+Su richiesta dell'utente il montaggio è **in lettura e scrittura**. Il codice è in `Sources/XipperKit/Mount/`.
+
+- **`Xipper.streamEntry(_:path:from:)`:** legge una voce a blocchi da un offset, senza estrarre l'archivio.
+  - XIZ salta direttamente ai frame che servono; gli altri formati decodificano e scartano la parte iniziale.
+  - Su questa funzione ora si basa `readEntry`. Corretto un difetto che c'era già: l'anteprima delle voci Apple Archive passava dal lettore tar/cpio.
+- **`MountedArchive`:** l'albero dell'archivio con uno strato copy-on-write su disco.
+  - I file scritti finiscono nell'overlay e coprono le voci dell'archivio.
+  - Le cancellazioni sono whiteout, che nascondono anche il contenuto delle cartelle.
+  - Copia e spostamento passano dall'overlay.
+  - `save()` estrae, applica le modifiche e ricrea l'archivio nel suo formato e con la sua password; l'originale viene sostituito in modo atomico solo a fine lavoro.
+  - Restano esclusi i file `._*` e `.DS_Store` del Finder.
+  - I formati a file singolo (gz, xz, …), lz4 e brotli restano in sola lettura.
+- **`DAVServer`:** server WebDAV su 127.0.0.1, un thread per connessione con socket bloccanti, quindi con contropressione.
+  - Classe 2 (LOCK/UNLOCK, PUT, MKCOL, DELETE, COPY, MOVE, PROPPATCH) quando l'archivio è scrivibile, classe 1 altrimenti.
+  - Credenziali Basic casuali per ogni montaggio, e un prefisso casuale nel percorso.
+  - GET in streaming con Range, PUT in streaming su disco (anche chunked e con `Expect: 100-continue`).
+  - Percorsi normalizzati come nell'estrazione sicura.
+- **`ArchiveMount`:** avvia il server e monta con `NetFSMountURLSync` (`kNetFSAllowLoopbackKey`, nessuna interfaccia, `nosuid,nodev`, `rdonly` se in sola lettura) su `/Volumes/<nome>`. Poi segue lo smontaggio e salva o scarta.
+- **Interfacce:**
+  - **CLI:** `xipper mount [--read-only] [--discard] [--at DIR]`.
+  - **App:** pulsante «Monta»/«Espelli» nel browser, voce «Monta come volume» nel menu Xipper del Finder.
+  - All'espulsione, se ci sono modifiche, l'app chiede «Salva» / «Non salvare». All'uscita dall'app i volumi vengono espulsi e salvati, dopo una conferma.
+- **Test:** `MountTests` coprono:
+  - lo streaming da offset su 7 formati;
+  - le regole dell'overlay;
+  - il salvataggio su ZIP/7z con password, tar.zst, XIZ e Apple Archive;
+  - il server (401, Range, traversal, PUT chunked con 100-continue, MKCOL/MOVE/COPY/LOCK/DELETE/PROPPATCH);
+  - due **montaggi reali** con NetFS (lettura e scrittura, e sola lettura), che si saltano con `XIPPER_SKIP_MOUNT=1`.
+- **Prove a mano nell'app:**
+  - monta, scrivi un file, espelli, «Salva»: l'archivio contiene il file e il browser si ricarica;
+  - espulsione dal Finder senza modifiche: nessuna domanda.
+
+**Limiti:**
+- Il client WebDAV di macOS scarica l'intero file alla prima apertura.
+- Permessi, xattr e tag del Finder dei file modificati non vengono conservati, mentre le voci non toccate li conservano.
+- Il salvataggio ricrea l'intero archivio, quindi costa quanto una ricompressione.
+- Il server vive nel processo dell'app o della CLI: se il processo termina, il volume viene smontato e le modifiche non salvate si perdono.
+
 ## Piano una volta sbloccato
 
 1. **Architettura.**

@@ -82,7 +82,8 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims"]
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims"],
+            linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
         .target(
