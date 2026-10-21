@@ -76,13 +76,13 @@ do {
         let a = args[i]
         if a == "--" { positional += args[(i + 1)...]; break }
         if a.hasPrefix("-") && a.count > 1 {
+            if a == "--overwrite" && command == "create" { flags.insert(a); i += 1; continue }
             if valueOptions.contains(a) {
                 guard i + 1 < args.count else { throw Usage(message: "\(a) needs a value") }
                 values[a] = args[i + 1]
                 i += 2
                 continue
             }
-            if a == "--overwrite" && command == "create" { flags.insert(a); i += 1; continue }
             guard knownFlags.contains(a) else { throw Usage(message: "unknown option \(a)") }
             flags.insert(a)
         } else {
@@ -90,11 +90,7 @@ do {
         }
         i += 1
     }
-    // `create --overwrite` is a flag, `extract --overwrite P` takes a value.
-    if command == "create", let v = values.removeValue(forKey: "--overwrite") {
-        flags.insert("--overwrite")
-        positional.insert(v, at: 0)
-    }
+    // `create --overwrite` is a flag (handled above), `extract --overwrite P` takes a value.
 } catch let u as Usage {
     fputs("xipper: \(u.message)\n", stderr)
     exit(2)

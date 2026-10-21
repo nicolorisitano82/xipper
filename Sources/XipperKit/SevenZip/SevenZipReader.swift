@@ -174,11 +174,14 @@ final class SevenZipArchive: @unchecked Sendable {
     }
 
     /// Pull stream of folder `i`'s content.
-    func open(folder i: Int, onPackRead: ((Int) -> Void)? = nil) throws -> ByteSource {
+    /// `workers` > 1 lets one folder decode on several threads (LZMA2 with dictionary resets).
+    func open(folder i: Int, workers: Int = 1, qos: QualityOfService = .userInitiated, onPackRead: ((Int) -> Void)? = nil) throws -> ByteSource {
         let f = streams.folders[i]
         let packs = (0..<f.packedStreams.count).map { (packOffsets[f.firstPackStream + $0], streams.packSizes[f.firstPackStream + $0]) }
         var d = SZFolderDecoder(folder: f, input: input, packs: packs, keys: keys)
         d.onPackRead = onPackRead
+        d.workers = workers
+        d.qos = qos
         return try d.open()
     }
 }
@@ -207,6 +210,11 @@ enum SevenZipExtractor {
         if a.keys == nil, let r = a.records.indices.first(where: { chosen[$0] && a.records[$0].hasStream && a.streams.folders[a.records[$0].folder].isEncrypted }) {
             throw XipperError.passwordRequired(entry: a.records[r].entry.path)
         }
+    }
+
+    /// Threads for each folder when there are fewer folders than workers (solid archives).
+    static func innerWorkers(_ w: Workload, folders: Int) -> Int {
+        folders >= w.workerCount ? 1 : max(1, w.workerCount / max(1, folders))
     }
 
     /// Maps a decoding failure inside an encrypted folder to "wrong password" (7z has no verifier).
@@ -267,6 +275,7 @@ enum SevenZipExtractor {
             .sorted { a.streams.folders[$0].unpackSize > a.streams.folders[$1].unpackSize }
         let writes = BackgroundWrites(workload: ctx.options.workload)
         defer { writes.waitIgnoringErrors() }
+        let perFolder = innerWorkers(ctx.options.workload, folders: folders.count)
         try parallelFor(folders.count, workload: ctx.options.workload, cancel: cancel) { k in
             let fi = folders[k]
             let folder = a.streams.folders[fi]
@@ -276,7 +285,7 @@ enum SevenZipExtractor {
             defer { buf.deallocate() }
             var current = a.records[members[0]].entry.path
             do {
-                let src = try a.open(folder: fi)
+                let src = try a.open(folder: fi, workers: perFolder, qos: ctx.options.workload == .background ? .utility : .userInitiated)
                 for m in members[...lastWanted] {
                     let r = a.records[m]
                     current = r.entry.path
@@ -335,6 +344,7 @@ enum SevenZipExtractor {
         tracker.setTotals(bytes: a.streams.folders.reduce(0) { $0 + $1.unpackSize }, entries: a.records.count)
         tracker.add(bytes: 0, entries: a.records.filter { !$0.hasStream }.count)
         let failures = Mutex<[SkippedEntry]>([])
+        let perFolder = innerWorkers(workload, folders: order.count)
         try parallelFor(order.count, workload: workload, cancel: cancel) { k in
             let fi = order[k]
             let folder = a.streams.folders[fi]
@@ -342,7 +352,7 @@ enum SevenZipExtractor {
             defer { buf.deallocate() }
             var current = a.folderRecords[fi].first.map { a.records[$0].entry.path } ?? "folder \(fi)"
             do {
-                let src = try a.open(folder: fi)
+                let src = try a.open(folder: fi, workers: perFolder, qos: workload == .background ? .utility : .userInitiated)
                 var folderCRC: UInt32 = 0
                 for m in a.folderRecords[fi] {
                     let r = a.records[m]

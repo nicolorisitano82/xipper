@@ -286,6 +286,29 @@ struct MCPTests {
         #expect(permissive.call("archive_test", ["path": .string(zip), "password": "Passw0rd-xipper"])["structuredContent"]?["ok"]?.bool == true)
     }
 
+    @Test func sevenZipThroughTools() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 1 << 20)
+        let h = harness(t, allowPassword: true)
+        h.initializeLegacy()
+        let out = t.path + "/out.7z"
+        let created = h.call("archive_create", ["sources": [.string(t.path + "/src")], "output": .string(out), "format": "7z"])
+        #expect(created["isError"]?.bool == false, "\(text(created))")
+        #expect(created["structuredContent"]?["format"]?.string == "7z")
+        #expect(h.call("archive_info", ["path": .string(out)])["structuredContent"]?["format"]?.string == "7z")
+        #expect(h.call("archive_test", ["path": .string(out)])["structuredContent"]?["ok"]?.bool == true)
+        let entry = h.call("archive_read_entry", ["path": .string(out), "entry": "src/readme.txt"])
+        #expect(text(entry).contains("hello xipper"), "\(text(entry))")
+        // With a password the names are encrypted: listing needs it too.
+        let enc = t.path + "/enc.7z"
+        let e = h.call("archive_create", ["sources": [.string(t.path + "/src")], "output": .string(enc), "password": "pw-7z", "solid": false])
+        #expect(e["isError"]?.bool == false, "\(text(e))")
+        #expect(h.call("archive_list", ["path": .string(enc)])["isError"]?.bool == true)
+        let listed = h.call("archive_list", ["path": .string(enc), "password": "pw-7z"])
+        #expect(listed["structuredContent"]?["totalCount"]?.int ?? 0 > 5, "\(text(listed))")
+        #expect(try Xipper.list(URL(fileURLWithPath: enc), password: "pw-7z").filter { $0.kind == .file }.count > 3)
+    }
+
     @Test func bgzfTools() throws {
         let t = TempDir()
         t.write("calls.vcf", sampleVCF(records: 3000))

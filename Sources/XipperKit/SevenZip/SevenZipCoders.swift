@@ -147,6 +147,29 @@ final class ExactSource: ByteSource {
     }
 }
 
+/// Reads its source in 1 MiB pieces (many small reads, e.g. LZMA2 chunk headers).
+final class ReadAheadSource: ByteSource {
+    private let inner: ByteSource
+    private let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
+    private var pos = 0, len = 0
+
+    init(_ inner: ByteSource) { self.inner = inner }
+    deinit { buf.deallocate() }
+
+    func read(into dst: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        if pos == len {
+            if max >= 1 << 20 { return try inner.read(into: dst, max: max) }
+            len = try inner.read(into: buf, max: 1 << 20)
+            pos = 0
+            if len == 0 { return 0 }
+        }
+        let n = min(max, len - pos)
+        dst.copyMemory(from: buf + pos, byteCount: n)
+        pos += n
+        return n
+    }
+}
+
 /// Byte-at-a-time reads over a source (BCJ2's four inputs).
 final class BufferedSource {
     private let inner: ByteSource
@@ -362,15 +385,23 @@ final class DeltaFilter: StreamTransform {
     }
 
     func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws {
-        out.removeAll(keepingCapacity: true)
-        out.reserveCapacity(input.count)
-        for b in input {
-            let prev = history[(pos &- distance) & 0xFF]
-            let v = encoding ? b &- prev : b &+ prev
-            history[pos & 0xFF] = encoding ? b : v
-            pos &+= 1
-            out.append(v)
+        guard !input.isEmpty else { return }
+        let d = distance, enc = encoding
+        var p = pos
+        out = [UInt8](unsafeUninitializedCapacity: input.count) { o, n in
+            history.withUnsafeMutableBufferPointer { h in
+                for i in 0..<input.count {
+                    let b = input[i]
+                    let prev = h[(p &- d) & 0xFF]
+                    let v = enc ? b &- prev : b &+ prev
+                    h[p & 0xFF] = enc ? b : v
+                    p &+= 1
+                    o[i] = v
+                }
+            }
+            n = input.count
         }
+        pos = p
         try emit(out, to: sink)
     }
 
@@ -515,14 +546,40 @@ struct SZFolderDecoder {
     let packs: [(offset: Int64, size: Int64)]
     let keys: SevenZipKeyCache?
     var onPackRead: ((Int) -> Void)?
+    /// > 1: decode LZMA2 segments in parallel when the stream has dictionary resets.
+    var workers = 1
+    var qos: QualityOfService = .userInitiated
 
-    func open() throws -> ByteSource { try source(forOut: folder.mainOutStream) }
+    func open() throws -> ByteSource {
+        if workers > 1, let p = try parallelLZMA2() { return p }
+        return try source(forOut: folder.mainOutStream)
+    }
 
-    private func source(forOut out: Int) throws -> ByteSource {
-        guard let ci = folder.coder(forOutStream: out) else { throw XipperError.corrupt("7z folder graph") }
-        let c = folder.coders[ci]
+    /// LZMA2 producing the folder's content, alone or followed by ARM64 (stateless, so segments
+    /// can be filtered independently when they start at multiples of 4). Its input can be
+    /// anything (a packed stream, AES…): the stream is split while it is read.
+    private func parallelLZMA2() throws -> ByteSource? {
+        typealias M = SevenZip.Method
+        let size = folder.unpackSize
+        guard size > 8 << 20, let mc = folder.coder(forOutStream: folder.mainOutStream) else { return nil }
+        var lzmaCoder = mc
+        var arm64 = false
+        if folder.coders[mc].method == M.arm64 && folder.coders[mc].props.isEmpty {
+            guard let bp = folder.bindPairs.first(where: { $0.inIndex == folder.streamBases()[mc].inBase }),
+                  let lc = folder.coder(forOutStream: bp.outIndex) else { return nil }
+            lzmaCoder = lc
+            arm64 = true
+        }
+        let c = folder.coders[lzmaCoder]
+        let lzmaOut = folder.streamBases()[lzmaCoder].outBase
+        guard c.method == M.lzma2, c.props.count == 1, c.numInStreams == 1, folder.unpackSizes[lzmaOut] == size else { return nil }
+        let packed = try inputs(of: lzmaCoder)[0]
+        return ExactSource(ParallelLZMA2Source(packed, prop: c.props[0], unpackSize: size, arm64: arm64, workers: workers, qos: qos), size: size)
+    }
+
+    private func inputs(of ci: Int) throws -> [ByteSource] {
         let base = folder.streamBases()[ci].inBase
-        let inputs: [ByteSource] = try (0..<c.numInStreams).map { k in
+        return try (0..<folder.coders[ci].numInStreams).map { k in
             let idx = base + k
             if let bp = folder.bindPairs.first(where: { $0.inIndex == idx }) { return try source(forOut: bp.outIndex) }
             guard let p = folder.packedStreams.firstIndex(of: idx), p < packs.count else { throw XipperError.corrupt("7z folder graph") }
@@ -530,8 +587,12 @@ struct SZFolderDecoder {
             s.onRead = onPackRead
             return s
         }
+    }
+
+    private func source(forOut out: Int) throws -> ByteSource {
+        guard let ci = folder.coder(forOutStream: out) else { throw XipperError.corrupt("7z folder graph") }
         let size = folder.unpackSizes[out]
-        return ExactSource(try decoder(c, inputs, size: size), size: size)
+        return ExactSource(try decoder(folder.coders[ci], try inputs(of: ci), size: size), size: size)
     }
 
     private func decoder(_ c: SZCoder, _ inputs: [ByteSource], size: Int64) throws -> ByteSource {
@@ -570,3 +631,222 @@ struct SZFolderDecoder {
 
 /// An encrypted folder was reached without a password (mapped to `passwordRequired` with the entry name).
 struct SZNeedsPassword: Error {}
+
+// MARK: - Parallel LZMA2
+
+/// Decodes an LZMA2 stream in parallel where it restarts with a dictionary reset (7-Zip's
+/// multi-threaded encoder and ours join independent chunks that way). The packed stream is
+/// read sequentially and cut at chunk boundaries; segments are decoded by a pool and
+/// delivered in order. A stream without usable resets falls back to one sequential decoder.
+final class ParallelLZMA2Source: ByteSource, @unchecked Sendable {
+    private final class Job: @unchecked Sendable {
+        let unpackOffset: Int64
+        let unpackSize: Int64
+        var packed: [UInt8]
+        var output: [UInt8] = []
+        var error: Error?
+        let done = DispatchSemaphore(value: 0)
+        init(packed: [UInt8], unpackOffset: Int64, unpackSize: Int64) {
+            self.packed = packed
+            self.unpackOffset = unpackOffset
+            self.unpackSize = unpackSize
+        }
+    }
+
+    /// Segments are cut only past this size (tiny segments cost more than they save).
+    static let minSegment: Int64 = 1 << 20
+    /// A segment growing past these sizes without a reset switches to the sequential decoder.
+    static let maxPackedSegment = 64 << 20
+    static let maxSegment: Int64 = 512 << 20
+
+    private let packed: ByteSource
+    private let prop: UInt8
+    private let unpackSize: Int64
+    private let arm64: Bool
+    private let pool = OperationQueue()
+    private let maxInFlight: Int
+    private let budget: Int64
+    private var queue: [Job] = []
+    private var queuedBytes: Int64 = 0
+    private var current: Job?
+    private var pos = 0
+    private var tail: ByteSource?
+    /// Splitter state: raw bytes (whole chunks) of the segment being collected.
+    private var seg: [UInt8] = []
+    private var segStart: Int64 = 0
+    private var unpacked: Int64 = 0
+    /// Uncompressed chunk with dictionary reset that may start the next segment: (index in seg, unpacked offset).
+    private var candidate: (Int, Int64)?
+    private var splitDone = false
+    private(set) var segmentCount = 0
+
+    init(_ packed: ByteSource, prop: UInt8, unpackSize: Int64, arm64: Bool, workers: Int, qos: QualityOfService) {
+        self.packed = ReadAheadSource(packed)
+        self.prop = prop
+        self.unpackSize = unpackSize
+        self.arm64 = arm64
+        pool.maxConcurrentOperationCount = max(1, workers)
+        pool.qualityOfService = qos
+        maxInFlight = workers + 2
+        // Decoded segments wait in memory: a quarter of RAM at most (and 4 GiB).
+        budget = Int64(min(ProcessInfo.processInfo.physicalMemory / 4, 4 << 30))
+    }
+
+    deinit { pool.cancelAllOperations() }
+
+    private func readExactly(_ n: Int, into a: inout [UInt8]) throws {
+        let old = a.count
+        a.append(contentsOf: repeatElement(0, count: n))
+        try a.withUnsafeMutableBytes { _ = try packed.readExactly(into: $0.baseAddress! + old, count: n) }
+    }
+
+    /// Cuts the next segment; nil when the stream ended or the splitter handed over to `tail`.
+    private func split() throws -> Job? {
+        while !splitDone {
+            var head: [UInt8] = []
+            try readExactly(1, into: &head)
+            let c = head[0]
+            if c == 0 {
+                splitDone = true
+                if unpacked != unpackSize { throw XipperError.corrupt("LZMA2 stream size mismatch") }
+                return seg.isEmpty ? nil : cut(at: seg.count, unpacked: unpacked)
+            }
+            var cutAt: (Int, Int64)?
+            let chunkUnpacked: Int64
+            let rest: Int
+            if c == 1 || c == 2 {
+                try readExactly(2, into: &head)
+                chunkUnpacked = (Int64(head[1]) << 8 | Int64(head[2])) + 1
+                rest = Int(chunkUnpacked)
+                if c == 1 && candidate == nil { candidate = (seg.count, unpacked) }
+            } else if c >= 0x80 {
+                try readExactly(c >= 0xC0 ? 5 : 4, into: &head)
+                chunkUnpacked = (Int64(c & 0x1F) << 16 | Int64(head[1]) << 8 | Int64(head[2])) + 1
+                rest = (Int(head[3]) << 8 | Int(head[4])) + 1
+                // A reset with properties starts a segment; so does an earlier uncompressed reset
+                // if this chunk brings properties (otherwise it would depend on older ones).
+                if c >= 0xE0 { cutAt = candidate ?? (seg.count, unpacked) } else if c >= 0xC0, let cand = candidate { cutAt = cand }
+                candidate = nil
+            } else {
+                throw XipperError.corrupt("invalid LZMA2 control byte \(c)")
+            }
+            var job: Job?
+            if let (idx, u) = cutAt, idx > 0, u - segStart >= Self.minSegment, !arm64 || u % 4 == 0 {
+                job = cut(at: idx, unpacked: u)
+            }
+            seg.append(contentsOf: head)
+            try readExactly(rest, into: &seg)
+            unpacked += chunkUnpacked
+            if unpacked > unpackSize { throw XipperError.corrupt("LZMA2 stream larger than declared") }
+            if job == nil && (seg.count > Self.maxPackedSegment || unpacked - segStart > Self.maxSegment) {
+                startTail()
+                return nil
+            }
+            if let job { return job }
+        }
+        return nil
+    }
+
+    /// Ends the current segment at `idx` (a chunk boundary in `seg`).
+    private func cut(at idx: Int, unpacked u: Int64) -> Job {
+        var bytes = Array(seg[0..<idx])
+        bytes.append(0)  // end marker
+        seg.removeFirst(idx)
+        if let c = candidate { candidate = c.0 >= idx ? (c.0 - idx, c.1) : nil }
+        let job = Job(packed: bytes, unpackOffset: segStart, unpackSize: u - segStart)
+        segStart = u
+        return job
+    }
+
+    /// Sequential decoding from the current segment start (a reset point) to the end.
+    private func startTail() {
+        splitDone = true
+        let prefix = seg
+        seg = []
+        let source = ConcatSource(prefix, packed)
+        var t: ByteSource = TransformSource(source, (try? LZMACoder.sevenZipLZMA2Decoder(prop: prop, unpackSize: unpackSize - segStart)) ?? FailingTransform())
+        if arm64 { t = TransformSource(t, BranchFilter(.arm64, encoding: false, startOffset: UInt32(truncatingIfNeeded: segStart))) }
+        tail = t
+    }
+
+    private func submit() throws {
+        while queue.count < maxInFlight && queuedBytes < budget {
+            guard let job = try split() else { return }
+            segmentCount += 1
+            queue.append(job)
+            queuedBytes += job.unpackSize
+            let prop = self.prop, arm64 = self.arm64
+            pool.addOperation {
+                defer { job.done.signal() }
+                do { job.output = try Self.decode(job, prop: prop, arm64: arm64) } catch { job.error = error }
+                job.packed = []
+            }
+        }
+    }
+
+    private static func decode(_ j: Job, prop: UInt8, arm64: Bool) throws -> [UInt8] {
+        let coder = try LZMACoder.sevenZipLZMA2Decoder(prop: prop, unpackSize: j.unpackSize)
+        var out = [UInt8](repeating: 0, count: Int(j.unpackSize))
+        var filled = 0
+        try out.withUnsafeMutableBytes { o in
+            let sink: ByteSink = { chunk in
+                if filled + chunk.count > o.count { throw XipperError.corrupt("LZMA2 segment larger than declared") }
+                (o.baseAddress! + filled).copyMemory(from: chunk.baseAddress!, byteCount: chunk.count)
+                filled += chunk.count
+            }
+            try j.packed.withUnsafeBytes { try coder.process($0, sink) }
+            try coder.finish(sink)
+            if filled != o.count { throw XipperError.corrupt("LZMA2 segment shorter than declared") }
+            if arm64 {
+                _ = lzma_bcj_arm64_decode(UInt32(truncatingIfNeeded: j.unpackOffset), o.baseAddress!.assumingMemoryBound(to: UInt8.self), o.count)
+            }
+        }
+        return out
+    }
+
+    func read(into buf: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        while current == nil || pos == current!.output.count {
+            current = nil
+            try submit()
+            guard !queue.isEmpty else { return try tail?.read(into: buf, max: max) ?? 0 }
+            let job = queue.removeFirst()
+            job.done.wait()
+            queuedBytes -= job.unpackSize
+            if let e = job.error { throw e }
+            current = job
+            pos = 0
+            try submit()
+        }
+        let n = min(max, current!.output.count - pos)
+        current!.output.withUnsafeBytes { buf.copyMemory(from: $0.baseAddress! + pos, byteCount: n) }
+        pos += n
+        return n
+    }
+}
+
+/// `prefix` then `rest`.
+final class ConcatSource: ByteSource {
+    private let prefix: [UInt8]
+    private var pos = 0
+    private let rest: ByteSource
+
+    init(_ prefix: [UInt8], _ rest: ByteSource) {
+        self.prefix = prefix
+        self.rest = rest
+    }
+
+    func read(into buf: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        if pos < prefix.count {
+            let n = min(max, prefix.count - pos)
+            prefix.withUnsafeBytes { buf.copyMemory(from: $0.baseAddress! + pos, byteCount: n) }
+            pos += n
+            return n
+        }
+        return try rest.read(into: buf, max: max)
+    }
+}
+
+private final class FailingTransform: StreamTransform {
+    func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws { throw XipperError.corrupt("bad LZMA2 properties") }
+    func finish(_ sink: ByteSink) throws { throw XipperError.corrupt("bad LZMA2 properties") }
+}

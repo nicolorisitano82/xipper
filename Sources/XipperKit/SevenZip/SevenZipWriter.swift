@@ -72,7 +72,7 @@ enum SevenZipWriter {
                 let g: Group
                 if level == 0 || (o.storeAlreadyCompressed && AlreadyCompressed.matches(item.name)) {
                     g = .stored
-                } else if o.executableFilter && isARM64Executable(item.sourcePath) {
+                } else if o.executableFilter && mayBeExecutable(item) && isARM64Executable(item.sourcePath) {
                     g = .executable
                 } else {
                     g = .normal
@@ -101,79 +101,90 @@ enum SevenZipWriter {
         let out = try VolumeWriter(path: path, volumeSize: o.volumeSize)
         try out.write([UInt8](repeating: 0, count: SevenZip.signatureHeaderSize))
 
-        // 2. Data: chunks of every folder are compressed in parallel batches and written in order.
+        // 2. Data: a pool of workers compresses chunks while the next ones are read; chunks are
+        //    written in order. Chunks hold at most `chunk` bytes of one folder.
         let chunk = chunkSize(level: level, dictionary: dict)
         let workers = workerCount(o.workload, level: level, chunk: chunk)
-        let batchCapacity = chunk * workers
-        let batch = UnsafeMutableRawPointer.allocate(byteCount: batchCapacity, alignment: 16384)
-        defer { batch.deallocate() }
-        struct Unit { var folder: Int; var offset: Int64; var start: Int; var count: Int; var last: Bool }
-        var units: [Unit] = []
-        var filled = 0
+        let maxInFlight = workers + 2
+        let pool = OperationQueue()
+        pool.maxConcurrentOperationCount = workers
+        pool.qualityOfService = o.workload == .background ? .utility : .userInitiated
+        // Stops the workers when this function exits early (error, cancellation).
+        let abort = CancellationToken()
+        defer {
+            abort.cancel()
+            pool.cancelAllOperations()
+        }
+        let check = { @Sendable in
+            try cancel?.check()
+            try abort.check()
+        }
+        var pending: [UnitJob] = []
         var encryptor: AESCBCCoder?
         var encryptorFolder = -1
 
-        func flush() throws {
-            let results = Slots<[UInt8]>(units.count)
-            let base = batch
-            let snapshot = units
-            try parallelFor(snapshot.count, workload: .threads(workers), cancel: cancel) { i in
-                let u = snapshot[i]
-                let data = UnsafeMutableRawBufferPointer(start: base + u.start, count: u.count)
-                let f = folders[u.folder]
-                if f.group == .executable { BranchFilter.convert(.arm64, encoding: true, data, startOffset: UInt32(truncatingIfNeeded: u.offset)) }
-                if f.group == .stored {
-                    results[i] = Array(data)
-                } else {
-                    let unitDict = UInt32(min(Int64(f.dictionary), max(4096, Int64(u.count))))
-                    var packed = try LZMA2Chunk.encode(UnsafeRawBufferPointer(data), preset: level, dictionary: unitDict, cancel: cancel)
-                    if !u.last {
-                        // Independent chunks are joined by dropping each end marker: the next chunk starts with a dictionary reset.
-                        guard packed.last == 0 else { throw XipperError.codec("unexpected LZMA2 end") }
-                        packed.removeLast()
-                    }
-                    results[i] = packed
+        func write(_ j: UnitJob) throws {
+            j.done.wait()
+            if let e = j.error { throw e }
+            var packed = j.result
+            j.result = []
+            folders[j.folder].coderSize += Int64(packed.count)
+            if let key {
+                if encryptorFolder != j.folder {
+                    var iv = [UInt8](repeating: 0, count: 16)
+                    arc4random_buf(&iv, 16)
+                    folders[j.folder].iv = iv
+                    encryptor = try AESCBCCoder(key: key, iv: iv, encrypt: true)
+                    encryptorFolder = j.folder
                 }
+                var cipher: [UInt8] = []
+                cipher.reserveCapacity(packed.count + 16)
+                try packed.withUnsafeBytes { try encryptor!.process($0) { cipher.append(contentsOf: $0) } }
+                if j.last { try encryptor!.finish { cipher.append(contentsOf: $0) } }
+                packed = cipher
             }
-            for (i, u) in snapshot.enumerated() {
-                var packed = results.take(i)!
-                folders[u.folder].coderSize += Int64(packed.count)
-                if let key {
-                    if encryptorFolder != u.folder {
-                        var iv = [UInt8](repeating: 0, count: 16)
-                        arc4random_buf(&iv, 16)
-                        folders[u.folder].iv = iv
-                        encryptor = try AESCBCCoder(key: key, iv: iv, encrypt: true)
-                        encryptorFolder = u.folder
-                    }
-                    var cipher: [UInt8] = []
-                    cipher.reserveCapacity(packed.count + 16)
-                    try packed.withUnsafeBytes { try encryptor!.process($0) { cipher.append(contentsOf: $0) } }
-                    if u.last { try encryptor!.finish { cipher.append(contentsOf: $0) } }
-                    packed = cipher
-                }
-                try out.write(packed)
-                folders[u.folder].packSize += Int64(packed.count)
-            }
-            units.removeAll(keepingCapacity: true)
-            filled = 0
+            try out.write(packed)
+            folders[j.folder].packSize += Int64(packed.count)
+            tracker.add(bytes: Int64(j.count))
         }
 
-        var unitStart = 0
-        var unitOffset: Int64 = 0
-        var offset: Int64 = 0
-        // A unit can always grow to a full chunk inside the batch, so units of executable
-        // folders stay multiples of 4 bytes (the ARM64 filter works on aligned words).
-        func beginUnit() throws {
-            if batchCapacity - filled < chunk { try flush() }
-            unitStart = filled
-            unitOffset = offset
+        func submit(_ j: UnitJob) throws {
+            pending.append(j)
+            let group = folders[j.folder].group
+            let dictionary = folders[j.folder].dictionary
+            pool.addOperation {
+                defer { j.done.signal() }
+                do {
+                    try check()
+                    let data = UnsafeMutableRawBufferPointer(start: j.buffer, count: j.count)
+                    // Units of a folder are whole chunks (multiples of 4) except the last, so the
+                    // ARM64 filter sees the same aligned words as a decoder filtering the whole stream.
+                    if group == .executable { BranchFilter.convert(.arm64, encoding: true, data, startOffset: UInt32(truncatingIfNeeded: j.offset)) }
+                    if group == .stored {
+                        j.result = Array(data)
+                    } else {
+                        let unitDict = UInt32(min(Int64(dictionary), max(4096, Int64(j.count))))
+                        var packed = try LZMA2Chunk.encode(UnsafeRawBufferPointer(data), preset: level, dictionary: unitDict, check: check)
+                        if !j.last {
+                            // Independent chunks are joined by dropping each end marker: the next one starts with a dictionary reset.
+                            guard packed.last == 0 else { throw XipperError.codec("unexpected LZMA2 end") }
+                            packed.removeLast()
+                        }
+                        j.result = packed
+                    }
+                } catch {
+                    j.error = error
+                }
+            }
+            while pending.count >= maxInFlight { try write(pending.removeFirst()) }
         }
+
         for fi in folders.indices {
-            offset = 0
-            try beginUnit()
+            let folderSize = folders[fi].size
+            var offset: Int64 = 0
+            var job = UnitJob(folder: fi, offset: 0, capacity: Int(min(Int64(chunk), folderSize)))
             for m in folders[fi].members {
-                try cancel?.check()
+                try check()
                 var crc: UInt32 = 0
                 var reader: FileReader?
                 if m.inline == nil {
@@ -184,30 +195,30 @@ enum SevenZipWriter {
                 }
                 var done: Int64 = 0
                 while done < m.size {
-                    let n = Int(min(Int64(min(chunk - (filled - unitStart), 4 << 20)), m.size - done))
-                    let dst = batch + filled
+                    let n = Int(min(Int64(min(job.capacity - job.count, 4 << 20)), m.size - done))
+                    let dst = job.buffer + job.count
                     if let inline = m.inline {
                         inline.withUnsafeBytes { dst.copyMemory(from: $0.baseAddress! + Int(done), byteCount: n) }
                     } else {
                         try reader!.read(at: done, into: dst, count: n)
                     }
                     crc = CRC32.update(crc, UnsafeRawBufferPointer(start: dst, count: n))
-                    filled += n
+                    job.count += n
                     done += Int64(n)
                     offset += Int64(n)
-                    tracker.add(bytes: Int64(n), current: m.item.name)
-                    if filled - unitStart == chunk && offset < folders[fi].size {
-                        units.append(Unit(folder: fi, offset: unitOffset, start: unitStart, count: chunk, last: false))
-                        try beginUnit()
+                    if job.count == job.capacity && offset < folderSize {
+                        try submit(job)
+                        job = UnitJob(folder: fi, offset: offset, capacity: Int(min(Int64(chunk), folderSize - offset)))
                     }
-                    try cancel?.check()
+                    try check()
                 }
                 folders[fi].crcs.append(crc)
-                tracker.add(bytes: 0, entries: 1)
+                tracker.add(bytes: 0, entries: 1, current: m.item.name)
             }
-            units.append(Unit(folder: fi, offset: unitOffset, start: unitStart, count: filled - unitStart, last: true))
+            job.last = true
+            try submit(job)
         }
-        if !units.isEmpty { try flush() }
+        while !pending.isEmpty { try write(pending.removeFirst()) }
         for i in folders.indices where folders[i].packSize == 0 && folders[i].size > 0 {
             throw XipperError.codec("7z folder \(i) was not written")
         }
@@ -232,7 +243,7 @@ enum SevenZipWriter {
         // Compressed (and, with a password, encrypted) like 7-Zip's defaults; tiny headers stay plain.
         let encryptHeader = key != nil && o.encryptHeader
         if plain.count > 128 || encryptHeader {
-            var packed = try plain.withUnsafeBytes { try LZMA2Chunk.encode($0, preset: max(level, 5), dictionary: UInt32(max(4096, min(plain.count, 1 << 24))), cancel: cancel) }
+            var packed = try plain.withUnsafeBytes { try LZMA2Chunk.encode($0, preset: max(level, 5), dictionary: UInt32(max(4096, min(plain.count, 1 << 24)))) }
             var coders = [SZCoder(method: SevenZip.Method.lzma2, props: [SZLZMA2.prop(forDictionary: UInt32(max(4096, min(plain.count, 1 << 24))))])]
             var sizes = [Int64(plain.count)]
             var binds: [(inIndex: Int, outIndex: Int)] = []
@@ -327,6 +338,13 @@ enum SevenZipWriter {
         return f
     }
 
+    /// Only these are opened to look at their header (opening every file costs on large trees).
+    private static func mayBeExecutable(_ item: ArchiveItem) -> Bool {
+        if item.permissions & 0o111 != 0 { return true }
+        let ext = (item.name as NSString).pathExtension.lowercased()
+        return ["dylib", "so", "bundle", "o", "a", "node", "kext"].contains(ext) || ext.hasPrefix("so.")
+    }
+
     /// arm64 Mach-O (thin or universal) and AArch64 ELF.
     static func isARM64Executable(_ path: String) -> Bool {
         guard let r = try? FileReader(path: path), r.size >= 64, let h = try? r.read(at: 0, count: 64) else { return false }
@@ -365,9 +383,31 @@ enum SevenZipWriter {
     }
 }
 
+/// One chunk of a folder, compressed by a worker.
+private final class UnitJob: @unchecked Sendable {
+    let folder: Int
+    /// Position of the chunk in the folder's content.
+    let offset: Int64
+    let capacity: Int
+    let buffer: UnsafeMutableRawPointer
+    var count = 0
+    var last = false
+    var result: [UInt8] = []
+    var error: Error?
+    let done = DispatchSemaphore(value: 0)
+
+    init(folder: Int, offset: Int64, capacity: Int) {
+        self.folder = folder
+        self.offset = offset
+        self.capacity = capacity
+        buffer = .allocate(byteCount: max(1, capacity), alignment: 16384)
+    }
+    deinit { buffer.deallocate() }
+}
+
 /// Raw LZMA2 encoding of one independent chunk (starts with a dictionary reset, ends with the end marker).
 enum LZMA2Chunk {
-    static func encode(_ input: UnsafeRawBufferPointer, preset: Int, dictionary: UInt32, cancel: CancellationToken?) throws -> [UInt8] {
+    static func encode(_ input: UnsafeRawBufferPointer, preset: Int, dictionary: UInt32, check: () throws -> Void = {}) throws -> [UInt8] {
         var opts = lzma_options_lzma()
         if lzma_lzma_preset(&opts, UInt32(max(1, min(9, preset)))) != 0 { throw XipperError.codec("lzma preset") }
         opts.dict_size = max(4096, dictionary)
@@ -385,7 +425,7 @@ enum LZMA2Chunk {
         try out.withUnsafeMutableBytes { o in
             var consumed = 0
             while true {
-                try cancel?.check()
+                try check()
                 let n = min(1 << 20, input.count - consumed)
                 strm.next_in = input.baseAddress.map { $0.assumingMemoryBound(to: UInt8.self) + consumed }
                 strm.avail_in = n
@@ -448,6 +488,14 @@ final class VolumeWriter {
     func patchStart(_ bytes: [UInt8]) throws { try files[0].patch(at: 0, bytes) }
 
     func commit(overwrite: Bool) throws {
+        if !overwrite, let taken = (1...files.count).map(volumePath).first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            throw XipperError.alreadyExists(path: taken)
+        }
         for f in files { try f.commit(overwrite: overwrite) }
+        // Volumes left over from a bigger set that was replaced would be read as part of this one.
+        if volumeSize != nil && overwrite {
+            var n = files.count + 1
+            while unlink(volumePath(n)) == 0 { n += 1 }
+        }
     }
 }

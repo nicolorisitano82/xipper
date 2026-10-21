@@ -145,6 +145,45 @@ struct SevenZipTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: t.path + "/d").isEmpty)
     }
 
+    /// Big folders split at LZMA2 dictionary resets decode on several threads, with and without ARM64.
+    @Test func parallelSegmentDecoding() throws {
+        let t = TempDir()
+        t.write("src/text.bin", sampleData(14 << 20, seed: 5))
+        // Looks like an arm64 Mach-O: goes to the ARM64 folder.
+        t.write("src/tool", [0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01] + sampleData(13 << 20, seed: 6), mode: 0o755)
+        let a = try create(t, "par.7z") { $0.level = 1 }
+        let archive = try SevenZipArchive(path: a.path, password: nil)
+        #expect(archive.streams.folders.count == 2)
+        for fi in archive.streams.folders.indices {
+            let f = archive.streams.folders[fi]
+            let pack = archive.streams.packSizes[f.firstPackStream]
+            let offset = Int64(SevenZip.signatureHeaderSize) + archive.streams.packPos +
+                archive.streams.packSizes[0..<f.firstPackStream].reduce(0, +)
+            let src = ParallelLZMA2Source(PackStreamSource(archive.input, offset: offset, size: pack), prop: f.coders[0].props[0],
+                                          unpackSize: f.unpackSize, arm64: f.coders.count == 2, workers: 4, qos: .userInitiated)
+            var crc: UInt32 = 0
+            var total: Int64 = 0
+            let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 16, alignment: 16)
+            defer { buf.deallocate() }
+            while case let n = try src.read(into: buf, max: 1 << 16), n > 0 {
+                crc = CRC32.update(crc, UnsafeRawBufferPointer(start: buf, count: n))
+                total += Int64(n)
+            }
+            #expect(total == f.unpackSize)
+            #expect(src.segmentCount >= 4, "folder \(fi): \(f.methodDescription)")
+        }
+        #expect(try Xipper.test(a, workload: .threads(8)).isOK)
+        try extractAndCompare(t, a)
+        if let sevenZip {
+            #expect(run(sevenZip, ["t", "-bd", a.path]).status == 0)
+            // 7-Zip's own multi-threaded LZMA2 has resets too.
+            let b = t.path + "/mt.7z"
+            #expect(run(sevenZip, ["a", "-bd", "-mmt=8", "-md=1m", "-mx=7", b, "src"], cwd: t.path).status == 0)
+            #expect(try Xipper.test(URL(fileURLWithPath: b), workload: .threads(8)).isOK)
+            try extractAndCompare(t, URL(fileURLWithPath: b))
+        }
+    }
+
     // MARK: interoperability with 7-Zip
 
     @Test func sevenZipAcceptsOurArchives() throws {
@@ -238,6 +277,43 @@ struct SevenZipTests {
         for i in 0..<4000 { junk.append(UInt8(truncatingIfNeeded: i &* 2_654_435_761 >> 13)) }
         FileManager.default.createFile(atPath: t.path + "/junk.7z", contents: Data(junk))
         #expect(throws: XipperError.self) { try Xipper.list(t.url("junk.7z")) }
+    }
+
+    /// Damaged PPMd, BCJ2 and Delta streams from 7-Zip: errors, never crashes.
+    @Test func damagedForeignCodecs() throws {
+        guard let sevenZip else { return }
+        let t = TempDir()
+        tree(t, bigSize: 1 << 20)
+        for (name, sw) in [("ppmd", ["-m0=PPMd"]), ("bcj2", ["-mf=BCJ2"]), ("delta", ["-mf=Delta:2", "-m0=LZMA"]), ("bzip2", ["-m0=BZip2"])] {
+            let a = t.path + "/\(name).7z"
+            #expect(run(sevenZip, ["a", "-bd", "-snl", "-mhc=off"] + sw + [a, "src"], cwd: t.path).status == 0)
+            let bytes = try [UInt8](Data(contentsOf: URL(fileURLWithPath: a)))
+            var x: UInt64 = 0x9E37_79B9
+            for round in 0..<12 {
+                var damaged = bytes
+                for _ in 0..<(1 + round % 4) {
+                    x ^= x << 13; x ^= x >> 7; x ^= x << 17
+                    let pos = 32 + Int(x % UInt64(max(1, bytes.count / 2)))  // data area
+                    damaged[pos] ^= UInt8(truncatingIfNeeded: x >> 32) | 1
+                }
+                let p = t.path + "/d-\(round)-\(name).7z"
+                FileManager.default.createFile(atPath: p, contents: Data(damaged))
+                if let r = try? Xipper.test(URL(fileURLWithPath: p)) { #expect(!r.isOK, "\(name) round \(round)") }
+            }
+        }
+    }
+
+    @Test func quarantineIsPropagated() throws {
+        let t = TempDir()
+        tree(t, bigSize: 1 << 16)
+        let a = try create(t, "q.7z")
+        let value = "0083;5f000000;Safari;"
+        #expect(setxattr(a.path, "com.apple.quarantine", value, value.utf8.count, 0, 0) == 0)
+        t.mkdir("d")
+        let r = try Xipper.extract(a, to: t.url("d"))
+        for f in ["readme.txt", "data/big.bin", "ls"] {
+            #expect(ExtractionContext.readXattr(r.destination.path + "/" + f, "com.apple.quarantine") != nil, "\(f)")
+        }
     }
 
     /// Hand-made headers that lie: offsets beyond the end, absurd counts, cyclic coder graphs.
