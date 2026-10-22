@@ -518,7 +518,7 @@ final class Connection {
     func write(_ bytes: UnsafeRawBufferPointer) -> Bool {
         var off = 0
         while off < bytes.count {
-            let n = send(fd, bytes.baseAddress! + off, bytes.count - off, 0)
+            let n = send(fd, bytes.baseAddress! + off, min(bytes.count - off, 1 << 30), 0)
             if n < 0 { if errno == EINTR { continue }; return false }
             off += n
         }

@@ -418,7 +418,7 @@ final class AppendFile: XizOutput {
     func write(_ src: UnsafeRawBufferPointer) throws {
         var done = 0
         while done < src.count {
-            let n = pwrite(fd, src.baseAddress! + done, src.count - done, off_t(position))
+            let n = pwrite(fd, src.baseAddress! + done, min(src.count - done, 1 << 30), off_t(position))
             if n < 0 { if errno == EINTR { continue }; throw XipperError.posix("write", nil) }
             done += n
             position += Int64(n)

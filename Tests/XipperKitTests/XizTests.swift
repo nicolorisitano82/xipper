@@ -68,6 +68,25 @@ struct XizTests {
         #expect(throws: XipperError.self) { _ = try Xipper.list(t.url("short.xiz")) }
     }
 
+    /// Files above `streamFrom` are written frame by frame (an assembled 3 GB file once failed
+    /// with EINVAL: write(2) refuses more than 2 GB per call).
+    @Test func bigFilesStreamOnExtractAndVerify() throws {
+        let t = TempDir()
+        let line = Array("2026-10-22,s3://bucket/path/object-0000,1234,STANDARD\n".utf8)
+        var big = [UInt8]()
+        big.reserveCapacity(80 << 20)
+        var n = 0
+        while big.count < 80 << 20 { big += line; big[big.count - 3] = UInt8(48 + n % 10); n += 1 }
+        t.write("src/inventory.csv", big)
+        _ = try create(t)
+        #expect(UInt64(big.count) > XizExtractor.streamFrom)
+        let report = try Xipper.test(t.url("a.xiz"), digests: true)
+        #expect(report.isOK && report.digests["src/inventory.csv"] != nil)
+        t.mkdir("out")
+        try Xipper.extract(t.url("a.xiz"), to: t.url("out"), mode: .into)
+        #expect(FileManager.default.contentsEqual(atPath: t.path + "/out/src/inventory.csv", andPath: t.path + "/src/inventory.csv"))
+    }
+
     // MARK: encryption
 
     @Test func argon2idMatchesTheReferenceVector() throws {

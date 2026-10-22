@@ -22,8 +22,10 @@ struct RobustnessTests {
         o.format = format
         o.level = format == .tarXz ? 9 : 9
         let out = t.url("out." + format.fileExtension)
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.15) { cancel.cancel() }
-        #expect(throws: XipperError.cancelled) { try Xipper.create(from: [t.url("src")], to: out, options: o, cancel: cancel) }
+        // Cancelled at the first progress report: the job is surely under way, whatever the machine's speed.
+        #expect(throws: XipperError.cancelled) {
+            try Xipper.create(from: [t.url("src")], to: out, options: o, progress: { _ in cancel.cancel() }, cancel: cancel)
+        }
         #expect(!FileManager.default.fileExists(atPath: out.path))
         #expect(leftovers(t.path).isEmpty)
     }

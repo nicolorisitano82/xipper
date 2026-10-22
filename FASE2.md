@@ -301,3 +301,11 @@ Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi 
 - **«Massimo» per XIZ:** passa da zstd 19 a 12, 6 volte più veloce (1,5 s contro 9,5 s) per un archivio più grande del 5–6%. Il 19 resta disponibile da CLI (`-l 19`). Frame da 8 o 16 MiB guadagnano solo circa l'1% e non sono stati adottati.
 - **Contesti zstd:** riusati per tutto l'archivio invece di crearne uno per frame.
 - **Barra dei menu:** il glifo era un SVG da 40 pt e appariva enorme; ora il template è da 18 pt, come i simboli di sistema.
+
+## Hotfix 1.0.2 (22/10/2026)
+
+- **Estrazione XIZ di file oltre 2 GB:** falliva con "write failed: Invalid argument", perché `write(2)` su macOS rifiuta più di 2 GB per chiamata e l'estrattore XIZ consegnava il file intero (3,25 GB in memoria). Ora:
+  - i file XIZ oltre 64 MiB si estraggono e si verificano in streaming, frame per frame, con decodifica anticipata a finestra (3,25 GB in 2,4 s con 103 MB di memoria);
+  - ogni scrittura su file e socket è limitata a 1 GiB per chiamata.
+- **Finestra di creazione:** chiusa e riaperta tornava identica, con il lavoro finito ancora visibile. Ora alla chiusura la home si azzera; un lavoro in corso passa nel pannello dei lavori.
+- **Test:** quello sull'annullamento della creazione dipendeva dai tempi (annullava dopo 0,15 s fissi). Ora annulla al primo avanzamento ed è deterministico. Aggiunto un test con un file XIZ oltre la soglia di streaming.

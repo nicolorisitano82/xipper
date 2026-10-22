@@ -140,7 +140,7 @@ final class OutputFile: @unchecked Sendable {
         try bytes.withUnsafeBytes { b in
             var done = 0
             while done < b.count {
-                let n = pwrite(fd, b.baseAddress! + done, b.count - done, offset + Int64(done))
+                let n = pwrite(fd, b.baseAddress! + done, min(b.count - done, 1 << 30), offset + Int64(done))
                 if n < 0 { if errno == EINTR { continue }; throw XipperError.posix("write", tempPath) }
                 done += n
             }
@@ -167,7 +167,7 @@ final class OutputFile: @unchecked Sendable {
     private func rawWrite(_ p: UnsafeRawPointer, _ count: Int) throws {
         var done = 0
         while done < count {
-            let n = Darwin.write(fd, p + done, count - done)
+            let n = Darwin.write(fd, p + done, min(count - done, 1 << 30))  // write(2) refuses more than 2 GB at once
             if n < 0 { if errno == EINTR { continue }; throw XipperError.posix("write", tempPath) }
             done += n
         }

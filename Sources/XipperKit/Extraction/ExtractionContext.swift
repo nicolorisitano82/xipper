@@ -640,7 +640,7 @@ private final class FDWriter {
     private func raw(_ p: UnsafeRawPointer, _ n: Int) throws {
         var done = 0
         while done < n {
-            let r = Darwin.write(fd, p + done, n - done)
+            let r = Darwin.write(fd, p + done, min(n - done, 1 << 30))  // write(2) refuses more than 2 GB at once
             if r < 0 { if errno == EINTR { continue }; throw XipperError.posix("write", entry) }
             done += r
         }

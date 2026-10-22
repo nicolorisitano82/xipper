@@ -76,6 +76,11 @@ struct HomeView: View {
         .navigationSubtitle(items.isEmpty || job != nil ? "" : String(localized: "\(items.count) elementi · \(totalSize.byteText)"))
         .toolbar { toolbar }
         .sheet(isPresented: Bindable(appState).showOnboarding) { OnboardingView() }
+        // Closing the window starts over next time: a running job moves to the HUD, a finished
+        // one is dismissed, the dropped items are cleared.
+        .onDisappear {
+            if job?.isRunning == true { hidePanel() } else { closePanel() }
+        }
         .sheet(isPresented: $askPassword) {
             PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }

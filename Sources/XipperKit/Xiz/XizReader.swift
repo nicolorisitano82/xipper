@@ -187,7 +187,7 @@ final class XizArchive: @unchecked Sendable {
 }
 
 /// Keeps decoded frames while files still need them; decodes ahead in parallel.
-private final class FrameCache: @unchecked Sendable {
+final class FrameCache: @unchecked Sendable {
     private let archive: XizArchive
     private let workload: Workload
     private let cancel: CancellationToken?
@@ -269,6 +269,23 @@ enum XizExtractor {
         for (pos, i) in files.enumerated() {
             try cancel?.check()
             let e = entries[i]
+            // Big files are streamed frame by frame instead of being assembled in memory.
+            if e.size > streamFrom {
+                try writes.wait()
+                guard let full = ctx.sanitize(e.path) else { continue }
+                do {
+                    try ctx.writeFile(ctx.layout(full), permissions: e.mode, modified: e.modified, declaredSize: Int64(e.size),
+                                      xattrs: e.xattrs) { sink in
+                        try stream(e, from: a, cache: cache, window: window, evictable: { lastUse[$0].map { $0 <= pos } ?? true }) {
+                            try sink($0)
+                        }
+                    }
+                } catch let XipperError.unsafeEntry(p, r) {
+                    ctx.skip(p, r, .throughSymlink)
+                }
+                tracker.add(bytes: Int64(e.size), entries: 1, current: e.path)
+                continue
+            }
             let maxFrame = e.extents.map { Int($0.frame) }.max() ?? -1
             if maxFrame > prefetched {
                 let upTo = min(a.catalog.frames.count, maxFrame + window)
@@ -304,6 +321,37 @@ enum XizExtractor {
         try ctx.finalize()
     }
 
+    /// Files above this size are extracted and hashed as a stream (memory stays at a few frames).
+    static let streamFrom: UInt64 = 64 << 20
+
+    /// Passes a file's content to `body` extent by extent, decoding `window` extents' frames ahead
+    /// in parallel and dropping frames this file no longer needs (when `evictable` agrees); checks
+    /// the stored digest at the end.
+    static func stream(_ e: Xiz.Entry, from a: XizArchive, cache: FrameCache, window: Int, evictable: (Int) -> Bool,
+                       _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
+        var left: [Int: Int] = [:]
+        for x in e.extents { left[Int(x.frame), default: 0] += 1 }
+        var digest = XizContentDigest(keys: a.keys)
+        var k = 0
+        while k < e.extents.count {
+            let batch = e.extents[k..<min(e.extents.count, k + window)]
+            try cache.prefetch(Array(Set(batch.map { Int($0.frame) })).sorted())
+            for x in batch {
+                let fi = Int(x.frame)
+                let f = try cache.frame(fi)
+                try f.withUnsafeBytes { raw in
+                    let piece = UnsafeRawBufferPointer(rebasing: raw[Int(x.offset)..<Int(x.offset + x.length)])
+                    digest.update(piece)
+                    try body(piece)
+                }
+                left[fi]! -= 1
+                if left[fi] == 0 && evictable(fi) { cache.evict(fi) }
+            }
+            k += batch.count
+        }
+        if let h = e.sha256, digest.finish() != h { throw XipperError.integrity(entry: e.path, detail: "SHA-256 mismatch") }
+    }
+
     /// Checks every frame (header, CRC-32C, decompression to the exact size) and, with `digests`,
     /// the SHA-256 of every file.
     static func test(_ a: XizArchive, workload: Workload, tracker: ProgressTracker, digests: DigestCollector?,
@@ -332,29 +380,20 @@ enum XizExtractor {
             }
             return failures
         }
-        // With digests: assemble each file (frames decoded ahead in parallel).
+        // With digests: each file streams through (frames decoded ahead in parallel, a window at a time).
         let cache = FrameCache(a, workload: workload, cancel: cancel)
-        try cache.prefetch(Array(a.catalog.frames.indices))
-        for e in entries where e.type == .file {
+        let window = max(2, workload.workerCount * 2)
+        var lastUse: [Int: Int] = [:]
+        let fileEntries = entries.filter { $0.type == .file }
+        for (pos, e) in fileEntries.enumerated() { for x in e.extents { lastUse[Int(x.frame)] = pos } }
+        for (pos, e) in fileEntries.enumerated() {
             try cancel?.check()
             do {
-                // SHA-256 for the manifest; the stored digest is keyed in encrypted archives.
                 var h = SHA256()
-                var keyed = a.keys?.fileDigest()
-                for x in e.extents {
-                    let f = try cache.frame(Int(x.frame))
-                    f.withUnsafeBytes {
-                        let piece = UnsafeRawBufferPointer(rebasing: $0[Int(x.offset)..<Int(x.offset + x.length)])
-                        h.update(bufferPointer: piece)
-                        keyed?.update(data: piece)
-                    }
+                try stream(e, from: a, cache: cache, window: window, evictable: { lastUse[$0].map { $0 <= pos } ?? true }) {
+                    h.update(bufferPointer: $0)
                 }
-                let digest = keyed.map { Array($0.finalize()) } ?? Array(h.finalize())
-                if let expected = e.sha256, expected != digest {
-                    failures.append(SkippedEntry(path: e.path, error: .integrity(entry: e.path, detail: "SHA-256 mismatch")))
-                } else {
-                    digests?.add(e.path, h)
-                }
+                digests?.add(e.path, h)
             } catch let err as XipperError where err != .cancelled {
                 failures.append(SkippedEntry(path: e.path, error: err))
             }
@@ -377,4 +416,21 @@ enum XizExtractor {
         }
         return EntryContent(entry: a.entries[i], data: data, truncated: UInt64(data.count) < e.size)
     }
+}
+
+/// SHA-256 of file content, or HMAC-SHA-256 under the archive's key when encrypted, computed as
+/// the content streams by.
+struct XizContentDigest {
+    private var plain: SHA256?
+    private var keyed: HMAC<SHA256>?
+
+    init(keys: XizKeys?) {
+        if let keys { keyed = keys.fileDigest() } else { plain = SHA256() }
+    }
+
+    mutating func update(_ b: UnsafeRawBufferPointer) {
+        if keyed != nil { keyed!.update(data: b) } else { plain!.update(bufferPointer: b) }
+    }
+
+    func finish() -> [UInt8] { keyed.map { Array($0.finalize()) } ?? Array(plain!.finalize()) }
 }
