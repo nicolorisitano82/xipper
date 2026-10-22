@@ -151,6 +151,151 @@ final class Bzip2Decoder: StreamTransform {
     }
 }
 
+/// bzip2 decoded block by block in parallel, as lbzip2 does: the 48-bit block magics are found at
+/// any bit offset (CXipShims/bzip2par.c), each block is decoded as a stream of its own with its
+/// CRC checked, and the stream CRC is checked against the blocks' CRCs. A magic that is really
+/// data makes its block fail, and the block is retried merged with the next one.
+/// Single-threaded libbz2 decodes ~40 MB/s; this scales with the cores.
+final class ParallelBzip2Decoder: StreamTransform {
+    private var buf: [UInt8] = []
+    private var pos = 0  // bit position in `buf` of the next header or magic
+    private var level = 0  // 0: expecting a stream header
+    private var combined: UInt32 = 0
+    private var streams = 0
+    private let window: Int
+
+    /// `window`: compressed bytes buffered before a parallel round (tests use small ones).
+    init(window: Int = 32 << 20) { self.window = window }
+
+    func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws {
+        buf.append(contentsOf: input)
+        if buf.count - pos / 8 >= window { try drain(final: false, sink) }
+    }
+
+    func finish(_ sink: ByteSink) throws {
+        try drain(final: true, sink)
+        if level != 0 || streams == 0 || (pos + 7) / 8 < buf.count { throw XipperError.corrupt("truncated bzip2 stream") }
+    }
+
+    private func bits(_ at: Int, _ n: Int32) -> UInt64 { buf.withUnsafeBufferPointer { xs_bz2_bits($0.baseAddress, at, n) } }
+
+    /// One step of the plan: a block (start magic → next mark) or the end of a stream.
+    private enum Item { case block(start: Int, end: Int, level: Int), end(at: Int) }
+
+    private func drain(final: Bool, _ sink: ByteSink) throws {
+        let total = buf.count * 8
+        // 1. Plan from `pos`, across streams, as far as the buffered input goes.
+        var items: [Item] = []
+        var p = pos, lvl = level
+        plan: while true {
+            if lvl == 0 {
+                let i = (p + 7) / 8
+                if i == buf.count { break }
+                guard i + 4 <= buf.count else { break }
+                guard Self.isHeader(buf, i) else { throw XipperError.corrupt("invalid bzip2 data") }
+                lvl = Int(buf[i + 3] - 0x30)
+                p = (i + 4) * 8
+                continue
+            }
+            if p + 80 > total { break }
+            let magic = bits(p, 48)
+            if magic == 0x1772_4538_5090 {
+                items.append(.end(at: p))
+                p = (p + 80 + 7) / 8 * 8
+                lvl = 0
+                continue
+            }
+            guard magic == 0x3141_5926_5359 else { throw XipperError.corrupt("invalid bzip2 data") }
+            // The block ends at the next magic; an end magic counts only if a stream header (or
+            // the end of the data) follows it, otherwise it is data.
+            var from = p + 48
+            while true {
+                var kind: Int32 = 0
+                let at = buf.withUnsafeBufferPointer { xs_bz2_next_magic($0.baseAddress, $0.count, from, &kind) }
+                if at < 0 || at + 80 > total { break plan }
+                if kind == 2 {
+                    let next = (at + 80 + 7) / 8
+                    if next + 4 > buf.count && !final { break plan }
+                    if next < buf.count && !(next + 4 <= buf.count && Self.isHeader(buf, next)) { from = at + 1; continue }
+                }
+                items.append(.block(start: p, end: at, level: lvl))
+                p = at
+                break
+            }
+        }
+
+        // 2. Decode every block in parallel.
+        let blocks = items.compactMap { if case let .block(s, e, l) = $0 { (s, e, l) } else { nil } }
+        var decoded = try decodeBlocks(blocks)
+
+        // 3. In order: emit, fold the block CRCs, check each stream's CRC. A block that fails is
+        //    retried joined with the following ones (its end was a magic inside the data).
+        var b = 0
+        var k = 0
+        while k < items.count {
+            switch items[k] {
+            case .end(let at):
+                let stored = UInt32(bits(at + 48, 32))
+                guard stored == combined else { throw XipperError.checksumMismatch(entry: "bzip2 stream", expected: stored, actual: combined) }
+                pos = (at + 80 + 7) / 8 * 8
+                level = 0
+                combined = 0
+                streams += 1
+                k += 1
+            case let .block(start, _, lvl):
+                var (out, ok) = decoded[b]
+                var j = k
+                while !ok {
+                    j += 1
+                    guard j < items.count, case let .block(_, end, _) = items[j] else { break }
+                    (out, ok) = try decodeBlocks([(start, end, lvl)])[0]
+                }
+                guard ok else {
+                    if j < items.count || final { throw XipperError.corrupt("invalid bzip2 data") }
+                    k = items.count  // the rest of this block is not buffered yet
+                    continue
+                }
+                let crc = UInt32(bits(start + 48, 32))
+                combined = (combined << 1 | combined >> 31) ^ crc
+                try emit(out, to: sink)
+                level = lvl
+                if case let .block(_, end, _) = items[j] { pos = end }
+                b += j - k + 1
+                k = j + 1
+            }
+        }
+        decoded = []
+        // Drop what has been consumed.
+        let drop = pos / 8
+        if drop > 0 { buf.removeSubrange(0..<drop); pos -= drop * 8 }
+    }
+
+    private static func isHeader(_ b: [UInt8], _ i: Int) -> Bool {
+        b[i] == 0x42 && b[i + 1] == 0x5A && b[i + 2] == 0x68 && (0x31...0x39).contains(b[i + 3])
+    }
+
+    private func decodeBlocks(_ blocks: [(Int, Int, Int)]) throws -> [([UInt8], Bool)] {
+        let results = Slots<([UInt8], Bool)>(blocks.count)
+        try buf.withUnsafeBufferPointer { b in
+            let base = b.baseAddress!
+            try parallelFor(blocks.count, workload: .interactive, cancel: nil) { k in
+                let (start, end, level) = blocks[k]
+                var cap = level * 100_000 * 2
+                while true {
+                    var out = [UInt8](unsafeUninitializedCapacity: cap) { _, n in n = cap }
+                    var n = cap
+                    let r = out.withUnsafeMutableBufferPointer { xs_bz2_decode_block(base, start, end, Int32(level), $0.baseAddress, &n) }
+                    // RLE1 can expand a block up to ~52 times.
+                    if r == BZ_OUTBUFF_FULL && cap < level * 100_000 * 64 { cap *= 4; continue }
+                    if r == BZ_OK { out.removeSubrange(n...); results[k] = (out, true) } else { results[k] = ([], false) }
+                    return
+                }
+            }
+        }
+        return (0..<blocks.count).map { results.take($0)! }
+    }
+}
+
 // MARK: - liblzma (xz, ZIP LZMA)
 
 final class LZMACoder: StreamTransform {

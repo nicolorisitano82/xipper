@@ -688,7 +688,7 @@ struct SZFolderDecoder {
             guard c.props.count == 1 else { throw XipperError.corrupt("bad 7z LZMA2 properties") }
             return TransformSource(inputs[0], try SZLZMA.decoder2(prop: c.props[0], unpackSize: size))
         case M.ppmd: return try PPMdSource(inputs[0], props: c.props, size: size)
-        case M.bzip2: return TransformSource(inputs[0], try Bzip2Decoder())
+        case M.bzip2: return TransformSource(inputs[0], ParallelBzip2Decoder())
         case M.deflate: return TransformSource(inputs[0], try InflateDecoder(gzip: false))
         case M.zstd: return TransformSource(inputs[0], try ZstdDecoder())
         case M.bcj2: return try BCJ2Source(inputs: inputs, size: size)

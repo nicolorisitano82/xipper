@@ -182,6 +182,24 @@ struct XizTests {
         }
     }
 
+    /// Data is stored by type (extension, name, size, path); the catalog keeps the scan order.
+    @Test func dataIsStoredSortedByTypeCatalogIsNot() throws {
+        let t = TempDir()
+        t.write("src/a/one.txt", "testo uno\n")
+        t.write("src/b/data.bin", sampleData(100, seed: 1))
+        t.write("src/c/two.txt", "testo due\n")
+        t.write("src/d/one.json", "{}\n")
+        _ = try create(t)
+        let a = try XizArchive(path: t.url("a.xiz").path)
+        #expect(a.catalog.entries.filter { $0.type == .file }.map(\.path) == ["src/a/one.txt", "src/b/data.bin", "src/c/two.txt", "src/d/one.json"])
+        let offset = Dictionary(uniqueKeysWithValues: a.catalog.entries.compactMap { e in e.extents.first.map { (e.path, $0.offset) } })
+        // bin < json < txt; within txt: one.txt before two.txt.
+        #expect(offset["src/b/data.bin"]! < offset["src/d/one.json"]!)
+        #expect(offset["src/d/one.json"]! < offset["src/a/one.txt"]!)
+        #expect(offset["src/a/one.txt"]! < offset["src/c/two.txt"]!)
+        #expect(try Xipper.test(t.url("a.xiz")).isOK)
+    }
+
     // MARK: dictionaries (1.2)
 
     /// Many small text files: the case a dictionary is for.

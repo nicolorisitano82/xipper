@@ -335,9 +335,9 @@ enum ZipEntryDecoder {
             switch Zip.Method(rawValue: method) {
             case .store: decoder = PassthroughTransform()
             case .deflate: decoder = try InflateDecoder(gzip: false)
-            case .bzip2: decoder = try Bzip2Decoder()
+            case .bzip2: decoder = ParallelBzip2Decoder()
             case .zstd: decoder = try ZstdDecoder()
-            case .xz: decoder = try LZMACoder.xzDecoder(threads: 1)
+            case .xz: decoder = XzDecoder(threads: 1)
             case .lzma: decoder = nil  // created from the first piece (properties header)
             case .deflate64: throw XipperError.unsupported("Deflate64 compression (\(name))")
             default: throw XipperError.unsupported("compression method \(method) (\(name))")

@@ -90,6 +90,15 @@ enum XizWriter {
         return XizDictionary.train(samples)
     }
 
+    /// Indexes of the items in the order their data is stored: extension, file name, size, path.
+    static func similarityOrder(_ items: [ArchiveItem]) -> [Int] {
+        let keys = items.map { item -> (String, String, Int64, String) in
+            let name = (item.name as NSString).lastPathComponent
+            return ((name as NSString).pathExtension.lowercased(), name, item.size, item.name)
+        }
+        return items.indices.sorted { keys[$0] < keys[$1] }
+    }
+
     /// The chunker's gear table: derived from the archive key when encrypted.
     static func gear(_ keys: XizKeys?) -> [UInt64] {
         FastCDC.gearTable(seed: keys.map { k in
@@ -219,6 +228,33 @@ enum XizWriter {
             }
             return extents
         }
+        // Data goes into frames sorted by type (extension, name, size, path), as 7-Zip's "sort by
+        // type": similar files end up next to each other in the same frame. On 20,000 source
+        // files this makes the archive 16% smaller at zstd 3 (docs/BENCHMARK.md). Only the order
+        // of the data changes; the catalog keeps the entries in their own order.
+        var placed: [Int: [Xiz.Extent]] = [:]
+        for i in Self.similarityOrder(items) {
+            guard case let .file(size) = items[i].kind, let h = digests[i] else { continue }
+            var extents: [Xiz.Extent] = []
+            if let copy = seenFiles[h.digest] {
+                extents = copy  // identical content stored once
+            } else if h.chunks.isEmpty {
+                extents = place(i, from: 0, length: size)
+            } else {
+                for (off, len, d) in h.chunks {
+                    if let copy = seenChunks[d] {
+                        extents += copy
+                    } else {
+                        let p = place(i, from: off, length: Int64(len))
+                        seenChunks[d] = p
+                        extents += p
+                    }
+                }
+                extents = Self.merged(extents)
+            }
+            seenFiles[h.digest] = extents
+            placed[i] = extents
+        }
         for (i, item) in items.enumerated() {
             let t = item.modified.timeIntervalSince1970
             let sec = Int64(t.rounded(.down))
@@ -233,25 +269,8 @@ enum XizWriter {
                 e.link = target
             case let .file(size):
                 e.size = UInt64(size)
-                guard let h = digests[i] else { break }  // empty file
-                e.sha256 = h.digest
-                if let copy = seenFiles[h.digest] {
-                    e.extents = copy  // identical content stored once
-                } else if h.chunks.isEmpty {
-                    e.extents = place(i, from: 0, length: size)
-                } else {
-                    for (off, len, d) in h.chunks {
-                        if let copy = seenChunks[d] {
-                            e.extents += copy
-                        } else {
-                            let placed = place(i, from: off, length: Int64(len))
-                            seenChunks[d] = placed
-                            e.extents += placed
-                        }
-                    }
-                    e.extents = Self.merged(e.extents)
-                }
-                seenFiles[h.digest] = e.extents
+                e.sha256 = digests[i]?.digest  // nil: empty file
+                e.extents = placed[i] ?? []
             }
             if extendedAttributes, e.type != .symlink { e.xattrs = ExtendedAttributes.read(item.sourcePath) }
             entries.append(e)

@@ -1,4 +1,5 @@
 import CryptoKit
+import CXipShims
 import Foundation
 import Synchronization
 
@@ -54,35 +55,49 @@ public enum PAR2 {
         while files.indices.reduce(0, { $0 + Int((sizes[$1] + Int64(sliceSize) - 1) / Int64(sliceSize)) }) > 32768 { sliceSize *= 2 }
         let tracker = ProgressTracker(totalBytes: total * 2, totalEntries: files.count, handler: progress)
 
-        // File descriptions and slice checksums.
+        // File descriptions and slice checksums. MD5 is sequential: one task hashes the whole file
+        // while the others hash its slices (MD5 + CRC-32 each), so the whole-file hash bounds the time.
         var descs: [FileDesc] = []
         for (i, url) in files.enumerated() {
             try cancel?.check()
             let r = try FileReader(path: url.path)
-            var whole = Insecure.MD5()
-            var head = Insecure.MD5()
-            var checks: [(md5: [UInt8], crc: UInt32)] = []
-            let buf = UnsafeMutableRawPointer.allocate(byteCount: sliceSize, alignment: 16)
-            defer { buf.deallocate() }
-            var off: Int64 = 0
-            while off < r.size {
-                let n = try r.readSome(at: off, into: buf, count: min(sliceSize, Int(r.size - off)))
-                if n == 0 { break }
-                if off < 16384 { head.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: min(n, 16384 - Int(off)))) }
-                whole.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: n))
-                if n < sliceSize { memset(buf + n, 0, sliceSize - n) }  // the last slice is padded with zeros
-                let slice = UnsafeRawBufferPointer(start: buf, count: sliceSize)
-                checks.append((Array(Insecure.MD5.hash(data: slice)), CRC32.checksum(slice)))
-                off += Int64(n)
+            let size = r.size
+            let count = Int((size + Int64(sliceSize) - 1) / Int64(sliceSize))
+            let checks = Slots<(md5: [UInt8], crc: UInt32)>(count)
+            let wholes = Mutex<(md5: [UInt8], head: [UInt8])>(([], []))
+            try parallelFor(count + 1, workload: .interactive, cancel: cancel) { k in
+                if k == 0 {
+                    var whole = Insecure.MD5()
+                    var head = Insecure.MD5()
+                    let chunk = 4 << 20
+                    let buf = UnsafeMutableRawPointer.allocate(byteCount: chunk, alignment: 16)
+                    defer { buf.deallocate() }
+                    var off: Int64 = 0
+                    while off < size {
+                        try cancel?.check()
+                        let n = try r.readSome(at: off, into: buf, count: min(chunk, Int(size - off)))
+                        if n == 0 { break }
+                        if off < 16384 { head.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: min(n, 16384 - Int(off)))) }
+                        whole.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: n))
+                        off += Int64(n)
+                    }
+                    wholes.withLock { $0 = (Array(whole.finalize()), Array(head.finalize())) }
+                    return
+                }
+                let off = Int64(k - 1) * Int64(sliceSize)
+                let n = Int(min(Int64(sliceSize), size - off))
+                var slice = try r.read(at: off, count: n)
+                if n < sliceSize { slice += [UInt8](repeating: 0, count: sliceSize - n) }  // the last slice is padded with zeros
+                checks[k - 1] = (Array(Insecure.MD5.hash(data: slice)), CRC32.checksum(slice))
                 tracker.add(bytes: Int64(n))
             }
+            let (md5, head16) = wholes.withLock { $0 }
             let name = url.lastPathComponent
-            let head16 = Array(head.finalize())
             var idInput = head16
             idInput += le(UInt64(sizes[i]))
             idInput += Array(name.utf8)
-            descs.append(FileDesc(id: Array(Insecure.MD5.hash(data: idInput)), md5: Array(whole.finalize()), md5_16k: head16,
-                                  length: UInt64(sizes[i]), name: name, url: url, slices: checks))
+            descs.append(FileDesc(id: Array(Insecure.MD5.hash(data: idInput)), md5: md5, md5_16k: head16,
+                                  length: UInt64(sizes[i]), name: name, url: url, slices: (0..<count).map { checks.take($0)! }))
         }
         descs.sort { $0.id.lexicographicallyPrecedes($1.id) }  // slices are numbered in file-ID order
 
@@ -486,34 +501,32 @@ enum GF16 {
         return out
     }
 
-    /// dst ^= factor · src, over little-endian 16-bit words. Large regions use two 256-entry
-    /// tables per factor (built on the stack); small ones multiply through log/exp directly,
-    /// since building the tables would cost more than the region.
+    /// dst ^= factor · src, over little-endian 16-bit words. Regions go through the NEON kernel
+    /// (CXipShims/gf16.c: nibble tables and TBL, 64 bytes per step); tiny ones multiply through
+    /// log/exp directly, since building the tables would cost more than the region.
     static func mulAdd(_ dst: UnsafeMutableRawBufferPointer, _ src: UnsafeRawBufferPointer, _ factor: UInt16) {
         guard factor != 0 else { return }
         let words = min(dst.count, src.count) / 2
-        let d = dst.baseAddress!.assumingMemoryBound(to: UInt16.self)
-        let s = src.baseAddress!
-        if words < 4096 {
-            let lf = Int(tables.log[Int(factor)])
-            tables.log.withUnsafeBufferPointer { log in
-                tables.exp.withUnsafeBufferPointer { exp in
-                    for i in 0..<words {
-                        let w = UInt16(littleEndian: s.loadUnaligned(fromByteOffset: i * 2, as: UInt16.self))
-                        if w == 0 { continue }
-                        var l = Int(log[Int(w)]) + lf
-                        if l >= 65535 { l -= 65535 }
-                        d[i] = (UInt16(littleEndian: d[i]) ^ exp[l]).littleEndian
-                    }
-                }
+        if words >= 64 {
+            withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 128) { t in
+                xs_gf16_tables(factor, t.baseAddress!)
+                xs_gf16_muladd(dst.baseAddress!.assumingMemoryBound(to: UInt8.self), src.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                               words * 2, t.baseAddress!)
             }
             return
         }
-        withUnsafeTemporaryAllocation(of: UInt16.self, capacity: 512) { t in
-            for x in 0..<256 { t[x] = mul(factor, UInt16(x)); t[256 + x] = mul(factor, UInt16(x) << 8) }
-            for i in 0..<words {
-                let w = UInt16(littleEndian: s.loadUnaligned(fromByteOffset: i * 2, as: UInt16.self))
-                d[i] = (UInt16(littleEndian: d[i]) ^ t[Int(w & 0xFF)] ^ t[256 + Int(w >> 8)]).littleEndian
+        let d = dst.baseAddress!.assumingMemoryBound(to: UInt16.self)
+        let s = src.baseAddress!
+        let lf = Int(tables.log[Int(factor)])
+        tables.log.withUnsafeBufferPointer { log in
+            tables.exp.withUnsafeBufferPointer { exp in
+                for i in 0..<words {
+                    let w = UInt16(littleEndian: s.loadUnaligned(fromByteOffset: i * 2, as: UInt16.self))
+                    if w == 0 { continue }
+                    var l = Int(log[Int(w)]) + lf
+                    if l >= 65535 { l -= 65535 }
+                    d[i] = (UInt16(littleEndian: d[i]) ^ exp[l]).littleEndian
+                }
             }
         }
     }

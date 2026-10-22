@@ -21,6 +21,12 @@ size_t xs_deflate_chunk_bound(size_t inLen);
 
 uint32_t xs_crc32_combine(uint32_t crc1, uint32_t crc2, uint64_t len2);
 
+/// PAR2 GF(2^16): 128 bytes of nibble tables for `factor`, then dst ^= factor · src
+/// (little-endian words; NEON TBL, with a portable path kept for equivalence tests).
+void xs_gf16_tables(uint16_t factor, uint8_t tables[128]);
+void xs_gf16_muladd(uint8_t *dst, const uint8_t *src, size_t bytes, const uint8_t tables[128]);
+void xs_gf16_muladd_portable(uint8_t *dst, const uint8_t *src, size_t bytes, const uint8_t tables[128]);
+
 // MARK: - streaming inflate
 
 typedef struct xs_inflate xs_inflate;
@@ -41,6 +47,14 @@ int xs_bunzip_run(xs_bunzip *s, const uint8_t *in, size_t inLen, size_t *inUsed,
                   uint8_t *out, size_t outCap, size_t *outUsed);
 int xs_bunzip_reset(xs_bunzip *s);
 void xs_bunzip_free(xs_bunzip *s);
+
+/// Parallel bzip2 decoding: the next block (kind 1) or end-of-stream (kind 2) magic at or after
+/// bit `from` (SIZE_MAX if none in the n bytes), `count` ≤ 64 bits read MSB-first, and one block
+/// (bits [start, end) from its magic) decoded as a stream of its own: BZ_OK, BZ_OUTBUFF_FULL
+/// (retry with a bigger buffer) or an error, CRC checked.
+size_t xs_bz2_next_magic(const uint8_t *p, size_t n, size_t from, int *kind);
+uint64_t xs_bz2_bits(const uint8_t *p, size_t bit, int count);
+int xs_bz2_decode_block(const uint8_t *src, size_t start, size_t end, int level, uint8_t *out, size_t *outLen);
 
 /// One-shot bzip2 compression of an independent stream (parallel bzip2 = concatenated streams).
 /// Returns compressed length, or 0 on error.

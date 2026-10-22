@@ -348,3 +348,41 @@ Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi 
   - `--no-dictionary` lo disattiva;
   - vendorizzato `dictBuilder` di zstd 1.5.7;
   - test: andata e ritorno con e senza password, con append; bit della funzione mancante; nessun dizionario sotto soglia o a livello 3.
+
+## Ottimizzazioni ARM64/NEON (23/10/2026)
+
+Profilate con `sample` le operazioni del corpus di benchmark e PAR2 su 512 MB; numeri in [docs/BENCHMARK.md](docs/BENCHMARK.md).
+
+- **PAR2, GF(2^16) in NEON** (`Sources/CXipShims/gf16.c`):
+  - quattro tabelle di nibble da 16 byte per fattore, divise in byte bassi e alti;
+  - `vqtbl1q_u8` cerca 16 nibble alla volta, `veor3q_u8` (FEAT_SHA3, presente su tutti gli M) unisce i risultati;
+  - c'è un percorso portabile per i test di equivalenza;
+  - MD5 delle slice in parallelo con l'MD5 del file;
+  - creazione da 4,4 a 1,9 s, file identici byte per byte.
+- **bzip2 in parallelo** (`ParallelBzip2Decoder`, `Sources/CXipShims/bzip2par.c`):
+  - i magic a 48 bit dei blocchi si trovano a qualunque offset di bit, con un prefiltro a un accesso in tabella per byte;
+  - ogni blocco si decodifica come uno stream a sé (con il suo CRC) e i CRC dei blocchi si ricombinano in quello dello stream;
+  - un magic falso dentro i dati fa fallire il suo blocco, che si riprova unito al successivo;
+  - circa 5× sui tar.bz2 di Xipper e di `bzip2`; vale anche per ZIP (metodo 12) e 7z.
+- **xz con l'assembler ARM64 di 7-Zip** (`XzDecoder`):
+  - contenitore xz verificato come fa liblzma: CRC di header e blocchi, padding, check CRC-32/CRC-64/SHA-256, indice e footer;
+  - LZMA2 decodificato dal `LzmaDecOpt.S` già incluso;
+  - 1,31× sugli stream a blocco unico;
+  - filtri BCJ/delta e stream multiblocco con più thread passano a liblzma.
+- **Esclusi, con misura:**
+  - il match finder di LZMA (limitato dalla latenza della memoria);
+  - la GPU (nessun punto caldo che ripaghi il trasferimento);
+  - CRC-32/CRC-32C, deflate, zstd, AES e SHA-256, già accelerati.
+- **Test:** suite "Accelerated paths", 5 test:
+  - NEON = portabile = log/exp su lunghezze e allineamenti diversi;
+  - bzip2 parallelo = libbz2 su stream singoli, concatenati, vuoti e multistream di Xipper, con finestre piccole e grandi, più dati danneggiati e troncati;
+  - xz = liblzma su 9 input (check, BCJ, concatenati con padding, multiblocco, vuoto).
+
+## XIZ: ordinamento per somiglianza (23/10/2026)
+
+- **Cosa fa:** i dati dei file vanno nei frame ordinati per estensione, nome, dimensione e percorso (`XizWriter.similarityOrder`); il catalogo resta nell'ordine di scansione.
+- **Effetto:** file simili condividono i frame da 4 MiB, −6,3% su 20.000 sorgenti a ogni livello ([docs/BENCHMARK.md](docs/BENCHMARK.md)). Vale anche per gli append.
+- **Formato:** nessuna modifica; la specifica ora dice che l'ordine dei dati è una scelta di chi scrive.
+- **Alternative misurate:** MinHash del contenuto (peggio del nome), sola estensione, estensione e dimensione.
+- **Costo:** l'estrazione di una sola cartella può dover decomprimere più frame, perché i suoi file sono sparsi per tipo.
+- **Test:** `dataIsStoredSortedByTypeCatalogIsNot`.

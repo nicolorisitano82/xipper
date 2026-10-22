@@ -93,7 +93,9 @@ not** use it to decide what to extract.
   16-byte tag (§6.4). The CRC covers the bytes as written (ciphertext and tag), so damage can be
   located without the password.
 
-Writers use 4 MiB frames: small files share a frame, big files span several.
+Writers use 4 MiB frames: small files share a frame, big files span several. The order of data in
+the frames is the writer's choice (Xipper sorts by extension, name, size and path, so similar files
+share frames); readers follow the extents and never depend on it.
 
 ## 5. Catalog
 

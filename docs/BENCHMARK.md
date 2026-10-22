@@ -44,3 +44,35 @@ Con l'API di zstd, frame da 4 MiB e livello 12, un dizionario "attaccato" (il de
 del 3%, uno caricato nella finestra (`ZSTD_dictForceLoad`) migliora dell'1,4%. Il dizionario rende
 molto di più sui file compressi uno per uno (−23%), ma il frame da 4 MiB condiviso resta più
 piccolo di entrambi.
+
+### Ottimizzazioni ARM64 (23/10/2026)
+
+Apple M3 Max; tempo di `xipper`, cache calda, miglior tempo su tre esecuzioni.
+
+| Operazione | Prima | Dopo | Come |
+|---|---|---|---|
+| `par2 create`, 512 MB, 10% | 4,40 s (28 s CPU) | 1,90 s (7,8 s CPU) | GF(2^16) in NEON (`TBL` su tabelle di nibble, `EOR3`); MD5 delle slice in parallelo con quello del file |
+| `test` tar.bz2 di Xipper, 316 MB | 7,51 s | 1,51 s | blocchi bzip2 decodificati in parallelo |
+| `test` tar.bz2 di `bzip2 -9`, 316 MB | (un solo thread) | 1,23 s | idem: i blocchi si trovano a qualunque offset di bit |
+| `test` tar.xz di `xz -T1`, 234 MB | 1,94 s | 1,48 s | ciclo ARM64 di 7-Zip (`LzmaDecOpt.S`) al posto di liblzma |
+| `test` tar.xz di Xipper (multiblocco) | 0,31 s | 0,31 s | resta liblzma multi-thread |
+
+Dove va il tempo che resta:
+- creazione di tar.xz e 7z: 68% in `bt_find_func`, il match finder di LZMA, che insegue puntatori ed è limitato dalla latenza della memoria;
+- estrazione: il file system (`close`);
+- xz a blocco unico: 12% nel CRC-64 a tabelle di liblzma.
+
+### Ordinamento per tipo in XIZ (23/10/2026)
+
+Gli stessi 20.000 file sotto 64 KiB, con i loro nomi (52 MB). XIZ senza dizionario, ordine di
+scansione (cartella per cartella) contro ordine per estensione, nome, dimensione, percorso:
+
+| Livello | Ordine di scansione | Ordinato | Differenza |
+|---|---|---|---|
+| 3 | 13,93 MB | 13,04 MB | −6,4% |
+| 12 | 12,32 MB | 11,55 MB | −6,3% |
+| 19 | 11,45 MB | 10,72 MB | −6,3% |
+
+Con il dizionario si aggiunge circa lo 0,5% (11,50 MB a 12, 10,66 MB a 19). In una simulazione con
+frame da 4 MiB, un MinHash del contenuto dentro ogni estensione faceva peggio del nome (12,81
+contro 12,68 MB a livello 3), e la dimensione dopo il nome aiuta (12,22 MB).

@@ -53,15 +53,17 @@ L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le
   - accesso concorrente da più app;
   - Quick Look sul volume; server terminato con il volume montato.
 
-### 2. ⭐ Ottimizzazioni in assembler ARM64/NEON e GPU
+### 2. ⭐ Ottimizzazioni in assembler ARM64/NEON e GPU — primo giro ✅ 23/10/2026
 
-Sui punti caldi misurati:
+Misure in [BENCHMARK.md](BENCHMARK.md):
 
-- decodifica LZMA/LZMA2 (c'è già il ciclo ARM64 di 7-Zip) e deflate;
-- match finder;
-- Huffman/FSE;
-- CRC-32/CRC-32C/XXH;
-- AES.
+- ✅ **GF(2^16) di PAR2 in NEON** (tabelle di nibble e `TBL`): creazione 2,3× più veloce, output identico;
+- ✅ **bzip2 decodificato a blocchi in parallelo** (ricerca del magic a 48 bit a ogni offset di bit): circa 5×;
+- ✅ **xz con il ciclo ARM64 di 7-Zip** per gli stream a blocco unico: 1,31×; i multiblocco restano a liblzma multi-thread, che li sovrappone meglio;
+- già accelerati, nulla da guadagnare: CRC-32 (PMULL di libdeflate), CRC-32C (istruzioni ARMv8), deflate (libdeflate), zstd (percorsi NEON propri), AES e SHA-256 (hardware via CryptoKit/CommonCrypto);
+- non accelerabile con SIMD: il match finder a albero binario di LZMA (`bt_find_func`, 68% della creazione di tar.xz e 7z), limitato dalla latenza della memoria;
+- GPU: nessun punto caldo dove il trasferimento si ripaghi (PAR2 in NEON fa 13 GB/s per core);
+- da valutare: CRC-64 con PMULL (12% della decodifica xz a blocco unico).
 
 Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equivalenza e un benchmark in [BENCHMARK.md](BENCHMARK.md). GPU (Metal) solo dove il guadagno è misurabile, per esempio sulla compressione a blocchi indipendenti di XIZ.
 
@@ -75,13 +77,13 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 - ✅ XIZ 1.1 (22/10/2026): **modifica in place** con segmenti aggiunti in coda (rinomina, elimina, aggiungi senza riscrivere nulla; `compact` per recuperare spazio);
 - ✅ dati di recupero: file **PAR2** standard accanto all'archivio (vale per XIZ e per ogni altro formato);
 - ✅ XIZ 1.2 (23/10/2026): **dizionari zstd** addestrati sui file piccoli (funzione obbligatoria `dictionaries`), dal livello 9: −1% su 20.000 sorgenti;
-- ordinamento per somiglianza: è una scelta del compressore, il formato non cambia.
+- ✅ ordinamento per somiglianza (23/10/2026): i dati vanno nei frame ordinati per estensione, nome, dimensione e percorso (come il «sort by type» di 7-Zip); −6,3% su 20.000 sorgenti, il formato non cambia. Provato anche un MinHash del contenuto: fa peggio.
 
 ### 4. Robustezza e riparazione — ✅ 22/10/2026
 
 - ✅ dati di recupero **PAR2** scritti da zero dalla specifica (Reed-Solomon su GF(2^16)), compatibili con par2cmdline e MultiPar: `xipper par2 create|verify|repair`, «Crea dati di recupero» nell'inspector, opzione per crearli dopo ogni compressione;
 - ✅ «Ripara» nella vista delle voci danneggiate quando c'è un `.par2`;
-- da fare: ricerca dei blocchi spostati (come par2cmdline), accelerazione NEON di GF(2^16) (punto 2).
+- ✅ accelerazione NEON di GF(2^16) (punto 2); da fare: ricerca dei blocchi spostati (come par2cmdline).
 
 ### 5. Modifica degli archivi — ✅ 22/10/2026
 
