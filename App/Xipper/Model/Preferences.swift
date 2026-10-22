@@ -47,7 +47,7 @@ enum LevelPreset: String, CaseIterable, Identifiable {
     func level(for format: ArchiveFormat, zipMethod: ZipMethod) -> Int? {
         switch (self, format) {
         case (.balanced, _): return nil
-        case (.fast, .zip): return zipMethod == .zstd ? 1 : 1
+        case (.fast, .zip): return 1
         case (.best, .zip): return zipMethod == .zstd ? 19 : 9
         case (.fast, .tarZstd), (.fast, .zstd): return 1
         case (.best, .tarZstd), (.best, .zstd): return 19
@@ -95,11 +95,7 @@ enum Preferences {
     static var recoveryPercent: Double { min(100, max(1, defaults.double(forKey: PrefKey.recoveryPercent))) }
 
     static var zipMethod: ZipMethod {
-        switch defaults.string(forKey: PrefKey.zipMethod) {
-        case "zstd": .zstd
-        case "store": .store
-        default: .deflate
-        }
+        defaults.string(forKey: PrefKey.zipMethod).flatMap(ZipMethod.init(name:)) ?? .deflate
     }
 
     static func createOptions(format: ArchiveFormat, preset: LevelPreset, password: String?) -> CreateOptions {

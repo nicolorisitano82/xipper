@@ -116,6 +116,10 @@ public struct CreateOptions: Sendable {
     public var storeAlreadyCompressed = true
     /// tar formats: keep macOS extended attributes (Finder tags, resource forks…) as pax `SCHILY.xattr.*`.
     public var storeExtendedAttributes = true
+    /// XIZ: train a zstd dictionary for the small files when there are enough of them (1.2).
+    public var xizDictionary = true
+    /// Tests: small-file bytes needed for a dictionary (default XizDictionary.minimumSmallBytes).
+    var xizDictionaryThreshold: Int64?
     /// ZIP: also store them as AppleDouble files in `__MACOSX/`, like the Finder's "Compress"
     /// (off by default: Windows users see that folder).
     public var zipAppleDouble = false
@@ -212,7 +216,7 @@ public enum Xipper {
         if options.format == .zip && options.zipAppleDouble {
             (items, sidecars) = try appendAppleDouble(items)
         }
-        let level = options.level ?? (options.format == .zip && options.zipMethod == .zstd ? 3 : options.format.defaultLevel)
+        let level = options.level ?? (options.format == .zip ? options.zipMethod.defaultLevel : options.format.defaultLevel)
         let path = archive.standardizedFileURL.path
         if items.contains(where: { $0.sourcePath == path }) { throw XipperError.invalidArgument("the archive cannot contain itself") }
         switch options.format {
@@ -251,6 +255,7 @@ public enum Xipper {
         case .xiz:
             return try XizWriter.write(items: items, to: path, level: options.level ?? 3, password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
+                                       dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .tarLz4, .lz4, .tarBrotli, .brotli:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")

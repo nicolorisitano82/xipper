@@ -35,7 +35,7 @@ struct RoundTripTests {
         #expect(again.destination.lastPathComponent == "src 2")
     }
 
-    @Test(arguments: [ZipMethod.deflate, .zstd, .store])
+    @Test(arguments: [ZipMethod.deflate, .zstd, .store, .bzip2, .lzma, .xz])
     func zipMethodsWithPassword(method: ZipMethod) throws {
         let t = TempDir()
         makeTree(t, bigSize: 13 << 20)
@@ -93,6 +93,33 @@ struct RoundTripTests {
             let r = try Xipper.extract(t.url(name), to: t.url("o-" + name))
             let (same, diff) = treesEqual(t.path + "/src", r.destination.path)
             #expect(same, "\(name): \(diff)")
+        }
+    }
+
+    /// Methods 12, 14 and 95, with entries big enough for the chunked paths (bzip2 blocks joined
+    /// into one stream, xz blocks under one index) and the streamed LZMA path.
+    @Test(arguments: [ZipMethod.bzip2, .lzma, .xz])
+    func sevenZipAndBsdtarReadOurZipMethods(method: ZipMethod) throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 36 << 20)
+        var o = CreateOptions()
+        o.zipMethod = method
+        o.level = 1
+        o.storeAlreadyCompressed = false
+        let archive = t.url("m.zip")
+        try Xipper.create(from: [t.url("src")], to: archive, options: o)
+        #expect(try Xipper.list(archive).contains { $0.path == "src/data/big.bin" && $0.method == method.name })
+        #expect(try Xipper.test(archive).isOK)
+        t.mkdir("bsd")
+        let r = run("/usr/bin/tar", ["-xf", archive.path, "-C", t.path + "/bsd"])
+        #expect(r.status == 0, "\(r.output)")
+        var (same, diff) = treesEqual(t.path + "/src", t.path + "/bsd/src")
+        #expect(same, "\(diff)")
+        if let sevenZip {
+            let s = run(sevenZip, ["x", "-y", "-o" + t.path + "/7z", archive.path])
+            #expect(s.status == 0, "\(s.output)")
+            (same, diff) = treesEqual(t.path + "/src", t.path + "/7z/src")
+            #expect(same, "\(diff)")
         }
     }
 

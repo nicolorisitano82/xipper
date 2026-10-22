@@ -1,7 +1,7 @@
-# XIZ archive format, version 1.1
+# XIZ archive format, version 1.2
 
-Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11), which
-1.0 readers refuse cleanly. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
+(2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -17,7 +17,8 @@ metadata and content behind a password.
 - `CRC32C` is CRC-32 with the Castagnoli polynomial (0x1EDC6F41, reflected, init and xorout 0xFFFFFFFF), as in iSCSI.
 - `SHA256` is FIPS 180-4; `HMAC` is RFC 2104 with SHA-256; `HKDF` is RFC 5869 with SHA-256;
   `AES-GCM` is NIST SP 800-38D with a 256-bit key, 96-bit nonce and 128-bit tag; `Argon2id` is RFC 9106 version 0x13.
-- "zstd frame" means one complete Zstandard frame (RFC 8878), without dictionary.
+- "zstd frame" means one complete Zstandard frame (RFC 8878), without dictionary unless the frame
+  names one (§12).
 - A reader **must** reject an archive that violates any "must" in this document.
 
 ## 2. Layout
@@ -40,7 +41,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | 0 |
+| 10 | 2 | version_minor | 0; 2 when `dictionaries` is set |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -53,7 +54,7 @@ There are no gaps and no overlaps. The footer ends the file.
 | Bit | Name | 1.0 |
 |---:|---|---|
 | 0 | encrypted | defined (§6) |
-| 1 | dictionaries | reserved: frames referencing zstd dictionary frames |
+| 1 | dictionaries | 1.2: dictionary frames and frames compressed with them (§12) |
 | 2 | append_chain | reserved, never set (appended segments are signalled by the footer, §11: the superblock is authenticated by the keys block and is never rewritten) |
 | 3–15 | — | reserved, zero |
 
@@ -71,8 +72,8 @@ written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.x
 |---:|---:|---|
 | 0 | 4 | magic `XFR1` |
 | 4 | 1 | codec: 0 = store, 1 = zstd |
-| 5 | 1 | flags: 0 in 1.0 (bit 0 reserved for dictionary frames) |
-| 6 | 2 | dictionary id: 0 in 1.0 |
+| 5 | 1 | flags: bit 0 = dictionary frame (§12); other bits zero |
+| 6 | 2 | dictionary id: 0, or the dictionary defined (bit 0 set) or used (§12) |
 | 8 | 4 | frame index (0, 1, 2, …) |
 | 12 | 4 | csize: payload length as written |
 | 16 | 4 | usize: uncompressed length, at most 67,108,864 (64 MiB) |
@@ -305,3 +306,27 @@ new footer, after the current end of the file. Nothing already written changes.
   valid footer in the last 96 bytes searches backwards for the last footer whose CRC is valid and
   whose catalog ends right before it; the next writer truncates the file there before appending.
 - 1.0 readers refuse appended archives (they require `previous_footer = 0`).
+
+## 12. Version 1.2: dictionaries
+
+Many small files compress better with a zstd dictionary (RFC 8878 §5) trained on them. An archive
+that uses one sets the required feature `dictionaries` (superblock bit 1, `version_minor = 2`);
+readers without it refuse the archive.
+
+- A **dictionary frame** has flags bit 0 set and `dictionary` = its ID (1–65,535). Its data
+  (`usize` ≤ 1,048,576, codec `store` or `zstd` without dictionary) is a zstd dictionary in the
+  ZDICT format (magic `37 A4 30 EC`) whose own dictionary ID equals the frame's. Each ID is defined
+  once. Extents **must not** point into a dictionary frame.
+- A **data frame** with `dictionary ≠ 0` and flags bit 0 clear has codec `zstd` and is decoded with
+  that dictionary, which **must** be defined by an earlier frame (lower index).
+- A frame with flags or dictionary ≠ 0 in an archive without the feature bit is invalid.
+- Encryption, CRC and frame headers are unchanged: the AEAD associated data already covers the
+  flags and the dictionary ID (§6.4), so a frame cannot be pointed at another dictionary.
+- Appended segments (§11) may use the dictionaries of earlier segments. The superblock is never
+  rewritten, so an archive created without the feature cannot gain dictionaries by appending.
+
+Xipper trains one dictionary (112,640 bytes, zstd's `ZDICT_trainFromBuffer`) on up to 100 times
+its size of files under 128 KiB, only from zstd level 9 and when such files add up to 32 MiB or
+more. It uses the dictionary for frames made at least half of such files, loaded into the window
+(`ZSTD_dictForceLoad`) rather than attached. On 20,000 source files (53.6 MB) the archive is 1.0%
+smaller at level 12 and 1.1% at level 19, for about 0.4 s of training; at level 3 the gain is nil.

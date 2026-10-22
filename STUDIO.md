@@ -18,9 +18,9 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Recupero** | PAR2 scritto da zero dalla specifica, compatibile con par2cmdline: crea, verifica, ripara (CLI, inspector, «Ripara» nelle voci danneggiate). |
 | **Montaggio** | Archivi montati come volumi **in lettura e scrittura** tramite un server WebDAV locale e il client di macOS. FSKit è stato provato ma richiede un entitlement riservato ad Apple Developer: [docs/FSKIT.md](docs/FSKIT.md). |
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
-| **Grafica** | Icona e simboli ridisegnati dallo sprite A ([docs/design/](docs/design/)), sfondo del DMG. |
+| **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | Pubblicazione della 1.0, poi la v2: ottimizzazioni ARM64/NEON e GPU, dizionari XIZ, RAR in sola lettura, CRAM, cartelle sorvegliate ([docs/ROADMAP.md](docs/ROADMAP.md)). |
+| **Prossimi passi** | Pubblicazione della 1.0, poi la v2: ottimizzazioni ARM64/NEON e GPU, RAR in sola lettura, CRAM, cartelle sorvegliate ([docs/ROADMAP.md](docs/ROADMAP.md)). |
 
 ---
 
@@ -150,7 +150,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 |---|---|---|---|---|
 | **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-1/AE-2) · ZipCrypto solo su richiesta, con avviso (UI 2.7) | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
 | ZIP con **zstd (metodo 93)** | ✅ v1 | ✅ | ✅ AES-256 | zstd (BSD); leggibile da 7-Zip ≥ 21, WinZip, libarchive (non da Utility Archivio). Nell'app: «ZIP · zstd» nel menu Formato |
-| ZIP: bzip2, LZMA (14), xz (95) | ❌ | ✅ | — | lettura per compatibilità |
+| ZIP: bzip2 (12), LZMA (14), xz (95) | ✅ v2 | ✅ | ✅ AES-256 | leggibili da 7-Zip, WinZip, libarchive (non da Utility Archivio né dall'unzip di macOS). File grandi in parallelo: blocchi bzip2 uniti bit per bit in un solo stream, blocchi xz sotto un unico indice; LZMA in streaming. CLI `-m bzip2|lzma|xz`, nell'app «Altri metodi ZIP» |
 | ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
 | ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
 | ZIP multi-volume (`.z01`…, `.zip.001`…) | 🔜 | ✅ fatto | | nostro (lettura di parti unite, da qualsiasi parte) |
@@ -559,7 +559,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0 e 1.1). ✅ **PAR2**. ✅ **Modifica in place**. Da fare: ⭐ **ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi (decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, GF(2^16) di PAR2), con percorso portabile di riserva, benchmark e test di equivalenza (§5.3); dizionari XIZ; cartelle sorvegliate; **RAR in sola lettura (clean-room, §4.2)**; ISO; CRAM. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
+| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. Da fare: ⭐ **ottimizzazioni in assembler ARM64/NEON (e GPU dove misurabile)** sui punti caldi (decodifica LZMA/LZMA2 e deflate, match finder, Huffman/FSE, CRC/XXH, AES, GF(2^16) di PAR2), con percorso portabile di riserva, benchmark e test di equivalenza (§5.3); ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; cartelle sorvegliate; **RAR in sola lettura (clean-room, §4.2)**; ISO; CRAM. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
 
 ---
 

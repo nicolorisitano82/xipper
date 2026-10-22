@@ -40,7 +40,7 @@ let package = Package(
         .target(
             name: "CZstd",
             path: "Vendor/zstd",
-            sources: ["common", "compress", "decompress"],
+            sources: ["common", "compress", "decompress", "dictBuilder"],
             cSettings: [
                 .define("ZSTD_MULTITHREAD"),
                 .define("ZSTD_DISABLE_ASM"),

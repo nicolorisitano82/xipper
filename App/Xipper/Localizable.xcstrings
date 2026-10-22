@@ -904,6 +904,16 @@
         }
       }
     },
+    "Altri metodi ZIP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More ZIP methods"
+          }
+        }
+      }
+    },
     "Annulla" : {
       "localizations" : {
         "en" : {
@@ -3226,6 +3236,16 @@
         }
       }
     },
+    "LZMA (più piccolo, 7-Zip/WinZip)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LZMA (smaller, 7-Zip/WinZip)"
+          }
+        }
+      }
+    },
     "La apro e chiudo Xipper? Poi trascina Xipper in Applicazioni, sostituendo quello che c'è, e riaprilo. Mi chiudo prima, così la copia che sostituisci non è quella in uso." : {
       "localizations" : {
         "en" : {
@@ -5306,6 +5326,16 @@
         }
       }
     },
+    "ZIP · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP · %@"
+          }
+        }
+      }
+    },
     "ZIP · zstd" : {
       "localizations" : {
         "en" : {
@@ -5352,6 +5382,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zstandard (faster, 7-Zip/WinZip)"
+          }
+        }
+      }
+    },
+    "bzip2 (7-Zip/WinZip)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bzip2 (7-Zip/WinZip)"
           }
         }
       }
@@ -5688,6 +5728,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "use the saved password of %@"
+          }
+        }
+      }
+    },
+    "xz (più piccolo, 7-Zip/WinZip)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "xz (smaller, 7-Zip/WinZip)"
           }
         }
       }

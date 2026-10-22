@@ -15,6 +15,8 @@ enum Zip {
 
     enum Flag {
         static let encrypted: UInt16 = 1 << 0
+        /// Method 14: the LZMA data ends with an end-of-stream marker.
+        static let lzmaEndMarker: UInt16 = 1 << 1
         static let dataDescriptor: UInt16 = 1 << 3
         static let strongEncryption: UInt16 = 1 << 6
         static let utf8: UInt16 = 1 << 11

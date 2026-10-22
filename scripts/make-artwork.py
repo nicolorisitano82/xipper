@@ -7,6 +7,8 @@ prompt in docs/design/icon-sprite-prompt.md):
 - App/Xipper/Assets.xcassets     template symbols: XipperGlyph (menu bar: two teeth per arm, legible at
                                   16 pt), XipperCompress (drop zone of the home window)
 - App/XipperFinder/XipperGlyph.svg  Finder toolbar item and menu
+- App/XipperThumbnail/FileIcons  file icons from sprite C (page + pictogram per format, labels.json)
+- App/Xipper/DocumentIcons       .icns document icons with the format label, one per declared type
 - docs/design/artwork/*.svg      every redrawn cell, also the document badges for sprite B
 - docs/design/artwork/preview.png contact sheet of the above
 
@@ -152,12 +154,200 @@ imageset("XipperGlyph", "XipperGlyph.svg", svg(menu_glyph, points=18))  # menu b
 imageset("XipperCompress", "XipperCompress.svg", art["r2c2-compress"])
 write(os.path.join(ROOT, "App/XipperFinder/XipperGlyph.svg"), art["r2c1-menu-bar"])
 
+# --- file icons (sprite C, docs/design/sprites/sprite-c-file-icons.png) ---------------------------
+# A 256×256 document page (folded corner, empty label band at the bottom) and one pictogram per
+# format. The label is real text, added when rendering: Finder thumbnails (XipperThumbnail) and
+# the .icns document icons of the formats Xipper opens.
+
+PAGE = ('<defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/>'
+        '<stop offset="1" stop-color="#F1F3F8"/></linearGradient>'
+        '<linearGradient id="ear" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E6E9F0"/>'
+        '<stop offset="1" stop-color="#C9CED9"/></linearGradient></defs>'
+        '<ellipse cx="128" cy="249" rx="82" ry="4" fill="#000000" opacity="0.08"/>'
+        '<path d="M50 8 H170 L222 60 V232 Q222 246 208 246 H50 Q36 246 36 232 V22 Q36 8 50 8 Z" '
+        'fill="url(#pg)" stroke="#D3D8E2" stroke-width="2"/>'
+        '<path d="M170 8 V46 Q170 60 184 60 H222 Z" fill="url(#ear)" stroke="#D3D8E2" stroke-width="2" stroke-linejoin="round"/>')
+
+def grad(id, a, b, vertical=True):
+    x2, y2 = ("0", "1") if vertical else ("1", "1")
+    return f'<linearGradient id="{id}" x1="0" y1="0" x2="{x2}" y2="{y2}"><stop offset="0" stop-color="{a}"/><stop offset="1" stop-color="{b}"/></linearGradient>'
+
+def cube(cx, cy, w, h, top, left, right):
+    """Isometric box: top face, left face, right face (w = half width, h = height)."""
+    t = w / 2
+    return (f'<path d="M{cx} {cy - t} L{cx + w} {cy} L{cx} {cy + t} L{cx - w} {cy} Z" fill="{top}"/>'
+            f'<path d="M{cx - w} {cy} L{cx} {cy + t} L{cx} {cy + t + h} L{cx - w} {cy + h} Z" fill="{left}"/>'
+            f'<path d="M{cx + w} {cy} L{cx} {cy + t} L{cx} {cy + t + h} L{cx + w} {cy + h} Z" fill="{right}"/>')
+
+def box(cx, top, w, h, body, lid, lidDark):
+    """Front-facing box with a lid (archive)."""
+    return (f'<rect x="{cx - w/2}" y="{top + 14}" width="{w}" height="{h}" rx="12" fill="{body}"/>'
+            f'<rect x="{cx - w/2 - 6}" y="{top}" width="{w + 12}" height="24" rx="8" fill="{lid}"/>'
+            f'<rect x="{cx - w/2}" y="{top + 24}" width="{w}" height="6" fill="{lidDark}" opacity="0.35"/>')
+
+def picto_zip():
+    teeth = "".join(f'<rect x="{110 if k % 2 else 128}" y="{32 + k * 11}" width="18" height="8" rx="3" fill="url(#zb)"/>' for k in range(9))
+    return (f'<defs>{grad("zb", "#4AA8FF", "#0A6CEB")}</defs>'
+            '<rect x="122" y="30" width="12" height="102" rx="4" fill="#0A6CEB" opacity="0.18"/>' + teeth +
+            '<rect x="114" y="126" width="28" height="18" rx="6" fill="url(#zb)"/>'
+            '<rect x="108" y="138" width="40" height="34" rx="16" fill="url(#zb)"/>'
+            '<circle cx="128" cy="156" r="8" fill="#FFFFFF"/>')
+
+def picto_7z():
+    out = f'<defs>{grad("sz", "#A58BFF", "#5E5CE6")}</defs>'
+    for k, y in enumerate([118, 92, 66]):
+        out += (f'<path d="M128 {y - 26} L180 {y - 6} L128 {y + 14} L76 {y - 6} Z" fill="{["#7B72F0", "#8E86F5", "#A49DFA"][k]}"/>'
+                f'<path d="M76 {y - 6} L128 {y + 14} L180 {y - 6} V{y + 6} L128 {y + 26} L76 {y + 6} Z" fill="url(#sz)"/>')
+    return out
+
+def picto_tar():
+    out = ""
+    for k, y in enumerate([118, 98, 78]):
+        out += (f'<path d="M72 {y} L176 {y - 14} L196 {y} L92 {y + 14} Z" fill="{["#D9D2C5", "#E6E0D4", "#F2EDE3"][k]}"/>'
+                f'<path d="M72 {y} L92 {y + 14} V{y + 22} L72 {y + 8} Z" fill="#C8BFAF"/>'
+                f'<path d="M92 {y + 14} L196 {y} V{y + 8} L92 {y + 22} Z" fill="#DCD4C6"/>')
+    out += '<path d="M138 62 L156 60 L160 140 L142 144 Z" fill="#A2845E"/><path d="M138 62 L142 144 L136 140 L132 66 Z" fill="#7E6342"/>'
+    return out
+
+def picto_gz():
+    return (f'<defs>{grad("gc", "#5BD97A", "#22A84A")}</defs>'
+            '<rect x="118" y="34" width="20" height="10" rx="4" fill="#1E8E3E"/><rect x="124" y="42" width="8" height="24" fill="#2DB052"/>'
+            '<path d="M78 64 H178 Q190 64 190 76 V84 H96 V122 H190 V130 Q190 142 178 142 H78 Q66 142 66 130 V76 Q66 64 78 64 Z" fill="url(#gc)"/>'
+            '<rect x="104" y="88" width="84" height="9" rx="3" fill="#E9EEF5"/><rect x="104" y="99" width="84" height="9" rx="3" fill="#DCE3EC"/>'
+            '<rect x="104" y="110" width="84" height="9" rx="3" fill="#E9EEF5"/><rect x="118" y="66" width="20" height="16" rx="3" fill="#2DB052"/>')
+
+def picto_bz2():
+    return cube(104, 92, 30, 32, "#B5CC5A", "#8FA33B", "#7A8C30") + cube(150, 112, 30, 32, "#C2D86A", "#9CB246", "#869A38")
+
+def picto_xz():
+    return (f'<defs>{grad("xd", "#5AD8E6", "#1E9EB5")}</defs>'
+            '<path d="M128 40 L150 92 L128 144 L106 92 Z" fill="url(#xd)"/>'
+            '<path d="M60 92 H92 M82 82 L92 92 L82 102 M196 92 H164 M174 82 L164 92 L174 102" stroke="#1E9EB5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>')
+
+def picto_zst():
+    return (f'<defs>{grad("zo", "#FFB547", "#FF7A1A")}{grad("zy", "#FFE066", "#FFB800")}</defs>'
+            '<rect x="70" y="70" width="116" height="20" rx="10" fill="url(#zo)"/><rect x="70" y="98" width="116" height="20" rx="10" fill="url(#zo)"/>'
+            '<path d="M140 40 L104 98 H128 L116 146 L156 84 H132 Z" fill="url(#zy)" stroke="#E89B00" stroke-width="2" stroke-linejoin="round"/>')
+
+def picto_aar():
+    return (box(128, 54, 100, 86, "#6E6E73", "#58585D", "#000000") +
+            '<path d="M120 54 H136 V112 L128 104 L120 112 Z" fill="#F5F5F7"/>')
+
+def picto_cpio():
+    out = ""
+    for k, (x, y) in enumerate([(96, 58), (86, 74), (76, 90)]):
+        out += f'<rect x="{x}" y="{y}" width="104" height="60" rx="9" fill="{["#AEB8C6", "#93A0B2", "#7A889C"][k]}"/>'
+    out += "".join(f'<circle cx="{98 + i * 16}" cy="128" r="4.5" fill="#FFFFFF"/>' for i in range(5))
+    return out
+
+def picto_lz4():
+    return (f'<defs>{grad("ly", "#FFD94A", "#FFB300")}</defs>'
+            '<path d="M58 80 H96 M52 100 H90 M62 120 H96" stroke="#FFC300" stroke-width="8" stroke-linecap="round"/>'
+            '<path d="M104 86 H156 V64 L198 100 L156 136 V114 H104 Z" fill="url(#ly)" stroke="#E5A000" stroke-width="2" stroke-linejoin="round"/>')
+
+def picto_br():
+    return (f'<defs>{grad("bw", "#E7B97A", "#C8894A")}</defs>'
+            '<path d="M70 92 Q70 56 128 56 Q186 56 186 92 Z" fill="url(#bw)"/>'
+            '<rect x="70" y="96" width="116" height="12" rx="6" fill="#B87B42"/><rect x="72" y="110" width="112" height="6" rx="3" fill="#F3E3C8"/>'
+            '<rect x="70" y="118" width="116" height="12" rx="6" fill="#A86E3A"/><rect x="72" y="132" width="112" height="6" rx="3" fill="#F3E3C8"/>'
+            '<path d="M86 74 Q128 64 170 74" stroke="#F3E3C8" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7"/>')
+
+def picto_xiz():
+    return (f'<defs>{grad("xt", "#4AA3FF", "#0A57D4", vertical=False)}<radialGradient id="xg" cx="0.8" cy="0.9" r="0.7">'
+            '<stop offset="0" stop-color="#8E5CF7" stop-opacity="0.65"/><stop offset="1" stop-color="#8E5CF7" stop-opacity="0"/></radialGradient></defs>'
+            '<rect x="68" y="40" width="120" height="112" rx="28" fill="url(#xt)"/><rect x="68" y="40" width="120" height="112" rx="28" fill="url(#xg)"/>' +
+            glyph("#FFFFFF", scale=2.2, dx=84, dy=52))
+
+def picto_bgzf():
+    def strand(sign):
+        pts = [(128 + sign * 30 * math.sin(2 * math.pi * (y - 40) / 108), y) for y in [40 + n * 2 for n in range(55)]]
+        return "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in pts)
+    rungs = []
+    for y in (58, 70, 112, 124, 136):
+        half = abs(30 * math.sin(2 * math.pi * (y - 40) / 108)) - 6
+        if half > 6:
+            rungs.append(f"M{128 - half:.1f} {y} L{128 + half:.1f} {y}")
+    return (f'<defs>{grad("dn", "#5AD8E6", "#1E9EB5")}</defs>'
+            f'<path d="{" ".join(rungs)}" stroke="#30B0C7" stroke-width="6" stroke-dasharray="5 4" fill="none"/>'
+            f'<path d="{strand(1)}" stroke="url(#dn)" stroke-width="11" stroke-linecap="round" fill="none"/>'
+            f'<path d="{strand(-1)}" stroke="url(#dn)" stroke-width="11" stroke-linecap="round" fill="none"/>')
+
+def picto_split():
+    out = f'<defs>{grad("sp", "#5AA9FF", "#0A6CEB")}</defs>'
+    for k, (x, y) in enumerate([(108, 48), (92, 66), (76, 84)]):
+        out += f'<rect x="{x}" y="{y}" width="84" height="64" rx="12" fill="url(#sp)" opacity="{[0.45, 0.7, 1][k]}"/>'
+    return out
+
+def picto_encrypted():
+    return (box(128, 54, 100, 86, "#2F86F6", "#1A6AE0", "#000000") +
+            '<path d="M117 106 V97 Q117 86 128 86 Q139 86 139 97 V106" stroke="#FFFFFF" stroke-width="6" fill="none"/>'
+            '<rect x="110" y="104" width="36" height="28" rx="6" fill="#FFFFFF"/><circle cx="128" cy="116" r="4" fill="#1A6AE0"/>'
+            '<rect x="126" y="117" width="4" height="8" rx="2" fill="#1A6AE0"/>')
+
+def picto_generic():
+    return box(128, 54, 100, 86, "#9A9AA0", "#86868C", "#000000") + glyph("#FFFFFF", teeth=2, scale=1.25, dx=103, dy=82)
+
+# key → (pictogram, accent colour for the label, label)
+FILE_ICONS = {
+    "zip": (picto_zip, "#0A84FF", "ZIP"), "7z": (picto_7z, "#5E5CE6", "7Z"), "tar": (picto_tar, "#A2845E", "TAR"),
+    "gz": (picto_gz, "#24A148", "GZ"), "tgz": (picto_gz, "#24A148", "TAR.GZ"), "bz2": (picto_bz2, "#7A8C30", "BZ2"),
+    "xz": (picto_xz, "#1E9EB5", "XZ"), "txz": (picto_xz, "#1E9EB5", "TAR.XZ"), "zst": (picto_zst, "#E57A00", "ZST"),
+    "tzst": (picto_zst, "#E57A00", "TAR.ZST"), "aar": (picto_aar, "#58585D", "AAR"), "cpio": (picto_cpio, "#5E6B7D", "CPIO"),
+    "lz4": (picto_lz4, "#C98A00", "LZ4"), "br": (picto_br, "#A86E3A", "BR"), "xiz": (picto_xiz, "#0A57D4", "XIZ"),
+    "bgzf": (picto_bgzf, "#1E9EB5", "BGZF"), "split": (picto_split, "#0A6CEB", ""), "encrypted": (picto_encrypted, "#1A6AE0", ""),
+    "generic": (picto_generic, "#6E6E73", ""),
+}
+
+def file_icon_svg(key):
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">{PAGE}{FILE_ICONS[key][0]()}</svg>\n'
+
+icon_dir = os.path.join(ROOT, "App/XipperThumbnail/FileIcons")
+if os.path.isdir(icon_dir):
+    shutil.rmtree(icon_dir)
+for key in FILE_ICONS:
+    write(os.path.join(icon_dir, key + ".svg"), file_icon_svg(key))
+labels = {k: [v[1], v[2]] for k, v in FILE_ICONS.items()}
+write(os.path.join(icon_dir, "labels.json"), json.dumps(labels, indent=1) + "\n")
+
 # --- raster: a preview sheet of the artwork -----------------------------------------
 
 RASTER = r'''
 import AppKit
 let a = CommandLine.arguments
-if a[1] == "png" {   // png <svg> <out.png> <pixels>
+func color(_ hex: String) -> NSColor {
+    let v = UInt32(hex.dropFirst(), radix: 16)!
+    return NSColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255, blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+}
+/// A document icon (256-unit page) with its format label in the bottom band, from 64 px up;
+/// the same drawing as XipperThumbnail.
+func documentIcon(_ svg: String, label: String, accent: String, px: Int) -> NSBitmapImageRep {
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
+                               hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let r = NSRect(x: 0, y: 0, width: px, height: px)
+    NSImage(contentsOfFile: svg)!.draw(in: r)
+    if !label.isEmpty && px >= 64 {
+        let s = CGFloat(px) / 256
+        var size = 34 * s
+        let heavy = NSFont.systemFont(ofSize: size, weight: .heavy)
+        func font(_ z: CGFloat) -> NSFont { NSFont(descriptor: heavy.fontDescriptor.withDesign(.rounded)!, size: z)! }
+        var attrs: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: color(accent)]
+        while (label as NSString).size(withAttributes: attrs).width > 150 * s { size -= 1; attrs[.font] = font(size) }
+        let t = (label as NSString).size(withAttributes: attrs)
+        (label as NSString).draw(at: NSPoint(x: 129 * s - t.width / 2, y: 46 * s - t.height / 2), withAttributes: attrs)
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    return rep
+}
+if a[1] == "docicon" {   // docicon <svg> <label> <accent> <iconset dir>
+    for pt in [16, 32, 128, 256, 512] {
+        for scale in [1, 2] {
+            let rep = documentIcon(a[2], label: a[3], accent: a[4], px: pt * scale)
+            try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(a[5])/icon_\(pt)x\(pt)\(scale == 2 ? "@2x" : "").png"))
+        }
+    }
+} else if a[1] == "png" {   // png <svg> <out.png> <pixels>
     let img = NSImage(contentsOfFile: a[2])!, px = Int(a[4])!
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -189,6 +379,18 @@ try:
     subprocess.run(["swiftc", "-O", src, "-o", tool], check=True)
     sheet = [os.path.join(out_dir, n + ".svg") for n in art]
     subprocess.run([tool, "sheet", os.path.join(out_dir, "preview.png")] + sheet, check=True)
+    # Document icons of the formats Xipper declares (Info.plist CFBundleDocumentTypes).
+    doc_dir = os.path.join(ROOT, "App/Xipper/DocumentIcons")
+    if os.path.isdir(doc_dir):
+        shutil.rmtree(doc_dir)
+    os.makedirs(doc_dir)
+    for key, (_, accent, label) in FILE_ICONS.items():
+        if not label:
+            continue
+        iconset = os.path.join(tmp, key + ".iconset")
+        os.makedirs(iconset)
+        subprocess.run([tool, "docicon", os.path.join(icon_dir, key + ".svg"), label, accent, iconset], check=True)
+        subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(doc_dir, f"xipper-{key}.icns")], check=True)
 finally:
     shutil.rmtree(tmp)
-print("artwork written:", len(art), "cells, app icon, 2 symbols")
+print("artwork written:", len(art), "cells, app icon, 2 symbols,", len(FILE_ICONS), "file icons")

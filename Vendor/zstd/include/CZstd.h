@@ -3,3 +3,4 @@
 #define ZSTD_STATIC_LINKING_ONLY
 #include "../zstd.h"
 #include "../zstd_errors.h"
+#include "../zdict.h"  // dictionary training for XIZ (dictBuilder)

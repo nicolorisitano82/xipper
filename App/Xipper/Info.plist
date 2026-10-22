@@ -84,32 +84,195 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Archive</string>
-			<key>CFBundleTypeIconSystemGenerated</key>
-			<integer>1</integer>
+			<string>ZIP archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-zip</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
-			<array>
-				<string>public.zip-archive</string>
-				<string>org.7-zip.7-zip-archive</string>
-				<string>com.apple.archive</string>
-				<string>public.cpio-archive</string>
-				<string>app.xipper.lz4</string>
-				<string>app.xipper.brotli</string>
-				<string>app.xipper.xiz</string>
-				<string>public.tar-archive</string>
-				<string>org.gnu.gnu-zip-archive</string>
-				<string>org.gnu.gnu-zip-tar-archive</string>
-				<string>public.bzip2-archive</string>
-				<string>org.tukaani.xz-archive</string>
-				<string>org.tukaani.tar-xz-archive</string>
-				<string>com.facebook.zstandard-archive</string>
-				<string>app.xipper.tar-zstd</string>
-				<string>app.xipper.bgzf</string>
-			</array>
+			<array><string>public.zip-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>7z archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-7z</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.7-zip.7-zip-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Apple Archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-aar</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.apple.archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>cpio archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-cpio</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.cpio-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>LZ4 file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-lz4</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.lz4</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Brotli file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-br</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.brotli</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Xipper archive (XIZ)</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-xiz</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.xiz</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>tar archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tar</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.tar-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>gzip file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-gz</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.gnu.gnu-zip-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>tar.gz archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tgz</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.gnu.gnu-zip-tar-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>bzip2 file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-bz2</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.bzip2-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>xz file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-xz</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.tukaani.xz-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>tar.xz archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-txz</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.tukaani.tar-xz-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Zstandard file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-zst</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.facebook.zstandard-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>tar.zst archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tzst</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.tar-zstd</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>BGZF file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-bgzf</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.bgzf</string></array>
 		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>

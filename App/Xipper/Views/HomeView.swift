@@ -315,6 +315,14 @@ struct HomeView: View {
                             Text("ZIP · zstd")
                             Text("più veloce · 7-Zip, WinZip; non Utility Archivio")
                         }
+                        Menu("Altri metodi ZIP") {
+                            ForEach([ZipMethod.bzip2, .lzma, .xz], id: \.name) { m in
+                                Button("ZIP · \(m.name)") {
+                                    formatRaw = ArchiveFormat.zip.rawValue
+                                    zipMethodRaw = m.name
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -329,7 +337,7 @@ struct HomeView: View {
                 }
             }
         } label: {
-            Text(format == .zip && zipMethodRaw == "zstd" ? "ZIP · zstd" : format.displayName)
+            Text(format == .zip && zipMethodRaw != "deflate" ? "ZIP · \(zipMethodRaw)" : format.displayName)
         }
         .fixedSize()
     }

@@ -6,7 +6,7 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 
 | Library | Version | License | Path | Used for |
 |---|---|---|---|---|
-| [zstd](https://github.com/facebook/zstd) | 1.5.7 | BSD-3-Clause (`zstd/LICENSE`) | `zstd/` (lib: common, compress, decompress) | tar.zst, ZIP method 93 |
+| [zstd](https://github.com/facebook/zstd) | 1.5.7 | BSD-3-Clause (`zstd/LICENSE`) | `zstd/` (lib: common, compress, decompress, dictBuilder) | tar.zst, ZIP method 93, XIZ (and its dictionaries) |
 | [libdeflate](https://github.com/ebiggers/libdeflate) | 1.24 | MIT (`libdeflate/COPYING`) | `libdeflate/` (lib, x86/riscv code removed) | ZIP deflate, CRC-32 (PMULL), Adler-32 |
 | [XZ Utils / liblzma](https://github.com/tukaani-project/xz) | 5.8.1 | 0BSD (`xz/COPYING.0BSD`) | `xz/src/liblzma`, `xz/src/common/tuklib_*` | tar.xz, ZIP methods 14 (LZMA) and 95 (xz), 7z LZMA/LZMA2 and the ARM64/RISC-V filters |
 | [LZMA SDK](https://github.com/ip7z/7zip) (7-Zip `C/`) | 26.05 | public domain (stated in each file header) | `lzma-sdk/C` (PPMd variant H and LZMA/LZMA2 decoders), `lzma-sdk/Asm/arm64` (`LzmaDecOpt.S`), `lzma-sdk/shim` | 7z PPMd (030401); LZMA/LZMA2 decoding with 7-Zip's ARM64 assembly loop (liblzma stays the portable path) |

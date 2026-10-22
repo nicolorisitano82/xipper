@@ -30,16 +30,19 @@ enum Xiz {
     static let maxFrameData = 64 << 20
     static let maxCatalog = 1 << 30
     static let maxKeysBlock = 64 << 10
+    /// Frame flag (1.2): the frame holds a zstd dictionary, not file data.
+    static let dictionaryFrame: UInt8 = 1
+    static let maxDictionary = 1 << 20
 
     /// Features an archive needs; a reader refuses bits it does not know.
     struct Required: OptionSet, Sendable {
         let rawValue: UInt16
         static let encrypted = Required(rawValue: 1 << 0)
-        /// Reserved for 1.x: zstd dictionary frames.
+        /// 1.2: frames compressed with a zstd dictionary stored in a dictionary frame.
         static let dictionaries = Required(rawValue: 1 << 1)
         /// Reserved for 1.x: appended segments (footer.previousFooter).
         static let appendChain = Required(rawValue: 1 << 2)
-        static let understood: Required = [.encrypted]
+        static let understood: Required = [.encrypted, .dictionaries]
     }
 
     /// Features a reader may ignore.
@@ -262,7 +265,7 @@ enum Xiz {
                 let off = Int64(bitPattern: try r.u64()), cs = try r.u32(), us = try r.u32(), crc = try r.u32()
                 guard let codec = Codec(rawValue: try r.u8()) else { throw XipperError.unsupported("XIZ codec") }
                 let flags = try r.u8(), dict = try r.u16()
-                guard flags == 0, dict == 0 else { throw XipperError.unsupported("XIZ dictionary frames") }
+                guard flags & ~dictionaryFrame == 0 else { throw XipperError.unsupported("XIZ frame flags \(flags)") }
                 c.frames.append(Frame(offset: off, csize: cs, usize: us, crc: crc, codec: codec, flags: flags, dictionary: dict))
             }
             let entries = Int(try r.u32())
@@ -347,10 +350,17 @@ enum Xiz {
         return c
     }
 
-    static func zstdDecompress(_ src: UnsafeRawBufferPointer, size: Int) throws -> [UInt8] {
+    /// `dictionary`: a ZSTD_DDict for frames compressed with one (1.2).
+    static func zstdDecompress(_ src: UnsafeRawBufferPointer, size: Int, dictionary: OpaquePointer? = nil) throws -> [UInt8] {
         var ok = false
         let out = [UInt8](unsafeUninitializedCapacity: max(size, 1)) { buf, n in
-            let r = ZSTD_decompress(buf.baseAddress, size, src.baseAddress, src.count)
+            let r: Int
+            if let dictionary, let d = ZSTD_createDCtx() {
+                r = ZSTD_decompress_usingDDict(d, buf.baseAddress, size, src.baseAddress, src.count, dictionary)
+                ZSTD_freeDCtx(d)
+            } else {
+                r = ZSTD_decompress(buf.baseAddress, size, src.baseAddress, src.count)
+            }
             ok = ZSTD_isError(r) == 0 && r == size
             n = ok ? size : 0
         }
@@ -359,6 +369,66 @@ enum Xiz {
     }
 
     static func sha256(_ data: [UInt8]) -> [UInt8] { Array(SHA256.hash(data: data)) }
+
+    /// A frame compressed with `dictionary` (ZDICT format). The dictionary is loaded into the
+    /// window rather than attached: with 4 MiB frames attaching it costs 3% where loading gains
+    /// 1.4% (docs/BENCHMARK.md). nil when the output would not be smaller.
+    static func zstdCompress(_ src: UnsafeRawBufferPointer, level: Int, dictionary: [UInt8], pool: ZstdContextPool) -> [UInt8]? {
+        let bound = ZSTD_compressBound(src.count)
+        let out = [UInt8](unsafeUninitializedCapacity: bound) { buf, n in
+            n = pool.with { c in
+                defer { ZSTD_CCtx_reset(c, ZSTD_reset_session_and_parameters) }  // pooled contexts stay plain
+                ZSTD_CCtx_setParameter(c, ZSTD_c_compressionLevel, Int32(max(1, min(22, level))))
+                ZSTD_CCtx_setParameter(c, ZSTD_c_experimentalParam4,  // ZSTD_c_forceAttachDict (a macro)
+                                        Int32(ZSTD_dictForceLoad.rawValue))
+                ZSTD_CCtx_setPledgedSrcSize(c, UInt64(src.count))
+                let loaded = dictionary.withUnsafeBytes { ZSTD_CCtx_loadDictionary(c, $0.baseAddress, $0.count) }
+                if ZSTD_isError(loaded) != 0 { return 0 }
+                let r = ZSTD_compress2(c, buf.baseAddress, bound, src.baseAddress, src.count)
+                return ZSTD_isError(r) != 0 ? 0 : r
+            }
+        }
+        return out.isEmpty || out.count >= src.count ? nil : out
+    }
+}
+
+/// XIZ 1.2 dictionaries: one zstd dictionary trained on the archive's small files, stored once
+/// in a dictionary frame and used by the frames made mostly of small files.
+enum XizDictionary {
+    static let id: UInt16 = 1
+    static let capacity = 112_640  // zstd's default dictionary size
+    /// Files below this size are "small": they gain from a dictionary and feed the training.
+    static let smallFile: Int64 = 128 << 10
+    /// Small-file bytes below which a dictionary does not pay for itself: it gains ~1.4% inside
+    /// 4 MiB frames and costs ~40 KB stored.
+    static let minimumSmallBytes: Int64 = 32 << 20
+    /// At zstd 3 the gain is nil (20,000 source files: +0.06%); from 9 up it is about 1%.
+    static let minimumLevel = 9
+
+    /// Trains a dictionary from samples (whole small files); its ID is set to `id`.
+    static func train(_ samples: [[UInt8]]) -> [UInt8]? {
+        guard samples.count >= 64 else { return nil }
+        let flat = samples.flatMap { $0 }
+        let sizes = samples.map { $0.count }
+        var dict = [UInt8](repeating: 0, count: capacity)
+        let n = dict.withUnsafeMutableBytes { d in
+            flat.withUnsafeBytes { f in ZDICT_trainFromBuffer(d.baseAddress, capacity, f.baseAddress, sizes, UInt32(sizes.count)) }
+        }
+        guard ZDICT_isError(n) == 0, n >= 8 else { return nil }
+        dict.removeSubrange(n...)
+        // Header: magic EC30A437, then the dictionary ID (little-endian).
+        dict[4] = UInt8(id & 0xFF); dict[5] = UInt8(id >> 8); dict[6] = 0; dict[7] = 0
+        return dict
+    }
+
+    /// A dictionary frame's content: a ZDICT dictionary with the frame's ID.
+    static func ddict(_ bytes: [UInt8], id: UInt16) throws -> OpaquePointer {
+        let declared = bytes.withUnsafeBytes { ZSTD_getDictID_fromDict($0.baseAddress, $0.count) }
+        guard declared == UInt32(id), let d = bytes.withUnsafeBytes({ ZSTD_createDDict($0.baseAddress, $0.count) }) else {
+            throw XipperError.corrupt("XIZ dictionary \(id) is not valid")
+        }
+        return d
+    }
 }
 
 // MARK: - encryption

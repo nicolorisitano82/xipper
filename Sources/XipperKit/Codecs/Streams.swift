@@ -233,6 +233,20 @@ final class LZMACoder: StreamTransform {
         return c
     }
 
+    /// ZIP method 14 encoder for entries too big for one shot: raw LZMA1 with the end marker.
+    /// Returns the coder and the 9-byte header that precedes its output.
+    static func zipLZMAEncoder(preset: Int, size: Int64, cancel: CancellationToken?) throws -> (LZMACoder, [UInt8]) {
+        let c = LZMACoder(name: "lzma")
+        c.cancel = cancel
+        var o = ZipLZMA.options(preset: preset, size: size)
+        let head = ZipLZMA.header(&o)
+        try withUnsafeMutablePointer(to: &o) { op in
+            var filters = [lzma_filter(id: lzmaFilterLZMA1, options: op), lzma_filter(id: lzmaVLIUnknown, options: nil)]
+            try c.check(lzma_raw_encoder(&c.strm, &filters))
+        }
+        return (c, head)
+    }
+
     /// 7z LZMA (030101): 5 property bytes, raw LZMA1, end marker optional.
     /// The dictionary is capped to the output size: no match can reach further back.
     static func sevenZipLZMADecoder(props: [UInt8], unpackSize: Int64) throws -> LZMACoder {

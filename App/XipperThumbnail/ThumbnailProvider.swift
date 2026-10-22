@@ -2,20 +2,32 @@ import AppKit
 import QuickLookThumbnailing
 import XipperKit
 
-/// Finder thumbnails for archives (9.5): an archive box with the format and, for ZIP, the number
-/// of files (central directory only, so it stays instant even for huge archives).
+/// Finder thumbnails for archives (9.5): the document icon of the format (FileIcons/*.svg, drawn
+/// from sprite C by scripts/make-artwork.py) with its label in the bottom band and, for ZIP, the
+/// number of files (central directory only, so it stays instant even for huge archives).
+/// Encrypted ZIP and 7z archives show the padlock.
 final class ThumbnailProvider: QLThumbnailProvider {
     override func provideThumbnail(for request: QLFileThumbnailRequest, _ handler: @escaping (QLThumbnailReply?, Error?) -> Void) {
         let url = request.fileURL
         let format = (try? ArchiveFormat.detect(url)) ?? nil
         var count: Int?
-        if format == .zip { count = (try? Xipper.list(url))?.filter { $0.kind == .file && !$0.isAppleDoubleMetadata }.count }
+        var encrypted = false
+        if format == .zip || format == .sevenZip {
+            do {
+                let entries = try Xipper.list(url).filter { !$0.isAppleDoubleMetadata }
+                encrypted = entries.contains(where: \.isEncrypted)
+                if format == .zip { count = entries.filter { $0.kind == .file }.count }
+            } catch XipperError.passwordRequired {
+                encrypted = true  // 7z with encrypted names
+            } catch {}
+        }
+        let key = encrypted ? "encrypted" : Self.icon(format, url)
         let label = Self.label(format, url)
-        let size = request.maximumSize
-        let side = min(size.width, size.height)
+        let accent = Self.accent(Self.icon(format, url))
+        let side = min(request.maximumSize.width, request.maximumSize.height)
         let canvas = CGSize(width: side, height: side)
         handler(QLThumbnailReply(contextSize: canvas, currentContextDrawing: {
-            Self.draw(in: CGRect(origin: .zero, size: canvas), label: label, count: count)
+            Self.draw(key, label: label, accent: accent, count: count, in: CGRect(origin: .zero, size: canvas))
             return true
         }), nil)
     }
@@ -24,38 +36,73 @@ final class ThumbnailProvider: QLThumbnailProvider {
         guard let f else { return url.pathExtension.uppercased() }
         switch f {
         case .bgzf: return url.pathExtension.lowercased() == "bam" ? "BAM" : url.pathExtension.lowercased() == "bcf" ? "BCF" : "BGZF"
-        case .zip: return "ZIP"
         default: return f.rawValue.uppercased()
         }
     }
 
-    private static func draw(in rect: CGRect, label: String, count: Int?) {
-        let s = rect.width
-        // Box body.
-        let body = NSRect(x: s * 0.12, y: s * 0.10, width: s * 0.76, height: s * 0.62)
-        let lid = NSRect(x: s * 0.08, y: s * 0.70, width: s * 0.84, height: s * 0.17)
-        let fill = NSGradient(colors: [NSColor(srgbRed: 0.18, green: 0.80, blue: 0.86, alpha: 1),
-                                       NSColor(srgbRed: 0.10, green: 0.42, blue: 0.98, alpha: 1)])!
-        fill.draw(in: NSBezierPath(roundedRect: body, xRadius: s * 0.06, yRadius: s * 0.06), angle: 90)
-        NSColor(srgbRed: 0.08, green: 0.36, blue: 0.86, alpha: 1).setFill()
-        NSBezierPath(roundedRect: lid, xRadius: s * 0.05, yRadius: s * 0.05).fill()
-        // Handle slot.
-        NSColor.white.withAlphaComponent(0.85).setFill()
-        NSBezierPath(roundedRect: NSRect(x: s * 0.38, y: s * 0.56, width: s * 0.24, height: s * 0.05), xRadius: s * 0.025, yRadius: s * 0.025).fill()
-        // Format label.
-        let para = NSMutableParagraphStyle()
-        para.alignment = .center
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: s * (label.count > 4 ? 0.11 : 0.15), weight: .heavy),
-            .foregroundColor: NSColor.white, .paragraphStyle: para,
-        ]
-        label.draw(in: NSRect(x: body.minX, y: s * 0.30, width: body.width, height: s * 0.2), withAttributes: attrs)
-        if let count {
-            let small: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: s * 0.075, weight: .semibold),
-                .foregroundColor: NSColor.white.withAlphaComponent(0.9), .paragraphStyle: para,
-            ]
-            "\(count) file".draw(in: NSRect(x: body.minX, y: s * 0.16, width: body.width, height: s * 0.12), withAttributes: small)
+    /// The pictogram for a format (names of FileIcons/*.svg).
+    private static func icon(_ f: ArchiveFormat?, _ url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        if ext.count == 3, ext.allSatisfy(\.isNumber) || (ext.hasPrefix("z") && ext.dropFirst().allSatisfy(\.isNumber)) { return "split" }
+        switch f {
+        case .zip?: return "zip"
+        case .sevenZip?: return "7z"
+        case .tar?: return "tar"
+        case .tarGzip?: return "tgz"
+        case .gzip?: return "gz"
+        case .tarBzip2?, .bzip2?: return "bz2"
+        case .tarXz?: return "txz"
+        case .xz?: return "xz"
+        case .tarZstd?: return "tzst"
+        case .zstd?: return "zst"
+        case .tarLz4?, .lz4?: return "lz4"
+        case .tarBrotli?, .brotli?: return "br"
+        case .cpio?: return "cpio"
+        case .appleArchive?: return "aar"
+        case .xiz?: return "xiz"
+        case .bgzf?: return "bgzf"
+        case nil: return "generic"
+        }
+    }
+
+    private static let accents: [String: [String]] = {
+        guard let url = resource("labels", "json"), let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: [String]] ?? [:]
+    }()
+
+    private static func accent(_ key: String) -> NSColor {
+        guard let hex = accents[key]?.first, let v = UInt32(hex.dropFirst(), radix: 16) else { return .secondaryLabelColor }
+        return NSColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255, blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+    }
+
+    /// Resources may be copied flat or inside "FileIcons".
+    private static func resource(_ name: String, _ ext: String) -> URL? {
+        let b = Bundle(for: ThumbnailProvider.self)
+        return b.url(forResource: name, withExtension: ext) ?? b.url(forResource: name, withExtension: ext, subdirectory: "FileIcons")
+    }
+
+    /// The 256-unit page scaled to `rect`; label from 64 px up, as the .icns document icons.
+    private static func draw(_ key: String, label: String, accent: NSColor, count: Int?, in rect: CGRect) {
+        if let url = resource(key, "svg") ?? resource("generic", "svg"), let image = NSImage(contentsOf: url) {
+            image.draw(in: rect)
+        }
+        let s = rect.width / 256
+        guard rect.width >= 64, !label.isEmpty else { return }
+        func rounded(_ size: CGFloat, _ weight: NSFont.Weight) -> NSFont {
+            let f = NSFont.systemFont(ofSize: size, weight: weight)
+            return NSFont(descriptor: f.fontDescriptor.withDesign(.rounded) ?? f.fontDescriptor, size: size) ?? f
+        }
+        var size = 34 * s
+        var attrs: [NSAttributedString.Key: Any] = [.font: rounded(size, .heavy), .foregroundColor: accent]
+        while (label as NSString).size(withAttributes: attrs).width > 150 * s && size > 6 { size -= 1; attrs[.font] = rounded(size, .heavy) }
+        let t = (label as NSString).size(withAttributes: attrs)
+        let labelY = count == nil ? 46 * s : 54 * s
+        (label as NSString).draw(at: NSPoint(x: rect.minX + 129 * s - t.width / 2, y: rect.minY + labelY - t.height / 2), withAttributes: attrs)
+        if let count, rect.width >= 128 {
+            let text = "\(count) file" as NSString
+            let small: [NSAttributedString.Key: Any] = [.font: rounded(16 * s, .semibold), .foregroundColor: NSColor(white: 0.45, alpha: 1)]
+            let c = text.size(withAttributes: small)
+            text.draw(at: NSPoint(x: rect.minX + 129 * s - c.width / 2, y: rect.minY + 28 * s - c.height / 2), withAttributes: small)
         }
     }
 }

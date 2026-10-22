@@ -28,3 +28,19 @@ Corpus: 316 MB, 4496 file (sorgenti piccoli, testi, dati già compressi, un file
 | ditto -x -k | 1.61 s |
 | Xipper extract tar.zst | 0.67 s |
 | zstd -d + tar -x | 1.27 s |
+
+### Dizionari XIZ (23/10/2026)
+
+20.000 file sotto 64 KiB presi dai repository di lavoro (53,6 MB, soprattutto sorgenti e JSON).
+Dimensione dell'archivio e tempo di `xipper create`, con e senza `--no-dictionary`:
+
+| Livello | Con dizionario | Senza | Differenza |
+|---|---|---|---|
+| 3 | 14,89 MB | 14,88 MB | +0,06% (a questo livello il dizionario non si usa) |
+| 12 | 12,93 MB · 1,24 s | 13,06 MB · 0,80 s | −1,0% |
+| 19 | 12,00 MB · 2,71 s | 12,13 MB · 2,19 s | −1,1% |
+
+Con l'API di zstd, frame da 4 MiB e livello 12, un dizionario "attaccato" (il default) peggiora
+del 3%, uno caricato nella finestra (`ZSTD_dictForceLoad`) migliora dell'1,4%. Il dizionario rende
+molto di più sui file compressi uno per uno (−23%), ma il frame da 4 MiB condiviso resta più
+piccolo di entrambi.

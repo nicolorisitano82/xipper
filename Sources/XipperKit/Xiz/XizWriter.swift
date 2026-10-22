@@ -31,15 +31,22 @@ enum XizWriter {
     }
 
     static func write(items: [ArchiveItem], to path: String, level: Int, password: String?, kdf: XizKeys.KDF = .standard,
-                      extendedAttributes: Bool,
+                      extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let total = items.reduce(Int64(0)) { $0 + $1.size }
         let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count, handler: progress)
         var archiveID = [UInt8](repeating: 0, count: 16)
         arc4random_buf(&archiveID, 16)
 
-        // Keys first: the digests and the chunker depend on them.
+        // The dictionary is decided before the superblock, which declares it (1.2).
         var superblock = Xiz.Superblock(archiveID: archiveID)
+        let dictionary = level >= XizDictionary.minimumLevel ? try trainDictionary(items, threshold: dictionaryThreshold, cancel: cancel) : nil
+        if dictionary != nil {
+            superblock.required.insert(.dictionaries)
+            superblock.minor = 2
+        }
+
+        // Keys first: the digests and the chunker depend on them.
         var keysBlock: [UInt8] = []
         var keys: XizKeys?
         if let password {
@@ -55,6 +62,7 @@ enum XizWriter {
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
         let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level,
+                                              dictionary: dictionary.map { (XizDictionary.id, $0, true) },
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
         let size = out.position
@@ -62,6 +70,24 @@ enum XizWriter {
         tracker.add(bytes: total - tracker.completedBytes, entries: items.count)  // deduplicated bytes count as done
         tracker.finish()
         return WriteReport(entries: items.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
+    }
+
+    /// A dictionary for the small files, when there are enough of them to pay for it: trained on
+    /// up to 100× its size of whole files, taken evenly across the archive.
+    static func trainDictionary(_ items: [ArchiveItem], threshold: Int64, cancel: CancellationToken?) throws -> [UInt8]? {
+        let small = items.filter {
+            if case let .file(size) = $0.kind { size > 0 && size < XizDictionary.smallFile && !AlreadyCompressed.matches($0.name) } else { false }
+        }
+        let total = small.reduce(Int64(0)) { $0 + $1.size }
+        guard total >= threshold, !small.isEmpty else { return nil }
+        let budget = Int64(XizDictionary.capacity * 100)
+        let stride = max(1, Int((total + budget - 1) / budget))
+        var samples: [[UInt8]] = []
+        for k in Swift.stride(from: 0, to: small.count, by: stride) {
+            try cancel?.check()
+            if let r = try? FileReader(path: small[k].sourcePath), let b = try? r.read(at: 0, count: Int(r.size)) { samples.append(b) }
+        }
+        return XizDictionary.train(samples)
     }
 
     /// The chunker's gear table: derived from the archive key when encrypted.
@@ -73,8 +99,10 @@ enum XizWriter {
 
     /// Writes the frames holding `items` (deduplicated against themselves and against `known`
     /// content: digest → extents already in the archive) and returns them with the items' entries.
+    /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          level: Int, extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
+                          level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
+                          extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
         let gear = gear(keys)
         func newDigest() -> Digest { keys.map { .keyed($0.fileDigest()) } ?? .plain(SHA256()) }
@@ -165,6 +193,8 @@ enum XizWriter {
         let digests = hashedFiles
 
         // 2. Plan: frames of segments, entries with extents; repeated files and chunks point at the first copy.
+        //    A new dictionary takes the first frame index.
+        let base = startFrame + (dictionary?.isNew == true ? 1 : 0)
         var frames: [[Segment]] = []
         var current: [Segment] = []
         var currentSize = 0
@@ -182,7 +212,7 @@ enum XizWriter {
             while off < end {
                 if currentSize == Xiz.frameData { closeFrame() }
                 let n = Int(min(Int64(Xiz.frameData - currentSize), end - off))
-                extents.append(Xiz.Extent(frame: UInt32(startFrame + frames.count), offset: UInt32(currentSize), length: UInt32(n)))
+                extents.append(Xiz.Extent(frame: UInt32(base + frames.count), offset: UInt32(currentSize), length: UInt32(n)))
                 current.append(Segment(item: i, fileOffset: off, length: n))
                 currentSize += n
                 off += Int64(n)
@@ -231,6 +261,19 @@ enum XizWriter {
         // 3. Frames, compressed (and sealed) in parallel windows and written in order, numbered from `startFrame`.
         var written: [Xiz.Frame] = []
         let contexts = ZstdContextPool()
+        if let dictionary, dictionary.isNew {
+            var payload = dictionary.bytes
+            var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(payload.count), crc: 0, codec: .store,
+                              flags: Xiz.dictionaryFrame, dictionary: dictionary.id)
+            if let c = payload.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: 19) }) { payload = c; f.codec = .zstd }
+            if let keys { payload = try keys.sealFrame(payload, index: UInt32(startFrame), f) }
+            f.csize = UInt32(payload.count)
+            f.crc = Xiz.crc32c(payload)
+            f.offset = out.position
+            try out.write(Xiz.frameHeader(index: UInt32(startFrame), f))
+            try payload.withUnsafeBytes { try out.write($0) }
+            written.append(f)
+        }
         let window = max(2, workload.workerCount * 2)
         var start = 0
         while start < frames.count {
@@ -239,7 +282,7 @@ enum XizWriter {
             let results = Mutex<[Int: (Xiz.Frame, [UInt8])]>([:])
             try parallelFor(end - start, workload: workload, cancel: cancel) { k in
                 let idx = start + k
-            let global = startFrame + idx
+                let global = base + idx
                 var data = [UInt8]()
                 data.reserveCapacity(frames[idx].reduce(0) { $0 + $1.length })
                 for s in frames[idx] {
@@ -251,11 +294,18 @@ enum XizWriter {
                 }
                 var codec = Xiz.Codec.store
                 var payload = data
-                if level > 0, let c = data.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: level, pool: contexts) }) {
+                var dictID: UInt16 = 0
+                let small = frames[idx].reduce(0) { $0 + (items[$1.item].size < XizDictionary.smallFile ? $1.length : 0) }
+                if level > 0, let dictionary, small * 2 >= data.count,
+                   let c = data.withUnsafeBytes({ Xiz.zstdCompress($0, level: level, dictionary: dictionary.bytes, pool: contexts) }) {
+                    codec = .zstd
+                    payload = c
+                    dictID = dictionary.id
+                } else if level > 0, let c = data.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: level, pool: contexts) }) {
                     codec = .zstd
                     payload = c
                 }
-                var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec)
+                var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec, dictionary: dictID)
                 if let keys { payload = try keys.sealFrame(payload, index: UInt32(global), f) }
                 f.csize = UInt32(payload.count)
                 f.crc = Xiz.crc32c(payload)
@@ -266,7 +316,7 @@ enum XizWriter {
             for idx in start..<end {
                 guard var (f, payload) = done[idx] else { throw XipperError.codec("missing XIZ frame") }
                 f.offset = out.position
-                try out.write(Xiz.frameHeader(index: UInt32(startFrame + idx), f))
+                try out.write(Xiz.frameHeader(index: UInt32(base + idx), f))
                 try payload.withUnsafeBytes { try out.write($0) }
                 written.append(f)
             }

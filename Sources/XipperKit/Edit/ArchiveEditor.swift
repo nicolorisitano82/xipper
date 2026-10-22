@@ -209,7 +209,7 @@ enum ZipEditor {
             let temp = work.appendingPathComponent("new.zip").path
             var z = ZipOptions()
             z.method = options.zipMethod
-            z.level = options.level ?? (options.zipMethod == .zstd ? 3 : ArchiveFormat.zip.defaultLevel)
+            z.level = options.level ?? options.zipMethod.defaultLevel
             z.password = options.password
             z.legacyZipCrypto = options.legacyZipCrypto
             z.storeAlreadyCompressed = options.storeAlreadyCompressed
@@ -371,8 +371,10 @@ enum XizEditor {
         let out = try AppendFile(path: path, at: end)  // also drops the tail of an interrupted append
         defer { out.close() }
         let tracker = ProgressTracker(totalBytes: fresh.reduce(0) { $0 + $1.size }, totalEntries: fresh.count, handler: progress)
+        // Appended frames reuse the archive's dictionary (the superblock, never rewritten, declares it).
+        let dictionary = try a.dictionary().map { (id: $0.0, bytes: $0.1, isNew: false) }
         let (frames, written) = try XizWriter.writeData(fresh, to: out, startFrame: a.catalog.frames.count, known: known, keys: a.keys,
-                                                        level: options.level ?? 3, extendedAttributes: options.storeExtendedAttributes,
+                                                        level: options.level ?? 3, dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
                                                         workload: options.workload, tracker: tracker, cancel: cancel)
         var newByName: [String: Xiz.Entry] = [:]
         for e in written { newByName[e.path] = e }

@@ -182,6 +182,84 @@ struct XizTests {
         }
     }
 
+    // MARK: dictionaries (1.2)
+
+    /// Many small text files: the case a dictionary is for.
+    func smallTexts(_ t: TempDir, count: Int = 300) {
+        let words = ["archivio", "frame", "catalogo", "dizionario", "Xipper", "zstd", "chiave", "file", "cartella", "dati"]
+        var x: UInt64 = 7
+        for i in 0..<count {
+            var line = "{\"id\": \(i), \"kind\": \"note\", \"text\": \""
+            for _ in 0..<400 {
+                x = x &* 6364136223846793005 &+ 1442695040888963407
+                line += words[Int(x >> 60) % words.count] + " "
+            }
+            t.write("src/notes/n\(i).json", line + "\"}\n")
+        }
+    }
+
+    func createWithDictionary(_ t: TempDir, password: String? = nil) throws {
+        var o = CreateOptions()
+        o.format = .xiz
+        o.level = 12
+        o.password = password
+        o.xizKDF = .minimum
+        o.xizDictionaryThreshold = 0
+        try Xipper.create(from: [t.url("src")], to: t.url("d.xiz"), options: o)
+    }
+
+    @Test(arguments: [nil, "segreto"] as [String?])
+    func dictionaryRoundTrip(password: String?) throws {
+        let t = TempDir()
+        smallTexts(t)
+        try createWithDictionary(t, password: password)
+        let bytes = try [UInt8](Data(contentsOf: t.url("d.xiz")))
+        #expect(Array(bytes[10..<12]) == [2, 0] && bytes[12] & 0x02 != 0)  // XIZ 1.2, feature "dictionaries"
+        let a = try XizArchive(path: t.url("d.xiz").path, password: password)
+        #expect(a.dictionaries == [XizDictionary.id: 0])
+        #expect(a.catalog.frames.dropFirst().allSatisfy { $0.dictionary == XizDictionary.id })
+        #expect(try Xipper.test(t.url("d.xiz"), password: password, digests: true).isOK)
+        t.mkdir("out")
+        var x = ExtractOptions()
+        x.password = password
+        try Xipper.extract(t.url("d.xiz"), to: t.url("out"), mode: .into, options: x)
+        #expect(treesEqual(t.path + "/src", t.path + "/out/src").0)
+
+        // An append reuses the dictionary; the archive stays readable.
+        t.write("extra/n.json", "{\"id\": 999, \"text\": \"archivio frame catalogo dizionario\"}\n")
+        try Xipper.edit(t.url("d.xiz"), changes: [.add(t.url("extra/n.json"), as: "src/notes/new.json")], password: password)
+        let b = try XizArchive(path: t.url("d.xiz").path, password: password)
+        #expect(b.segments == 2 && b.catalog.frames.last?.dictionary == XizDictionary.id)
+        #expect(try Xipper.readEntry(t.url("d.xiz"), path: "src/notes/new.json", password: password, maxBytes: 100).data.count > 10)
+        #expect(try Xipper.test(t.url("d.xiz"), password: password).isOK)
+    }
+
+    @Test func dictionaryWithoutTheFeatureBitIsRefused() throws {
+        let t = TempDir()
+        smallTexts(t)
+        try createWithDictionary(t)
+        var bytes = try [UInt8](Data(contentsOf: t.url("d.xiz")))
+        bytes[12] &= ~0x02
+        var crc = Xiz.crc32c(Array(bytes[0..<60])).littleEndian
+        withUnsafeBytes(of: &crc) { bytes.replaceSubrange(60..<64, with: $0) }
+        try Data(bytes).write(to: t.url("bad.xiz"))
+        #expect(throws: XipperError.self) { _ = try Xipper.list(t.url("bad.xiz")) }
+    }
+
+    @Test func noDictionaryForFewSmallFilesOrLowLevels() throws {
+        let t = TempDir()
+        smallTexts(t, count: 100)
+        var o = CreateOptions()
+        o.format = .xiz
+        o.level = 12
+        try Xipper.create(from: [t.url("src")], to: t.url("a.xiz"), options: o)  // 1.3 MB of small files: below the threshold
+        #expect(try XizArchive(path: t.url("a.xiz").path).dictionaries.isEmpty)
+        o.level = 3
+        o.xizDictionaryThreshold = 0
+        try Xipper.create(from: [t.url("src")], to: t.url("b.xiz"), options: o)  // zstd 3: no gain, no dictionary
+        #expect(try XizArchive(path: t.url("b.xiz").path).dictionaries.isEmpty)
+    }
+
     /// Archive written by Xipper 0.9.0-beta4 (XIZ 0.1): src/a.txt "ciao v0\n", src/sub/b.txt "beta\n".
     static let beta = "WElaAA0KGgoAAAEAAAAAAN4d9FEOKVaH3X/aKBZvBM4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApXfhR1hGUjEAAAAAAAAAAA0AAAANAAAAt6pfKQAAAAAAAAAAY2lhbyB2MApiZXRhCii1L/1gAwC9AwC0BFhDQVQAAAEAAABAAA23ql8pAAQAAAABAwBzcmPtAfYBnTnZajy05w0ACS9hLnR4dKQICukNCAEBB3N1YnaN6g0vYjbrDQUFAAAAABEAcwgAJOQOFal6GSRuDndCaL1T2IthwHhWzULFMty8FZYThcMuiwEkAVhJWkYAAAEAbQAAAAAAAACBAAAAAAAAAAMBAAAAAAAAAQAAAAQAAAANAAAAAAAAAPu5j83bzOkXjKdzVqbIZ1MkqQLsV3G2NxzgBH8c8SBtAAAAAAAAAABRJ1WJWElaIQ=="
 

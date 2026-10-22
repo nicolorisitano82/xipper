@@ -88,7 +88,7 @@ Ai livelli -7 e -8 si usa 1× dizionario, privilegiando la velocità.
 | Area | Stato |
 |---|---|
 | **Quick Look dell'archivio (9.2)** | `XipperPreview.appex` (`QLPreviewingController`, sandbox): intestazione con formato, dimensioni e numero di elementi, poi l'elenco delle voci (al massimo 500 righe; tar letti fino a 2 GiB). Verificata con `qlmanage -p` su un tar.zst. |
-| **Miniature (9.5)** | `XipperThumbnail.appex` (`QLThumbnailProvider`): scatola con l'etichetta del formato e, per gli ZIP, il numero di file. Verificata con `QLThumbnailGenerator` su ZIP e tar.zst. |
+| **Miniature (9.5)** | `XipperThumbnail.appex` (`QLThumbnailProvider`): icona del formato dallo sprite C con l'etichetta e, per gli ZIP, il numero di file. Verificata con `QLThumbnailGenerator` su ZIP e tar.zst. |
 | **Quick Look della voce (3.4)** | Barra spaziatrice o "Anteprima" nel browser: le voci selezionate vengono estratte in una cartella temporanea (estrazione sicura normale) e aperte nel pannello Quick Look di sistema, che segue la selezione. La cartella viene svuotata all'avvio e all'uscita. |
 | **Trascinamento nel Finder** | Le righe del browser forniscono un file "pigro" (`NSItemProvider.registerFileRepresentation`): l'estrazione parte solo al rilascio. Da provare a mano. |
 | **Portachiavi e Touch ID (4.2)** | Opzione "Ricorda nel Portachiavi" nello sheet della password (apertura e creazione). La password viene salvata nel portachiavi di login solo dopo che il lavoro è riuscito, una per archivio (percorso reale). Per usarla serve Touch ID o la password del Mac (`LAContext`, disattivabile in Impostazioni › Sicurezza, dove si possono anche dimenticare tutte). Una password salvata che risulta errata viene cancellata. Salvataggio, lettura e cancellazione provati con un servizio di test; il prompt Touch ID va provato a mano. |
@@ -244,6 +244,16 @@ ChatGPT ha generato lo sprite A ([docs/design/sprites/sprite-a-app.png](docs/des
   - estrai, verifica e i badge cifrato, danneggiato e beta: l'app usa gli SF Symbols di sistema, come vuole la specifica;
   - DNA, tutto a posto e progresso: le sorgenti SVG restano pronte per lo sprite B e per le icone dei formati.
 
+## Icone dei file dallo sprite C (22/10/2026)
+
+ChatGPT ha generato lo sprite C ([docs/design/sprites/sprite-c-file-icons.png](docs/design/sprites/sprite-c-file-icons.png)) con il prompt di [docs/design/file-icons-prompt.md](docs/design/file-icons-prompt.md). `scripts/make-artwork.py` ridisegna una sola pagina con la piega e un pittogramma per formato, in SVG.
+
+- **Icone dei documenti:**
+  - 16 voci in `CFBundleDocumentTypes`, una per formato, ognuna con il suo `.icns` (`App/Xipper/DocumentIcons/xipper-<formato>.icns`, da 16 a 1024 px);
+  - l'etichetta (ZIP, 7Z, TAR.GZ, XIZ, BGZF…) è testo vero in SF Rounded, nel colore d'accento, solo da 64 px in su;
+  - tolto `CFBundleTypeIconSystemGenerated`.
+- **Miniature del Finder:** `XipperThumbnail` disegna gli SVG di `App/XipperThumbnail/FileIcons/` con l'etichetta del formato riconosciuto e, per gli ZIP, il numero di file. Gli ZIP e i 7z cifrati mostrano il lucchetto, i volumi `.001`/`.z01` l'icona dei volumi divisi, i file non riconosciuti l'icona generica.
+
 ## XIZ 1.0 stabile (22/10/2026)
 
 Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi implementa, è [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md); il codice è in `Sources/XipperKit/Xiz/`.
@@ -309,3 +319,32 @@ Il formato di Xipper esce dalla beta. La specifica pubblica, in inglese per chi 
   - ogni scrittura su file e socket è limitata a 1 GiB per chiamata.
 - **Finestra di creazione:** chiusa e riaperta tornava identica, con il lavoro finito ancora visibile. Ora alla chiusura la home si azzera; un lavoro in corso passa nel pannello dei lavori.
 - **Test:** quello sull'annullamento della creazione dipendeva dai tempi (annullava dopo 0,15 s fissi). Ora annulla al primo avanzamento ed è deterministico. Aggiunto un test con un file XIZ oltre la soglia di streaming.
+
+## ZIP con bzip2, LZMA e xz, menu del Finder, XIZ 1.2 (23/10/2026)
+
+- **ZIP, nuovi metodi in scrittura:** bzip2 (12), LZMA (14, con marcatore di fine) e xz (95), anche con AES-256.
+  - Leggibili da 7-Zip, WinZip e libarchive; Utility Archivio e l'unzip di macOS non li leggono.
+  - File piccoli: uno stream per file, in parallelo tra i file.
+  - File grandi:
+    - bzip2: blocchi compressi in parallelo e uniti bit per bit in un solo stream, come lbzip2 (7-Zip e libarchive si fermano al primo stream dentro una voce ZIP);
+    - xz: blocchi in parallelo sotto un unico indice (libarchive non legge stream xz concatenati);
+    - LZMA: un solo stream, compresso in streaming sulla coda di scrittura.
+  - CLI `-m bzip2|lzma|xz`; nell'app, «Altri metodi ZIP» nel menu Formato e il metodo nelle Impostazioni.
+  - Test: `sevenZipAndBsdtarReadOurZipMethods` (7zz e bsdtar, file da 36 MiB) e i metodi con password.
+- **Menu del Finder contestuale:**
+  - la prima voce è l'azione adatta alla selezione, con l'icona di Xipper:
+    - «Decomprimi» per gli archivi;
+    - «Apri in Xipper» per BAM/BCF;
+    - «Comprimi» per tutto il resto;
+  - le altre azioni stanno in «Altro con Xipper»;
+  - l'icona è una bitmap template, quindi diventa bianca sulla riga evidenziata (l'SVG perdeva la resa template uscendo dall'estensione);
+  - riconosce anche 7z, xiz, aar, cpio, lz4, br e i volumi `.001`;
+  - da verificare nel Finder con la prossima build installata.
+- **XIZ 1.2, dizionari zstd** ([docs/XIZ_SPEC.md](docs/XIZ_SPEC.md) §12):
+  - un dizionario addestrato sui file sotto 128 KiB, salvato in un frame dizionario e usato dai frame fatti per metà o più di file piccoli;
+  - solo dal livello 9 e con almeno 32 MiB di file piccoli;
+  - −1,0% a livello 12 su 20.000 sorgenti ([docs/BENCHMARK.md](docs/BENCHMARK.md));
+  - gli append riusano il dizionario;
+  - `--no-dictionary` lo disattiva;
+  - vendorizzato `dictBuilder` di zstd 1.5.7;
+  - test: andata e ritorno con e senza password, con append; bit della funzione mancante; nessun dizionario sotto soglia o a livello 3.

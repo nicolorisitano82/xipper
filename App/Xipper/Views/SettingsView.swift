@@ -69,6 +69,9 @@ private struct FormatSettings: View {
                 Picker("Metodo", selection: $method) {
                     Text("Deflate (compatibile ovunque)").tag("deflate")
                     Text("Zstandard (più veloce, 7-Zip/WinZip)").tag("zstd")
+                    Text("bzip2 (7-Zip/WinZip)").tag("bzip2")
+                    Text("LZMA (più piccolo, 7-Zip/WinZip)").tag("lzma")
+                    Text("xz (più piccolo, 7-Zip/WinZip)").tag("xz")
                     Text("Nessuna compressione").tag("store")
                 }
                 Toggle("Non ricomprimere file già compressi (foto, video, archivi)", isOn: $store)

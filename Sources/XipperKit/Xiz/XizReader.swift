@@ -1,4 +1,5 @@
 import CryptoKit
+import CZstd
 import Foundation
 import Synchronization
 
@@ -15,6 +16,13 @@ final class XizArchive: @unchecked Sendable {
     let keys: XizKeys?
     /// 1 for a single-segment archive; appends add one each (1.1).
     let segments: Int
+    /// Dictionary frames (1.2): ID → frame index.
+    let dictionaries: [UInt16: Int]
+    private var ddicts: [UInt16: OpaquePointer] = [:]
+    private let ddictLock = NSLock()
+
+    deinit { for d in ddicts.values { ZSTD_freeDDict(d) } }
+
     /// Where the current footer starts (bytes after it are an interrupted append, ignored).
     var footerOffset: Int64 { footer.catalogOffset + footer.catalogCSize }
 
@@ -94,12 +102,27 @@ final class XizArchive: @unchecked Sendable {
         }
         skipGaps()
         guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ frames overlap the catalog") }
+        // Dictionaries (1.2): declared by the superblock, each defined once and before its users.
+        var dicts: [UInt16: Int] = [:]
+        for (i, f) in c.frames.enumerated() where f.flags != 0 || f.dictionary != 0 {
+            guard sb.required.contains(.dictionaries), f.dictionary != 0 else { throw XipperError.corrupt("XIZ frame \(i): dictionary not declared") }
+            if f.flags & Xiz.dictionaryFrame != 0 {
+                guard dicts[f.dictionary] == nil, f.usize <= UInt32(Xiz.maxDictionary) else {
+                    throw XipperError.corrupt("XIZ dictionary \(f.dictionary) defined twice or too big")
+                }
+                dicts[f.dictionary] = i
+            } else {
+                guard f.codec == .zstd, dicts[f.dictionary] != nil else {
+                    throw XipperError.corrupt("XIZ frame \(i) uses dictionary \(f.dictionary), not defined before it")
+                }
+            }
+        }
         // Entries: extents inside their frames, sizes add up, total as declared.
         var total: UInt64 = 0
         for e in c.entries {
             var sum: UInt64 = 0
             for x in e.extents {
-                guard Int(x.frame) < c.frames.count, UInt64(x.offset) + UInt64(x.length) <= UInt64(c.frames[Int(x.frame)].usize) else {
+                guard Int(x.frame) < c.frames.count, c.frames[Int(x.frame)].flags & Xiz.dictionaryFrame == 0, UInt64(x.offset) + UInt64(x.length) <= UInt64(c.frames[Int(x.frame)].usize) else {
                     throw XipperError.corrupt("XIZ extent outside its frame: \(e.path)")
                 }
                 sum += UInt64(x.length)
@@ -111,6 +134,7 @@ final class XizArchive: @unchecked Sendable {
         }
         guard total == footer.totalBytes else { throw XipperError.corrupt("XIZ declared size mismatch") }
         catalog = c
+        dictionaries = dicts
         self.footer = footer
     }
 
@@ -181,8 +205,28 @@ final class XizArchive: @unchecked Sendable {
         case .store:
             guard payload.count == Int(f.usize) else { throw XipperError.corrupt("XIZ frame \(index) size") }
             return payload
-        case .zstd: return try payload.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(f.usize)) }
+        case .zstd:
+            let dict = f.dictionary != 0 && f.flags & Xiz.dictionaryFrame == 0 ? try ddict(f.dictionary) : nil
+            return try payload.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(f.usize), dictionary: dict) }
         }
+    }
+
+    /// A dictionary ready for decoding, built once (ZSTD_DDict is read-only, shared by threads).
+    private func ddict(_ id: UInt16) throws -> OpaquePointer {
+        if let d = ddictLock.withLock({ ddicts[id] }) { return d }
+        guard let index = dictionaries[id] else { throw XipperError.corrupt("XIZ dictionary \(id) missing") }
+        let d = try XizDictionary.ddict(try frameData(index), id: id)
+        return ddictLock.withLock {
+            if let existing = ddicts[id] { ZSTD_freeDDict(d); return existing }
+            ddicts[id] = d
+            return d
+        }
+    }
+
+    /// The dictionary an append reuses: ID and content.
+    func dictionary() throws -> (UInt16, [UInt8])? {
+        guard let (id, index) = dictionaries.min(by: { $0.key < $1.key }) else { return nil }
+        return (id, try frameData(index))
     }
 }
 

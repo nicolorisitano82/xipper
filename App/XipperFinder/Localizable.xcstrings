@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "it",
   "strings" : {
+    "Altro con Xipper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More with Xipper"
+          }
+        }
+      }
+    },
     "Apri in Xipper" : {
       "localizations" : {
         "en" : {
@@ -71,7 +81,38 @@
         }
       }
     },
+    "Decomprimi %lld archivi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decompress %lld archives"
+          }
+        }
+      }
+    },
+    "Decomprimi gli archivi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decompress the archives"
+          }
+        }
+      }
+    },
+    "Decomprimi “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decompress “%@”"
+          }
+        }
+      }
+    },
     "Estrai qui" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

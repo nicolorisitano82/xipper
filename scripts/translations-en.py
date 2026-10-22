@@ -538,6 +538,15 @@ PLURAL = {
     "… e altri %lld elementi": ("… e un altro elemento", "… e altri %lld elementi", "… and one more item", "… and %lld more items"),
 }
 EN["rapporto %lld%%"] = "ratio %lld%%"
+EN["Altri metodi ZIP"] = "More ZIP methods"
+EN["LZMA (più piccolo, 7-Zip/WinZip)"] = "LZMA (smaller, 7-Zip/WinZip)"
+EN["bzip2 (7-Zip/WinZip)"] = "bzip2 (7-Zip/WinZip)"
+EN["xz (più piccolo, 7-Zip/WinZip)"] = "xz (smaller, 7-Zip/WinZip)"
+EN["ZIP · %@"] = "ZIP · %@"
+EN["Altro con Xipper"] = "More with Xipper"
+EN["Decomprimi %lld archivi"] = "Decompress %lld archives"
+EN["Decomprimi gli archivi"] = "Decompress the archives"
+EN["Decomprimi “%@”"] = "Decompress “%@”"
 
 
 def unit(value):

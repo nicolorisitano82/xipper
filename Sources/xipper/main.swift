@@ -12,11 +12,12 @@ usage: xipper <command> [options]
       -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio,
                            xiz, gz, bz2, xz, zst
       -l, --level N        compression level (zip 1-12, zstd 1-22, xz/7z 0-9, bzip2 1-9)
-      -m, --method M       zip method: deflate (default), zstd, store
+      -m, --method M       zip method: deflate (default), zstd, bzip2, lzma, xz, store
       -p, --password       encrypt (zip, 7z, xiz: AES-256; aar: AEA); prompts for the password
           --solid SIZE     7z solid block size (e.g. 64m, 2g; "off" = one block per file)
       -v, --volume SIZE    7z: split into volumes of SIZE (name.7z.001, .002, …)
           --plain-names    7z with a password: leave file names readable
+          --no-dictionary  xiz: no zstd dictionary for small files
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
@@ -84,7 +85,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
                          "--read-only", "--discard", "--compact"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
@@ -219,11 +220,9 @@ case "create", "c":
         o.format = fmt
     }
     if let l = value("-l", "--level") { guard let n = Int(l) else { fail("invalid level \(l)", code: 2) }; o.level = n }
-    switch value("-m", "--method")?.lowercased() {
-    case nil, "deflate": o.zipMethod = .deflate
-    case "zstd": o.zipMethod = .zstd
-    case "store": o.zipMethod = .store
-    case let m?: fail("unknown method \(m)", code: 2)
+    if let m = value("-m", "--method") {
+        guard let method = ZipMethod(name: m) else { fail("unknown method \(m)", code: 2) }
+        o.zipMethod = method
     }
     o.forceZip64 = flag("--zip64")
     if let v = value("--solid") {
@@ -235,6 +234,7 @@ case "create", "c":
         o.volumeSize = n
     }
     o.encryptFileNames = !flag("--plain-names")
+    o.xizDictionary = !flag("--no-dictionary")
     o.overwrite = flag("--overwrite")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
     o.workload = workload

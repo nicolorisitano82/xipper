@@ -1,3 +1,4 @@
+import CLZMA
 import CDeflate
 import CZstd
 import Dispatch
@@ -10,11 +11,45 @@ public enum ZipMethod: Sendable, Equatable {
     case deflate
     /// ZIP method 93: much faster/smaller, readable by 7-Zip ≥ 21, WinZip, libarchive; not by Archive Utility.
     case zstd
+    /// ZIP method 12: 7-Zip, WinZip, libarchive; not Archive Utility or macOS unzip.
+    case bzip2
+    /// ZIP method 14 (LZMA1 with end marker): 7-Zip, WinZip, libarchive.
+    case lzma
+    /// ZIP method 95: 7-Zip, WinZip, libarchive.
+    case xz
+
+    /// Level when none is given: zip -6 for deflate, the zstd/xz defaults, 900 KB blocks for bzip2.
+    public var defaultLevel: Int {
+        switch self {
+        case .store: 0
+        case .deflate, .lzma, .xz: 6
+        case .zstd: 3
+        case .bzip2: 9
+        }
+    }
+
+    /// Short name, as accepted by `xipper -m`.
+    public var name: String {
+        switch self {
+        case .store: "store"
+        case .deflate: "deflate"
+        case .zstd: "zstd"
+        case .bzip2: "bzip2"
+        case .lzma: "lzma"
+        case .xz: "xz"
+        }
+    }
+
+    public init?(name: String) {
+        guard let m = [ZipMethod.store, .deflate, .zstd, .bzip2, .lzma, .xz].first(where: { $0.name == name.lowercased() }) else { return nil }
+        self = m
+    }
 }
 
 public struct ZipOptions: Sendable {
     public var method: ZipMethod = .deflate
-    /// deflate: 1…12 (libdeflate scale, 6 ≈ zip -6); zstd: 1…22.
+    /// deflate: 1…12 (libdeflate scale, 6 ≈ zip -6); zstd: 1…22; bzip2: 1…9 (block size);
+    /// LZMA and xz: preset 0…9.
     public var level: Int = 6
     /// Enables encryption of all file data: WinZip AES-256 unless `legacyZipCrypto`.
     public var password: String?
@@ -66,7 +101,8 @@ enum ZipWriter {
 
         // 2. Windows: compute in parallel, emit in order on the writer queue.
         let out = try OutputFile(path: path)
-        let emitter = ZipEmitter(out: out, items: items, plans: plans, password: password, options: options)
+        let emitter = ZipEmitter(out: out, items: items, plans: plans, password: password, options: options,
+                                 tracker: tracker, cancel: cancel)
         let writerQueue = DispatchQueue(label: "xipper.zip.writer", qos: options.workload.qos == .utility ? .utility : .userInitiated)
         let inFlight = DispatchSemaphore(value: 1)
         let writeError = Mutex<Error?>(nil)
@@ -119,9 +155,11 @@ enum ZipWriter {
     struct Job { let item: Int; let chunk: Int }  // chunk -1 = whole item
 
     struct Plan {
-        var method: Zip.Method  // .store / .deflate / .zstd (before encryption)
+        var method: Zip.Method  // before encryption
         var chunkSize: Int
         var chunkCount: Int  // 0 = not chunked
+        /// Big LZMA entry: one raw LZMA1 stream cannot be split, so the writer queue streams it.
+        var streamed = false
         var size: Int64
         var needsCompute: Bool
         var zip64: Bool
@@ -133,8 +171,22 @@ enum ZipWriter {
     }
 
     private static func plan(_ items: [ArchiveItem], options: ZipOptions, cancel: CancellationToken?) throws -> [Plan] {
-        let base: Zip.Method = switch options.method { case .store: .store; case .deflate: .deflate; case .zstd: .zstd }
-        let chunk = base == .deflate ? Deflate.chunkSize : 4 << 20
+        let base: Zip.Method = switch options.method {
+        case .store: .store
+        case .deflate: .deflate
+        case .zstd: .zstd
+        case .bzip2: .bzip2
+        case .lzma: .lzma
+        case .xz: .xz
+        }
+        // Chunks of a big entry: one deflate stream (pigz style), independent zstd frames, or
+        // bzip2 and xz blocks joined into one stream by the emitter.
+        let chunk = switch base {
+        case .deflate: Deflate.chunkSize
+        case .bzip2: Bzip2Joiner.chunkSize(level: options.level)
+        case .xz: 8 << 20
+        default: 4 << 20
+        }
         var plans = items.map { item -> Plan in
             guard case let .file(size) = item.kind else {
                 return Plan(method: .store, chunkSize: 0, chunkCount: 0, size: 0, needsCompute: false, zip64: options.forceZip64)
@@ -142,14 +194,16 @@ enum ZipWriter {
             var method = base
             if size == 0 || (options.storeAlreadyCompressed && AlreadyCompressed.matches(item.name)) { method = .store }
             let big = size > Int64(chunk * bigFileChunks)
-            return Plan(method: method, chunkSize: chunk, chunkCount: big ? Int((size + Int64(chunk) - 1) / Int64(chunk)) : 0,
-                        size: size, needsCompute: true,
+            let streamed = big && method == .lzma
+            return Plan(method: method, chunkSize: chunk,
+                        chunkCount: big && !streamed ? Int((size + Int64(chunk) - 1) / Int64(chunk)) : 0,
+                        streamed: streamed, size: size, needsCompute: true,
                         // Chunked entries are written before their compressed size is known: leave headroom.
                         zip64: options.forceZip64 || size >= 0xF000_0000)
         }
         // Big files of unknown type: probe 256 KiB, store if it does not compress.
         guard options.storeAlreadyCompressed else { return plans }
-        let probe = plans.indices.filter { plans[$0].chunkCount > 0 && plans[$0].method != .store }
+        let probe = plans.indices.filter { (plans[$0].chunkCount > 0 || plans[$0].streamed) && plans[$0].method != .store }
         let verdict = Slots<Bool>(probe.count)
         try parallelFor(probe.count, workload: options.workload, cancel: cancel) { k in
             let item = items[probe[k]]
@@ -159,7 +213,7 @@ enum ZipWriter {
             let packed = sample.withUnsafeBytes { Deflate.compress($0, level: 1) }
             verdict[k] = (packed?.count ?? n) > n * 97 / 100
         }
-        for (k, i) in probe.enumerated() where verdict[k] == true { plans[i].method = .store }
+        for (k, i) in probe.enumerated() where verdict[k] == true { plans[i].method = .store; plans[i].streamed = false }
         return plans
     }
 
@@ -172,9 +226,14 @@ enum ZipWriter {
         /// Whole entries: method actually used (may fall back to store).
         var method: Zip.Method
         var completesEntry: Bool
+        /// xz chunk: the block's unpadded size, for the stream index.
+        var xzUnpadded: UInt64 = 0
     }
 
     private static func compute(_ job: Job, item: ArchiveItem, plan: Plan, options: ZipOptions, password: [UInt8]?) throws -> JobResult {
+        if plan.streamed {  // compressed by the emitter, in order
+            return JobResult(payload: [], crc: 0, inputLength: 0, method: plan.method, completesEntry: false)
+        }
         let reader = try FileReader(path: item.sourcePath)
         if job.chunk < 0 {
             // Whole file. Size taken now: a file that grew or shrank since the scan is archived as it is.
@@ -183,10 +242,20 @@ enum ZipWriter {
             let crc = CRC32.checksum(data)
             var method = plan.method
             var payload: [UInt8] = data
-            if method == .deflate {
-                if let c = data.withUnsafeBytes({ Deflate.compress($0, level: options.level) }) { payload = c } else { method = .store }
-            } else if method == .zstd {
-                if let c = data.withUnsafeBytes({ zstdCompress($0, level: options.level) }) { payload = c } else { method = .store }
+            let packed: [UInt8]?? = data.withUnsafeBytes { d in
+                switch method {
+                case .deflate: Deflate.compress(d, level: options.level)
+                case .zstd: zstdCompress(d, level: options.level)
+                case .bzip2: ZipBzip2.compress(d, level: options.level)
+                case .lzma: ZipLZMA.lzma(d, preset: options.level)
+                case .xz: ZipLZMA.xz(d, preset: options.level)
+                default: .some(nil)
+                }
+            }
+            switch packed {
+            case let .some(.some(c)): payload = c
+            case .some(.none) where method != .store: method = .store
+            default: break
             }
             if let password {
                 let enc = try makeEncryptor(password, item: item, legacy: options.legacyZipCrypto)
@@ -208,7 +277,8 @@ enum ZipWriter {
         return try buf.withUnsafeBytes { all in
             let data = UnsafeRawBufferPointer(rebasing: all[dictLen...])
             let crc = CRC32.checksum(data)
-            let payload: [UInt8]
+            var payload: [UInt8]
+            var unpadded: UInt64 = 0
             switch plan.method {
             case .deflate:
                 let dict = dictLen > 0 ? UnsafeRawBufferPointer(rebasing: all[..<dictLen]) : nil
@@ -216,10 +286,17 @@ enum ZipWriter {
             case .zstd:
                 // Each chunk is an independent zstd frame; decoders read concatenated frames.
                 payload = zstdCompress(data, level: options.level, allowExpansion: true)!
+            case .bzip2:
+                guard let c = ZipBzip2.compress(data, level: options.level, allowExpansion: true) else { throw XipperError.codec("bzip2 compress failed") }
+                payload = c
+            case .xz:
+                guard let b = ZipXzStream.block(data, preset: options.level) else { throw XipperError.codec("xz compress failed") }
+                payload = b.bytes
+                unpadded = b.unpadded
             default:
                 payload = Array(data)
             }
-            return JobResult(payload: payload, crc: crc, inputLength: len, method: plan.method, completesEntry: last)
+            return JobResult(payload: payload, crc: crc, inputLength: len, method: plan.method, completesEntry: last, xzUnpadded: unpadded)
         }
     }
 
@@ -255,6 +332,8 @@ private final class ZipEmitter: @unchecked Sendable {
     let plans: [ZipWriter.Plan]
     let password: [UInt8]?
     let options: ZipOptions
+    let tracker: ProgressTracker
+    let cancel: CancellationToken?
     private var central = ByteWriter(capacity: 1 << 20)
     private var count = 0
     private var open: OpenEntry?
@@ -268,14 +347,19 @@ private final class ZipEmitter: @unchecked Sendable {
         var compressed: Int64 = 0
         var uncompressed: Int64 = 0
         var encryptor: ZipEntryEncryptor?
+        var bzip2: Bzip2Joiner?
+        var xzBlocks: [(unpadded: UInt64, uncompressed: UInt64)] = []
     }
 
-    init(out: OutputFile, items: [ArchiveItem], plans: [ZipWriter.Plan], password: [UInt8]?, options: ZipOptions) {
+    init(out: OutputFile, items: [ArchiveItem], plans: [ZipWriter.Plan], password: [UInt8]?, options: ZipOptions,
+         tracker: ProgressTracker, cancel: CancellationToken?) {
         self.out = out
         self.items = items
         self.plans = plans
         self.password = password
         self.options = options
+        self.tracker = tracker
+        self.cancel = cancel
     }
 
     func emit(_ job: ZipWriter.Job, _ result: ZipWriter.JobResult?) throws {
@@ -290,7 +374,9 @@ private final class ZipEmitter: @unchecked Sendable {
                            encrypted: false, zip64: plan.zip64, isDir: false)
         case .file:
             guard let r = result else { throw XipperError.codec("missing job result") }
-            if job.chunk < 0 {
+            if plan.streamed {
+                try writeStreamed(job)
+            } else if job.chunk < 0 {
                 try writeWhole(item, method: r.method, crc: r.crc, usize: Int64(r.inputLength), payload: r.payload,
                                encrypted: password != nil, zip64: plan.zip64 || Int64(r.payload.count) >= 0xFFFF_FFFF, isDir: false)
             } else {
@@ -320,7 +406,11 @@ private final class ZipEmitter: @unchecked Sendable {
             var v: UInt16 = 20
             if zip64 { v = max(v, 45) }
             if encrypted && !legacy { v = max(v, 51) }
-            if method == .zstd { v = max(v, 63) }
+            switch method {
+            case .bzip2: v = max(v, 46)
+            case .lzma, .xz, .zstd: v = max(v, 63)
+            default: break
+            }
             return v
         }
 
@@ -392,6 +482,7 @@ private final class ZipEmitter: @unchecked Sendable {
         let legacy = encrypted && options.legacyZipCrypto
         if encrypted { flags |= Zip.Flag.encrypted }
         if legacy { flags |= Zip.Flag.dataDescriptor }
+        if method == .lzma { flags |= Zip.Flag.lzmaEndMarker }
         return HeaderFields(name: name, method: method, encrypted: encrypted, legacy: legacy, aesVersion: aesVersion, flags: flags,
                             dosTime: t, dosDate: d,
                             mtime: UInt32(clamping: Int64(max(0, item.modified.timeIntervalSince1970))),
@@ -415,37 +506,94 @@ private final class ZipEmitter: @unchecked Sendable {
     }
 
     private func writeChunk(_ job: ZipWriter.Job, _ r: ZipWriter.JobResult) throws {
-        let item = items[job.item]
         let plan = plans[job.item]
         if job.chunk == 0 {
-            let enc = try password.map { try ZipWriter.makeEncryptor($0, item: item, legacy: options.legacyZipCrypto) }
-            let f = try fields(item, method: plan.method, encrypted: enc != nil, aesVersion: aesVersion(plan.size),
-                               zip64: plan.zip64, isDir: false)
-            open = OpenEntry(item: job.item, headerOffset: out.position, header: f, encryptor: enc)
-            try out.write(f.local(crc: 0, csize: 0, usize: 0))  // patched when the entry closes
-            if let enc { try out.write(enc.header); open!.compressed += Int64(enc.header.count) }
+            try openEntry(job.item)
+            if plan.method == .bzip2 { open!.bzip2 = Bzip2Joiner() }
+            if plan.method == .xz, var e = open { try append(&e, ZipXzStream.header()); open = e }
         }
         guard var e = open, e.item == job.item else { throw XipperError.codec("chunk out of order") }
-        var payload = r.payload
-        e.encryptor?.encrypt(&payload)
-        try out.write(payload)
+        let last = job.chunk == plan.chunkCount - 1
+        switch plan.method {
+        case .bzip2:
+            try append(&e, try e.bzip2!.append(r.payload))
+            if last { try append(&e, e.bzip2!.finish()) }
+        case .xz:
+            try append(&e, r.payload)
+            e.xzBlocks.append((r.xzUnpadded, UInt64(r.inputLength)))
+            if last { try append(&e, try ZipXzStream.trailer(e.xzBlocks.map { (lzma_vli($0.unpadded), lzma_vli($0.uncompressed)) })) }
+        default:
+            try append(&e, r.payload)
+        }
         e.crc = e.uncompressed == 0 ? r.crc : CRC32.combine(e.crc, r.crc, lengthB: Int64(r.inputLength))
-        e.compressed += Int64(payload.count)
         e.uncompressed += Int64(r.inputLength)
-        if job.chunk == plan.chunkCount - 1 {
-            if let enc = e.encryptor { let t = enc.trailer; try out.write(t); e.compressed += Int64(t.count) }
-            if !e.header.zip64 && (UInt64(e.compressed) >= Zip.max32 || UInt64(e.uncompressed) >= Zip.max32) {
-                throw XipperError.codec("entry outgrew its non-ZIP64 header: \(item.name)")
-            }
-            let storedCRC = e.header.encrypted && !e.header.legacy && e.header.aesVersion == 2 ? 0 : e.crc
-            if e.header.legacy { try out.write(e.header.dataDescriptor(crc: e.crc, csize: e.compressed, usize: e.uncompressed)) }
-            try out.patch(at: e.headerOffset, e.header.local(crc: storedCRC, csize: e.compressed, usize: e.uncompressed))
-            central.append(e.header.centralRecord(crc: storedCRC, csize: e.compressed, usize: e.uncompressed, offset: e.headerOffset))
-            count += 1
-            open = nil
+        if last {
+            try close(e)
         } else {
             open = e
         }
+    }
+
+    /// Big LZMA entry: read, compress and write piece by piece on the writer queue.
+    private func writeStreamed(_ job: ZipWriter.Job) throws {
+        let item = items[job.item]
+        let plan = plans[job.item]
+        try openEntry(job.item)
+        guard var e = open else { return }
+        let reader = try FileReader(path: item.sourcePath)
+        if reader.size != plan.size { throw XipperError.io("read (file changed while archiving)", path: item.sourcePath, errno: EAGAIN) }
+        let (coder, head) = try LZMACoder.zipLZMAEncoder(preset: options.level, size: plan.size, cancel: cancel)
+        try append(&e, head)
+        let sink: ByteSink = { try self.append(&e, Array($0)) }
+        var pos: Int64 = 0
+        while pos < plan.size {
+            try cancel?.check()
+            let n = Int(min(Int64(4 << 20), plan.size - pos))
+            let data = try reader.read(at: pos, count: n)
+            let crc = CRC32.checksum(data)
+            e.crc = pos == 0 ? crc : CRC32.combine(e.crc, crc, lengthB: Int64(n))
+            try data.withUnsafeBytes { try coder.process($0, sink) }
+            pos += Int64(n)
+            e.uncompressed = pos
+            tracker.add(bytes: Int64(n), entries: 0, current: item.name)
+        }
+        try coder.finish(sink)
+        try close(e)
+        tracker.add(bytes: 0, entries: 1, current: item.name)
+    }
+
+    /// Local header with sizes patched at close, and the encryption header.
+    private func openEntry(_ index: Int) throws {
+        let item = items[index]
+        let plan = plans[index]
+        let enc = try password.map { try ZipWriter.makeEncryptor($0, item: item, legacy: options.legacyZipCrypto) }
+        let f = try fields(item, method: plan.method, encrypted: enc != nil, aesVersion: aesVersion(plan.size),
+                           zip64: plan.zip64, isDir: false)
+        open = OpenEntry(item: index, headerOffset: out.position, header: f, encryptor: enc)
+        try out.write(f.local(crc: 0, csize: 0, usize: 0))  // patched when the entry closes
+        if let enc { try out.write(enc.header); open!.compressed += Int64(enc.header.count) }
+    }
+
+    private func append(_ e: inout OpenEntry, _ data: [UInt8]) throws {
+        var payload = data
+        e.encryptor?.encrypt(&payload)
+        try out.write(payload)
+        e.compressed += Int64(payload.count)
+    }
+
+    private func close(_ entry: OpenEntry) throws {
+        var e = entry
+        let item = items[e.item]
+        if let enc = e.encryptor { let t = enc.trailer; try out.write(t); e.compressed += Int64(t.count) }
+        if !e.header.zip64 && (UInt64(e.compressed) >= Zip.max32 || UInt64(e.uncompressed) >= Zip.max32) {
+            throw XipperError.codec("entry outgrew its non-ZIP64 header: \(item.name)")
+        }
+        let storedCRC = e.header.encrypted && !e.header.legacy && e.header.aesVersion == 2 ? 0 : e.crc
+        if e.header.legacy { try out.write(e.header.dataDescriptor(crc: e.crc, csize: e.compressed, usize: e.uncompressed)) }
+        try out.patch(at: e.headerOffset, e.header.local(crc: storedCRC, csize: e.compressed, usize: e.uncompressed))
+        central.append(e.header.centralRecord(crc: storedCRC, csize: e.compressed, usize: e.uncompressed, offset: e.headerOffset))
+        count += 1
+        open = nil
     }
 
     // MARK: end of central directory
