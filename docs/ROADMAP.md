@@ -95,25 +95,30 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 - ✅ il salvataggio dei volumi montati usa lo stesso percorso (ZIP e XIZ non ricomprimono più tutto);
 - da fare: 7z non solido senza ricompressione.
 
-### 6. Formati in sola lettura
-
-- **RAR/RAR5:** implementazione clean-room, §4.2 di STUDIO;
-- **ISO 9660/UDF** e **DMG** non cifrati.
-
-### 7. Automazione
+### 6. Automazione
 
 - Tasks MCP per i lavori lunghi;
 - nuove azioni di Comandi Rapidi (monta, manifest).
 
-### 8. Genomica
+### 7. Genomica
 
 - ✅ **indici** per altri formati (23/10/2026): `.bai`/`.csi` per BAM, `.crai`, `.csi` per BCF, `.fai` (+`.gzi`), tabix per SAM; `xipper index`;
 - ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; da fare app e MCP);
-- MPEG-G in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie; studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md).
+- MPEG-G: spostato nella 3.0 (vedi sotto).
 
 ### Rinviate
 
 - Cartelle sorvegliate (comprimi o estrai all'arrivo): non interessano in questa fase (23/10/2026). Il progetto resta in UI_SPEC §8.6.
+
+---
+
+## 3.0: formati in sola lettura
+
+Decisione del 23/10/2026: questi formati passano dalla 2.0 alla 3.0.
+
+- **RAR/RAR5:** implementazione clean-room, §4.2 di STUDIO;
+- **ISO 9660/UDF** e **DMG** non cifrati;
+- **MPEG-G** in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie. Studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md), stima 35–50 giorni-persona; decisioni aperte nella §7 dello studio.
 
 ---
 

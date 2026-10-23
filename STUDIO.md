@@ -20,7 +20,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | v2: MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)), RAR in sola lettura ([docs/ROADMAP.md](docs/ROADMAP.md)). |
+| **Prossimi passi** | v2: CRAM nell'app e in MCP, ottimizzazioni ARM64 (secondo giro). v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 
@@ -162,11 +162,11 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
 | lz4, brotli (anche `tar.lz4`, `tar.br`) | 🔜 | ✅ fatto | | lz4: decoder del formato frame scritto da noi (blocchi indipendenti e collegati, xxHash32); brotli: Compression di sistema |
 | CPIO (newc, crc, odc), `.aar` (Apple Archive) | ✅ fatto | ✅ fatto | ✅ AEA (password di almeno 20 caratteri, limite di macOS) | cpio nostro (scrittura newc); Apple Archive tramite il framework AppleArchive di sistema (LZ4/LZFSE/LZMA, attributi estesi), con l'estrazione sicura di Xipper |
-| ISO 9660 / UDF | ❌ | 🔜 📖 | | nostro (lettura semplice) |
-| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v2 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
+| ISO 9660 / UDF | ❌ | 🔜 📖 v3 | | nostro (lettura semplice) |
+| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v3 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
 | **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
-| **MPEG-G** (ISO/IEC 23092, `.mgb`) | ⚠️ | ⚠️ | — | brevetti e licenze da chiarire prima di qualsiasi implementazione; vedi §4.5 |
+| **MPEG-G** (ISO/IEC 23092, `.mgb`/`.mgg`) | ❌ | 🔜 v3, sola lettura | — | rischio brevettuale accettato dal titolare il 23/10/2026; estensione di Genie, vedi §4.5 e [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md) |
 | **XIZ** (formato di Xipper, `.xiz`) | ✅ 1.1 | ✅ | ✅ Argon2id + AES-256-GCM su dati, nomi e metadati | nostro; [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md): frame zstd indipendenti, catalogo in coda, deduplicazione FastCDC, segmenti aggiunti in coda per la modifica in place |
 | **PAR2** (dati di recupero, `.par2`) | ✅ | ✅ verifica e riparazione | — | nostro, dalla specifica PAR 2.0 (Reed-Solomon su GF(2^16)); vale per qualsiasi archivio |
 
@@ -556,10 +556,11 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **1.5 CLI + MCP** ✅ | Server MCP `xipper mcp` (2026-07-28 + 2025-11-25), 9 tool, allowlist, sola lettura, `password_ref` nel Portachiavi, conferme via elicitation/MRTR, audit, `.mcpb` (§6-ter) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.6 Genomica: BGZF** ✅ | Compressione e decompressione BGZF parallele, verifica BGZF/BAM/BCF, conversione gzip↔BGZF, indice `.gzi`, preferenza "Genomica", `xipper bgzip` (§4.4) | completata il 21/10/2026 → [FASE1.md](FASE1.md) |
 | **1.7 Genomica 2 (GA4GH, locale)** ✅ | Creazione di tabix/CSI compatibile htslib (query identiche a `tabix`), verifica degli indici `.tbi`/`.csi`/`.bai`/`.gzi`/`.crai`, verifica strutturale di CRAM 3.0/3.1 e di VCF.gz/BCF, manifest sha-256/md5/crc32c (JSON DRS, `sha256sum`/`md5sum`); CLI `xipper tabix`/`index-check`/`manifest`, MCP `genomics_index`/`genomics_check`/`checksum_manifest` (§4.6) | completata il 21/10/2026 → [FASE1.md](FASE1.md) (Finder: con l'app) |
-| **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
+| **G0 MPEG-G** | Rischio brevettuale accettato dal titolare (23/10/2026); resta da decidere l'acquisto dello standard (§4.5, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | chiusa per la parte legale |
 | **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; **RAR in sola lettura (clean-room, §4.2)**; ISO; MPEG-G in sola lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
+| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
+| **5. v3** | Formati in sola lettura: **RAR/RAR5** (clean-room, §4.2), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | da pianificare (decisione del 23/10/2026) |
 
 ---
 
