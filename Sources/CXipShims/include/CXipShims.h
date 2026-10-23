@@ -23,6 +23,12 @@ uint32_t xs_crc32_combine(uint32_t crc1, uint32_t crc2, uint64_t len2);
 
 /// PAR2 GF(2^16): 128 bytes of nibble tables for `factor`, then dst ^= factor · src
 /// (little-endian words; NEON TBL, with a portable path kept for equivalence tests).
+/// Deflate64 (ZIP method 9) encoder (deflate64.c): `in` coded after `dict` (at most the last 64 KiB
+/// are used); not `last` → ends with a sync flush, so chunks concatenate. 0 on failure.
+size_t xs_deflate64_bound(size_t n);
+size_t xs_deflate64_compress(const uint8_t *in, size_t n, const uint8_t *dict, size_t dict_len,
+                             int level, int last, uint8_t *out, size_t cap);
+
 /// Deflate64 (ZIP method 9), streaming (inflate64.c).
 typedef struct xs_inflate64 xs_inflate64;
 enum { XS_INFLATE64_NEED_INPUT = 0, XS_INFLATE64_OUTPUT_FULL = 1, XS_INFLATE64_END = 2, XS_INFLATE64_ERROR = -1 };

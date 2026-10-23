@@ -18,7 +18,7 @@ Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 
 3. Verifica, se vuoi: l'impronta SHA-256 del DMG è nel file `.sha256` che lo accompagna.
 
 ## Cosa fa
-- **Comprimi:** trascina file e cartelle nella finestra, scegli formato, livello ed eventuale password (ZIP, 7z e XIZ con AES-256; Apple Archive con AEA). Gli ZIP si possono creare anche con bzip2, LZMA e xz (menu Formato › Altri metodi ZIP), leggibili da 7-Zip e WinZip ma non da Utility Archivio.
+- **Comprimi:** trascina file e cartelle nella finestra, scegli formato, livello ed eventuale password (ZIP, 7z e XIZ con AES-256; Apple Archive con AEA). Gli ZIP si possono creare anche con bzip2, LZMA, xz e Deflate64 (menu Formato › Altri metodi ZIP), leggibili da 7-Zip e WinZip ma non da Utility Archivio.
 - **Apri e sfoglia:** doppio clic su un archivio; anteprima con la barra spaziatrice, trascinamento dei file sulla Scrivania.
 - **Estrai:** accanto all'archivio, oppure le voci scelte dove vuoi. Xipper non scrive mai fuori dalla destinazione, blocca le zip-bomb e mantiene la quarantena dei file scaricati.
 - **Modifica senza estrarre:** nel browser, tasto destro › **Rinomina…**, **Elimina**, **Aggiungi file…**, oppure trascina file nella tabella. Con ZIP, 7z e XIZ quello che non cambia non viene ricompresso (in un 7z solido si ricomprimono solo i blocchi toccati).

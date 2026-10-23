@@ -17,12 +17,14 @@ public enum ZipMethod: Sendable, Equatable {
     case lzma
     /// ZIP method 95: 7-Zip, WinZip, libarchive.
     case xz
+    /// ZIP method 9 (Deflate64, 64 KiB window): 7-Zip, WinZip, Info-ZIP unzip 6, Windows Explorer; not Archive Utility.
+    case deflate64
 
     /// Level when none is given: zip -6 for deflate, the zstd/xz defaults, 900 KB blocks for bzip2.
     public var defaultLevel: Int {
         switch self {
         case .store: 0
-        case .deflate, .lzma, .xz: 6
+        case .deflate, .lzma, .xz, .deflate64: 6
         case .zstd: 3
         case .bzip2: 9
         }
@@ -37,11 +39,12 @@ public enum ZipMethod: Sendable, Equatable {
         case .bzip2: "bzip2"
         case .lzma: "lzma"
         case .xz: "xz"
+        case .deflate64: "deflate64"
         }
     }
 
     public init?(name: String) {
-        guard let m = [ZipMethod.store, .deflate, .zstd, .bzip2, .lzma, .xz].first(where: { $0.name == name.lowercased() }) else { return nil }
+        guard let m = [ZipMethod.store, .deflate, .zstd, .bzip2, .lzma, .xz, .deflate64].first(where: { $0.name == name.lowercased() }) else { return nil }
         self = m
     }
 }
@@ -181,11 +184,13 @@ enum ZipWriter {
         case .bzip2: .bzip2
         case .lzma: .lzma
         case .xz: .xz
+        case .deflate64: .deflate64
         }
         // Chunks of a big entry: one deflate stream (pigz style), independent zstd frames, or
         // bzip2 and xz blocks joined into one stream by the emitter.
         let chunk = switch base {
         case .deflate: Deflate.chunkSize
+        case .deflate64: Deflate64.chunkSize
         case .bzip2: Bzip2Joiner.chunkSize(level: options.level)
         case .xz: 8 << 20
         default: 4 << 20
@@ -252,6 +257,7 @@ enum ZipWriter {
                 case .bzip2: ZipBzip2.compress(d, level: options.level)
                 case .lzma: ZipLZMA.lzma(d, preset: options.level)
                 case .xz: ZipLZMA.xz(d, preset: options.level)
+                case .deflate64: Deflate64.compress(d, level: options.level)
                 default: .some(nil)
                 }
             }
@@ -272,7 +278,11 @@ enum ZipWriter {
         let offset = Int64(job.chunk) * Int64(plan.chunkSize)
         let len = plan.jobInputBytes(job.chunk)
         let last = job.chunk == plan.chunkCount - 1
-        let dictLen = plan.method == .deflate ? Int(min(Int64(Deflate.windowSize), offset)) : 0
+        let dictLen = switch plan.method {
+        case .deflate: Int(min(Int64(Deflate.windowSize), offset))
+        case .deflate64: Int(min(Int64(Deflate64.windowSize), offset))
+        default: 0
+        }
         if offset + Int64(len) > reader.size || (last && reader.size != plan.size) {
             throw XipperError.io("read (file changed while archiving)", path: item.sourcePath, errno: EAGAIN)
         }
@@ -286,6 +296,12 @@ enum ZipWriter {
             case .deflate:
                 let dict = dictLen > 0 ? UnsafeRawBufferPointer(rebasing: all[..<dictLen]) : nil
                 payload = try Deflate.compressChunk(data, dict: dict, level: min(options.level, 9), last: last)
+            case .deflate64:
+                let dict = dictLen > 0 ? UnsafeRawBufferPointer(rebasing: all[..<dictLen]) : nil
+                guard let c = Deflate64.compress(data, dict: dict, level: options.level, last: last, allowExpansion: true) else {
+                    throw XipperError.codec("Deflate64 compress failed")
+                }
+                payload = c
             case .zstd:
                 // Each chunk is an independent zstd frame; decoders read concatenated frames.
                 payload = zstdCompress(data, level: options.level, allowExpansion: true)!
@@ -411,6 +427,7 @@ private final class ZipEmitter: @unchecked Sendable {
             if zip64 { v = max(v, 45) }
             if encrypted && !legacy { v = max(v, 51) }
             switch method {
+            case .deflate64: v = max(v, 21)
             case .bzip2: v = max(v, 46)
             case .lzma, .xz, .zstd: v = max(v, 63)
             default: break

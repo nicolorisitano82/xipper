@@ -316,7 +316,7 @@ struct HomeView: View {
                             Text("più veloce · 7-Zip, WinZip; non Utility Archivio")
                         }
                         Menu("Altri metodi ZIP") {
-                            ForEach([ZipMethod.bzip2, .lzma, .xz], id: \.name) { m in
+                            ForEach([ZipMethod.bzip2, .lzma, .xz, .deflate64], id: \.name) { m in
                                 Button("ZIP · \(m.name)") {
                                     formatRaw = ArchiveFormat.zip.rawValue
                                     zipMethodRaw = m.name

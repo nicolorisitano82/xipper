@@ -70,6 +70,25 @@ enum Deflate {
     }
 }
 
+/// Deflate64 (ZIP method 9), our own encoder (CXipShims/deflate64.c): levels 1–9.
+enum Deflate64 {
+    static let windowSize = 65536
+    static let chunkSize = 4 << 20
+
+    /// nil when the result would not be smaller (unless `allowExpansion`).
+    static func compress(_ src: UnsafeRawBufferPointer, dict: UnsafeRawBufferPointer? = nil, level: Int,
+                         last: Bool = true, allowExpansion: Bool = false) -> [UInt8]? {
+        let bound = xs_deflate64_bound(src.count)
+        let out = [UInt8](unsafeUninitializedCapacity: bound) { buf, n in
+            n = xs_deflate64_compress(src.baseAddress?.assumingMemoryBound(to: UInt8.self), src.count,
+                                      dict?.baseAddress?.assumingMemoryBound(to: UInt8.self), dict?.count ?? 0,
+                                      Int32(max(1, min(9, level))), last ? 1 : 0, buf.baseAddress, bound)
+        }
+        if out.isEmpty || (!allowExpansion && out.count >= src.count) { return nil }
+        return out
+    }
+}
+
 extension Array where Element == UInt8 {
     /// Releases capacity when an array is much larger than its contents (compressed buffers).
     mutating func shrinkToFitIfWasteful() {

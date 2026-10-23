@@ -49,4 +49,56 @@ struct Deflate64Tests {
             if let r = try? Xipper.test(t.url("bad\(k).zip")) { _ = r.isOK }
         }
     }
+
+    // MARK: writing (2.1)
+
+    func tree(_ t: TempDir) {
+        t.write("src/text.txt", String(repeating: "Deflate64 scritto da Xipper, finestra da 64 KiB\n", count: 30_000))
+        var far = sampleData(40_000, seed: 5)
+        for _ in 0..<20 { far += sampleData(15_000, seed: 6) + far.prefix(40_000) }  // matches 55 KB back
+        t.write("src/far.bin", far)
+        t.write("src/run.bin", [UInt8](repeating: 7, count: 300_000) + sampleData(1000, seed: 8))  // matches > 258
+        t.write("src/big.bin", (0..<5).flatMap { _ in sampleData(4 << 20, seed: 9) })  // 20 MB: chunked in parallel
+        t.write("src/random.bin", (0..<70_000).map { _ in UInt8.random(in: 0...255) })  // stored
+        t.write("src/one.txt", "x")
+        t.write("src/empty.txt", "")
+    }
+
+    @Test(arguments: [(1, nil), (6, nil), (9, nil), (6, "Segreto-64")] as [(Int, String?)])
+    func writesDeflate64(level: Int, password: String?) throws {
+        let t = TempDir()
+        tree(t)
+        var o = CreateOptions()
+        o.format = .zip
+        o.zipMethod = .deflate64
+        o.level = level
+        o.password = password
+        o.storeAlreadyCompressed = false
+        try Xipper.create(from: [t.url("src")], to: t.url("d.zip"), options: o)
+        let entries = try Xipper.list(t.url("d.zip"), password: password)
+        #expect(entries.first { $0.path == "src/big.bin" }?.method == "deflate64")
+        #expect(try Xipper.test(t.url("d.zip"), password: password).isOK)
+        t.mkdir("out")
+        var x = ExtractOptions()
+        x.password = password
+        try Xipper.extract(t.url("d.zip"), to: t.url("out"), mode: .into, options: x)
+        #expect(treesEqual(t.path + "/src", t.path + "/out/src").0)
+        if let sevenZip {
+            let pw = password.map { ["-p" + $0] } ?? []
+            let r = run(sevenZip, ["t", "-bd"] + pw + [t.path + "/d.zip"])
+            #expect(r.status == 0 && r.output.contains("Everything is Ok"), "\(r.output)")
+        }
+        if password == nil {  // Info-ZIP unzip 6 (macOS) decodes Deflate64 too
+            let u = run("/usr/bin/unzip", ["-tq", t.path + "/d.zip"])
+            #expect(u.status == 0, "\(u.output)")
+        }
+        // Smaller than deflate at the same level on data with long-range matches.
+        if password == nil {
+            o.zipMethod = .deflate
+            try Xipper.create(from: [t.url("src/far.bin")], to: t.url("plain.zip"), options: o)
+            o.zipMethod = .deflate64
+            try Xipper.create(from: [t.url("src/far.bin")], to: t.url("d64.zip"), options: o)
+            #expect(try Data(contentsOf: t.url("d64.zip")).count < Data(contentsOf: t.url("plain.zip")).count)
+        }
+    }
 }

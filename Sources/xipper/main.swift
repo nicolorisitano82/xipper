@@ -12,7 +12,7 @@ usage: xipper <command> [options]
       -f, --format FMT     zip (default from name), 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio,
                            xiz, gz, bz2, xz, zst
       -l, --level N        compression level (zip 1-12, zstd 1-22, xz/7z 0-9, bzip2 1-9)
-      -m, --method M       zip method: deflate (default), zstd, bzip2, lzma, xz, store
+      -m, --method M       zip method: deflate (default), zstd, bzip2, lzma, xz, deflate64, store
       -p, --password       encrypt (zip, 7z, xiz: AES-256; aar: AEA); prompts for the password
           --solid SIZE     7z solid block size (e.g. 64m, 2g; "off" = one block per file)
       -v, --volume SIZE    split into volumes of SIZE (7z: name.7z.001, .002, …; zip: name.z01, …, name.zip)
