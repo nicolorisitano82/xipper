@@ -60,7 +60,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali (`nome.zip`
 - Gli **attributi del Mac** negli ZIP si salvano solo attivando l'opzione in **Impostazioni › Formati** (cartella `__MACOSX`, come il Finder).
 - L'estensione del Finder legge solo i nomi dei file selezionati e passa la richiesta all'app; non legge il contenuto dei file.
 - Le password salvate valgono per il percorso dell'archivio: se lo sposti, Xipper la chiede di nuovo.
-- Mancano ancora le cartelle sorvegliate.
+- Le cartelle sorvegliate sono rinviate.
 - **XIZ** è stabile dalla versione 1.0 del formato (con password, AES-256). Gli archivi XIZ delle beta precedenti si aprono ancora.
 
 ## Segnalare un problema

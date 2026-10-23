@@ -20,7 +20,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | v2: MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)), RAR in sola lettura, cartelle sorvegliate ([docs/ROADMAP.md](docs/ROADMAP.md)). |
+| **Prossimi passi** | v2: MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)), RAR in sola lettura ([docs/ROADMAP.md](docs/ROADMAP.md)). |
 
 ---
 
@@ -402,7 +402,7 @@ GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, 
 | **FSKit (macOS 15.4+)** ⭐ | **monta l'archivio come volume** in sola lettura: lo si sfoglia nel Finder e le app aprono i file senza estrarre | il differenziatore principale; prima un MVP in sola lettura per ZIP e TAR |
 | **Spotlight** | ricerca per nome dei file *dentro* gli archivi | importer di metadati (da valutare per costo e beneficio) |
 | **CLI `zipper`** inclusa nel bundle | uso da terminale e script; installazione opzionale di un symlink in `/usr/local/bin` | stesso core dell'app; serve un nome diverso da `zipper`, già usato da unxed/zipper |
-| **Cartelle sorvegliate** | ogni file messo in "Da comprimere" viene archiviato | `FSEvents`; si lancia come agente con `SMAppService` |
+| **Cartelle sorvegliate** (rinviate) | ogni file messo in "Da comprimere" viene archiviato | `FSEvents`; si lancia come agente con `SMAppService` |
 | **Keychain e Touch ID** | memorizza le password degli archivi, per archivio o per profilo | `kSecAttrAccessControl` con `.biometryCurrentSet` |
 | **Notifiche e Dock** | avanzamento nell'icona del Dock e notifica a fine lavoro | |
 
@@ -559,7 +559,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **G0 MPEG-G** | Verifica legale di brevetti e licenze e acquisto dello standard; implementazione solo dopo (§4.5) | in parallelo, non tecnica |
 | **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; cartelle sorvegliate; **RAR in sola lettura (clean-room, §4.2)**; ISO; MPEG-G in sola lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
+| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; **RAR in sola lettura (clean-room, §4.2)**; ISO; MPEG-G in sola lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
 
 ---
 

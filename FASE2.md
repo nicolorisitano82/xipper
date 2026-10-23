@@ -38,7 +38,7 @@
 - [x] **3.4:** Quick Look della voce (beta2).
 - [x] **4.2:** Portachiavi e Touch ID per le password degli archivi (beta2).
 - [x] **5.2:** voci danneggiate nella finestra. **6.1–6.3:** avvisi di sicurezza secondo la specifica (verso la v1).
-- [ ] **8.6:** cartelle sorvegliate. *1.1–1.3 onboarding: fatto (beta2).*
+- **8.6:** cartelle sorvegliate, rinviate (non interessano in questa fase, 23/10/2026). *1.1–1.3 onboarding: fatto (beta2).*
 - [ ] **Estensioni:** FSKit (9.4). *Finder Sync (9.1, beta1), Quick Look dell'archivio (9.2), miniature (9.5) e Comandi Rapidi (9.3): fatti (beta2).*
 - [x] Icona del design, String Catalog con l'inglese, aumento del contrasto e riduzione del movimento (verso la v1). *Resta il file `.icon` di Icon Composer per le varianti scura/tinta/trasparente.*
 

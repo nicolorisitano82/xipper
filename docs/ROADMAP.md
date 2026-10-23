@@ -102,16 +102,18 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 ### 7. Automazione
 
-- cartelle sorvegliate (comprimi o estrai all'arrivo);
 - Tasks MCP per i lavori lunghi;
 - nuove azioni di Comandi Rapidi (monta, manifest).
 
 ### 8. Genomica
 
-- tabix per formati aggiuntivi;
 - ✅ **indici** per altri formati (23/10/2026): `.bai`/`.csi` per BAM, `.crai`, `.csi` per BCF, `.fai` (+`.gzi`), tabix per SAM; `xipper index`;
 - ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; da fare app e MCP);
-- MPEG-G: al massimo il riconoscimento dei file `.mgb`/`.mgg`. Decodifica e codifica solo dopo la verifica legale (G0 in STUDIO §4.5, analisi del 21/10/2026).
+- MPEG-G in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie; studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md).
+
+### Rinviate
+
+- Cartelle sorvegliate (comprimi o estrai all'arrivo): non interessano in questa fase (23/10/2026). Il progetto resta in UI_SPEC §8.6.
 
 ---
 
