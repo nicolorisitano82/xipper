@@ -48,7 +48,7 @@ Convenzioni:
   - **lettore Java puro**, cioè JCE, aircompressor o zstd-jni e Bouncy Castle, con un adattatore `SeekableStream` per htsjdk;
   - **lettore Python puro** con `zstandard`, `cryptography` e `argon2-cffi`;
   - una sola suite di conformità con vettori condivisi.
-  - Impegno totale stimato: **circa 115–155 g** per l'intero piano, di cui circa 80–100 g per le librerie e la conformità.
+  - Impegno totale stimato: **circa 85–125 g** per l'intero piano, di cui circa 65–90 g per le librerie e la conformità.
 
 ---
 
@@ -441,7 +441,7 @@ with xiz.open("s3://bucket/cohort.xiz", password=pw) as a:   # fsspec opzionale 
 | Python: integrazione con pysam/htslib, wheel e PyPI | 3–5 |
 | Suite di conformità (vettori, generatore, 3 runner, CI multi-OS) | 8–10 |
 | Benchmark (§5.2) e report in `docs/BENCHMARK.md` | 5–8 |
-| **Totale con (c)** | **≈ 90–125 g** |
+| **Totale con (c)** | **≈ 85–125 g** |
 | In più con (b): codec nativi in Swift + decoder di record in C, Java e Python + conformità dei record | **+ 105–165 g** |
 
 ---
@@ -449,6 +449,8 @@ with xiz.open("s3://bucket/cohort.xiz", password=pw) as a:   # fsspec opzionale 
 ## 5. Raccomandazione e piano
 
 ### 5.1 Raccomandazione
+
+> **Decisione del proprietario (23/10/2026):** per XIG ("XIZ genomico") si adotta l'**opzione (b)**, il profilo nativo (record per regione, uno stream per campo, codec htscodecs come codec di frame), invece della (c) raccomandata qui sotto. Lo stesso giorno il proprietario ha confermato di **accettare il rischio brevettuale** di (b), l'opzione più esposta a US11763918 ed EP3526706 (§3). Le regole del §3.3 restano obbligatorie. Il disegno è in [XIG_DESIGN.md](XIG_DESIGN.md).
 
 1. **Adottare (c), "CRAM-in-XIZ", per le letture allineate, e (a) per VCF/BCF/BGZF.** Il profilo è solo opzionale: bit `genomic` più i tag 0x0009–0x000C, l'XGI e la regola della lettura parziale. Un lettore 1.2 resta in grado di estrarre tutto.
 2. **`libxiz` in C come riferimento e plugin htslib come primo deliverable.** Danno subito query di regione da samtools, bcftools, IGV (tramite htslib) e pysam, senza scrivere un decoder genomico.
