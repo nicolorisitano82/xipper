@@ -2,7 +2,7 @@
 
 Archiviatore nativo per macOS su Apple Silicon (arm64)
 
-*Versione 0.1 del 21 ottobre 2026 (studio iniziale), aggiornata il 22 ottobre 2026 con lo stato del progetto: Xipper 1.0.0 è costruito.*
+*Versione 0.1 del 21 ottobre 2026 (studio iniziale), aggiornata il 23 ottobre 2026 con lo stato del progetto: Xipper 2.0.0 è pubblicato, la 2.1 è completata nel codice e per la genomica nativa è stato scelto XIG.*
 
 ---
 
@@ -10,17 +10,18 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 
 | Area | Stato |
 |---|---|
-| **Versione** | **2.0.0 pubblicata** il 23/10/2026 su GitHub (DMG firmato self-signed). Prima: 1.0.0–1.0.2 (22/10/2026). |
-| **Test** | 152 test automatici verdi (con interoperabilità samtools/bcftools/7zz/bsdtar), fuzzing a 1000 mutazioni per formato. Da provare a mano sulla 2.0.0: la checklist della rc2 (CRAM nell'app, Riconoscimenti, disco pieno, montaggio dal Finder, menu e icone del Finder, Touch ID, trascinamento, Comandi Rapidi). |
-| **Formati** | ZIP (anche bzip2, LZMA, xz), 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive, **XIZ 1.2** in lettura e scrittura; lz4, brotli e ZIP divisi in lettura; BGZF, **CRAM 3.1 ↔ BAM** e indici genomici (.bai/.csi/.crai/.fai/tabix) (§4.2). |
+| **Versione** | **2.0.0 pubblicata** il 23/10/2026 su GitHub (DMG firmato self-signed). Prima: 1.0.0–1.0.2 (22/10/2026). **2.1** completata nel codice il 23/10/2026 (su `main`, non ancora rilasciata come DMG). |
+| **Test** | 172 test automatici verdi (23/10/2026, 2.1) (con interoperabilità samtools/bcftools/7zz/bsdtar/unzip/lz4/brotli), fuzzing a 1000 mutazioni per formato. Da provare a mano sulla 2.0.0: la checklist della rc2 (CRAM nell'app, Riconoscimenti, disco pieno, montaggio dal Finder, menu e icone del Finder, Touch ID, trascinamento, Comandi Rapidi). |
+| **Formati** | ZIP (anche bzip2, LZMA, xz; a volumi `.z01`/`.zip.001`), 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive, **XIZ 1.2** in lettura e scrittura; ZIP Deflate64 e **RAR/RAR5** in lettura (anche RAR5 cifrati); BGZF, **CRAM 3.1 ↔ BAM** e indici genomici (.bai/.csi/.crai/.fai/tabix) (§4.2). |
 | **XIZ** | Formato proprio stabile: specifica pubblica in [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md) (1.0 congelata il 22/10, 1.1 con segmenti aggiunti), cifratura Argon2id + AES-256-GCM, deduplicazione per file e a blocchi (FastCDC). |
-| **Modifica in place** | `Xipper.edit` / `xipper edit` e browser (rinomina, elimina, aggiungi, trascina): ZIP senza ricomprimere le voci invariate, XIZ con segmenti in coda, altri formati ricostruiti. |
-| **Recupero** | PAR2 scritto da zero dalla specifica, compatibile con par2cmdline: crea, verifica, ripara (CLI, inspector, «Ripara» nelle voci danneggiate). |
+| **Modifica in place** | `Xipper.edit` / `xipper edit` e browser (rinomina, elimina, aggiungi, trascina): ZIP e 7z senza ricomprimere ciò che non cambia (in 7z per blocco solido), XIZ con segmenti in coda, altri formati ricostruiti. |
+| **Recupero** | PAR2 scritto da zero dalla specifica, compatibile con par2cmdline: crea, verifica, ripara (CLI, inspector, «Ripara» nelle voci danneggiate); dalla 2.1 ritrova anche i blocchi spostati da inserimenti o cancellazioni, come par2cmdline. |
 | **Montaggio** | Archivi montati come volumi **in lettura e scrittura** tramite un server WebDAV locale e il client di macOS. FSKit è stato provato ma richiede un entitlement riservato ad Apple Developer: [docs/FSKIT.md](docs/FSKIT.md). |
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | 2.1: modifica di 7z senza ricompressione, ricerca dei blocchi spostati in PAR2, ZIP multi-volume in scrittura, automazione (Tasks MCP, Comandi Rapidi), rifiniture dell'interfaccia. v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
+| **Genomica nativa (XIG)** | Decisione del 23/10/2026: profilo genomico nativo di XIZ, opzione (b) dello studio [docs/XIZ_GENOMICS_STUDY.md](docs/XIZ_GENOMICS_STUDY.md), con il rischio brevettuale accettato dal titolare. Disegno in [docs/XIG_DESIGN.md](docs/XIG_DESIGN.md); un lettore XIG per IGV è in sviluppo in un repository separato. |
+| **Prossimi passi** | Rilascio della 2.1 (DMG); XIG fase X1 (prototipo Swift e benchmark B3, soglia ≥5% meno di CRAM 3.1); automazione (Tasks MCP, Comandi Rapidi) e rifiniture dell'interfaccia. v3: ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 
@@ -151,26 +152,26 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | **ZIP** (deflate) | ✅ | ✅ | ✅ AES-256 (WinZip AE-1/AE-2) · ZipCrypto solo su richiesta, con avviso (UI 2.7) | deflate: libdeflate (MIT) per la compressione veloce, zlib di sistema come fallback |
 | ZIP con **zstd (metodo 93)** | ✅ v1 | ✅ | ✅ AES-256 | zstd (BSD); leggibile da 7-Zip ≥ 21, WinZip, libarchive (non da Utility Archivio). Nell'app: «ZIP · zstd» nel menu Formato |
 | ZIP: bzip2 (12), LZMA (14), xz (95) | ✅ v2 | ✅ | ✅ AES-256 | leggibili da 7-Zip, WinZip, libarchive (non da Utility Archivio né dall'unzip di macOS). File grandi in parallelo: blocchi bzip2 uniti bit per bit in un solo stream, blocchi xz sotto un unico indice; LZMA in streaming. CLI `-m bzip2|lzma|xz`, nell'app «Altri metodi ZIP» |
-| ZIP: deflate64 | ❌ | 🔜 | — | da implementare |
+| ZIP: deflate64 (9) | ❌ | ✅ 2.1 | ✅ (AES) | decoder in streaming scritto da noi (`CXipShims/inflate64.c`: finestra 64 KiB, codici 285/30/31), interop con 7-Zip |
 | ZIP64 (oltre 4 GB / 65.535 voci) | ✅ | ✅ | | nostro |
-| ZIP multi-volume (`.z01`…, `.zip.001`…) | 🔜 | ✅ fatto | | nostro (lettura di parti unite, da qualsiasi parte) |
+| ZIP multi-volume (`.z01`…, `.zip.001`…) | ✅ 2.1 (CLI `-v`, `--numbered`) | ✅ fatto | ✅ AES | nostro: scrittura nel formato diviso di PKWARE/Info-ZIP (APPNOTE 8.5, intestazioni mai spezzate) o a pezzi numerati; lettura di parti unite, da qualsiasi parte |
 | **7z** | ✅ fase 3 | ✅ | ✅ AES-256 + **cifratura dei nomi file** (default con password) | contenitore nostro; LZMA/LZMA2 da liblzma (LZMA2 multi-thread in scrittura, decodifica parallela ai reset), PPMd dal LZMA SDK (pubblico dominio, solo lettura), BCJ/BCJ2/ARM64/ARM/ARMT/PPC/SPARC/RISC-V/Delta, BZip2, Deflate; solid configurabile, multi-volume in lettura e scrittura → [FASE1.md](FASE1.md) |
 | **TAR** (ustar, pax, GNU) | ✅ | ✅ | — | nostro |
 | **tar.gz / .tgz**, **gzip** | ✅ | ✅ | | deflate parallelo (stile pigz) |
 | **tar.bz2**, **bzip2** | ✅ | ✅ | | libbz2 di sistema, parallelo per blocchi |
 | **tar.xz**, **xz** | ✅ | ✅ | | xz-embedded/liblzma (0BSD), xz multi-blocco parallelo |
 | **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
-| lz4, brotli (anche `tar.lz4`, `tar.br`) | 🔜 | ✅ fatto | | lz4: decoder del formato frame scritto da noi (blocchi indipendenti e collegati, xxHash32); brotli: Compression di sistema |
+| lz4, brotli (anche `tar.lz4`, `tar.br`) | ✅ 2.1 | ✅ fatto | | lz4: decoder del formato frame nostro; scrittura con lz4 1.10.0 vendorizzato (BSD-2), blocchi indipendenti da 4 MiB in parallelo, livelli veloci 1–2 e HC 3–12. brotli: decodifica con Compression di sistema, scrittura con brotli 1.2.1 vendorizzato (MIT, solo encoder), qualità 0–11 |
 | CPIO (newc, crc, odc), `.aar` (Apple Archive) | ✅ fatto | ✅ fatto | ✅ AEA (password di almeno 20 caratteri, limite di macOS) | cpio nostro (scrittura newc); Apple Archive tramite il framework AppleArchive di sistema (LZ4/LZFSE/LZMA, attributi estesi), con l'estrazione sicura di Xipper |
 | ISO 9660 / UDF | ❌ | 🔜 📖 v3 | | nostro (lettura semplice) |
-| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura (23/10/2026, anticipata dalla v3) | ❌ per ora: libarchive non decifra; AES di RAR5 da implementare | lettori RAR e RAR5 di libarchive 3.8.10 (BSD-2), vedi sotto |
+| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura (23/10/2026, anticipata dalla v3) | ✅ RAR5 (2.1): AES-256, anche nomi cifrati e solidi, su un volume; ❌ RAR 4 cifrati e RAR5 cifrati a volumi | lettori RAR e RAR5 di libarchive 3.8.10 (BSD-2); decifratura RAR5 nostra (`Rar5Crypto.swift`), vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
 | **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
 | **MPEG-G** (ISO/IEC 23092, `.mgb`/`.mgg`) | ❌ | 🔜 v3, sola lettura | — | rischio brevettuale accettato dal titolare il 23/10/2026; estensione di Genie, vedi §4.5 e [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md) |
 | **XIZ** (formato di Xipper, `.xiz`) | ✅ 1.1 | ✅ | ✅ Argon2id + AES-256-GCM su dati, nomi e metadati | nostro; [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md): frame zstd indipendenti, catalogo in coda, deduplicazione FastCDC, segmenti aggiunti in coda per la modifica in place |
 | **PAR2** (dati di recupero, `.par2`) | ✅ | ✅ verifica e riparazione | — | nostro, dalla specifica PAR 2.0 (Reed-Solomon su GF(2^16)); vale per qualsiasi archivio |
 
-**Modifica in place** (22/10/2026): ZIP copia le voci invariate senza ricomprimerle; XIZ aggiunge un segmento in coda; 7z, tar, cpio e Apple Archive vengono ricostruiti nel loro formato; i file compressi singoli, lz4 e brotli non si modificano.
+**Modifica in place** (22/10/2026, 7z dalla 2.1): ZIP copia le voci invariate senza ricomprimerle; 7z copia byte per byte i blocchi (cartelle) i cui file sopravvivono tutti, anche rinominati, e ricomprime solo i blocchi toccati e i file nuovi (i 7z a volumi vengono ricostruiti); XIZ aggiunge un segmento in coda; tar, cpio e Apple Archive vengono ricostruiti nel loro formato; i file compressi singoli non si modificano.
 
 **Caso RAR, decisione del 21/10/2026: sola lettura, clean-room.** RAR è proprietario. La licenza di `unrar` permette di estrarre, ma vieta di usarne il codice per ricostruire il compressore e non è compatibile con MIT, quindi **non usiamo né guardiamo il sorgente di unrar**.
 - **Fonti ammesse:**
@@ -181,7 +182,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
   - RAR5 e RAR 2.9/3.x;
   - archivi multi-volume (`.part1.rar`…, `.r00`…);
   - verifica tramite CRC32 e BLAKE2sp (RAR5);
-  - archivi cifrati RAR5 (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, tutto disponibile in CommonCrypto) e intestazioni cifrate;
+  - archivi cifrati RAR5 (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, tutto disponibile in CommonCrypto) e intestazioni cifrate. **Fatto nella 2.1 (23/10/2026):** libarchive non decifra, quindi Xipper riscrive al volo l'archivio cifrato nel RAR5 in chiaro che libarchive decomprime (intestazioni decifrate, record di cifratura tolti, dati decifrati e senza il padding AES); i checksum che RAR "tweaka" con HMAC-SHA256 li verifica Xipper. Scritto dalla descrizione pubblica del formato, senza codice unrar; provato sui vettori di test cifrati di libarchive;
   - da valutare a parte: RAR3 cifrato (AES-128 con KDF SHA-1 proprietaria) e archivi "solid" molto grandi (decodifica necessariamente sequenziale).
 - **Fuori ambito:** creazione di RAR, recovery record, archivi SFX Windows (si possono estrarre se il contenitore è standard).
 - **Nota legale:** sui formati RAR non risultano brevetti attivi; il nome "RAR" è un marchio di RARLAB e va usato solo in modo descrittivo ("apre archivi RAR"). La conferma di un legale resta raccomandata prima del rilascio.
@@ -327,11 +328,11 @@ GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, 
 | **Checksum** (convenzioni DRS/IANA) | DRS `checksums` | Generare e verificare manifest sha-256 / md5 / crc32c con nomi compatibili DRS/IANA (anche `sha256` senza trattino); sha512t24u opzionale | **Alta** |
 | **DRS 1.4/1.5**, client | approvato (Apache-2.0) | `drs://host/id` → access URL → download → verifica del checksum → estrazione o verifica BGZF | Media |
 | **htsget 1.3**, client | approvato | Scaricare una regione `chr:start-end` di BAM/CRAM/VCF in un file locale verificato (con indice) | Media |
-| **BAI/CSI per BAM** | hts-specs | Indicizzare BAM: richiede il parsing dei record e il calcolo dei bin | Media |
+| **BAI/CSI per BAM** | ✅ 23/10/2026 (`xipper index`; anche `.crai`, CSI per BCF, `.fai`, tabix per SAM) | Indicizzare BAM: richiede il parsing dei record e il calcolo dei bin | — |
 | **RO-Crate (+ BagIt)** | *non GA4GH* (ResearchObject/ELIXIR) | Esportare uno zip RO-Crate con manifest, per pubblicazione e workflow | Media |
 | **CRAM 3.1**, decodifica | ✅ 23/10/2026 (riferimento FASTA locale; refget da fare) | Container, slice, rANS Nx16, arithmetic coder, fqzcomp, tokenizer dei nomi | — |
 | **refget v2** | approvato 2023 | Recuperare sequenze di riferimento per MD5 (`@SQ M5`); serve solo per decodificare CRAM | Bassa |
-| **CRAM 3.1**, codifica; **CRAI** | ✅ codifica (23/10/2026); CRAI da fare | htscodecs 1.6.7 vendorizzato, `xipper cram` | — |
+| **CRAM 3.1**, codifica; **CRAI** | ✅ codifica e CRAI (23/10/2026), anche nell'app e in MCP | htscodecs 1.6.7 vendorizzato, `xipper cram`, `xipper index` | — |
 | Data Connect, Beacon v2, Phenopackets, TES/WES, Passports | approvati | Non riguardano file né compressione (al massimo un bearer token per DRS/htsget) | Esclusi |
 | Crypt4GH | — | — | **Escluso** (decisione del 21/10/2026) |
 
@@ -344,6 +345,7 @@ GA4GH cura i formati di file della genomica (hts-specs: SAM/BAM, CRAM, VCF/BCF, 
 - **Fase 1.7 "Genomica 2"** ✅ (completata il 21/10/2026, vedi [FASE1.md](FASE1.md); resta l'integrazione con il Finder, che arriva con l'app) (circa 2 settimane, solo locale): creazione di tabix/CSI, verifica degli indici, verifica strutturale di CRAM e VCF/BCF, manifest dei checksum. Arriva su CLI (`xipper tabix`, `xipper manifest`), Finder e MCP (`genomics_index`, `genomics_check`, `checksum_manifest`).
 - **Fase 2.x "Genomica in rete"** (opt-in): client DRS e htsget.
 - **Più avanti, su richiesta:** decodifica CRAM con refget.
+- **XIG** (decisione del 23/10/2026): profilo genomico nativo di XIZ, con le letture allineate in serie per campo e i codec di htscodecs; disegno in [docs/XIG_DESIGN.md](docs/XIG_DESIGN.md), studio delle opzioni in [docs/XIZ_GENOMICS_STUDY.md](docs/XIZ_GENOMICS_STUDY.md).
 
 > Fonti: ga4gh.org (pagine prodotto SAM/BAM, CRAM, refget, htsget, DRS); github.com/samtools/hts-specs (CRAMv3.tex, CRAMcodecs.tex, htsget.md, refget.md); github.com/ga4gh/data-repository-service-schemas (release 1.4.0 e 1.5.0, Checksum.yaml); htslib e htscodecs (LICENSE); researchobject.org (RO-Crate 1.3).
 
@@ -559,8 +561,10 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **G0 MPEG-G** | Rischio brevettuale accettato dal titolare (23/10/2026); resta da decidere l'acquisto dello standard (§4.5, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | chiusa per la parte legale |
 | **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
-| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | in corso (22/10/2026) |
-| **5. v3** | Formati in sola lettura: **RAR/RAR5** (clean-room, §4.2), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | da pianificare (decisione del 23/10/2026) |
+| **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; ✅ RAR/RAR5 in lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | **2.0.0 pubblicata il 23/10/2026** |
+| **4.1 v2.1** ✅ | Modifica di 7z senza ricompressione; ricerca dei blocchi spostati in PAR2; ZIP a volumi in scrittura; Deflate64 in lettura; creazione di lz4 e brotli; AES di RAR5 | completata nel codice il 23/10/2026 (DMG da rilasciare) |
+| **XIG** | Profilo genomico nativo di XIZ (opzione b): X1 prototipo e benchmark, X2 spec XIZ 1.3, X3 Xipper, X4 libxiz in C con plugin htslib, X5 lettori Java e Python; lettore per IGV in parallelo ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)) | decisione del 23/10/2026; 32–46 g fino a X3, 127–185 g con le librerie [stima] |
+| **5. v3** | Formati in sola lettura: ~~RAR/RAR5~~ (anticipato nella 2.0/2.1), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | da pianificare (decisione del 23/10/2026) |
 
 ---
 
@@ -575,7 +579,8 @@ Nome ed estensione: **XIZ**, **`.xiz`** (`.xip` è già di Apple; `.xiz` è usat
 2. ~~Livello di autoinclusione~~ → **B**, codec permissivi vendorizzati (21/10/2026).
 3. ~~Canale di distribuzione~~ → **solo DMG su GitHub, firma self-signed** (21/10/2026), senza account Apple Developer: niente notarizzazione, niente Mac App Store, niente FSKit (montaggio via WebDAV).
 4. ~~RAR~~ → **sola lettura, clean-room** (21/10/2026), §4.2.
-5. **MPEG-G:** avviare la verifica legale G0 (GenomSys, Philips, LUH), oppure tenerlo in osservazione e puntare su BGZF e CRAM? Dopo l'analisi del 21/10/2026 (§4.5) l'opzione preferita è **CRAM 3.1** nella v2, con MPEG-G al massimo riconosciuto.
+5. ~~MPEG-G~~ → rischio brevettuale accettato dal titolare per la **sola lettura** (23/10/2026, v3); CRAM 3.1 fatto nella v2.
+7. ~~Genomica nativa in XIZ~~ → **opzione (b), XIG** (23/10/2026): profilo nativo con serie per campo, rischio brevettuale accettato dal titolare, regole del §3.3 dello studio genomico obbligatorie ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)). Restano aperte le domande del §11 del disegno (estensione, codec in Java/Python, FASTQ, parametri, parere sulle domande pendenti).
 6. ~~Modello di business~~ → **gratuito e open source, licenza MIT** (decisa il 21/10/2026, file `LICENSE`). Motivazioni:
    - **Compatibilità:** tutte le dipendenze sono permissive (zstd BSD-3, libdeflate MIT, liblzma 0BSD, ed eventualmente libarchive BSD-2 per RAR), quindi MIT non crea attriti.
    - **LGPL e app macOS:** la LGPL richiede che l'utente possa ricollegare una versione modificata della libreria. Con un bundle Swift che contiene tutto in modo statico, e a maggior ragione con il Mac App Store (DRM e firma), rispettarla è macchinoso; molti progetti LGPL infatti non possono andare sul MAS.

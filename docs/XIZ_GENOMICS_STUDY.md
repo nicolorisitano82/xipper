@@ -4,6 +4,8 @@
 
 > **Brevetti.** Il §3 è un'analisi tecnica delle rivendicazioni pubbliche. **Non è un parere legale.** Prima di rilasciare un writer "XIZ genomico" serve il parere di un consulente brevettuale (passo P0 del §5).
 
+> **Aggiornamento del 23/10/2026: decisione presa.** Il titolare ha scelto l'**opzione (b)**, il profilo nativo, chiamato **XIG**, invece della (c) raccomandata qui, e ha **accettato il rischio brevettuale** relativo: il passo P0 non è più un prerequisito, resta un'opzione (domanda 5 del disegno). Le regole del §3.3 restano obbligatorie. Il disegno è in [XIG_DESIGN.md](XIG_DESIGN.md); il piano diventa quello del suo §10 (X1 prototipo e benchmark B3 come soglia, poi spec, Xipper, libxiz, Java e Python). Il resto di questo studio è l'analisi che ha portato alla scelta e resta com'era.
+
 Convenzioni:
 - **[V]**: numero letto alla fonte linkata.
 - **[S]**: numero preso da un riassunto della fonte, non dal testo completo.
