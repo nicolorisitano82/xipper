@@ -71,4 +71,31 @@ struct Genomics2MCPTests {
         let roCreate = ro.call("checksum_manifest", ["action": "create", "manifest": .string(dir + "/n.json"), "sources": .array([.string(dir + "/calls.vcf")])])
         #expect(roCreate["isError"]?.bool == true)
     }
+    @Test func cramConvertAndAlignmentIndexes() throws {
+        let t = TempDir()
+        try FileManager.default.createDirectory(atPath: t.path + "/allowed", withIntermediateDirectories: true)
+        let sub = TempDir()
+        let (bam, ref, recs) = try CRAMTests().dataset(sub, reads: 600)
+        for (from, to) in [(bam, "in.bam"), (ref, "ref.fa")] { try FileManager.default.copyItem(at: from, to: t.url("allowed/" + to)) }
+        let h = harness(t)
+        h.initializeLegacy(elicitation: true)
+        let dir = t.path + "/allowed"
+        // BAM → CRAM needs the reference; then CRAM → BAM; outside paths refused.
+        #expect(h.call("cram_convert", ["path": .string(dir + "/in.bam")])["isError"]?.bool == true)
+        let enc = h.call("cram_convert", ["path": .string(dir + "/in.bam"), "reference": .string(dir + "/ref.fa")])
+        #expect(enc["isError"]?.bool == false, "\(text(enc))")
+        #expect(enc["structuredContent"]?["records"]?.int == recs.count)
+        let dec = h.call("cram_convert", ["path": .string(dir + "/in.cram"), "reference": .string(dir + "/ref.fa"), "output": .string(dir + "/back.bam")])
+        #expect(dec["isError"]?.bool == false, "\(text(dec))")
+        #expect(h.call("cram_convert", ["path": .string(dir + "/in.bam"), "reference": .string(dir + "/ref.fa"),
+                                        "output": .string(t.path + "/elsewhere.cram")])["isError"]?.bool == true)
+        #expect(h.call("cram_convert", ["path": .string(dir + "/in.bam"), "reference": .string(dir + "/ref.fa")])["isError"]?.bool == true)  // exists
+        for (file, kind) in [("in.bam", "bai"), ("in.cram", "crai"), ("ref.fa", "fai")] {
+            let r = h.call("genomics_index", ["path": .string(dir + "/" + file)])
+            #expect(r["structuredContent"]?["kind"]?.string == kind, "\(file): \(text(r))")
+        }
+        let ro = harness(t, readOnly: true)
+        ro.initializeLegacy()
+        #expect(!(ro.request("tools/list")["result"]?["tools"]?.array ?? []).contains { $0["name"]?.string == "cram_convert" })
+    }
 }

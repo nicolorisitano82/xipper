@@ -32,6 +32,11 @@ struct XipperApp: App {
             SettingsView()
         }
 
+        Window("Riconoscimenti", id: "acknowledgements") {
+            AcknowledgementsView()
+        }
+        .defaultSize(width: 640, height: 560)
+
         MenuBarExtra("Xipper", image: "XipperGlyph", isInserted: $showMenuBar) {
             MenuBarJobsView()
                 .environment(jobs)
@@ -54,6 +59,7 @@ struct XipperCommands: Commands {
         }
         CommandGroup(after: .appInfo) {
             Button("Cerca aggiornamenti…") { UpdateController.shared.checkForUpdates() }
+            Button("Riconoscimenti") { openWindow(id: "acknowledgements") }
         }
         CommandGroup(before: .help) {
             Button("Introduzione a Xipper") {

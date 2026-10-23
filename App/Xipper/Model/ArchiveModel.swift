@@ -27,6 +27,8 @@ final class ArchiveModel {
     private(set) var format: ArchiveFormat?
     private(set) var entries: [ArchiveEntry] = []
     private(set) var bgzf: BGZFInfo?
+    /// BAM or CRAM: header summary (a CRAM has no entries to list).
+    private(set) var alignment: AlignmentSummary?
     private(set) var loading = true
     private(set) var error: String?
     private(set) var folders: [String] = []
@@ -51,6 +53,14 @@ final class ArchiveModel {
         namesLocked = false
         let url = url
         let pw = password
+        alignment = await Task.detached { try? Xipper.alignmentSummary(url) }.value
+        if alignment?.isCRAM == true {
+            format = nil
+            entries = []
+            folders = []
+            loading = false
+            return
+        }
         let result = await Task.detached { () -> Result<(ArchiveFormat?, [ArchiveEntry], BGZFInfo?), Error> in
             Result {
                 let f = try ArchiveFormat.detect(url)

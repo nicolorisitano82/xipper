@@ -204,6 +204,7 @@ extension Xipper {
         func finish(_ path: String, _ kind: String, _ records: Int, _ seqs: Int) -> IndexBuildReport {
             IndexBuildReport(index: URL(fileURLWithPath: path), kind: kind, records: records, sequences: seqs, elapsed: Date().timeIntervalSince(start))
         }
+        if head.starts(with: [0x1F, 0x8B]) { try BGZFBlockReader.requireBGZF(file, name: url.lastPathComponent) }
         if CRAMScanner.isCRAM(head) {
             let path = dest?.path ?? url.path + ".crai"
             let (n, slices) = try writeCRAI(url, to: path, overwrite: overwrite, cancel: cancel)
@@ -236,6 +237,24 @@ extension Xipper {
             let n = try writeFAI(url, to: path, overwrite: overwrite, workload: workload, cancel: cancel)
             return finish(path, "fai", n, n)
         }
+        throw XipperError.unsupported("\(url.lastPathComponent): no index for this kind of file (BAM, CRAM, BCF, FASTA/FASTQ, or BGZF VCF/BED/GFF/SAM)")
+    }
+
+    /// The index `buildIndex` writes for `url`: path and kind ("bai", "csi", "crai", "fai", "tbi").
+    public static func defaultIndex(for url: URL, csi: Bool = false) throws -> (url: URL, kind: String) {
+        let file = try FileReader(path: url.path)
+        let head = try file.read(at: 0, count: Int(min(file.size, 1 << 16)))
+        func ext(_ e: String) -> (URL, String) { (URL(fileURLWithPath: url.path + "." + e), e) }
+        if CRAMScanner.isCRAM(head) { return ext("crai") }
+        if head.starts(with: [0x1F, 0x8B]) { try BGZFBlockReader.requireBGZF(file, name: url.lastPathComponent) }
+        if BGZF.isBGZF(head) {
+            let first = try head.withUnsafeBytes { try BGZF.decompressFirstBlock($0) }
+            if first.starts(with: BAM.magic) { return ext(csi ? "csi" : "bai") }
+            if first.starts(with: Array("BCF\u{2}".utf8)) { return ext("csi") }
+            if first.first == UInt8(ascii: ">") || first.first == UInt8(ascii: "@") && TabixConfig.preset(forFileName: url.lastPathComponent) == nil { return ext("fai") }
+            return ext(csi ? "csi" : "tbi")
+        }
+        if head.first == UInt8(ascii: ">") || head.first == UInt8(ascii: "@") { return ext("fai") }
         throw XipperError.unsupported("\(url.lastPathComponent): no index for this kind of file (BAM, CRAM, BCF, FASTA/FASTQ, or BGZF VCF/BED/GFF/SAM)")
     }
 

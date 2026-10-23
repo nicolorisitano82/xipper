@@ -16,6 +16,11 @@ private func bytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCou
 private let pathDoc = "Absolute path (or ~/…) inside one of the folders the user allowed."
 private let indexExtensions: Set<String> = ["tbi", "csi", "bai", "gzi", "crai"]
 
+/// True for BGZF data (a compressed FASTA gets a .gzi next to its .fai).
+private func BGZFBlockLooksCompressed(_ path: String) -> Bool {
+    FileHandle(forReadingAtPath: path)?.readData(ofLength: 2) == Data([0x1F, 0x8B])
+}
+
 private func indexJSON(_ r: IndexCheckReport) -> JSON {
     ["index": .string(r.index.path), "data": .string(r.data.path), "kind": .string(r.kind.rawValue), "ok": .bool(r.isOK),
      "references": .int(Int64(r.references)), "offsetsChecked": .int(Int64(r.offsetsChecked)),
@@ -38,36 +43,84 @@ private func algorithms(_ args: [String: JSON]) throws -> [ChecksumAlgorithm]? {
 }
 
 extension XipperTools {
-    static var genomics: [Tool] { [genomicsIndex, genomicsCheck, checksumManifest] }
+    static var genomics: [Tool] { [genomicsIndex, genomicsCheck, checksumManifest, cramConvert] }
 
     static let genomicsIndex = Tool(
-        name: "genomics_index", title: "Index VCF/BED/GFF (tabix/CSI)",
-        description: "Genomics: builds the tabix (.tbi) or CSI index of a coordinate-sorted, BGZF-compressed VCF, BED or GFF (htslib-compatible: tabix/bcftools read it). Written next to the file. Unsorted files and plain gzip are refused with a clear message (use bgzf_convert first). CSI is needed for positions beyond 512 Mbp.",
+        name: "genomics_index", title: "Index genomics files",
+        description: "Genomics: builds the usual htslib-compatible index next to a coordinate-sorted file: BAM → .bai (or .csi), CRAM → .crai, BCF → .csi, FASTA/FASTQ (plain or BGZF) → .fai (+ .gzi), BGZF VCF/BED/GFF/SAM → tabix .tbi (or .csi). samtools, bcftools and tabix read them. Unsorted files and plain gzip are refused with a clear message (use bgzf_convert first). CSI is needed for positions beyond 512 Mbp.",
         inputSchema: schema(["path": str(pathDoc),
-                             "preset": enumeration(TabixConfig.Preset.allCases.map(\.rawValue), "File type (default: from the name)."),
-                             "csi": bool("Write a CSI index (.csi) instead of .tbi."),
+                             "preset": enumeration(TabixConfig.Preset.allCases.map(\.rawValue), "Tabix files only: the type (default: from the name)."),
+                             "csi": bool("BAM and tabix files: write a CSI index (.csi) instead of .bai/.tbi."),
                              "overwrite": bool("Replace an existing index. Requires the user's confirmation.")],
                             required: ["path"]),
         readOnly: false, destructive: false, idempotent: true
     ) { args, ctx in
         let path = try ctx.policy.resolve(try args.requiredString("path"), mustExist: true)
+        let url = URL(fileURLWithPath: path)
         let csi = args.optionalBool("csi")
-        let dest = try ctx.policy.resolve(path + (csi ? ".csi" : ".tbi"), mustExist: false)
-        var config: TabixConfig?
-        if let p = args["preset"]?.string {
+        let preset = try args["preset"]?.string.map { p -> TabixConfig.Preset in
             guard let preset = TabixConfig.Preset(rawValue: p) else { throw ToolError("unknown preset \(p)") }
-            config = TabixConfig(preset: preset)
+            return preset
         }
+        let target: (url: URL, kind: String) = preset != nil ? (URL(fileURLWithPath: path + (csi ? ".csi" : ".tbi")), csi ? "csi" : "tbi") : try Xipper.defaultIndex(for: url, csi: csi)
+        let dest = try ctx.policy.resolve(target.url.path, mustExist: false)
         if FileManager.default.fileExists(atPath: dest) {
             guard args.optionalBool("overwrite") else { throw ToolError("\(dest) already exists (pass overwrite: true to rebuild it, after asking the user)") }
             guard try ctx.confirm("Allow the assistant to rebuild the index \(dest)?") else { throw ToolError("the user declined replacing \(dest)") }
         }
-        let r = try Xipper.tabixIndex(URL(fileURLWithPath: path), config: config, csi: csi, to: URL(fileURLWithPath: dest), overwrite: true,
+        if let preset {
+            let r = try Xipper.tabixIndex(url, config: TabixConfig(preset: preset), csi: csi, to: URL(fileURLWithPath: dest), overwrite: true,
+                                          workload: ctx.config.workload, progress: ctx.progress, cancel: ctx.cancel)
+            let names = r.sequences.prefix(30).joined(separator: ", ") + (r.sequences.count > 30 ? ", …" : "")
+            return ToolResult(text: "Indexed \(r.records) records on \(r.sequences.count) sequences (\(names)) → \(dest) in \(String(format: "%.2f", r.elapsed)) s",
+                              structured: ["index": .string(dest), "kind": .string(r.kind.rawValue), "records": .int(Int64(r.records)),
+                                           "sequences": .array(r.sequences.map(JSON.string)), "seconds": .double(r.elapsed)])
+        }
+        if target.kind == "fai", BGZFBlockLooksCompressed(path) { _ = try ctx.policy.resolve(path + ".gzi", mustExist: false) }
+        let r = try Xipper.buildIndex(url, csi: csi, to: URL(fileURLWithPath: dest), overwrite: true,
                                       workload: ctx.config.workload, progress: ctx.progress, cancel: ctx.cancel)
-        let names = r.sequences.prefix(30).joined(separator: ", ") + (r.sequences.count > 30 ? ", …" : "")
-        return ToolResult(text: "Indexed \(r.records) records on \(r.sequences.count) sequences (\(names)) → \(dest) in \(String(format: "%.2f", r.elapsed)) s",
-                          structured: ["index": .string(dest), "kind": .string(r.kind.rawValue), "records": .int(Int64(r.records)),
-                                       "sequences": .array(r.sequences.map(JSON.string)), "seconds": .double(r.elapsed)])
+        return ToolResult(text: "Indexed \(r.records) records on \(r.sequences) sequences → \(dest) (\(r.kind)) in \(String(format: "%.2f", r.elapsed)) s",
+                          structured: ["index": .string(dest), "kind": .string(r.kind), "records": .int(Int64(r.records)),
+                                       "sequenceCount": .int(Int64(r.sequences)), "seconds": .double(r.elapsed)])
+    }
+
+    static let cramConvert = Tool(
+        name: "cram_convert", title: "Convert BAM ↔ CRAM",
+        description: "Genomics: converts BAM → CRAM 3.1 (or 3.0) and CRAM 3.0/3.1 → BAM, with the reference FASTA the reads were aligned to (uncompressed; its .fai is used when present). Writing CRAM checks @SQ M5 against the reference and adds the missing ones; reading checks each slice's MD5 and regenerates MD/NM like samtools (no_md: false). Records round-trip unchanged (samtools reads the output).",
+        inputSchema: schema(["path": str(pathDoc + " A .bam or .cram file."),
+                             "reference": str("Reference FASTA (required for BAM → CRAM and for CRAM files that use it)."),
+                             "output": str("Output path (default: same name with .cram or .bam)."),
+                             "version": enumeration(["3.1", "3.0"], "CRAM version to write (default 3.1; 3.0 for older readers)."),
+                             "no_md": bool("CRAM → BAM: do not add the MD/NM tags samtools regenerates."),
+                             "overwrite": bool("Replace an existing output. Requires the user's confirmation.")],
+                            required: ["path"]),
+        readOnly: false, destructive: false, idempotent: true
+    ) { args, ctx in
+        let path = try ctx.policy.resolve(try args.requiredString("path"), mustExist: true)
+        let url = URL(fileURLWithPath: path)
+        let isCRAM = FileHandle(forReadingAtPath: path)?.readData(ofLength: 4) == Data("CRAM".utf8)
+        let reference = try args["reference"]?.string.map { URL(fileURLWithPath: try ctx.policy.resolve($0, mustExist: true)) }
+        let outArg = args["output"]?.string ?? url.deletingPathExtension().appendingPathExtension(isCRAM ? "bam" : "cram").path
+        let output = try ctx.policy.resolve(outArg, mustExist: false)
+        var overwrite = false
+        if FileManager.default.fileExists(atPath: output) {
+            guard args.optionalBool("overwrite") else { throw ToolError("\(output) already exists (pass overwrite: true to replace it, after asking the user)") }
+            guard try ctx.confirm("Allow the assistant to replace \(output)?") else { throw ToolError("the user declined replacing \(output)") }
+            overwrite = true
+        }
+        let r: CRAMConversionReport
+        if isCRAM {
+            r = try Xipper.cramToBAM(url, output: URL(fileURLWithPath: output), reference: reference, overwrite: overwrite,
+                                     regenerateMDNM: !args.optionalBool("no_md"), workload: ctx.config.workload, progress: ctx.progress, cancel: ctx.cancel)
+        } else {
+            guard let reference else { throw ToolError("BAM → CRAM needs the reference FASTA (reference)") }
+            let minor: UInt8 = args["version"]?.string == "3.0" ? 0 : 1
+            r = try Xipper.bamToCRAM(url, output: URL(fileURLWithPath: output), reference: reference, minor: minor, overwrite: overwrite,
+                                     workload: ctx.config.workload, progress: ctx.progress, cancel: ctx.cancel)
+        }
+        return ToolResult(text: "\(url.lastPathComponent) → \(output): \(r.records) records, \(bytes(r.inputBytes)) → \(bytes(r.outputBytes)) in \(String(format: "%.2f", r.elapsed)) s",
+                          structured: ["output": .string(output), "records": .int(r.records), "inputBytes": .int(r.inputBytes),
+                                       "outputBytes": .int(r.outputBytes), "containers": .int(Int64(r.containers)), "seconds": .double(r.elapsed)])
     }
 
     static let genomicsCheck = Tool(

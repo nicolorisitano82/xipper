@@ -34,6 +34,7 @@ From the system (part of macOS, not vendored): zlib (streaming inflate, chunked 
 2. Copy the same subset of files as above; re-apply the umbrella headers / modulemap.
 3. For liblzma, compare the defines in `build/xz/CMakeFiles/liblzma.dir/flags.make` with `Package.swift`.
 4. `swift test` and the benchmarks in `spike/`.
+5. `scripts/make-acknowledgements.sh`: regenerates the license texts the app shows (Xipper › Riconoscimenti).
 
-The app's "Acknowledgements" screen must reproduce the license texts (zstd, libdeflate, liblzma, Argon2, htscodecs) (the LZMA SDK is public
+The app's "Riconoscimenti" window (Xipper menu) shows `App/Xipper/Acknowledgements.txt`, built by `scripts/make-acknowledgements.sh` from the license files above (zstd, libdeflate, liblzma, Argon2, htscodecs) (the LZMA SDK is public
 domain and needs none, but crediting Igor Pavlov and Dmitry Shkarin is customary).

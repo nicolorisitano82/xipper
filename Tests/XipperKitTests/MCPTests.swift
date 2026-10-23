@@ -104,7 +104,7 @@ struct MCPTests {
         let unknown = h.request("initialize", ["protocolVersion": "2099-01-01", "capabilities": [:]])
         #expect(unknown["result"]?["protocolVersion"]?.string == "2025-11-25")
         let tools = h.request("tools/list")["result"]?["tools"]?.array ?? []
-        #expect(tools.count == 12)
+        #expect(tools.count == 13)
         let extract = tools.first { $0["name"]?.string == "archive_extract" }
         #expect(extract?["annotations"]?["destructiveHint"]?.bool == true)
         #expect(tools.allSatisfy { $0["inputSchema"]?["type"]?.string == "object" })

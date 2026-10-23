@@ -31,6 +31,56 @@ enum ArchiveActions {
         }
     }
 
+    // MARK: genomics
+
+    /// BAM → CRAM 3.1 or CRAM → BAM next to the file, with the reference FASTA the user picks
+    /// (the last one is offered again).
+    static func convertAlignment(_ url: URL, toCRAM: Bool, done: @escaping () -> Void) {
+        let isCRAM = !toCRAM
+        guard let reference = chooseReference(required: toCRAM, for: url) else { return done() }
+        let save = NSSavePanel()
+        save.nameFieldStringValue = url.deletingPathExtension().appendingPathExtension(toCRAM ? "cram" : "bam").lastPathComponent
+        save.directoryURL = url.deletingLastPathComponent()
+        save.allowedContentTypes = []
+        guard save.runModal() == .OK, let out = save.url else { return done() }
+        let ref = reference
+        run(String(localized: "Impossibile convertire “\(url.lastPathComponent)”"), done: {
+            if Preferences.defaults.bool(forKey: PrefKey.revealAfter) { NSWorkspace.shared.activateFileViewerSelecting([out]) }
+            done()
+        }) {
+            if isCRAM {
+                try Xipper.cramToBAM(url, output: out, reference: ref, overwrite: true, workload: Preferences.workload)
+            } else {
+                try Xipper.bamToCRAM(url, output: out, reference: ref, overwrite: true, workload: Preferences.workload)
+            }
+        }
+    }
+
+    /// The usual index next to the file (.bai, .crai, .csi, .fai, .tbi).
+    static func buildIndex(_ url: URL, done: @escaping () -> Void) {
+        run(String(localized: "Impossibile creare l'indice di “\(url.lastPathComponent)”"), done: done) {
+            try Xipper.buildIndex(url, overwrite: true, workload: Preferences.workload)
+        }
+    }
+
+    /// The reference FASTA, nil when cancelled.
+    private static func chooseReference(required: Bool, for url: URL) -> URL? {
+        let key = "genomicsReference"
+        let panel = NSOpenPanel()
+        panel.message = required ? String(localized: "Scegli il riferimento FASTA su cui sono state allineate le letture")
+                                 : String(localized: "Scegli il riferimento FASTA usato per scrivere il CRAM")
+        panel.prompt = String(localized: "Usa riferimento")
+        panel.canChooseDirectories = false
+        if let last = Preferences.defaults.string(forKey: key) {
+            panel.directoryURL = URL(fileURLWithPath: last).deletingLastPathComponent()
+        } else {
+            panel.directoryURL = url.deletingLastPathComponent()
+        }
+        guard panel.runModal() == .OK, let ref = panel.url else { return nil }
+        Preferences.defaults.set(ref.path, forKey: key)
+        return ref
+    }
+
     /// Asks a new name for an entry (only the last path component changes).
     static func askNewName(for path: String) -> String? {
         let old = (path as NSString).lastPathComponent

@@ -1,6 +1,32 @@
 {
   "sourceLanguage" : "it",
   "strings" : {
+    "%@ letture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ reads"
+          }
+        }
+      }
+    },
+    "%lld sequenze di riferimento (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld reference sequences (%@)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld sequenze di riferimento (%2$@)"
+          }
+        }
+      }
+    },
     "Archivio grande: aprilo in Xipper per vedere il contenuto" : {
       "localizations" : {
         "en" : {
@@ -107,6 +133,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unrecognized format"
+          }
+        }
+      }
+    },
+    "ordinamento %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sorted by %@"
           }
         }
       }

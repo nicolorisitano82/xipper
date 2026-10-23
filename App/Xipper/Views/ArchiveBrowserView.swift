@@ -55,7 +55,13 @@ struct ArchiveBrowserView: View {
                     }, createRecovery: {
                         working = String(localized: "Creazione dei dati di recupero…")
                         ArchiveActions.createRecovery(for: url) { working = nil; recoveryRevision += 1 }
-                    }, recoveryRevision: recoveryRevision)
+                    }, recoveryRevision: recoveryRevision, convert: { toCRAM in
+                        working = toCRAM ? String(localized: "Conversione in CRAM…") : String(localized: "Conversione in BAM…")
+                        ArchiveActions.convertAlignment(url, toCRAM: toCRAM) { working = nil }
+                    }, buildIndex: {
+                        working = String(localized: "Creazione dell'indice…")
+                        ArchiveActions.buildIndex(url) { working = nil }
+                    })
                         .inspectorColumnWidth(min: 240, ideal: 262)
                 }
         }
@@ -304,6 +310,24 @@ struct ArchiveBrowserView: View {
             }
         } else if let error = model.error {
             ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
+        } else if let a = model.alignment, a.isCRAM {
+            // A CRAM holds alignments, not files: its summary and what can be done with it.
+            ContentUnavailableView {
+                Label(a.formatName, systemImage: "allergens")
+            } description: {
+                Text("\((a.records ?? 0).formatted()) letture su \(a.references.count) sequenze di riferimento. Per leggerle, convertilo in BAM con il riferimento FASTA usato per scriverlo.")
+            } actions: {
+                Button("Converti in BAM…") {
+                    working = String(localized: "Conversione in BAM…")
+                    ArchiveActions.convertAlignment(url, toCRAM: false) { working = nil }
+                }
+                .buttonStyle(.glassProminent)
+                Button("Crea indice (.crai)") {
+                    working = String(localized: "Creazione dell'indice…")
+                    ArchiveActions.buildIndex(url) { working = nil }
+                }
+                .buttonStyle(.glass)
+            }
         } else {
             Table(of: BrowserItem.self, selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("Nome", value: \.name) { item in
@@ -551,6 +575,9 @@ private struct ArchiveInspector: View {
     /// "Crea dati di recupero" (PAR2).
     var createRecovery: () -> Void = {}
     var recoveryRevision = 0
+    /// BAM ↔ CRAM (true: to CRAM) and the usual index, for alignment files.
+    var convert: (Bool) -> Void = { _ in }
+    var buildIndex: () -> Void = {}
     @State private var preview: Preview?
     @State private var sha256: String?
 
@@ -586,10 +613,12 @@ private struct ArchiveInspector: View {
                 }
             } else {
                 Section("Archivio") {
-                    LabeledContent("Formato", value: model.format?.displayName ?? "—")
+                    LabeledContent("Formato", value: model.alignment?.formatName ?? model.format?.displayName ?? "—")
                     LabeledContent("Dimensione", value: model.archiveSize.byteText)
-                    LabeledContent("Contenuto", value: model.totalSize.byteText)
-                    LabeledContent("File", value: "\(model.fileCount)")
+                    if model.alignment?.isCRAM != true {
+                        LabeledContent("Contenuto", value: model.totalSize.byteText)
+                        LabeledContent("File", value: "\(model.fileCount)")
+                    }
                     if model.totalSize > 0 {
                         LabeledContent("Rapporto", value: (Double(model.archiveSize) / Double(model.totalSize)).ratioText)
                     }
@@ -604,9 +633,11 @@ private struct ArchiveInspector: View {
                     }
                     LabeledContent("Quarantena", value: quarantine)
                 }
-                Section {
-                    Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
-                        .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                if model.alignment?.isCRAM != true {
+                    Section {
+                        Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
+                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                    }
                 }
                 Section("Dati di recupero") {
                     let index = recoveryRevision >= 0 ? PAR2.indexFile(for: model.url) : nil
@@ -615,6 +646,21 @@ private struct ArchiveInspector: View {
                         Button("Crea dati di recupero", systemImage: "cross.case", action: createRecovery)
                             .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
                             .help("File .par2 accanto all'archivio: servono a ripararlo se si danneggia")
+                    }
+                }
+                if let a = model.alignment {
+                    Section("Allineamenti") {
+                        LabeledContent("Sequenze di riferimento", value: "\(a.references.count)")
+                        if let so = a.sortOrder { LabeledContent("Ordinamento", value: so) }
+                        if !a.readGroups.isEmpty { LabeledContent("Read group", value: "\(a.readGroups.count)") }
+                        if let r = a.records { LabeledContent("Letture", value: r.formatted()) }
+                        if let c = a.containers { LabeledContent("Container", value: "\(c)") }
+                        Button(a.isCRAM ? "Converti in BAM…" : "Converti in CRAM…", systemImage: "arrow.left.arrow.right") { convert(!a.isCRAM) }
+                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .help(a.isCRAM ? "BAM con il riferimento FASTA usato per scrivere il CRAM"
+                                           : "CRAM 3.1 con il riferimento FASTA su cui sono allineate le letture: di solito il 30–50% più piccolo")
+                        Button(a.isCRAM ? "Crea indice (.crai)" : "Crea indice (.bai)", systemImage: "list.number", action: buildIndex)
+                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
                     }
                 }
                 if let b = model.bgzf {

@@ -274,6 +274,18 @@
 			<key>LSItemContentTypes</key>
 			<array><string>app.xipper.bgzf</string></array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>CRAM file</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-cram</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>app.xipper.cram</string></array>
+		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
@@ -349,6 +361,16 @@
 			<array><string>public.data</string><string>public.archive</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>bgz</string><string>bam</string><string>bcf</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.cram</string>
+			<key>UTTypeDescription</key>
+			<string>CRAM alignment file</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>cram</string></array></dict>
 		</dict>
 	</array>
 </dict>

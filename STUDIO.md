@@ -20,7 +20,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | v2: CRAM nell'app e in MCP, ottimizzazioni ARM64 (secondo giro). v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
+| **Prossimi passi** | v2: modifica di 7z senza ricompressione, ricerca dei blocchi spostati in PAR2, ZIP multi-volume in scrittura, automazione (Tasks MCP, Comandi Rapidi), rifiniture dell'interfaccia, rilascio 2.0. v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 

@@ -598,7 +598,8 @@ func buildBundle(executable: String, output: String) throws {
         ["name": "bgzf_compress", "description": "Genomics: compress with BGZF (bgzip)"],
         ["name": "bgzf_check", "description": "Genomics: verify BGZF, BAM, BCF"],
         ["name": "bgzf_convert", "description": "Genomics: convert plain gzip to BGZF"],
-        ["name": "genomics_index", "description": "Genomics: build tabix (.tbi) / CSI indexes of VCF, BED, GFF"],
+        ["name": "genomics_index", "description": "Genomics: build .bai/.csi, .crai, .fai and tabix indexes"],
+        ["name": "cram_convert", "description": "Genomics: convert BAM ↔ CRAM 3.1 with a reference FASTA"],
         ["name": "genomics_check", "description": "Genomics: verify VCF.gz, BCF, BAM, CRAM and their indexes"],
         ["name": "checksum_manifest", "description": "Create and verify sha-256 / md5 / crc32c manifests (DRS names)"],
     ]

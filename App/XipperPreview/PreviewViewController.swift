@@ -41,14 +41,28 @@ struct ArchiveSummary: Sendable {
         let size = ((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize).map(Int64.init) ?? 0
         var s = ArchiveSummary(name: url.lastPathComponent, format: "—", archiveSize: size)
         do {
+            // Alignments (BAM, CRAM): what the header says.
+            if let a = try? Xipper.alignmentSummary(url) {
+                let refs = a.references.prefix(8).joined(separator: ", ") + (a.references.count > 8 ? ", …" : "")
+                var parts = [String(localized: "\(a.references.count) sequenze di riferimento (\(refs))")]
+                if let r = a.records { parts.insert(String(localized: "\(r.formatted()) letture"), at: 0) }
+                if let so = a.sortOrder { parts.append(String(localized: "ordinamento \(so)")) }
+                if a.isCRAM {
+                    s.format = a.formatName
+                    s.note = parts.joined(separator: " · ")
+                    return s
+                }
+                s.note = "BAM · " + parts.joined(separator: " · ")
+            }
             guard let f = try ArchiveFormat.detect(url) else { s.note = String(localized: "Formato non riconosciuto"); return s }
             s.format = f.displayName
             if f == .bgzf {
                 let i = try Xipper.bgzfInfo(url)
                 s.uncompressed = i.uncompressedSize
                 s.totalEntries = 1
-                s.note = i.endsWithEOFMarker ? String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine presente")
-                                             : String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine MANCANTE (file troncato?)")
+                let blocks = i.endsWithEOFMarker ? String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine presente")
+                                                 : String(localized: "BGZF · \(i.blocks) blocchi · marcatore di fine MANCANTE (file troncato?)")
+                s.note = s.note.map { $0 + "\n" + blocks } ?? blocks
                 return s
             }
             if f != .zip && f != .tar && size > tarListingLimit {

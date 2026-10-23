@@ -67,6 +67,22 @@
         }
       }
     },
+    "%@ letture su %lld sequenze di riferimento. Per leggerle, convertilo in BAM con il riferimento FASTA usato per scriverlo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ reads on %lld reference sequences. To read them, convert it to BAM with the reference FASTA it was written with."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ letture su %2$lld sequenze di riferimento. Per leggerle, convertilo in BAM con il riferimento FASTA usato per scriverlo."
+          }
+        }
+      }
+    },
     "%@ non riuscita" : {
       "localizations" : {
         "en" : {
@@ -894,6 +910,16 @@
         }
       }
     },
+    "Allineamenti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alignments"
+          }
+        }
+      }
+    },
     "Altra cartella…" : {
       "localizations" : {
         "en" : {
@@ -1175,6 +1201,16 @@
         }
       }
     },
+    "BAM con il riferimento FASTA usato per scrivere il CRAM" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BAM, with the reference FASTA the CRAM was written with"
+          }
+        }
+      }
+    },
     "BETA" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1242,6 +1278,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Good"
+          }
+        }
+      }
+    },
+    "CRAM 3.1 con il riferimento FASTA su cui sono allineate le letture: di solito il 30–50% più piccolo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CRAM 3.1, with the reference FASTA the reads were aligned to: usually 30–50% smaller"
           }
         }
       }
@@ -1722,6 +1768,16 @@
         }
       }
     },
+    "Container" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Containers"
+          }
+        }
+      }
+    },
     "Contenuto" : {
       "localizations" : {
         "en" : {
@@ -1748,6 +1804,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Checks the archive's integrity without extracting it. Returns Yes if it is intact."
+          }
+        }
+      }
+    },
+    "Conversione in BAM…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to BAM…"
+          }
+        }
+      }
+    },
+    "Conversione in CRAM…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to CRAM…"
+          }
+        }
+      }
+    },
+    "Converti in BAM…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convert to BAM…"
+          }
+        }
+      }
+    },
+    "Converti in CRAM…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convert to CRAM…"
           }
         }
       }
@@ -1852,6 +1948,26 @@
         }
       }
     },
+    "Crea indice (.bai)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create index (.bai)"
+          }
+        }
+      }
+    },
+    "Crea indice (.crai)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create index (.crai)"
+          }
+        }
+      }
+    },
     "Crea un altro archivio" : {
       "localizations" : {
         "en" : {
@@ -1878,6 +1994,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Creating recovery data…"
+          }
+        }
+      }
+    },
+    "Creazione dell'indice…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating the index…"
           }
         }
       }
@@ -2956,12 +3082,32 @@
         }
       }
     },
+    "Impossibile convertire “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not convert “%@”"
+          }
+        }
+      }
+    },
     "Impossibile creare i dati di recupero" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn’t create the recovery data"
+          }
+        }
+      }
+    },
+    "Impossibile creare l'indice di “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not create the index of “%@”"
           }
         }
       }
@@ -3384,6 +3530,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reading the archive…"
+          }
+        }
+      }
+    },
+    "Letture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads"
           }
         }
       }
@@ -3908,6 +4064,16 @@
         }
       }
     },
+    "Ordinamento" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort order"
+          }
+        }
+      }
+    },
     "Originali" : {
       "localizations" : {
         "en" : {
@@ -4248,6 +4414,16 @@
         }
       }
     },
+    "Read group" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read groups"
+          }
+        }
+      }
+    },
     "Recenti" : {
       "localizations" : {
         "en" : {
@@ -4274,6 +4450,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Returns the paths of the files in the archive, without extracting it."
+          }
+        }
+      }
+    },
+    "Riconoscimenti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acknowledgements"
           }
         }
       }
@@ -4598,6 +4784,26 @@
         }
       }
     },
+    "Scegli il riferimento FASTA su cui sono state allineate le letture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the reference FASTA the reads were aligned to"
+          }
+        }
+      }
+    },
+    "Scegli il riferimento FASTA usato per scrivere il CRAM" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the reference FASTA the CRAM was written with"
+          }
+        }
+      }
+    },
     "Scegli un archivio da aprire" : {
       "localizations" : {
         "en" : {
@@ -4654,6 +4860,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Always on, cannot be turned off."
+          }
+        }
+      }
+    },
+    "Sequenze di riferimento" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference sequences"
           }
         }
       }
@@ -4895,6 +5111,16 @@
         }
       }
     },
+    "Testo delle licenze non trovato." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "License text not found."
+          }
+        }
+      }
+    },
     "Tipo" : {
       "localizations" : {
         "en" : {
@@ -5052,6 +5278,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use Password"
+          }
+        }
+      }
+    },
+    "Usa riferimento" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use reference"
           }
         }
       }

@@ -416,7 +416,7 @@ CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla
   - andata e ritorno esatta 3.1 e 3.0 su dati generati con ogni operazione CIGAR e ogni tipo di tag;
   - riferimento sbagliato e blocco danneggiato rifiutati;
   - interop con samtools su 4 varianti in lettura e 2 in scrittura.
-- **Da fare:** CRAM nell'app (inspector, Quick Look, conversione); strumento MCP. (Il `.crai` si crea con `xipper index`.)
+- **App e MCP:** vedi la sezione successiva.
 
 ## Indici per altri formati (23/10/2026)
 
@@ -437,3 +437,18 @@ CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla
   - i bin piccoli confluiscono nel padre.
 - **Verifica:** `index-check` controlla anche questi indici.
 - **Test:** suite "Genomics indexes".
+
+## CRAM nell'app e in MCP, Riconoscimenti (23/10/2026)
+
+- **App:**
+  - i `.cram` si aprono in Xipper: tipo `app.xipper.cram`, icona del documento e miniatura dallo sprite C (etichetta «CRAM»);
+  - la finestra di un CRAM mostra letture e sequenze di riferimento, con «Converti in BAM…» e «Crea indice (.crai)»;
+  - per i BAM l'inspector ha una sezione «Allineamenti» (sequenze, ordinamento, read group) con «Converti in CRAM…» e «Crea indice (.bai)»;
+  - il riferimento FASTA si sceglie con un pannello che ricorda l'ultimo usato; l'uscita con un pannello di salvataggio.
+- **Quick Look:** formato, letture, sequenze di riferimento e ordinamento di CRAM e BAM.
+- **MCP:**
+  - nuovo strumento `cram_convert` (BAM ↔ CRAM con riferimento, conferma prima di sovrascrivere, nascosto in sola lettura);
+  - `genomics_index` crea ora anche `.bai`/`.csi`, `.crai`, `.csi` di BCF e `.fai`.
+- **Riconoscimenti:** finestra «Riconoscimenti» nel menu Xipper con le licenze del codice incluso (zstd, libdeflate, liblzma, htscodecs, Argon2, LZMA SDK, Xipper). Il testo è generato da `scripts/make-acknowledgements.sh` e va rigenerato a ogni aggiornamento di `Vendor/`.
+- **Test:** `cramConvertAndAlignmentIndexes` (MCP).
+- **Da provare a mano** con la prossima build installata: apertura di un CRAM, conversioni e indici dall'inspector, Quick Look e miniatura del CRAM, finestra Riconoscimenti.

@@ -21,9 +21,10 @@ final class ThumbnailProvider: QLThumbnailProvider {
                 encrypted = true  // 7z with encrypted names
             } catch {}
         }
-        let key = encrypted ? "encrypted" : Self.icon(format, url)
-        let label = Self.label(format, url)
-        let accent = Self.accent(Self.icon(format, url))
+        let isCRAM = format == nil && FileHandle(forReadingAtPath: url.path)?.readData(ofLength: 4) == Data("CRAM".utf8)
+        let key = encrypted ? "encrypted" : isCRAM ? "cram" : Self.icon(format, url)
+        let label = isCRAM ? "CRAM" : Self.label(format, url)
+        let accent = Self.accent(isCRAM ? "cram" : Self.icon(format, url))
         let side = min(request.maximumSize.width, request.maximumSize.height)
         let canvas = CGSize(width: side, height: side)
         handler(QLThumbnailReply(contextSize: canvas, currentContextDrawing: {

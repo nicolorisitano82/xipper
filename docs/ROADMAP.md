@@ -103,7 +103,7 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 ### 7. Genomica
 
 - ✅ **indici** per altri formati (23/10/2026): `.bai`/`.csi` per BAM, `.crai`, `.csi` per BCF, `.fai` (+`.gzi`), tabix per SAM; `xipper index`;
-- ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; da fare app e MCP);
+- ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; nell'app e in MCP dal 23/10/2026);
 - MPEG-G: spostato nella 3.0 (vedi sotto).
 
 ### Rinviate

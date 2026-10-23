@@ -248,3 +248,43 @@ extension Xipper {
                                     outputBytes: size, elapsed: Date().timeIntervalSince(start))
     }
 }
+
+/// What the app and Quick Look show about an alignment file (BAM or CRAM), read from the header
+/// and, for CRAM, the container headers (no record is decoded).
+public struct AlignmentSummary: Sendable {
+    public enum Kind: Sendable { case bam, cram(major: Int, minor: Int) }
+    public var kind: Kind
+    public var references: [String]
+    public var sortOrder: String?
+    public var readGroups: [String]
+    /// Records and containers (CRAM only: BAM has no count without reading every record).
+    public var records: Int64?
+    public var containers: Int?
+    public var isCRAM: Bool { if case .cram = kind { true } else { false } }
+    public var formatName: String {
+        switch kind { case .bam: "BAM"; case let .cram(a, b): "CRAM \(a).\(b)" }
+    }
+}
+
+extension Xipper {
+    /// nil when `url` is neither BAM nor CRAM.
+    public static func alignmentSummary(_ url: URL) throws -> AlignmentSummary? {
+        let file = try FileReader(path: url.path)
+        let head = try file.read(at: 0, count: Int(min(file.size, 1 << 16)))
+        func summary(_ kind: AlignmentSummary.Kind, _ h: SAMHeader) -> AlignmentSummary {
+            let so = h.text.split(separator: "\n").first { $0.hasPrefix("@HD\t") }?
+                .split(separator: "\t").first { $0.hasPrefix("SO:") }.map { String($0.dropFirst(3)) }
+            return AlignmentSummary(kind: kind, references: h.references.map(\.name), sortOrder: so, readGroups: h.readGroups)
+        }
+        if CRAMScanner.isCRAM(head) {
+            let c = try CRAMFileReader(url)
+            let containers = try c.containers()
+            var s = summary(.cram(major: Int(c.major), minor: Int(c.minor)), c.header)
+            s.records = containers.reduce(0) { $0 + Int64($1.records) }
+            s.containers = containers.count
+            return s
+        }
+        guard BGZF.isBGZF(head), try head.withUnsafeBytes({ try BGZF.decompressFirstBlock($0) }).starts(with: BAM.magic) else { return nil }
+        return summary(.bam, try BAMReader(url).header)
+    }
+}
