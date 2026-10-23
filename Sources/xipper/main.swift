@@ -166,10 +166,7 @@ let workload: Workload = {
 // MARK: progress & cancellation
 
 let cancel = CancellationToken()
-signal(SIGINT, SIG_IGN)
-let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
-sigint.setEventHandler { cancel.cancel() }
-sigint.resume()
+let sigint = cancelOnInterrupt(cancel)
 
 let showProgress = !flag("-q", "--quiet") && isatty(STDERR_FILENO) != 0
 let progress: ProgressHandler? = showProgress ? progressPrinter() : nil

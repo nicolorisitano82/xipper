@@ -25,7 +25,7 @@ Restano **fuori dalla 1.0** per scelta: RAR, ZIP Deflate64, scrittura di lz4 e b
 
 ### 1. ⭐ Montaggio degli archivi come volume (prima priorità)
 
-L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le app aprono i file senza estrarre. Nessun concorrente lo offre in modo nativo.
+L'archivio si apre come un volume, in lettura e scrittura: lo si sfoglia nel Finder e le app aprono i file senza estrarre. Nessun concorrente lo offre in modo nativo.
 
 - **Spike fatto il 21/10/2026 → [FSKIT.md](FSKIT.md):**
   - il modulo si registra e si attiva, e `FSPathURLResource` (macOS 26) monta un file;
@@ -34,24 +34,18 @@ L'archivio si apre come un volume in sola lettura: lo si sfoglia nel Finder e le
   - Lo spike funziona: montaggio come utente, contenuto identico, si smonta da solo se il server cade.
   - Limite: il client scarica l'intero file alla prima apertura.
   - Dettagli in [FSKIT.md](FSKIT.md).
-- **Fatto il 21/10/2026: montaggio in lettura e scrittura su WebDAV.** CLI `xipper mount`, «Monta»/«Espelli» nel browser e nel Finder, salvataggio delle modifiche all'espulsione. Dettagli in [FSKIT.md](FSKIT.md), sezione "Implementazione".
-- **Da completare (con FSKit se un giorno ci sarà un account):**
-  - volume in sola lettura per ZIP (anche AES con la password dal portachiavi), tar non compresso e tar.zst/XIZ con accesso casuale ai frame;
-  - azione «Monta» nel browser, nel menu del Finder e nella CLI (`xipper mount`), «Espelli» dal Finder;
-  - GET in streaming e cache dei blocchi decompressi con limite di memoria; credenziali casuali per ogni montaggio (NetFS);
-  - date e dimensioni come nell'archivio. Permessi e xattr solo con FSKit o NFS.
-- **Poi:**
-  - 7z non solido (i blocchi solidi richiedono decompressione sequenziale: cache per cartella);
-  - tar.gz/xz senza indice: letture sequenziali con avviso, oppure indice costruito al primo montaggio;
-  - BGZF con indice `.gzi`.
-- **Sicurezza:**
-  - stesse regole dell'estrazione sicura: nessun symlink verso l'esterno, nomi validati, limiti di memoria contro le zip-bomb;
-  - fuzzing del percorso di montaggio.
-- **Test:**
-  - montaggio e smontaggio automatici;
-  - confronto byte per byte con l'estrazione;
-  - accesso concorrente da più app;
-  - Quick Look sul volume; server terminato con il volume montato.
+- **Stato al 23/10/2026 (✅ per la 2.0):**
+  - ✅ montaggio in lettura e scrittura su WebDAV locale (classe 2) con NetFS: `xipper mount`, «Monta»/«Espelli» nel browser e nel menu del Finder;
+  - ✅ formati: ZIP (anche AES, password dal Portachiavi), 7z, tar e tar compressi, XIZ, cpio, Apple Archive; gz/xz/zst/BGZF di un solo file in sola lettura;
+  - ✅ file letti su richiesta (`streamEntry`), richieste Range, credenziali usa e getta per ogni montaggio, date e dimensioni come nell'archivio;
+  - ✅ modifiche in un overlay copy-on-write, salvate all'espulsione con `Xipper.edit` (ZIP e XIZ senza ricomprimere il resto);
+  - ✅ estrazione sicura condivisa (nomi validati, nessun symlink verso l'esterno);
+  - ✅ test: overlay e whiteout, server WebDAV di classe 2, upload a blocchi, montaggio reale e smontaggio quando il server termina.
+- **Dopo la 2.0:**
+  - cache dei blocchi decompressi con limite di memoria (oggi tar.gz/xz senza indice si rileggono dall'inizio a ogni apertura di file);
+  - 7z solidi: cache per cartella;
+  - fuzzing del percorso di montaggio;
+  - permessi e xattr: solo con FSKit o NFS (FSKit richiede un entitlement riservato: [FSKIT.md](FSKIT.md)).
 
 ### 2. ⭐ Ottimizzazioni in assembler ARM64/NEON e GPU — primo giro ✅ 23/10/2026
 

@@ -85,10 +85,7 @@ let genomics2Usage = """
     let workload: Workload
     if let j = int("-j", "--threads") { workload = .threads(max(1, j)) } else { workload = flag("--background") ? .background : .interactive }
     let cancel = CancellationToken()
-    signal(SIGINT, SIG_IGN)
-    let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
-    sigint.setEventHandler { cancel.cancel() }
-    sigint.resume()
+    let sigint = cancelOnInterrupt(cancel)
     let quiet = flag("-q", "--quiet")
     let showProgress = !quiet && isatty(STDERR_FILENO) != 0
     let progress: ProgressHandler? = showProgress ? progressPrinter() : nil
@@ -248,4 +245,15 @@ func printIndex(_ r: IndexCheckReport) {
     print("\(r.index.path): \(r.isOK ? "OK" : "FAILED") (\(r.kind.rawValue), \(r.references) references, \(r.offsetsChecked) offsets checked)")
     for p in r.problems { print("  error: \(p)") }
     for w in r.warnings { print("  warning: \(w)") }
+}
+
+/// Ctrl-C cancels `token` instead of killing the process (so mounts unmount and save, and partial
+/// outputs are removed). Built outside any actor: the handler runs on a dispatch queue, and a
+/// closure isolated to the main actor (as everything in main.swift is) would trap there.
+func cancelOnInterrupt(_ token: CancellationToken) -> DispatchSourceSignal {
+    signal(SIGINT, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
+    source.setEventHandler { token.cancel() }
+    source.resume()
+    return source
 }

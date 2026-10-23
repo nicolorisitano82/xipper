@@ -29,10 +29,10 @@
 ## Checklist rispetto a UI_SPEC.md (prossime iterazioni)
 - [x] **2.2:** lista dei file rilasciati in una `Table` (Nome · Tipo · Dimensione, cartelle con il numero di elementi calcolato in background), "Nome" modificabile con il suffisso dell'estensione, "Salva in" (cartella d'origine, Scrivania, Documenti, Download, Altra…), aggiungi/rimuovi in toolbar, riepilogo con i file del Mac esclusi, menu Formato con descrizioni e preset "Backup veloce" e "Archivio lungo termine". *Preset Email: manca il ZIP diviso in parti nel core.*
 - [x] **2.4 / 2.5:** pannello di avanzamento in finestra, con morph dalla barra (`glassEffectID("job")`), velocità smussata su 1 s e aggiornata al massimo 4 volte al secondo, percentuale, byte, tempo stimato, file corrente, "Nascondi" verso l'HUD e "Annulla". Pannello di completamento con i riquadri opachi Dimensione / Tempo / Velocità media, nota sulla cifratura, Verifica · Mostra contenuto · **Mostra nel Finder** e "Crea un altro archivio". Errori e annullamento nello stesso pannello, con tinta rossa. *Badge "×Utility Archivio" e barre dei core: omessi finché il confronto non è misurato per il singolo lavoro.*
-- [ ] **2.7:** opzione ZipCrypto con avviso, che richiede ZipCrypto in scrittura nel core. **2.6:** parti multiple, che richiedono ZIP multi-volume nel core.
-- [ ] **2.8:** errore di disco pieno con tinta rossa, Riprova e "Salva altrove…".
-- [ ] **7.1:** capsula compatta e unione (`glassEffectUnion`); `NSPanel` quando non ci sono finestre. *Avanzamento e badge sul Dock: fatti (beta2).* **7.2:** `MenuBarExtra`. *Notifiche: fatte (beta2).*
-- [ ] **3.1:** sezioni Recenti/Preferiti/Preset nella sidebar; barra del percorso; barra di stato. *Trascinamento delle voci nel Finder e barra spaziatrice: fatti (beta2).*
+- [x] **2.7:** opzione ZipCrypto con avviso. - [ ] **2.6:** parti multiple, che richiedono ZIP multi-volume nel core (dopo la 2.0).
+- [x] **2.8:** errore di disco pieno (e permessi, sola lettura, volume rimosso) con tinta rossa, Riprova e «Salva altrove…» (fatto dalla beta1, verificato il 23/10/2026).
+- [ ] **7.1:** capsula compatta e unione (`glassEffectUnion`); `NSPanel` quando non ci sono finestre (dopo la 2.0). *Avanzamento e badge sul Dock: fatti (beta2).* - [x] **7.2:** `MenuBarExtra`. *Notifiche: fatte (beta2).*
+- [ ] **3.1:** sezioni Recenti/Preset nella sidebar (Preferiti fatto); barra del percorso; barra di stato (dopo la 2.0). *Trascinamento delle voci nel Finder e barra spaziatrice: fatti (beta2).*
 - [x] **3.2:** sheet "Estrai N elementi": destinazione (accanto all'archivio, Download, Scrivania, Documenti, Altra…), struttura (cartelle / solo file), "Se un file esiste già" (Chiedi · Sostituisci · Mantieni entrambi · Salta), "Apri la cartella al termine", riquadro sulla quarantena. "Estrai" senza selezione = estrazione smart diretta; con una selezione o con ⌥ si apre lo sheet.
 - [x] **3.3:** alert di sistema per il file esistente: riquadri archivio/disco con il badge "più recente", "Applica agli altri N conflitti" (conteggio da `plannedConflicts`), Mantieni entrambi (predefinito) · Sostituisci (sposta il file nel Cestino) · Salta. L'estrazione resta in pausa; HUD e sottotitolo del browser dicono "in pausa".
 - [x] **3.4:** Quick Look della voce (beta2).
@@ -452,3 +452,21 @@ CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla
 - **Riconoscimenti:** finestra «Riconoscimenti» nel menu Xipper con le licenze del codice incluso (zstd, libdeflate, liblzma, htscodecs, Argon2, LZMA SDK, Xipper). Il testo è generato da `scripts/make-acknowledgements.sh` e va rigenerato a ogni aggiornamento di `Vendor/`.
 - **Test:** `cramConvertAndAlignmentIndexes` (MCP).
 - **Da provare a mano** con la prossima build installata: apertura di un CRAM, conversioni e indici dall'inspector, Quick Look e miniatura del CRAM, finestra Riconoscimenti.
+
+## Verso la 2.0: verifiche e correzioni (23/10/2026)
+
+- **2.8 disco pieno:** già fatto dalla beta1, solo la checklist era indietro:
+  - pannello rosso, spazio libero e spazio ancora necessario, «Riprova» e «Salva altrove…»;
+  - stesso schema per permessi, volume in sola lettura e volume rimosso.
+- **Roadmap del montaggio** riscritta sullo stato reale (cosa c'è nella 2.0, cosa viene dopo).
+- **Build di prova 2.0.0-rc2** (`dist/`, non pubblicata), con la CLI inclusa nell'app. Verifiche automatiche:
+  - firma, tipi CRAM nell'app e nelle estensioni Quick Look, Riconoscimenti;
+  - CRAM andata e ritorno, indici, ZIP/7z/tar.zst/XIZ, PAR2 (danno e riparazione);
+  - disco pieno su un volume da 20 MB: errore chiaro e nessun file parziale;
+  - montaggio reale con scrittura e salvataggio.
+- **Bug trovato e corretto: Ctrl-C mandava in crash la CLI** (tutti i comandi).
+  - Causa: in Swift 6 il gestore di SIGINT scritto in `main.swift` era isolato al main actor ma girava su una coda di dispatch, e il runtime lo fermava (EXC_BREAKPOINT).
+  - Conseguenze: un volume montato restava appeso e le modifiche andavano perse; una compressione interrotta non puliva come previsto.
+  - Ora il gestore nasce fuori da ogni actor (`cancelOnInterrupt`). Ctrl-C annulla con codice 130, smonta e salva.
+  - Test di regressione: suite "CLI".
+- **Test manuali:** checklist in `dist/test-2.0/CHECKLIST.md`, insieme ai file di prova. Vanno fatti a mano: in questa sessione non c'è il controllo del computer.
