@@ -89,6 +89,21 @@ let package = Package(
             ],
             linkerSettings: [.linkedLibrary("bz2")]
         ),
+        // libarchive 3.8.10 (BSD-2-Clause), only its RAR 4.x and RAR5 readers (read-only, STUDIO.md §4.2).
+        .target(
+            name: "CArchive",
+            path: "Vendor/libarchive",
+            exclude: ["COPYING"],
+            sources: ["libarchive"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("HAVE_CONFIG_H"),
+                .headerSearchPath("libarchive"),
+                .define("NDEBUG", .when(configuration: .release)),
+                .unsafeFlags(["-Wno-everything"]),
+            ],
+            linkerSettings: [.linkedLibrary("z")]
+        ),
         // Argon2id (password KDF of encrypted XIZ archives): P-H-C reference code, portable C, CC0/Apache-2.0.
         .target(
             name: "CArgon2",
@@ -105,7 +120,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
@@ -119,7 +134,8 @@ let package = Package(
         ),
         .testTarget(
             name: "XipperKitTests",
-            dependencies: ["XipperKit", "XipperMCP", "CLZMA"]
+            dependencies: ["XipperKit", "XipperMCP", "CLZMA"],
+            exclude: ["Fixtures"]
         ),
     ],
     swiftLanguageModes: [.v6]

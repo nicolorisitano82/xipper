@@ -42,14 +42,14 @@ Xipper's Finder menu offers the fitting action first: **Decompress** on archives
 Finder actions always create new files next to the originals and never overwrite anything.
 
 ## Known limits
-- **RAR**, ISO and MPEG-G are planned for 3.0; ZIP Deflate64 is not supported; **lz4 and brotli** open but cannot be created.
+- **RAR** opens read-only (multi-volume too), but not encrypted ones yet; ISO and MPEG-G are planned for 3.0; ZIP Deflate64 is not supported; **lz4 and brotli** open but cannot be created.
 - CRAM files are not browsed like archives: convert them to BAM, with the reference FASTA they were written with.
 - Encrypted Apple Archives need a password of at least 20 characters (a macOS limit).
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.
 - PAR2 repair compares blocks where they belong: data moved inside a file is not searched for.
 
 ## Acknowledgements
-Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, Argon2, LZMA SDK): the licenses are in **Xipper › Acknowledgements**.
+Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): the licenses are in **Xipper › Acknowledgements**.
 
 ## Updates
 Once a day Xipper asks GitHub whether there is a new version (also from **Xipper › Check for Updates…**). It downloads it only if you say so, checks its SHA-256 and opens the disk image: drag Xipper into **Applications** as the first time.

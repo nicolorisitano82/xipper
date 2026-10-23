@@ -8,7 +8,7 @@ import FinderSync
 final class FinderSync: FIFinderSync {
     private static let archiveExtensions: Set<String> = [
         "zip", "7z", "xiz", "aar", "cpio", "tar", "tgz", "gz", "bgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst", "tzst",
-        "lz4", "br", "bam", "bcf", "001",
+        "lz4", "br", "bam", "bcf", "001", "rar",
     ]
 
     override init() {

@@ -42,14 +42,14 @@ Il menu di Xipper nel Finder propone per prima l'azione adatta: **Decomprimi** s
 Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovrascrivono mai nulla.
 
 ## Limiti noti
-- **RAR**, ISO e MPEG-G arriveranno con la 3.0; ZIP Deflate64 non è supportato; **lz4 e brotli** si aprono ma non si creano.
+- **RAR** si apre in sola lettura (anche a volumi), ma non ancora quelli cifrati; ISO e MPEG-G arriveranno con la 3.0; ZIP Deflate64 non è supportato; **lz4 e brotli** si aprono ma non si creano.
 - I CRAM non si sfogliano come archivi: si convertono in BAM, con il riferimento FASTA usato per scriverli.
 - Gli Apple Archive cifrati richiedono una password di almeno 20 caratteri (limite di macOS).
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.
 - La riparazione PAR2 confronta i blocchi nella loro posizione: i dati spostati all'interno del file non vengono cercati.
 
 ## Riconoscimenti
-Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, Argon2, LZMA SDK): le licenze sono in **Xipper › Riconoscimenti**.
+Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): le licenze sono in **Xipper › Riconoscimenti**.
 
 ## Aggiornamenti
 Una volta al giorno Xipper chiede a GitHub se c'è una versione nuova (anche da **Xipper › Cerca aggiornamenti…**). Se c'è, la scarica solo se glielo dici, la controlla con l'impronta SHA-256 e apre l'immagine disco: trascini Xipper in **Applicazioni** come la prima volta.

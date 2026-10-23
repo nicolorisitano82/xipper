@@ -115,7 +115,7 @@ enum XipperTools {
 
     static let info = Tool(
         name: "archive_info", title: "Archive information",
-        description: "Format, entry count, sizes and encryption of an archive (zip, 7z, tar, tar.gz/bz2/xz/zst, gz, BGZF incl. BAM/BCF). Fast: does not extract.",
+        description: "Format, entry count, sizes and encryption of an archive (zip, 7z, tar, tar.gz/bz2/xz/zst, gz, RAR/RAR5 read-only, BGZF incl. BAM/BCF). Fast: does not extract.",
         inputSchema: schema(["path": str(pathDoc), "password_ref": str(passwordRefDoc + " Only needed for 7z archives with encrypted file names.")],
                             required: ["path"]),
         readOnly: true, destructive: false, idempotent: true

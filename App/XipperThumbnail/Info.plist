@@ -24,6 +24,7 @@
 				<string>app.xipper.tar-zstd</string>
 				<string>app.xipper.bgzf</string>
 				<string>app.xipper.cram</string>
+				<string>com.rarlab.rar-archive</string>
 			</array>
 			<key>QLThumbnailMinimumDimension</key>
 			<integer>0</integer>

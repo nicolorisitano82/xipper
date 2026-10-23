@@ -154,6 +154,7 @@ extension ArchiveFormat {
         case .cpio: "cpio"
         case .appleArchive: "Apple Archive (.aar)"
         case .xiz: "XIZ"
+        case .rar: "RAR"
         }
     }
 

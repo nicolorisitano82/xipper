@@ -88,6 +88,30 @@ struct FuzzTests {
         }
     }
 
+    /// RAR (read only, libarchive's readers): libarchive's own test vectors under mutation.
+    @Test(arguments: ["rar_compress_normal.rar", "rar5_multiple_files_solid.rar", "rar5_compressed.rar", "rar_unicode.rar"])
+    func mutatedRarNeverCrashesOrEscapes(name: String) throws {
+        let t = TempDir()
+        let bytes = try [UInt8](Data(contentsOf: RarTests.url(name)))
+        var rng = SplitMix(state: UInt64(bytes.count) &* 31)
+        var limits = ExtractionLimits()
+        limits.maxTotalBytes = 64 << 20
+        for i in 0..<Self.iterations {
+            let sample = t.url("m\(i).rar")
+            try Data(mutate(bytes, &rng)).write(to: sample)
+            _ = try? Xipper.list(sample)
+            _ = try? Xipper.test(sample, workload: .threads(2))
+            t.mkdir("out\(i)")
+            var options = ExtractOptions()
+            options.limits = limits
+            _ = try? Xipper.extract(sample, to: t.url("out\(i)"), mode: .into, options: options)
+            let stray = try FileManager.default.contentsOfDirectory(atPath: t.path).filter { !$0.hasPrefix("out") && !$0.hasPrefix("m") }
+            #expect(stray.isEmpty, "iteration \(i) wrote \(stray)")
+            try? FileManager.default.removeItem(at: sample)
+            try? FileManager.default.removeItem(at: t.url("out\(i)"))
+        }
+    }
+
     func fuzz(_ format: ArchiveFormat, _ o: CreateOptions, password: String?, _ t: TempDir,
               prepare: ((URL) throws -> Void)? = nil) throws {
         let source = format.isSingleFile ? t.url("src/a.txt") : t.url("src")

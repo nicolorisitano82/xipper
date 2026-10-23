@@ -295,7 +295,7 @@ FILE_ICONS = {
     "tzst": (picto_zst, "#E57A00", "TAR.ZST"), "aar": (picto_aar, "#58585D", "AAR"), "cpio": (picto_cpio, "#5E6B7D", "CPIO"),
     "lz4": (picto_lz4, "#C98A00", "LZ4"), "br": (picto_br, "#A86E3A", "BR"), "xiz": (picto_xiz, "#0A57D4", "XIZ"),
     "bgzf": (picto_bgzf, "#1E9EB5", "BGZF"), "cram": (picto_bgzf, "#2F7FB8", "CRAM"), "split": (picto_split, "#0A6CEB", ""), "encrypted": (picto_encrypted, "#1A6AE0", ""),
-    "generic": (picto_generic, "#6E6E73", ""),
+    "rar": (picto_generic, "#7D3C98", "RAR"), "generic": (picto_generic, "#6E6E73", ""),
 }
 
 def file_icon_svg(key):

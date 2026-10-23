@@ -50,6 +50,7 @@
 				<string>org.tukaani.xz-archive</string>
 				<string>com.facebook.zstandard-archive</string>
 				<string>app.xipper.bgzf</string>
+				<string>com.rarlab.rar-archive</string>
 			</array>
 		</dict>
 		<dict>
@@ -77,6 +78,7 @@
 				<string>org.tukaani.xz-archive</string>
 				<string>com.facebook.zstandard-archive</string>
 				<string>app.xipper.bgzf</string>
+				<string>com.rarlab.rar-archive</string>
 			</array>
 		</dict>
 	</array>
@@ -276,6 +278,18 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>RAR archive</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-rar</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.rarlab.rar-archive</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>CRAM file</string>
 			<key>CFBundleTypeIconFile</key>
 			<string>xipper-cram</string>
@@ -302,6 +316,16 @@
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rarlab.rar-archive</string>
+			<key>UTTypeDescription</key>
+			<string>RAR archive</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>rar</string></array><key>public.mime-type</key><array><string>application/vnd.rar</string><string>application/x-rar-compressed</string></array></dict>
+		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>app.xipper.lz4</string>

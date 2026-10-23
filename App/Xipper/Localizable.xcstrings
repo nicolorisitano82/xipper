@@ -5898,6 +5898,16 @@
         }
       }
     },
+    "solo lettura" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "read only"
+          }
+        }
+      }
+    },
     "tar.gz" : {
       "localizations" : {
         "en" : {

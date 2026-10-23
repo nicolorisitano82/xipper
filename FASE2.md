@@ -476,3 +476,22 @@ CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla
 - Pubblicata su GitHub come release (non pre-release), con il DMG firmato self-signed e lo SHA-256.
 - Note per gli utenti (`docs/LEGGIMI.md`, `docs/README-USER.en.md`) aggiornate alla 2.0: CRAM, indici, ZIP con bzip2/LZMA/xz, menu del Finder contestuale, Riconoscimenti.
 - I test manuali della checklist della rc2 non sono stati fatti prima del rilascio (scelta del titolare): vanno fatti sulla 2.0.0 installata.
+
+## RAR e RAR5 in sola lettura (23/10/2026)
+
+Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun codice di unrar, si usano i lettori di **libarchive 3.8.10** (BSD-2).
+
+- **Vendoring:** `Vendor/libarchive`, ridotto ai 32 sorgenti che servono ai lettori RAR e RAR5 (nucleo di lettura, PPMd H, BLAKE2sp); target SwiftPM `CArchive`.
+- **Lettore** (`RarReader`, `EntryStreamReader`):
+  - le voci passano per l'estrazione sicura, l'elenco, la verifica, la lettura di una voce e il montaggio (in sola lettura) di Xipper;
+  - libarchive controlla CRC-32 (RAR 4) e CRC-32/BLAKE2sp (RAR5) di ogni file.
+- **Volumi multipli** (`nome.part1.rar`… e `nome.rar`, `nome.r00`…): si aprono da qualsiasi parte; la cartella di estrazione prende il nome base.
+- **Nomi Unicode:** libarchive li converte "nella localizzazione corrente", che nei processi con locale C fallisce. Ogni chiamata gira con un locale UTF-8 sul suo thread.
+  - Prima di correggerlo, le voci con nomi giapponesi venivano saltate in silenzio. Ora un nome illeggibile è un errore esplicito.
+- **Cifrati:** non ancora (libarchive non decifra). Le voci cifrate danno «encrypted RAR entries are not supported yet».
+- **App:** tipo `com.rarlab.rar-archive`, icona e miniatura «RAR», Quick Look, Servizi Estrai/Verifica, menu del Finder («Decomprimi»). La modifica è disattivata.
+- **Test:**
+  - suite "RAR (read only)": 8 vettori di libarchive estratti identici a `bsdtar`, multivolume da qualsiasi parte, cifrati e danneggiati;
+  - fuzzing: 1000 mutazioni per 4 vettori, senza crash né scritture fuori destinazione.
+  - I vettori sono in `Tests/XipperKitTests/Fixtures/rar`, con la loro licenza.
+- **Da fare:** RAR5 cifrati (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, intestazioni cifrate), da scrivere da noi sopra libarchive o nel suo lettore.

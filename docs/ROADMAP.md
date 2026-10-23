@@ -110,7 +110,7 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 Decisione del 23/10/2026: questi formati passano dalla 2.0 alla 3.0.
 
-- **RAR/RAR5:** implementazione clean-room, §4.2 di STUDIO;
+- ✅ **RAR/RAR5** in sola lettura (23/10/2026), con i lettori di libarchive (BSD-2) e l'estrazione sicura di Xipper, volumi multipli compresi; da fare: archivi cifrati (AES-256 di RAR5, intestazioni cifrate);
 - **ISO 9660/UDF** e **DMG** non cifrati;
 - **MPEG-G** in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie. Studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md), stima 35–50 giorni-persona; decisioni aperte nella §7 dello studio.
 

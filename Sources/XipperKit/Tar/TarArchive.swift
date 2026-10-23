@@ -267,10 +267,9 @@ enum TarExtractor {
     }
 
     static func extract(_ path: String, ctx: ExtractionContext, tracker: ProgressTracker, cancel: CancellationToken?) throws {
-        if AppleArchiveReader.isAppleArchive(path) {
+        if let reader = try ownReader(path, password: ctx.options.password) {
             tracker.setTotals(bytes: 0, entries: 0)
-            try extractEntries(try AppleArchiveReader(path: path, password: ctx.options.password), ctx: ctx, tracker: tracker,
-                               cancel: cancel, reportCompressed: {})
+            try extractEntries(reader, ctx: ctx, tracker: tracker, cancel: cancel, reportCompressed: {})
             return
         }
         let (pipe, source, isTar, compression) = try open(path, workload: ctx.options.workload)
@@ -380,9 +379,17 @@ enum TarExtractor {
         try ctx.finalize()
     }
 
+    /// Formats with their own entry reader instead of the decompress-then-tar pipeline.
+    static func isOwnReaderFormat(_ path: String) -> Bool { AppleArchiveReader.isAppleArchive(path) || RarReader.isRAR(path) }
+
+    static func ownReader(_ path: String, password: String?) throws -> EntryStreamReader? {
+        if AppleArchiveReader.isAppleArchive(path) { return try AppleArchiveReader(path: path, password: password) }
+        if RarReader.isRAR(path) { return try RarReader(path: path, password: password) }
+        return nil
+    }
+
     static func list(_ path: String, workload: Workload, password: String? = nil) throws -> [ArchiveEntry] {
-        if AppleArchiveReader.isAppleArchive(path) {
-            let reader = try AppleArchiveReader(path: path, password: password)
+        if let reader = try ownReader(path, password: password) {
             var out: [ArchiveEntry] = []
             while let e = try reader.next() { out.append(e.entry) }
             return out
@@ -405,10 +412,11 @@ enum TarExtractor {
     static func test(_ path: String, workload: Workload, tracker: ProgressTracker, digests: DigestCollector? = nil,
                      password: String? = nil, cancel: CancellationToken?) throws -> (entries: Int, failures: [SkippedEntry]) {
         var count = 0
-        if AppleArchiveReader.isAppleArchive(path) {
-            // AppleArchive checks the data as it decodes it; reading every entry is the test.
+        if isOwnReaderFormat(path) {
+            // AppleArchive and libarchive's RAR readers check the data as they decode it (RAR:
+            // CRC-32 or BLAKE2sp per file); reading every entry is the test.
             do {
-                let reader = try AppleArchiveReader(path: path, password: password)
+                guard let reader = try ownReader(path, password: password) else { return (0, []) }
                 while let e = try reader.next() {
                     var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
                     try reader.readData(cancel: cancel) { chunk in

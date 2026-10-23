@@ -163,7 +163,7 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | lz4, brotli (anche `tar.lz4`, `tar.br`) | 🔜 | ✅ fatto | | lz4: decoder del formato frame scritto da noi (blocchi indipendenti e collegati, xxHash32); brotli: Compression di sistema |
 | CPIO (newc, crc, odc), `.aar` (Apple Archive) | ✅ fatto | ✅ fatto | ✅ AEA (password di almeno 20 caratteri, limite di macOS) | cpio nostro (scrittura newc); Apple Archive tramite il framework AppleArchive di sistema (LZ4/LZFSE/LZMA, attributi estesi), con l'estrazione sicura di Xipper |
 | ISO 9660 / UDF | ❌ | 🔜 📖 v3 | | nostro (lettura semplice) |
-| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura, v3 | ✅ AES di RAR5 (RAR3 da valutare) | clean-room, vedi sotto |
+| **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura (23/10/2026, anticipata dalla v3) | ❌ per ora: libarchive non decifra; AES di RAR5 da implementare | lettori RAR e RAR5 di libarchive 3.8.10 (BSD-2), vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
 | **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
 | **MPEG-G** (ISO/IEC 23092, `.mgb`/`.mgg`) | ❌ | 🔜 v3, sola lettura | — | rischio brevettuale accettato dal titolare il 23/10/2026; estensione di Genie, vedi §4.5 e [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md) |

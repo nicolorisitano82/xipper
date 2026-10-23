@@ -538,6 +538,7 @@ PLURAL = {
     "… e altri %lld elementi": ("… e un altro elemento", "… e altri %lld elementi", "… and one more item", "… and %lld more items"),
 }
 EN["rapporto %lld%%"] = "ratio %lld%%"
+EN["solo lettura"] = "read only"
 EN["Riconoscimenti"] = "Acknowledgements"
 EN["Testo delle licenze non trovato."] = "License text not found."
 EN["%@ letture su %lld sequenze di riferimento. Per leggerle, convertilo in BAM con il riferimento FASTA usato per scriverlo."] = "%@ reads on %lld reference sequences. To read them, convert it to BAM with the reference FASTA it was written with."
