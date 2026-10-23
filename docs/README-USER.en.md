@@ -21,7 +21,7 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Compress:** drop files and folders on the window, pick format, level and an optional password (ZIP, 7z and XIZ with AES-256; Apple Archive with AEA). ZIP can also use bzip2, LZMA and xz (Format menu › More ZIP methods), readable by 7-Zip and WinZip but not by Archive Utility.
 - **Open and browse:** double-click an archive; preview with the space bar, drag files out to the Desktop.
 - **Extract:** next to the archive, or chosen entries anywhere. Xipper never writes outside the destination, blocks zip bombs and keeps the quarantine of downloaded files.
-- **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP and XIZ keep what does not change as it is, without recompressing it.
+- **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP, 7z and XIZ keep what does not change as it is, without recompressing it (in a solid 7z, only the blocks you touch are compressed again).
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
 - **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it.
 - **Genomics:**
@@ -42,11 +42,10 @@ Xipper's Finder menu offers the fitting action first: **Decompress** on archives
 Finder actions always create new files next to the originals and never overwrite anything.
 
 ## Known limits
-- **RAR** opens read-only (multi-volume too), but not encrypted ones yet; ISO and MPEG-G are planned for 3.0; ZIP Deflate64 is not supported; **lz4 and brotli** open but cannot be created.
+- **RAR** opens read-only (multi-volume too); encrypted RAR5 archives open with their password, but not encrypted RAR 4 or encrypted multi-volume ones; ISO and MPEG-G are planned for 3.0.
 - CRAM files are not browsed like archives: convert them to BAM, with the reference FASTA they were written with.
 - Encrypted Apple Archives need a password of at least 20 characters (a macOS limit).
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.
-- PAR2 repair compares blocks where they belong: data moved inside a file is not searched for.
 
 ## Acknowledgements
 Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): the licenses are in **Xipper › Acknowledgements**.

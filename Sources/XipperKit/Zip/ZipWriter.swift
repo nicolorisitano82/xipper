@@ -62,6 +62,9 @@ public struct ZipOptions: Sendable {
     /// Upper bound for compressed data held in memory (two windows in flight).
     public var memoryBudget: Int = 512 << 20
     public var workload: Workload = .interactive
+    /// Split into volumes of this many bytes.
+    public var volumeSize: Int64?
+    public var volumeStyle: ZipVolumeStyle = .spanned
 
     public init() {}
 }
@@ -100,7 +103,7 @@ enum ZipWriter {
         }
 
         // 2. Windows: compute in parallel, emit in order on the writer queue.
-        let out = try OutputFile(path: path)
+        let out = try ZipOutput(path: path, volumeSize: options.volumeSize, style: options.volumeStyle)
         let emitter = ZipEmitter(out: out, items: items, plans: plans, password: password, options: options,
                                  tracker: tracker, cancel: cancel)
         let writerQueue = DispatchQueue(label: "xipper.zip.writer", qos: options.workload.qos == .utility ? .utility : .userInitiated)
@@ -327,14 +330,15 @@ enum ZipWriter {
 
 /// Writes local headers, data and collects central directory records, strictly in archive order.
 private final class ZipEmitter: @unchecked Sendable {
-    let out: OutputFile
+    let out: ZipOutput
     let items: [ArchiveItem]
     let plans: [ZipWriter.Plan]
     let password: [UInt8]?
     let options: ZipOptions
     let tracker: ProgressTracker
     let cancel: CancellationToken?
-    private var central = ByteWriter(capacity: 1 << 20)
+    /// Central directory records, written one by one so none straddles two volumes.
+    private var central: [[UInt8]] = []
     private var count = 0
     private var open: OpenEntry?
 
@@ -351,7 +355,7 @@ private final class ZipEmitter: @unchecked Sendable {
         var xzBlocks: [(unpadded: UInt64, uncompressed: UInt64)] = []
     }
 
-    init(out: OutputFile, items: [ArchiveItem], plans: [ZipWriter.Plan], password: [UInt8]?, options: ZipOptions,
+    init(out: ZipOutput, items: [ArchiveItem], plans: [ZipWriter.Plan], password: [UInt8]?, options: ZipOptions,
          tracker: ProgressTracker, cancel: CancellationToken?) {
         self.out = out
         self.items = items
@@ -416,6 +420,7 @@ private final class ZipEmitter: @unchecked Sendable {
 
         var storedMethod: UInt16 { encrypted && !legacy ? Zip.Method.aes.rawValue : method.rawValue }
 
+        /// `offset`: in the local header's volume.
         func extras(central: Bool, usize: Int64, csize: Int64, offset: Int64) -> [UInt8] {
             var w = ByteWriter()
             if central {
@@ -456,7 +461,8 @@ private final class ZipEmitter: @unchecked Sendable {
             return w.bytes
         }
 
-        func centralRecord(crc: UInt32, csize: Int64, usize: Int64, offset: Int64) -> [UInt8] {
+        func centralRecord(crc: UInt32, csize: Int64, usize: Int64, at place: (disk: UInt32, offset: Int64)) -> [UInt8] {
+            let offset = place.offset
             var w = ByteWriter(capacity: 46 + name.count + 64)
             let ext = extras(central: true, usize: usize, csize: csize, offset: offset)
             func field(_ v: Int64) -> UInt32 { zip64 || UInt64(v) >= Zip.max32 ? UInt32.max : UInt32(v) }
@@ -464,7 +470,7 @@ private final class ZipEmitter: @unchecked Sendable {
             w.u16(dosTime); w.u16(dosDate); w.u32(crc)
             w.u32(field(csize)); w.u32(field(usize))
             w.u16(UInt16(name.count)); w.u16(UInt16(ext.count)); w.u16(0)  // comment
-            w.u16(0); w.u16(0)  // disk, internal attributes
+            w.u16(UInt16(place.disk)); w.u16(0)  // disk, internal attributes
             w.u32(mode << 16 | (isDir ? 0x10 : 0))
             w.u32(field(offset))
             w.append(name); w.append(ext)
@@ -497,11 +503,13 @@ private final class ZipEmitter: @unchecked Sendable {
         let av = aesVersion(usize)
         let f = try fields(item, method: method, encrypted: encrypted, aesVersion: av, zip64: zip64, isDir: isDir)
         let storedCRC = encrypted && !f.legacy && av == 2 ? 0 : crc
-        let offset = out.position
-        try out.write(f.local(crc: storedCRC, csize: Int64(payload.count), usize: usize))
+        let local = f.local(crc: storedCRC, csize: Int64(payload.count), usize: usize)
+        try out.keepTogether(local.count)
+        let place = out.place(out.position)
+        try out.write(local)
         try out.write(payload)
         if f.legacy { try out.write(f.dataDescriptor(crc: crc, csize: Int64(payload.count), usize: usize)) }
-        central.append(f.centralRecord(crc: storedCRC, csize: Int64(payload.count), usize: usize, offset: offset))
+        central.append(f.centralRecord(crc: storedCRC, csize: Int64(payload.count), usize: usize, at: place))
         count += 1
     }
 
@@ -569,8 +577,10 @@ private final class ZipEmitter: @unchecked Sendable {
         let enc = try password.map { try ZipWriter.makeEncryptor($0, item: item, legacy: options.legacyZipCrypto) }
         let f = try fields(item, method: plan.method, encrypted: enc != nil, aesVersion: aesVersion(plan.size),
                            zip64: plan.zip64, isDir: false)
+        let local = f.local(crc: 0, csize: 0, usize: 0)  // patched when the entry closes
+        try out.keepTogether(local.count)
         open = OpenEntry(item: index, headerOffset: out.position, header: f, encryptor: enc)
-        try out.write(f.local(crc: 0, csize: 0, usize: 0))  // patched when the entry closes
+        try out.write(local)
         if let enc { try out.write(enc.header); open!.compressed += Int64(enc.header.count) }
     }
 
@@ -591,7 +601,7 @@ private final class ZipEmitter: @unchecked Sendable {
         let storedCRC = e.header.encrypted && !e.header.legacy && e.header.aesVersion == 2 ? 0 : e.crc
         if e.header.legacy { try out.write(e.header.dataDescriptor(crc: e.crc, csize: e.compressed, usize: e.uncompressed)) }
         try out.patch(at: e.headerOffset, e.header.local(crc: storedCRC, csize: e.compressed, usize: e.uncompressed))
-        central.append(e.header.centralRecord(crc: storedCRC, csize: e.compressed, usize: e.uncompressed, offset: e.headerOffset))
+        central.append(e.header.centralRecord(crc: storedCRC, csize: e.compressed, usize: e.uncompressed, at: out.place(e.headerOffset)))
         count += 1
         open = nil
     }
@@ -599,20 +609,33 @@ private final class ZipEmitter: @unchecked Sendable {
     // MARK: end of central directory
 
     func finish() throws {
-        let cdOffset = out.position
-        try out.write(central.bytes)
-        let cdSize = Int64(central.bytes.count)
-        let needs64 = options.forceZip64 || UInt64(count) >= Zip.max16 || UInt64(cdOffset) >= Zip.max32 || UInt64(cdSize) >= Zip.max32
+        // On volumes, the directory starts where its first record lands; each record stays whole.
+        try out.keepTogether(central.first?.count ?? 0)
+        let cdStart = out.position
+        var onDisk: [UInt32: Int] = [:]
+        for r in central {
+            try out.keepTogether(r.count)
+            onDisk[out.place(out.position).disk, default: 0] += 1
+            try out.write(r)
+        }
+        let cdSize = out.position - cdStart
+        let cd = out.place(cdStart)
+        var needs64 = options.forceZip64 || UInt64(count) >= Zip.max16 || UInt64(cd.offset) >= Zip.max32 || UInt64(cdSize) >= Zip.max32
+        // The end records go together in the last volume.
+        try out.keepTogether((needs64 ? 76 : 0) + 22)
+        let z64 = out.place(out.position)
+        let last = out.lastDisk
+        let entriesHere = onDisk[last] ?? 0
+        needs64 = needs64 || UInt64(entriesHere) >= Zip.max16 || UInt64(z64.offset) >= Zip.max32
         var w = ByteWriter()
         if needs64 {
-            let z64Offset = out.position
             w.u32(Zip.zip64EndSignature); w.u64(44); w.u16(Zip.versionMadeBy); w.u16(45)
-            w.u32(0); w.u32(0); w.u64(UInt64(count)); w.u64(UInt64(count)); w.u64(UInt64(cdSize)); w.u64(UInt64(cdOffset))
-            w.u32(Zip.zip64LocatorSignature); w.u32(0); w.u64(UInt64(z64Offset)); w.u32(1)
+            w.u32(last); w.u32(cd.disk); w.u64(UInt64(entriesHere)); w.u64(UInt64(count)); w.u64(UInt64(cdSize)); w.u64(UInt64(cd.offset))
+            w.u32(Zip.zip64LocatorSignature); w.u32(z64.disk); w.u64(UInt64(z64.offset)); w.u32(last + 1)
         }
-        let n16 = needs64 ? UInt16.max : UInt16(count)
-        w.u32(Zip.endSignature); w.u16(0); w.u16(0); w.u16(n16); w.u16(n16)
-        w.u32(needs64 ? UInt32.max : UInt32(cdSize)); w.u32(needs64 ? UInt32.max : UInt32(cdOffset)); w.u16(0)
+        w.u32(Zip.endSignature); w.u16(UInt16(last)); w.u16(UInt16(cd.disk))
+        w.u16(needs64 ? UInt16.max : UInt16(entriesHere)); w.u16(needs64 ? UInt16.max : UInt16(count))
+        w.u32(needs64 ? UInt32.max : UInt32(cdSize)); w.u32(needs64 ? UInt32.max : UInt32(cd.offset)); w.u16(0)
         try out.write(w.bytes)
         try out.flush()
     }

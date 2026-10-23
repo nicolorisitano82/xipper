@@ -56,6 +56,8 @@ enum LevelPreset: String, CaseIterable, Identifiable {
         // XIZ: zstd 12 in 4 MiB frames is 6× faster than 19 for a 5–6% larger archive
         // (468 MB corpus: 1.5 s against 9.5 s); 19 stays available from the CLI.
         case (.best, .xiz): return 12
+        case (.best, .tarLz4), (.best, .lz4): return 12
+        case (.best, .tarBrotli), (.best, .brotli): return 11
         case (.fast, _): return 1
         case (.best, _): return 9
         }
@@ -159,8 +161,8 @@ extension ArchiveFormat {
     }
 
     /// Formats offered when compressing several items or a folder.
-    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .xiz, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tar, .appleArchive, .cpio]
-    static let singleFile: [ArchiveFormat] = [.gzip, .bgzf, .zstd, .xz, .bzip2]
+    static let multiItem: [ArchiveFormat] = [.zip, .sevenZip, .xiz, .tarZstd, .tarGzip, .tarXz, .tarBzip2, .tarLz4, .tarBrotli, .tar, .appleArchive, .cpio]
+    static let singleFile: [ArchiveFormat] = [.gzip, .bgzf, .zstd, .xz, .bzip2, .lz4, .brotli]
 }
 
 extension Int64 {

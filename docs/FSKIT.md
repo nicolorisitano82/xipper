@@ -128,7 +128,7 @@ Su richiesta dell'utente il montaggio è **in lettura e scrittura**. Il codice �
   - Copia e spostamento passano dall'overlay.
   - `save()` estrae, applica le modifiche e ricrea l'archivio nel suo formato e con la sua password; l'originale viene sostituito in modo atomico solo a fine lavoro.
   - Restano esclusi i file `._*` e `.DS_Store` del Finder.
-  - I formati a file singolo (gz, xz, …), lz4 e brotli restano in sola lettura.
+  - I formati a file singolo (gz, xz, …) restano in sola lettura.
 - **`DAVServer`:** server WebDAV su 127.0.0.1, un thread per connessione con socket bloccanti, quindi con contropressione.
   - Classe 2 (LOCK/UNLOCK, PUT, MKCOL, DELETE, COPY, MOVE, PROPPATCH) quando l'archivio è scrivibile, classe 1 altrimenti.
   - Credenziali Basic casuali per ogni montaggio, e un prefisso casuale nel percorso.

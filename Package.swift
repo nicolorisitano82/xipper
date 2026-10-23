@@ -112,6 +112,20 @@ let package = Package(
             publicHeadersPath: "include",
             cSettings: [.define("NDEBUG", .when(configuration: .release))]
         ),
+        .target(
+            name: "CLZ4",
+            path: "Vendor/lz4",
+            sources: ["lib/lz4.c", "lib/lz4hc.c", "lib/lz4frame.c", "lib/xxhash.c"],
+            publicHeadersPath: "include",
+            cSettings: [.define("XXH_NAMESPACE", to: "LZ4_"), .define("NDEBUG", .when(configuration: .release))]
+        ),
+        .target(
+            name: "CBrotli",
+            path: "Vendor/brotli",
+            sources: ["c/common", "c/enc"],
+            publicHeadersPath: "c/include",
+            cSettings: [.define("NDEBUG", .when(configuration: .release))]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -120,7 +134,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.

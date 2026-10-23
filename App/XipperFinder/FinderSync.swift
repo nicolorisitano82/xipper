@@ -22,7 +22,7 @@ final class FinderSync: FIFinderSync {
     override var toolbarItemName: String { "Xipper" }
     override var toolbarItemToolTip: String { String(localized: "Comprimi, estrai o verifica con Xipper") }
     override var toolbarItemImage: NSImage {
-        Self.glyph ?? NSImage(systemSymbolName: "archivebox", accessibilityDescription: "Xipper") ?? NSImage()
+        Self.glyph() ?? NSImage(systemSymbolName: "archivebox", accessibilityDescription: "Xipper") ?? NSImage()
     }
 
     // MARK: menu
@@ -63,11 +63,11 @@ final class FinderSync: FIFinderSync {
         }
 
         if menuKind == .toolbarItemMenu {
-            menu.addItem(withTitle: primary.0, action: primary.1, keyEquivalent: "").image = Self.glyph
+            menu.addItem(withTitle: primary.0, action: primary.1, keyEquivalent: "").image = Self.glyph()
             for o in others { add(menu, o.0, o.1, o.2) }
             return menu
         }
-        menu.addItem(withTitle: primary.0, action: primary.1, keyEquivalent: "").image = Self.glyph
+        menu.addItem(withTitle: primary.0, action: primary.1, keyEquivalent: "").image = Self.glyph()
         if !others.isEmpty {
             let more = menu.addItem(withTitle: String(localized: "Altro con Xipper"), action: nil, keyEquivalent: "")
             more.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
@@ -90,12 +90,15 @@ final class FinderSync: FIFinderSync {
         return c.targetedURL().map { [$0] } ?? []
     }
 
-    /// Xipper's zipper X (docs/design/artwork) as a template bitmap, so it turns white in the
-    /// highlighted row like the system symbols. Finder copies menus out of the extension and an
-    /// SVG-backed image loses its template rendering on the way, so it is rasterized here.
-    private static let glyph: NSImage? = {
+    /// Xipper's zipper X (docs/design/artwork), rasterized and tinted for the current appearance:
+    /// white in Dark Mode, black in Light Mode. Finder copies menus out of the extension and draws
+    /// template images there in their own (black) color, so the tint cannot be left to it; the
+    /// image stays a template too, for the places that do honor it (highlighted rows, toolbar).
+    private static func glyph() -> NSImage? {
         guard let url = Bundle(for: FinderSync.self).url(forResource: "XipperGlyph", withExtension: "svg"),
               let svg = NSImage(contentsOf: url) else { return nil }
+        let dark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        let tint = dark ? NSColor.white : NSColor.black
         let image = NSImage(size: NSSize(width: 16, height: 16))
         for scale in [1, 2, 3] {
             guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 16 * scale, pixelsHigh: 16 * scale,
@@ -104,14 +107,17 @@ final class FinderSync: FIFinderSync {
             rep.size = NSSize(width: 16, height: 16)
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-            svg.draw(in: NSRect(x: 0, y: 0, width: 16, height: 16))
+            let rect = NSRect(x: 0, y: 0, width: 16, height: 16)
+            svg.draw(in: rect)
+            tint.set()
+            rect.fill(using: .sourceIn)  // keep the glyph's alpha, replace its color
             NSGraphicsContext.restoreGraphicsState()
             image.addRepresentation(rep)
         }
         image.isTemplate = true
         image.accessibilityDescription = "Xipper"
         return image
-    }()
+    }
 
     private static func isArchive(_ url: URL) -> Bool {
         let name = url.lastPathComponent.lowercased()

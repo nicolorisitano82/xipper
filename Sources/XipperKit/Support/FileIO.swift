@@ -94,7 +94,8 @@ final class FileReader: @unchecked Sendable {
 /// If the object is released without `commit()`, the temporary file is removed,
 /// so an interrupted job never leaves a half-written archive behind.
 final class OutputFile: @unchecked Sendable {
-    let finalPath: String
+    /// Where `commit()` moves the file (volume writers rename the last volume once they know it).
+    var finalPath: String
     let tempPath: String
     private var fd: Int32
     private var buffer: UnsafeMutableRawPointer

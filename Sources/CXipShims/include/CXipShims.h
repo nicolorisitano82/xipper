@@ -23,6 +23,15 @@ uint32_t xs_crc32_combine(uint32_t crc1, uint32_t crc2, uint64_t len2);
 
 /// PAR2 GF(2^16): 128 bytes of nibble tables for `factor`, then dst ^= factor · src
 /// (little-endian words; NEON TBL, with a portable path kept for equivalence tests).
+/// Deflate64 (ZIP method 9), streaming (inflate64.c).
+typedef struct xs_inflate64 xs_inflate64;
+enum { XS_INFLATE64_NEED_INPUT = 0, XS_INFLATE64_OUTPUT_FULL = 1, XS_INFLATE64_END = 2, XS_INFLATE64_ERROR = -1 };
+xs_inflate64 *xs_inflate64_new(void);
+void xs_inflate64_free(xs_inflate64 *s);
+/// Decodes from `in` into `out`; `final` when no more input follows. Unused input must be passed again.
+int xs_inflate64_run(xs_inflate64 *s, const uint8_t *in, size_t in_len, size_t *in_used,
+                     uint8_t *out, size_t out_cap, size_t *out_len, int final);
+
 void xs_gf16_tables(uint16_t factor, uint8_t tables[128]);
 void xs_gf16_muladd(uint8_t *dst, const uint8_t *src, size_t bytes, const uint8_t tables[128]);
 void xs_gf16_muladd_portable(uint8_t *dst, const uint8_t *src, size_t bytes, const uint8_t tables[128]);

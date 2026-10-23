@@ -43,8 +43,8 @@ struct RarTests {
     }
 
     @Test func encryptedAndDamagedAreReported() throws {
-        let enc = try Xipper.test(Self.url("rar5_encrypted.rar"))
-        #expect(!enc.isOK && enc.failures.contains { $0.reason.contains("encrypted") })
+        // Encrypted RAR5 entries need the password (Rar5CryptoTests covers reading them).
+        #expect(throws: XipperError.passwordRequired(entry: "rar5_encrypted.rar")) { try Xipper.test(Self.url("rar5_encrypted.rar")) }
         let bad = try Xipper.test(Self.url("rar5_bad_tables.rar"))
         #expect(!bad.isOK)
         #expect(!ArchiveFormat.rar.canCreate)

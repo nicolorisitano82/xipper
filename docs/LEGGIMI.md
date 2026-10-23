@@ -21,7 +21,7 @@ Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 
 - **Comprimi:** trascina file e cartelle nella finestra, scegli formato, livello ed eventuale password (ZIP, 7z e XIZ con AES-256; Apple Archive con AEA). Gli ZIP si possono creare anche con bzip2, LZMA e xz (menu Formato › Altri metodi ZIP), leggibili da 7-Zip e WinZip ma non da Utility Archivio.
 - **Apri e sfoglia:** doppio clic su un archivio; anteprima con la barra spaziatrice, trascinamento dei file sulla Scrivania.
 - **Estrai:** accanto all'archivio, oppure le voci scelte dove vuoi. Xipper non scrive mai fuori dalla destinazione, blocca le zip-bomb e mantiene la quarantena dei file scaricati.
-- **Modifica senza estrarre:** nel browser, tasto destro › **Rinomina…**, **Elimina**, **Aggiungi file…**, oppure trascina file nella tabella. Con ZIP e XIZ quello che non cambia non viene ricompresso.
+- **Modifica senza estrarre:** nel browser, tasto destro › **Rinomina…**, **Elimina**, **Aggiungi file…**, oppure trascina file nella tabella. Con ZIP, 7z e XIZ quello che non cambia non viene ricompresso (in un 7z solido si ricomprimono solo i blocchi toccati).
 - **Monta come volume:** pulsante **Monta** (o Finder › Xipper › Monta come volume). L'archivio compare in `/Volumes`, lo apri e lo modifichi nel Finder; quando lo espelli Xipper chiede se salvare le modifiche.
 - **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce.
 - **Genomica:**
@@ -42,11 +42,10 @@ Il menu di Xipper nel Finder propone per prima l'azione adatta: **Decomprimi** s
 Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovrascrivono mai nulla.
 
 ## Limiti noti
-- **RAR** si apre in sola lettura (anche a volumi), ma non ancora quelli cifrati; ISO e MPEG-G arriveranno con la 3.0; ZIP Deflate64 non è supportato; **lz4 e brotli** si aprono ma non si creano.
+- **RAR** si apre in sola lettura (anche a volumi); i RAR5 cifrati si aprono con la loro password, non ancora i RAR 4 cifrati né i RAR5 cifrati a volumi; ISO e MPEG-G arriveranno con la 3.0.
 - I CRAM non si sfogliano come archivi: si convertono in BAM, con il riferimento FASTA usato per scriverli.
 - Gli Apple Archive cifrati richiedono una password di almeno 20 caratteri (limite di macOS).
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.
-- La riparazione PAR2 confronta i blocchi nella loro posizione: i dati spostati all'interno del file non vengono cercati.
 
 ## Riconoscimenti
 Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): le licenze sono in **Xipper › Riconoscimenti**.

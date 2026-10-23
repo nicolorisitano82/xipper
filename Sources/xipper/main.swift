@@ -15,7 +15,8 @@ usage: xipper <command> [options]
       -m, --method M       zip method: deflate (default), zstd, bzip2, lzma, xz, store
       -p, --password       encrypt (zip, 7z, xiz: AES-256; aar: AEA); prompts for the password
           --solid SIZE     7z solid block size (e.g. 64m, 2g; "off" = one block per file)
-      -v, --volume SIZE    7z: split into volumes of SIZE (name.7z.001, .002, …)
+      -v, --volume SIZE    split into volumes of SIZE (7z: name.7z.001, .002, …; zip: name.z01, …, name.zip)
+          --numbered       zip volumes as name.zip.001, .002, … (joined with cat)
           --plain-names    7z with a password: leave file names readable
           --no-dictionary  xiz: no zstd dictionary for small files
           --password-stdin read the password from the first line of stdin
@@ -86,7 +87,7 @@ let knownFlags: Set<String> = command == "bgzip"
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
-                         "--read-only", "--discard", "--compact"])
+                         "--read-only", "--discard", "--compact", "--numbered"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
@@ -230,6 +231,7 @@ case "create", "c":
         guard let n = parseSize(v), n > 0 else { fail("invalid volume size \(v)", code: 2) }
         o.volumeSize = n
     }
+    if flag("--numbered") { o.zipVolumeStyle = .numbered }
     o.encryptFileNames = !flag("--plain-names")
     o.xizDictionary = !flag("--no-dictionary")
     o.overwrite = flag("--overwrite")
@@ -355,11 +357,12 @@ case "par2":
         let file = URL(fileURLWithPath: positional[1])
         func show(_ r: PAR2.Report) {
             for f in r.files {
-                print("\(f.missing ? "MISSING" : f.damagedSlices == 0 ? "OK     " : "DAMAGED") \(f.name)\(f.damagedSlices > 0 && !f.missing ? " (\(f.damagedSlices) of \(f.slices) slices)" : "")")
+                let moved = f.movedSlices > 0 ? ", \(f.movedSlices) found moved" : ""
+                print("\(f.missing ? "MISSING" : f.damagedSlices == 0 ? "OK     " : "DAMAGED") \(f.name)\(f.damagedSlices > 0 && !f.missing ? " (\(f.damagedSlices) of \(f.slices) slices\(moved))" : "")")
             }
             print(r.isIntact ? "all files are intact (\(r.recoverySlices) recovery slices available)"
-                  : r.canRepair ? "repair possible: \(r.damagedSlices) damaged slices, \(r.recoverySlices) recovery slices"
-                  : "repair NOT possible: \(r.damagedSlices) damaged slices, only \(r.recoverySlices) recovery slices")
+                  : r.canRepair ? "repair possible: \(r.missingSlices) missing slices, \(r.recoverySlices) recovery slices"
+                  : "repair NOT possible: \(r.missingSlices) missing slices, only \(r.recoverySlices) recovery slices")
         }
         switch positional[0] {
         case "create":

@@ -23,7 +23,8 @@ final class SevenZipArchive: @unchecked Sendable {
     let headerEncrypted: Bool
     /// Records with data, grouped by folder, in stream order.
     let folderRecords: [[Int]]
-    private let packOffsets: [Int64]
+    /// Absolute offset of every packed stream (for raw copies when editing).
+    let packOffsets: [Int64]
 
     static let maxHeaderSize: Int64 = 1 << 30
 

@@ -55,6 +55,53 @@ struct ReadOnlyFormatTests {
         try roundTrip(t, "t.tar.br", expect: .tarBrotli, nested: true)
     }
 
+    // MARK: creation (2.1)
+
+    /// tar.lz4, .lz4, tar.br and .br written by Xipper: the reference tools decode them, and Xipper
+    /// reads them back. Several 4 MiB LZ4 blocks (in parallel), fast and HC levels.
+    @Test(arguments: [(ArchiveFormat.tarLz4, 1), (.tarLz4, 9), (.tarBrotli, 5), (.tarBrotli, 11)] as [(ArchiveFormat, Int)])
+    func createsTar(format: ArchiveFormat, level: Int) throws {
+        let t = TempDir()
+        tree(t)
+        t.write("src/big.bin", sampleData(9 << 20, seed: 12))
+        t.write("src/random.bin", (0..<(1 << 20)).map { _ in UInt8.random(in: 0...255) })  // stored LZ4 block
+        var o = CreateOptions()
+        o.format = format
+        o.level = level
+        let name = "x." + format.fileExtension
+        try Xipper.create(from: [t.url("src")], to: t.url(name), options: o)
+        try roundTrip(t, name, expect: format, nested: true)
+        let tool = format == .tarLz4 ? Self.lz4 : Self.brotli
+        if let tool {
+            #expect(run(tool, ["-t", t.path + "/" + name]).status == 0)
+            #expect(run("/bin/sh", ["-c", "\"$0\" -dc \"$1\" > x.tar", tool, name], cwd: t.path).status == 0)
+            t.mkdir("ref")
+            #expect(run("/usr/bin/tar", ["-xf", t.path + "/x.tar", "-C", t.path + "/ref"]).status == 0)
+            #expect(treesEqual(t.path + "/src", t.path + "/ref/src").0)
+        }
+    }
+
+    @Test(arguments: [ArchiveFormat.lz4, .brotli])
+    func createsSingleFiles(format: ArchiveFormat) throws {
+        let t = TempDir()
+        tree(t)
+        var o = CreateOptions()
+        o.format = format
+        let name = "b.bin." + format.fileExtension
+        try Xipper.create(from: [t.url("src/sub/b.bin")], to: t.url(name), options: o)
+        #expect(try Xipper.test(t.url(name)).isOK)
+        t.mkdir("one")
+        try Xipper.extract(t.url(name), to: t.url("one"), mode: .into)
+        #expect(FileManager.default.contentsEqual(atPath: t.path + "/one/b.bin", andPath: t.path + "/src/sub/b.bin"))
+        if let tool = format == .lz4 ? Self.lz4 : Self.brotli {
+            #expect(run(tool, ["-t", t.path + "/" + name]).status == 0)
+        }
+        // Empty input is a valid stream too.
+        t.write("empty.txt", "")
+        try Xipper.create(from: [t.url("empty.txt")], to: t.url("e." + format.fileExtension), options: o)
+        #expect(try Xipper.test(t.url("e." + format.fileExtension)).isOK)
+    }
+
     @Test(.enabled(if: toolExists("/usr/bin/cpio")), arguments: ["newc", "odc"])
     func cpioArchives(format: String) throws {
         let t = TempDir()

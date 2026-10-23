@@ -89,8 +89,11 @@ struct FuzzTests {
     }
 
     /// RAR (read only, libarchive's readers): libarchive's own test vectors under mutation.
-    @Test(arguments: ["rar_compress_normal.rar", "rar5_multiple_files_solid.rar", "rar5_compressed.rar", "rar_unicode.rar"])
+    /// The encrypted RAR5 vectors go through Xipper's decrypting stream (Rar5Crypto.swift).
+    @Test(arguments: ["rar_compress_normal.rar", "rar5_multiple_files_solid.rar", "rar5_compressed.rar", "rar_unicode.rar",
+                      "rar5_solid_encrypted.rar", "rar5_encrypted_filenames.rar"])
     func mutatedRarNeverCrashesOrEscapes(name: String) throws {
+        let password = name.contains("encrypted") ? "password" : nil
         let t = TempDir()
         let bytes = try [UInt8](Data(contentsOf: RarTests.url(name)))
         var rng = SplitMix(state: UInt64(bytes.count) &* 31)
@@ -99,11 +102,12 @@ struct FuzzTests {
         for i in 0..<Self.iterations {
             let sample = t.url("m\(i).rar")
             try Data(mutate(bytes, &rng)).write(to: sample)
-            _ = try? Xipper.list(sample)
-            _ = try? Xipper.test(sample, workload: .threads(2))
+            _ = try? Xipper.list(sample, password: password)
+            _ = try? Xipper.test(sample, password: password, workload: .threads(2))
             t.mkdir("out\(i)")
             var options = ExtractOptions()
             options.limits = limits
+            options.password = password
             _ = try? Xipper.extract(sample, to: t.url("out\(i)"), mode: .into, options: options)
             let stray = try FileManager.default.contentsOfDirectory(atPath: t.path).filter { !$0.hasPrefix("out") && !$0.hasPrefix("m") }
             #expect(stray.isEmpty, "iteration \(i) wrote \(stray)")

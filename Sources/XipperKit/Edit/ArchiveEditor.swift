@@ -56,6 +56,9 @@ extension Xipper {
         if format == .xiz && !compact {
             return try XizEditor.apply(tree, to: path, options: o, progress: progress, cancel: cancel)
         }
+        if format == .sevenZip, let r = try SevenZipEditor.apply(tree, to: path, options: o, work: work, progress: progress, cancel: cancel) {
+            return r
+        }
         return try rebuild(tree, archive: archive, options: o, work: work, progress: progress, cancel: cancel)
     }
 
@@ -177,6 +180,109 @@ struct EditTree {
     private mutating func remove(_ p: String) {
         for k in order where k == p || k.hasPrefix(p + "/") { nodes.removeValue(forKey: k) }
         order.removeAll { $0 == p || $0.hasPrefix(p + "/") }
+    }
+}
+
+/// 7z without recompressing what is untouched: a folder (solid block) whose files all survive,
+/// renamed or not, is copied byte for byte with its coders, AES keys and CRCs; a folder that lost
+/// or had replaced even one file is decompressed and its surviving files are compressed again, with
+/// the new ones. nil when the archive has to be rebuilt instead (multi-volume, files without CRC).
+enum SevenZipEditor {
+    static func apply(_ tree: EditTree, to path: String, options: CreateOptions, work: URL,
+                      progress: ProgressHandler?, cancel: CancellationToken?) throws -> EditReport? {
+        let a = try SevenZipArchive(path: path, password: options.password)
+        guard a.input.volumes.count == 1 else { return nil }
+        if options.password == nil && a.streams.folders.contains(where: \.isEncrypted) {
+            throw XipperError.passwordRequired(entry: (path as NSString).lastPathComponent)
+        }
+        // Original path → its key in the edited tree (after renames).
+        var newKey: [String: String] = [:]
+        for key in tree.order {
+            if case let .original(e)? = tree.nodes[key], let p = MountedArchive.normalize(e.path) { newKey[p] = key }
+        }
+        func key(_ r: SevenZipRecord) -> String? { MountedArchive.normalize(r.entry.path).flatMap { newKey[$0] } }
+
+        var carried: [SevenZipCarriedFolder] = []
+        var items: [ArchiveItem] = []
+        var placed = Set<String>()
+        let fm = FileManager.default
+        let reencode = work.appendingPathComponent("7z-reencode", isDirectory: true)
+        try fm.createDirectory(at: reencode, withIntermediateDirectories: true)
+        let placeholder = work.appendingPathComponent("7z-empty", isDirectory: true)
+        try fm.createDirectory(at: placeholder, withIntermediateDirectories: true)
+        func item(_ e: ArchiveEntry, name: String, source: String, kind: ArchiveItem.Kind) -> ArchiveItem {
+            ArchiveItem(name: name, sourcePath: source, kind: kind, permissions: e.permissions ?? (e.kind == .directory ? 0o755 : 0o644),
+                        modified: e.modified ?? Date(), uid: getuid(), gid: getgid())
+        }
+
+        for (fi, members) in a.folderRecords.enumerated() {
+            try cancel?.check()
+            let recs = members.map { a.records[$0] }
+            let keys = recs.map(key)
+            let intact = !recs.isEmpty && keys.allSatisfy { $0 != nil } && recs.allSatisfy { $0.crc != nil && !$0.isAnti }
+            if intact {
+                let f = a.streams.folders[fi]
+                let packs = (0..<f.packedStreams.count).map { (a.packOffsets[f.firstPackStream + $0], a.streams.packSizes[f.firstPackStream + $0]) }
+                let files = zip(recs, keys).map { r, k -> SZFile in
+                    let kind: ArchiveItem.Kind = r.entry.kind == .symlink ? .symlink(target: r.entry.linkTarget ?? "") : .file(size: r.size)
+                    return SevenZipWriter.fileRecord(item(r.entry, name: k!, source: "", kind: kind), hasStream: true)
+                }
+                carried.append(SevenZipCarriedFolder(source: a, folder: f, packs: packs, subSizes: recs.map(\.size),
+                                                     subCRCs: recs.map(\.crc), files: files))
+                keys.forEach { placed.insert($0!) }
+                continue
+            }
+            // Touched folder: its surviving files are compressed again.
+            for (r, k) in zip(recs, keys) {
+                guard let k, !r.isAnti else { continue }
+                let tmp = reencode.appendingPathComponent("\(items.count)")
+                var data: [UInt8] = []
+                if r.entry.kind == .symlink {
+                    try SevenZipExtractor.read(a, record: r) { data.append(contentsOf: $0) }
+                    items.append(item(r.entry, name: k, source: tmp.path, kind: .symlink(target: String(decoding: data, as: UTF8.self))))
+                } else {
+                    let out = try OutputFile(path: tmp.path)
+                    try SevenZipExtractor.read(a, record: r) { try out.write($0) }
+                    try out.commit(overwrite: true)
+                    items.append(item(r.entry, name: k, source: tmp.path, kind: .file(size: r.size)))
+                }
+                placed.insert(k)
+            }
+        }
+        // Entries without data (folders, empty files) and everything new.
+        for key in tree.order where !placed.contains(key) {
+            switch tree.nodes[key] {
+            case let .original(e)?:
+                if e.kind == .directory {
+                    items.append(item(e, name: key, source: placeholder.path, kind: .directory))
+                } else if e.uncompressedSize == 0 {
+                    items.append(item(e, name: key, source: placeholder.path, kind: .file(size: 0)))
+                }
+            case let .disk(i)?:
+                var i = i
+                i.name = key
+                items.append(i)
+            case .newDirectory?:
+                items.append(ArchiveItem(name: key, sourcePath: placeholder.path, kind: .directory, permissions: 0o755,
+                                         modified: Date(), uid: getuid(), gid: getgid()))
+            case nil:
+                break
+            }
+        }
+        guard !items.isEmpty || !carried.isEmpty else { throw XipperError.invalidArgument("the archive would be empty") }
+        var z = SevenZipOptions()
+        z.level = options.level ?? ArchiveFormat.sevenZip.defaultLevel
+        z.password = options.password
+        z.encryptHeader = a.headerEncrypted || (options.password != nil && options.encryptFileNames)
+        z.solidBlockSize = options.solidBlockSize
+        z.executableFilter = options.executableFilter
+        z.storeAlreadyCompressed = options.storeAlreadyCompressed
+        z.workload = options.workload
+        let r = try SevenZipWriter.write(items: items, to: path, options: z, overwrite: true, carried: carried,
+                                         progress: progress, cancel: cancel)
+        let copied = carried.reduce(0) { $0 + $1.files.count }
+        let compressed = items.filter { if case let .file(size) = $0.kind { size > 0 } else { false } }.count
+        return EditReport(entries: r.entries + copied, copied: copied, compressed: compressed, rebuilt: false, outputBytes: r.outputBytes)
     }
 }
 

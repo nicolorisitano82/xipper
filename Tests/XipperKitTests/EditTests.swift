@@ -80,13 +80,12 @@ struct EditTests {
         #expect(try Xipper.test(t.url("e.zip"), password: "segreto").isOK)
     }
 
-    @Test(arguments: [ArchiveFormat.tarZstd, .sevenZip, .appleArchive])
+    @Test(arguments: [ArchiveFormat.tarZstd, .appleArchive])
     func otherFormatsAreRebuilt(format: ArchiveFormat) throws {
         let t = TempDir()
         let big = tree(t)
         var o = CreateOptions()
         o.format = format
-        o.password = format == .sevenZip ? "pw" : nil
         let a = t.url("a." + format.fileExtension)
         try Xipper.create(from: [t.url("src")], to: a, options: o)
         let r = try apply(t, a, password: o.password)
@@ -95,6 +94,56 @@ struct EditTests {
         #expect(try paths(a, password: o.password).contains("src/renamed/one.txt"))
         #expect(!(try paths(a, password: o.password)).contains("src/a.txt"))
         #expect(try Xipper.readEntry(a, path: "src/big.bin", password: o.password, maxBytes: 4 << 20).data == big)
+    }
+
+    // MARK: 7z without recompression (2.1)
+
+    /// The packed bytes of the folder holding `path`.
+    func packed(_ a: URL, _ path: String, password: String?) throws -> [UInt8] {
+        let z = try SevenZipArchive(path: a.path, password: password)
+        let ri = z.records.firstIndex { $0.entry.path == path }!
+        let fi = z.folderRecords.firstIndex { $0.contains(ri) }!
+        let f = z.streams.folders[fi]
+        return try z.input.read(at: z.packOffsets[f.firstPackStream], count: Int(z.streams.packSizes[f.firstPackStream]))
+    }
+
+    @Test(arguments: [(0, nil), (0, "segreto"), (64 << 20, nil), (64 << 20, "segreto")] as [(Int64, String?)])
+    func sevenZipCopiesUntouchedFolders(solid: Int64, password: String?) throws {
+        let t = TempDir()
+        let big = tree(t)
+        var o = CreateOptions()
+        o.format = .sevenZip
+        o.password = password
+        o.solidBlockSize = solid
+        let a = t.url("a.7z")
+        try Xipper.create(from: [t.url("src")], to: a, options: o)
+        let bigPacked = try packed(a, "src/big.bin", password: password)
+        let r = try apply(t, a, password: password)
+        #expect(!r.rebuilt)
+        if solid == 0 {
+            // big.bin, c.txt and d.txt keep their folders: copied, not recompressed.
+            #expect(r.copied == 3)
+            #expect(try packed(a, "src/big.bin", password: password) == bigPacked)
+        }
+        #expect(try paths(a, password: password) == ["src/big.bin", "src/renamed/c.txt", "src/renamed/deep/d.txt", "src/new.txt",
+                                                     "src/renamed/one.txt", "src/renamed/two.txt"])
+        #expect(try Xipper.list(a, password: password).contains { $0.path == "src/empty" && $0.kind == .directory })
+        #expect(try text(a, "src/renamed/deep/d.txt", password: password) == "delta\n")
+        #expect(try text(a, "src/renamed/two.txt", password: password) == "due\n")
+        #expect(try Xipper.readEntry(a, path: "src/big.bin", password: password, maxBytes: 4 << 20).data == big)
+        #expect(try Xipper.test(a, password: password).isOK)
+        if password != nil { #expect(throws: XipperError.self) { _ = try Xipper.list(a) } }
+        // A second edit: the original folders are copied again; the block written by the first
+        // edit lost new.txt, so one.txt and two.txt are compressed again.
+        let r2 = try Xipper.edit(a, changes: [.delete("src/new.txt")], password: password)
+        #expect(!r2.rebuilt && (solid != 0 || (r2.copied == 3 && r2.compressed == 2)))
+        #expect(try packed(a, "src/big.bin", password: password) == (solid == 0 ? bigPacked : try packed(a, "src/big.bin", password: password)))
+        #expect(try Xipper.readEntry(a, path: "src/big.bin", password: password, maxBytes: 4 << 20).data == big)
+        if let sevenZip {
+            let pw = password.map { ["-p" + $0] } ?? []
+            let v = run(sevenZip, ["t", "-bd"] + pw + [a.path])
+            #expect(v.status == 0 && v.output.contains("Everything is Ok"), "\(v.output)")
+        }
     }
 
     @Test func invalidChangesLeaveTheArchiveUntouched() throws {

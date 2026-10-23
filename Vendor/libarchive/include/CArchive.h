@@ -3,3 +3,4 @@
 // are read-only in Xipper (STUDIO.md §4.2). Seen by Swift only through this header.
 #include "../libarchive/archive.h"
 #include "../libarchive/archive_entry.h"
+#include "../libarchive/archive_blake2.h"

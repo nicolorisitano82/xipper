@@ -6,10 +6,24 @@ import Foundation
 /// come out as tar headers, so they go through Xipper's safe extraction, listing and verification.
 /// Multi-volume archives (`name.part1.rar`… or `name.rar`, `name.r00`…) are read from any part.
 /// libarchive checks each file's CRC-32 (RAR 4) or CRC-32/BLAKE2sp (RAR5) at the end of its data.
+/// Encrypted RAR5 archives (one volume) are read through `Rar5PlainStream` (Rar5Crypto.swift).
 final class RarReader: EntryStreamReader {
     private let a: OpaquePointer
     private let name: String
     private var pendingData = false
+    /// Encrypted RAR5: the decrypting stream libarchive reads from, and the index of the current file.
+    private var plain: PlainSource?
+    private var fileIndex = -1
+
+    /// Owns the chunk handed to libarchive until its next read.
+    private final class PlainSource {
+        let stream: Rar5PlainStream
+        var buffer = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 16)
+        var capacity = 1
+        var error: Error?
+        init(_ s: Rar5PlainStream) { stream = s }
+        deinit { buffer.deallocate() }
+    }
 
     static let signature4: [UInt8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00]  // "Rar!" 1A 07 00
     static let signature5: [UInt8] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00]
@@ -80,16 +94,52 @@ final class RarReader: EntryStreamReader {
         archive_read_support_format_rar5(a)
         if let password { archive_read_add_passphrase(a, password) }
         let files = Self.volumes(for: path)
-        // NULL-terminated C array of the volume paths.
-        let cStrings = files.map { strdup($0) }
-        defer { cStrings.forEach { free($0) } }
-        var argv: [UnsafePointer<CChar>?] = cStrings.map { UnsafePointer($0) } + [nil]
-        let r = argv.withUnsafeMutableBufferPointer { archive_read_open_filenames(a, $0.baseAddress, 1 << 20) }
-        if r != ARCHIVE_OK {
-            let message = Self.message(a)
-            archive_read_free(a)
-            throw Self.error(message, name: name)
+        let r: Int32
+        if files.count == 1, Self.isRAR5(path),
+           Rar5PlainStream.headersEncrypted(path) || (password != nil && Rar5PlainStream.isEncrypted(path)) {
+            // Failures below leave `a` to deinit: a throwing init of a fully initialized class still runs it.
+            guard let password else { throw XipperError.passwordRequired(entry: name) }
+            let source = PlainSource(try Rar5PlainStream(path: path, password: password))
+            plain = source
+            r = archive_read_open(a, Unmanaged.passUnretained(source).toOpaque(), nil, { _, ctx, out in
+                let src = Unmanaged<PlainSource>.fromOpaque(ctx!).takeUnretainedValue()
+                do {
+                    let chunk = try src.stream.next()
+                    if chunk.count > src.capacity {
+                        src.buffer.deallocate()
+                        src.buffer = .allocate(byteCount: chunk.count, alignment: 16)
+                        src.capacity = chunk.count
+                    }
+                    chunk.withUnsafeBytes { if let b = $0.baseAddress { src.buffer.copyMemory(from: b, byteCount: $0.count) } }
+                    out!.pointee = UnsafeRawPointer(src.buffer)
+                    return la_ssize_t(chunk.count)
+                } catch {
+                    src.error = error
+                    return -1
+                }
+            }, nil)
+        } else {
+            // NULL-terminated C array of the volume paths.
+            let cStrings = files.map { strdup($0) }
+            defer { cStrings.forEach { free($0) } }
+            var argv: [UnsafePointer<CChar>?] = cStrings.map { UnsafePointer($0) } + [nil]
+            r = argv.withUnsafeMutableBufferPointer { archive_read_open_filenames(a, $0.baseAddress, 1 << 20) }
         }
+        if let e = plain?.error { throw e }
+        if r != ARCHIVE_OK {
+            throw Self.error(Self.message(a), name: name)
+        }
+    }
+
+    static func isRAR5(_ path: String) -> Bool {
+        guard let r = try? FileReader(path: path), let head = try? r.read(at: 0, count: Int(min(r.size, 8))) else { return false }
+        return head.starts(with: signature5)
+    }
+
+    /// A failure while reading: the decrypting stream's own error (wrong password…) comes first.
+    private func failure() -> XipperError {
+        if let e = plain?.error as? XipperError { return e }
+        return Self.error(Self.message(a), name: name)
     }
 
     deinit { archive_read_free(a) }
@@ -101,7 +151,7 @@ final class RarReader: EntryStreamReader {
     private static func error(_ message: String, name: String) -> XipperError {
         let m = message.lowercased()
         if m.contains("encrypt") || m.contains("passphrase") {
-            return .unsupported("\(name): encrypted RAR archives are not supported yet")
+            return .unsupported("\(name): encrypted RAR 4 archives are not supported yet (RAR5 ones are)")
         }
         if m.contains("crc") || m.contains("checksum") { return .corrupt("\(name): \(message)") }
         return .corrupt("\(name): invalid RAR data (\(message))")
@@ -112,10 +162,14 @@ final class RarReader: EntryStreamReader {
     private func nextEntry() throws -> TarReader.Entry? {
         var e: OpaquePointer?
         let r = archive_read_next_header(a, &e)
-        if r == ARCHIVE_EOF { return nil }
-        guard r == ARCHIVE_OK || r == ARCHIVE_WARN, let e else { throw Self.error(Self.message(a), name: name) }
+        if r == ARCHIVE_EOF {
+            if let e = plain?.error { throw e }  // libarchive may end quietly when the stream fails
+            return nil
+        }
+        guard r == ARCHIVE_OK || r == ARCHIVE_WARN, let e else { throw failure() }
+        fileIndex += 1
         let encrypted = archive_entry_is_data_encrypted(e) != 0
-        if archive_entry_is_metadata_encrypted(e) != 0 { throw XipperError.unsupported("\(name): RAR archives with encrypted names are not supported yet") }
+        if archive_entry_is_metadata_encrypted(e) != 0 { throw XipperError.passwordRequired(entry: name) }
         var path = (archive_entry_pathname_utf8(e) ?? archive_entry_pathname(e)).map { String(cString: $0) } ?? ""
         path = path.replacingOccurrences(of: "\\", with: "/")
         while path.hasPrefix("./") { path.removeFirst(2) }
@@ -156,21 +210,48 @@ final class RarReader: EntryStreamReader {
 
     private var encryptedEntry = false
 
+    private static func isRAR5Format(_ a: OpaquePointer) -> Bool { archive_format(a) == ARCHIVE_FORMAT_RAR_V5 }
+
     func readData(cancel: CancellationToken?, _ sink: ByteSink) throws { try Self.withUTF8 { try readEntryData(cancel: cancel, sink) } }
 
     private func readEntryData(cancel: CancellationToken?, _ sink: ByteSink) throws {
-        if encryptedEntry { throw XipperError.unsupported("\(name): encrypted RAR entries are not supported yet") }
+        if encryptedEntry {
+            if plain?.stream.wrongPassword.contains(fileIndex) == true { throw XipperError.wrongPassword(entry: name) }
+            if Self.isRAR5Format(a) { throw XipperError.passwordRequired(entry: name) }
+            throw XipperError.unsupported("\(name): encrypted RAR 4 entries are not supported yet")
+        }
         guard pendingData else { return }
         pendingData = false
+        // Checksums tweaked with the password: libarchive cannot check them, Xipper does.
+        let expected = plain.flatMap { fileIndex < $0.stream.expected.count ? $0.stream.expected[fileIndex] : nil }
+        var crc: UInt32 = 0
+        var blake = expected?.blake2 != nil ? blake2sp_state() : nil
+        if blake != nil { _ = __archive_blake2sp_init(&blake!, 32) }
         let chunk = 1 << 20
         let buf = UnsafeMutableRawPointer.allocate(byteCount: chunk, alignment: 16384)
         defer { buf.deallocate() }
         while true {
             try cancel?.check()
             let n = archive_read_data(a, buf, chunk)
-            if n == 0 { return }
-            if n < 0 { throw Self.error(Self.message(a), name: name) }
-            try sink(UnsafeRawBufferPointer(start: buf, count: n))
+            if n == 0 { break }
+            if n < 0 { throw failure() }
+            let piece = UnsafeRawBufferPointer(start: buf, count: n)
+            if expected != nil {
+                crc = CRC32.update(crc, piece)
+                if blake != nil { _ = __archive_blake2sp_update(&blake!, buf, n) }
+            }
+            try sink(piece)
+        }
+        guard let expected else { return }
+        if let want = expected.crc, Rar5Crypto.tweak(crc: crc, hashKey: expected.hashKey) != want {
+            throw XipperError.integrity(entry: name, detail: "CRC-32 mismatch (or wrong password)")
+        }
+        if let want = expected.blake2, var b = blake {
+            var digest = [UInt8](repeating: 0, count: 32)
+            _ = __archive_blake2sp_final(&b, &digest, 32)
+            if Rar5Crypto.hmac(expected.hashKey, digest) != want {
+                throw XipperError.integrity(entry: name, detail: "BLAKE2sp mismatch (or wrong password)")
+            }
         }
     }
 }

@@ -339,7 +339,7 @@ enum ZipEntryDecoder {
             case .zstd: decoder = try ZstdDecoder()
             case .xz: decoder = XzDecoder(threads: 1)
             case .lzma: decoder = nil  // created from the first piece (properties header)
-            case .deflate64: throw XipperError.unsupported("Deflate64 compression (\(name))")
+            case .deflate64: decoder = try Deflate64Decoder()
             default: throw XipperError.unsupported("compression method \(method) (\(name))")
             }
             let piece = UnsafeMutableRawPointer.allocate(byteCount: pieceSize, alignment: 16384)

@@ -37,7 +37,7 @@ extension ByteSource {
 /// Compression framing recognized by magic bytes.
 enum StreamCompression: Sendable, Equatable {
     case none, gzip, bgzf, bzip2, xz, zstd
-    /// Read only: LZ4 frames (magic) and brotli (no magic: recognized by the file name).
+    /// LZ4 frames (magic) and brotli (no magic: recognized by the file name).
     case lz4, brotli
 
     /// Bytes needed by `detect` (BGZF is recognized from the gzip extra field).
@@ -80,7 +80,8 @@ enum StreamCompression: Sendable, Equatable {
         case .bzip2: return ParallelBzip2Encoder(level: level, workload: workload, cancel: cancel)
         case .xz: return try LZMACoder.xzEncoder(preset: level, threads: workload.workerCount, cancel: cancel)
         case .zstd: return try ZstdEncoder(level: level, threads: workload.workerCount, cancel: cancel)
-        case .lz4, .brotli: throw XipperError.unsupported("\(self) is read only")
+        case .lz4: return LZ4FrameEncoder(level: level, workload: workload, cancel: cancel)
+        case .brotli: return try BrotliEncoder(level: level, cancel: cancel)
         }
     }
 }

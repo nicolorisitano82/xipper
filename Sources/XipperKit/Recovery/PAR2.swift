@@ -8,17 +8,22 @@ import Synchronization
 ///
 /// - `create` writes `<file>.par2` (index: main, file description, slice checksums, creator) and
 ///   `<file>.vol00+NN.par2` (the recovery slices, with copies of the critical packets).
-/// - `verify` checks every slice of the protected files against its MD5 and CRC-32 (in place:
-///   data moved inside a file is not searched for, unlike par2cmdline).
-/// - `repair` rebuilds damaged or missing slices from the recovery slices (Reed-Solomon over
-///   GF(2^16)), then replaces each repaired file atomically.
+/// - `verify` checks every slice of the protected files against its MD5 and CRC-32 where it
+///   belongs; slices not found there are searched for at every byte offset of the protected
+///   files (rolling CRC-32, then MD5), as par2cmdline does, so data shifted by an insertion or a
+///   deletion, or moved, still counts and needs no recovery slice.
+/// - `repair` puts moved slices back and rebuilds the missing ones from the recovery slices
+///   (Reed-Solomon over GF(2^16)), then replaces each repaired file atomically.
 public enum PAR2 {
     public struct FileStatus: Sendable {
         public var name: String
         public var url: URL
         public var size: Int64
         public var slices: Int
+        /// Slices not where they belong (moved, damaged or missing).
         public var damagedSlices: Int
+        /// Of those, the ones found intact at another offset or in another protected file.
+        public var movedSlices: Int = 0
         public var missing: Bool
     }
 
@@ -27,8 +32,10 @@ public enum PAR2 {
         public var sliceSize: Int
         public var recoverySlices: Int
         public var damagedSlices: Int { files.reduce(0) { $0 + $1.damagedSlices } }
+        /// Slices found nowhere: each needs a recovery slice.
+        public var missingSlices: Int { files.reduce(0) { $0 + $1.damagedSlices - $1.movedSlices } }
         public var isIntact: Bool { damagedSlices == 0 }
-        public var canRepair: Bool { damagedSlices <= recoverySlices }
+        public var canRepair: Bool { missingSlices <= recoverySlices }
     }
 
     /// `<archive>.par2` next to the archive, if present.
@@ -147,9 +154,9 @@ public enum PAR2 {
         let state = try set.check(cancel: cancel)
         guard !state.report.isIntact else { return state.report }
         guard state.report.canRepair else {
-            throw XipperError.limitExceeded("\(state.report.damagedSlices) damaged slices, only \(state.report.recoverySlices) recovery slices")
+            throw XipperError.limitExceeded("\(state.report.missingSlices) missing slices, only \(state.report.recoverySlices) recovery slices")
         }
-        try set.rebuild(missing: state.badGlobal, progress: progress, cancel: cancel)
+        try set.rebuild(missing: state.badGlobal.filter { state.found[$0] == nil }, found: state.found, progress: progress, cancel: cancel)
         let after = try set.check(cancel: cancel).report
         guard after.isIntact else { throw XipperError.integrity(entry: par2.lastPathComponent, detail: "repair did not verify") }
         return after
@@ -269,7 +276,11 @@ final class RecoverySet {
     struct State {
         var report: PAR2.Report
         var badGlobal: [Int]
+        /// Bad slices found intact elsewhere: global slice → where its bytes are.
+        var found: [Int: Source]
     }
+
+    struct Source { var url: URL; var offset: Int64; var length: Int }
 
     init(_ par2: URL) throws {
         let dir = par2.deletingLastPathComponent()
@@ -346,18 +357,18 @@ final class RecoverySet {
     }
 
     func check(cancel: CancellationToken?) throws -> State {
-        var statuses: [PAR2.FileStatus] = []
+        var damaged: [Int] = []
         var bad: [Int] = []
         var global = 0
         let buf = UnsafeMutableRawPointer.allocate(byteCount: sliceSize, alignment: 16)
         defer { buf.deallocate() }
-        for d in files {
-            let reader = try? FileReader(path: d.url.path)
-            var damaged = 0
+        let readers = files.map { try? FileReader(path: $0.url.path) }
+        for (f, d) in files.enumerated() {
+            var count = 0
             for (s, expected) in d.slices.enumerated() {
                 try cancel?.check()
                 var ok = false
-                if let reader {
+                if let reader = readers[f] {
                     let start = Int64(s) * Int64(sliceSize)
                     let want = Int(min(Int64(sliceSize), Int64(d.length) - start))
                     let n = start < reader.size ? (try? reader.readSome(at: start, into: buf, count: want)) ?? 0 : 0
@@ -367,18 +378,103 @@ final class RecoverySet {
                         ok = CRC32.checksum(slice) == expected.crc && Array(Insecure.MD5.hash(data: slice)) == expected.md5
                     }
                 }
-                if !ok { damaged += 1; bad.append(global) }
+                if !ok { count += 1; bad.append(global) }
                 global += 1
             }
-            if let reader, reader.size != Int64(d.length), damaged == 0 { damaged = 1; bad.append(global - 1) }  // extra bytes at the end
-            statuses.append(PAR2.FileStatus(name: d.name, url: d.url, size: Int64(d.length), slices: d.slices.count,
-                                            damagedSlices: damaged, missing: reader == nil))
+            // Extra bytes at the end: the last slice is rewritten (found in place, truncated).
+            if let reader = readers[f], reader.size != Int64(d.length), count == 0, !d.slices.isEmpty { count = 1; bad.append(global - 1) }
+            damaged.append(count)
         }
-        return State(report: PAR2.Report(files: statuses, sliceSize: sliceSize, recoverySlices: recovery.count), badGlobal: bad)
+        let found = bad.isEmpty ? [:] : try search(Set(bad), cancel: cancel)
+        var statuses: [PAR2.FileStatus] = []
+        global = 0
+        for (f, d) in files.enumerated() {
+            let range = global..<(global + d.slices.count)
+            global += d.slices.count
+            statuses.append(PAR2.FileStatus(name: d.name, url: d.url, size: Int64(d.length), slices: d.slices.count,
+                                            damagedSlices: damaged[f], movedSlices: found.keys.filter(range.contains).count,
+                                            missing: readers[f] == nil))
+        }
+        return State(report: PAR2.Report(files: statuses, sliceSize: sliceSize, recoverySlices: recovery.count), badGlobal: bad, found: found)
+    }
+
+    /// Looks for the `wanted` slices at every byte offset of the protected files: a rolling CRC-32
+    /// over a slice-sized window, filtered through a 2^24-bit table, confirmed by the slice's MD5.
+    /// After a match the scan jumps a whole slice, as par2cmdline does. A short last slice (padded
+    /// with zeros in its checksums) is tried right after its predecessor and at the end of each file.
+    private func search(_ wanted: Set<Int>, cancel: CancellationToken?) throws -> [Int: Source] {
+        let L = sliceSize
+        var full: [UInt32: [(global: Int, md5: [UInt8])]] = [:]
+        var short: [(global: Int, length: Int, crc: UInt32, md5: [UInt8])] = []
+        var global = 0
+        for d in files {
+            for (s, c) in d.slices.enumerated() {
+                defer { global += 1 }
+                guard wanted.contains(global) else { continue }
+                let length = Int(min(Int64(L), Int64(d.length) - Int64(s) * Int64(L)))
+                if length == L { full[c.crc, default: []].append((global, c.md5)) } else { short.append((global, length, c.crc, c.md5)) }
+            }
+        }
+        var found: [Int: Source] = [:]
+        if !full.isEmpty {
+            var filter = [UInt64](repeating: 0, count: 1 << 18)
+            for crc in full.keys { filter[Int(crc & 0xFFFFFF) >> 6] |= 1 << (crc & 63) }
+            let roll = RollingCRC32(window: L)
+            for url in Set(files.map(\.url)) {
+                guard found.count < wanted.count,
+                      let data = try? Data(contentsOf: url, options: .alwaysMapped), data.count >= L else { continue }
+                try data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                    let p = raw.bindMemory(to: UInt8.self).baseAddress!
+                    let n = raw.count
+                    var pos = 0
+                    var crc = CRC32.checksum(UnsafeRawBufferPointer(start: p, count: L))
+                    var steps = 0
+                    while true {
+                        if filter[Int(crc & 0xFFFFFF) >> 6] & (1 << (crc & 63)) != 0, let list = full[crc] {
+                            let md5 = Array(Insecure.MD5.hash(data: UnsafeRawBufferPointer(start: p + pos, count: L)))
+                            let hits = list.filter { $0.md5 == md5 && found[$0.global] == nil }
+                            if !hits.isEmpty {
+                                for h in hits { found[h.global] = Source(url: url, offset: Int64(pos), length: L) }
+                                pos += L
+                                guard pos + L <= n else { break }
+                                crc = CRC32.checksum(UnsafeRawBufferPointer(start: p + pos, count: L))
+                                continue
+                            }
+                        }
+                        guard pos + L < n else { break }
+                        crc = roll.slide(crc, out: p[pos], in: p[pos + L])
+                        pos += 1
+                        steps += 1
+                        if steps & 0xFFFFF == 0 { try cancel?.check() }
+                    }
+                }
+            }
+        }
+        // Short last slices.
+        let pad = UnsafeMutableRawPointer.allocate(byteCount: L, alignment: 16)
+        defer { pad.deallocate() }
+        for s in short {
+            var places: [(URL, Int64)] = []
+            if let prev = found[s.global - 1] { places.append((prev.url, prev.offset + Int64(L))) }
+            for url in Set(files.map(\.url)) {
+                if let size = try? FileReader(path: url.path).size, size >= Int64(s.length) { places.append((url, size - Int64(s.length))) }
+            }
+            for (url, off) in places {
+                guard let r = try? FileReader(path: url.path), off >= 0, off + Int64(s.length) <= r.size,
+                      (try? r.readSome(at: off, into: pad, count: s.length)) == s.length else { continue }
+                memset(pad + s.length, 0, L - s.length)
+                let slice = UnsafeRawBufferPointer(start: pad, count: L)
+                if CRC32.checksum(slice) == s.crc && Array(Insecure.MD5.hash(data: slice)) == s.md5 {
+                    found[s.global] = Source(url: url, offset: off, length: s.length)
+                    break
+                }
+            }
+        }
+        return found
     }
 
     /// Solves for the missing slices and writes the repaired files.
-    func rebuild(missing: [Int], progress: ProgressHandler?, cancel: CancellationToken?) throws {
+    func rebuild(missing: [Int], found: [Int: Source], progress: ProgressHandler?, cancel: CancellationToken?) throws {
         let inputCount = files.reduce(0) { $0 + $1.slices.count }
         let constants = GF16.inputConstants(inputCount)
         let exps = Array(recovery.keys.sorted().prefix(missing.count))
@@ -410,18 +506,30 @@ final class RecoverySet {
             batch.removeAll(keepingCapacity: true)
             batchBytes = 0
         }
+        // Where each present slice is: in place, or where the search found it.
+        var readers: [URL: FileReader] = [:]
+        func reader(_ url: URL) -> FileReader? {
+            if let r = readers[url] { return r }
+            let r = try? FileReader(path: url.path)
+            readers[url] = r
+            return r
+        }
+        func read(_ global: Int, _ d: PAR2.FileDesc, _ s: Int, into slice: inout [UInt8]) throws {
+            let start = Int64(s) * Int64(sliceSize)
+            let n = Int(min(Int64(sliceSize), Int64(d.length) - start))
+            let place = found[global] ?? Source(url: d.url, offset: start, length: n)
+            guard let r = reader(place.url) else { throw XipperError.corrupt("\(d.name) cannot be read") }
+            try slice.withUnsafeMutableBytes { try r.read(at: place.offset, into: $0.baseAddress!, count: n) }
+        }
         var global = 0
-        for d in files {
-            let reader = try? FileReader(path: d.url.path)
+        for d in files where m > 0 {
             for s in 0..<d.slices.count {
                 try cancel?.check()
                 defer { global += 1 }
                 tracker.add(bytes: Int64(sliceSize))
-                guard !missingSet.contains(global), let reader else { continue }
+                guard !missingSet.contains(global), reader(d.url) != nil || found[global] != nil else { continue }
                 var slice = [UInt8](repeating: 0, count: sliceSize)
-                let start = Int64(s) * Int64(sliceSize)
-                let n = Int(min(Int64(sliceSize), Int64(d.length) - start))
-                try slice.withUnsafeMutableBytes { try reader.read(at: start, into: $0.baseAddress!, count: n) }
+                try read(global, d, s, into: &slice)
                 batch.append((slice, constants[global]))
                 batchBytes += sliceSize
                 if batchBytes >= 32 << 20 { try flush() }
@@ -437,26 +545,66 @@ final class RecoverySet {
             }
             rebuilt[missing[k]] = s
         }
-        // Write each affected file: a copy with the rebuilt slices, then an atomic replace.
+        // Write each affected file: a copy with the moved and rebuilt slices, then an atomic
+        // replace. All are written before any is replaced: a moved slice may come from another file.
         global = 0
+        var outs: [OutputFile] = []
+        var slice = [UInt8](repeating: 0, count: sliceSize)
         for d in files {
             let range = global..<(global + d.slices.count)
             global += d.slices.count
-            guard rebuilt.keys.contains(where: { range.contains($0) }) else { continue }
+            guard range.contains(where: { rebuilt[$0] != nil || found[$0] != nil }) else { continue }
             let out = try OutputFile(path: d.url.path)
-            let reader = try? FileReader(path: d.url.path)
+            outs.append(out)
             for s in 0..<d.slices.count {
-                let start = Int64(s) * Int64(sliceSize)
-                let n = Int(min(Int64(sliceSize), Int64(d.length) - start))
+                try cancel?.check()
+                let n = Int(min(Int64(sliceSize), Int64(d.length) - Int64(s) * Int64(sliceSize)))
                 if let data = rebuilt[range.lowerBound + s] {
                     try data.withUnsafeBytes { try out.write(UnsafeRawBufferPointer(rebasing: $0[..<n])) }
-                } else if let reader {
-                    try out.write(try reader.read(at: start, count: n))
+                } else {
+                    try read(range.lowerBound + s, d, s, into: &slice)
+                    try slice.withUnsafeBytes { try out.write(UnsafeRawBufferPointer(rebasing: $0[..<n])) }
                 }
             }
-            try out.commit(overwrite: true)
         }
+        for out in outs { try out.commit(overwrite: true) }
         tracker.finish()
+    }
+}
+
+/// CRC-32 (IEEE, as zlib) of a sliding window of fixed length: slide() drops the oldest byte and
+/// takes a new one in O(1). The CRC is affine in its input, so the outgoing byte's contribution
+/// depends only on that byte and the window length: a 256-entry table built from 9 CRCs.
+struct RollingCRC32 {
+    private let table: [UInt32]
+    private let outgoing: [UInt32]
+
+    init(window: Int) {
+        var t = [UInt32](repeating: 0, count: 256)
+        for i in 0..<256 {
+            var c = UInt32(i)
+            for _ in 0..<8 { c = c & 1 != 0 ? 0xEDB8_8320 ^ (c >> 1) : c >> 1 }
+            t[i] = c
+        }
+        table = t
+        // out[b] = crc(0^L) ^ step(crc(b·0^(L-1)), 0); affine in b, so 0 and the 8 bits suffice.
+        var zeros = [UInt8](repeating: 0, count: window)
+        let base = CRC32.checksum(zeros)
+        func term(_ b: UInt8) -> UInt32 {
+            zeros[0] = b
+            let c = CRC32.checksum(zeros)
+            return base ^ (t[Int(c & 0xFF)] ^ (c >> 8))
+        }
+        let t0 = term(0)
+        let bits = (0..<8).map { term(1 << $0) ^ t0 }
+        outgoing = (0..<256).map { b in (0..<8).reduce(t0) { b >> $1 & 1 != 0 ? $0 ^ bits[$1] : $0 } }
+    }
+
+    @inline(__always)
+    func slide(_ crc: UInt32, out: UInt8, in byte: UInt8) -> UInt32 {
+        table.withUnsafeBufferPointer { t in
+            outgoing.withUnsafeBufferPointer { o in t[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8) ^ o[Int(out)] }
+        }
     }
 }
 

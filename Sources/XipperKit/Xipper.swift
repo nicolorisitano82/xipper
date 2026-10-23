@@ -39,7 +39,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli].contains(self) }
     public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli].contains(self) }
     /// Formats Xipper can write.
-    public var canCreate: Bool { ![.tarLz4, .lz4, .tarBrotli, .brotli, .rar].contains(self) }
+    public var canCreate: Bool { self != .rar }
     public var supportsPassword: Bool { self == .zip || self == .sevenZip || self == .appleArchive || self == .xiz }
 
     var compression: StreamCompression {
@@ -60,6 +60,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         switch compression {
         case .bzip2: return 9
         case .zstd: return 3
+        case .lz4: return 1
+        case .brotli: return 9
         default: return 6
         }
     }
@@ -148,8 +150,11 @@ public struct CreateOptions: Sendable {
     var xizKDF = XizKeys.KDF.standard
     /// 7z: ARM64 branch filter for arm64 executables (Mach-O, ELF): smaller binaries.
     public var executableFilter = true
-    /// 7z: split into volumes of this many bytes (`name.7z.001`, `.002`, …).
+    /// 7z and ZIP: split into volumes of this many bytes (7z: `name.7z.001`, `.002`, …; ZIP: see
+    /// `zipVolumeStyle`).
     public var volumeSize: Int64?
+    /// ZIP volumes: `name.z01`…`name.zip` (default) or `name.zip.001`, `.002`, …
+    public var zipVolumeStyle: ZipVolumeStyle = .spanned
     public init() {}
 }
 
@@ -210,8 +215,8 @@ public enum Xipper {
         if options.password != nil && !options.format.supportsPassword {
             throw XipperError.invalidArgument("\(options.format.rawValue) does not support passwords (use zip or 7z)")
         }
-        if options.volumeSize != nil && options.format != .sevenZip {
-            throw XipperError.invalidArgument("only 7z archives can be split into volumes")
+        if options.volumeSize != nil && options.format != .sevenZip && options.format != .zip {
+            throw XipperError.invalidArgument("only 7z and ZIP archives can be split into volumes")
         }
         var items = try SourceScanner.scan(sources, options: options.scan)
         var sidecars: URL?
@@ -233,8 +238,10 @@ public enum Xipper {
             z.forceZip64 = options.forceZip64
             z.memoryBudget = options.memoryBudget
             z.workload = options.workload
+            z.volumeSize = options.volumeSize
+            z.volumeStyle = options.zipVolumeStyle
             return try ZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
-        case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd:
+        case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli:
             return try TarWriter.write(items: items, to: path, compression: options.format.compression, level: level,
                                        workload: options.workload, overwrite: options.overwrite,
                                        extendedAttributes: options.storeExtendedAttributes, progress: progress, cancel: cancel)
@@ -260,9 +267,9 @@ public enum Xipper {
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
-        case .tarLz4, .lz4, .tarBrotli, .brotli, .rar:
+        case .rar:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
-        case .gzip, .bgzf, .bzip2, .xz, .zstd:
+        case .gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
             var compression = options.format.compression
             // Genomics preference: text formats indexed by tabix/samtools must be BGZF, not plain gzip.

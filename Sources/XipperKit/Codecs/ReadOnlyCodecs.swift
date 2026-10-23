@@ -1,7 +1,10 @@
+import CBrotli
+import CLZ4
 import Compression
 import Foundation
 
-// Read-only codecs from the format matrix (STUDIO.md §4.2): brotli and the LZ4 frame format.
+// Codecs of the format matrix (STUDIO.md §4.2): brotli and the LZ4 frame format. Decoding is
+// our own (LZ4) or Apple's (brotli); encoding uses the vendored reference libraries (2.1).
 
 /// Brotli (`.br`, `.tar.br`), decoded by the system Compression framework.
 final class BrotliDecoder: StreamTransform {
@@ -260,5 +263,108 @@ struct XXH32 {
         h ^= h >> 13; h = h &* Self.p3
         h ^= h >> 16
         return h
+    }
+}
+
+// MARK: - Encoders (2.1)
+
+/// LZ4 frame (as `lz4`): independent 4 MiB blocks compressed in parallel, content checksum.
+/// Levels 1–2 use the fast compressor, 3–12 LZ4HC (as the `lz4` tool).
+final class LZ4FrameEncoder: ParallelChunkEncoder {
+    static let blockSize = 4 << 20
+    private let level: Int
+    private let hash: OpaquePointer
+
+    init(level: Int, workload: Workload, cancel: CancellationToken?) {
+        self.level = max(1, min(12, level))
+        hash = LZ4_XXH32_createState()
+        LZ4_XXH32_reset(hash, 0)
+        super.init(chunkSize: Self.blockSize, workload: workload, cancel: cancel)
+    }
+
+    deinit { LZ4_XXH32_freeState(hash) }
+
+    override func header() -> [UInt8] {
+        // FLG: version 01, independent blocks, content checksum; BD: 4 MiB blocks.
+        let desc: [UInt8] = [0x64, 0x70]
+        let hc = UInt8(truncatingIfNeeded: desc.withUnsafeBytes { LZ4_XXH32($0.baseAddress, 2, 0) } >> 8)
+        return [0x04, 0x22, 0x4D, 0x18] + desc + [hc]
+    }
+
+    override func compressChunk(_ chunk: UnsafeRawBufferPointer, previous: UnsafeRawBufferPointer?, last: Bool) throws -> [UInt8] {
+        guard let src = chunk.baseAddress, chunk.count > 0 else { return [] }
+        let cap = Int(LZ4_compressBound(Int32(chunk.count)))
+        var out = [UInt8](repeating: 0, count: 4 + cap)
+        let n = out.withUnsafeMutableBytes { o -> Int32 in
+            let dst = o.baseAddress!.advanced(by: 4).assumingMemoryBound(to: CChar.self)
+            let s = src.assumingMemoryBound(to: CChar.self)
+            return level <= 2 ? LZ4_compress_default(s, dst, Int32(chunk.count), Int32(cap))
+                              : LZ4_compress_HC(s, dst, Int32(chunk.count), Int32(cap), Int32(level))
+        }
+        if n > 0 && Int(n) < chunk.count {
+            out.removeSubrange((4 + Int(n))...)
+            out.withUnsafeMutableBytes { $0.storeBytes(of: UInt32(n).littleEndian, as: UInt32.self) }
+        } else {
+            // Incompressible: stored, with the high bit of the size set.
+            out = [UInt8](repeating: 0, count: 4) + Array(chunk)
+            out.withUnsafeMutableBytes { $0.storeBytes(of: (UInt32(chunk.count) | 0x8000_0000).littleEndian, as: UInt32.self) }
+        }
+        return out
+    }
+
+    override func chunkDone(_ chunk: UnsafeRawBufferPointer, crc: UInt32) {
+        LZ4_XXH32_update(hash, chunk.baseAddress, chunk.count)
+    }
+
+    override func trailer() -> [UInt8] {
+        var w = ByteWriter()
+        w.u32(0)  // end mark
+        w.u32(LZ4_XXH32_digest(hash))
+        return w.bytes
+    }
+}
+
+/// Brotli stream, quality 0–11, 16 MiB window (lgwin 24).
+final class BrotliEncoder: StreamTransform {
+    private let s: OpaquePointer
+    private let out = UnsafeMutablePointer<UInt8>.allocate(capacity: 1 << 20)
+    private let cancel: CancellationToken?
+
+    init(level: Int, cancel: CancellationToken?) throws {
+        guard let s = BrotliEncoderCreateInstance(nil, nil, nil) else { throw XipperError.codec("brotli init") }
+        self.s = s
+        self.cancel = cancel
+        BrotliEncoderSetParameter(s, BROTLI_PARAM_QUALITY, UInt32(max(0, min(11, level))))
+        BrotliEncoderSetParameter(s, BROTLI_PARAM_LGWIN, 24)
+    }
+
+    deinit {
+        BrotliEncoderDestroyInstance(s)
+        out.deallocate()
+    }
+
+    func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws {
+        try run(input, BROTLI_OPERATION_PROCESS, sink)
+    }
+
+    func finish(_ sink: ByteSink) throws {
+        try run(UnsafeRawBufferPointer(start: nil, count: 0), BROTLI_OPERATION_FINISH, sink)
+    }
+
+    private func run(_ input: UnsafeRawBufferPointer, _ op: BrotliEncoderOperation, _ sink: ByteSink) throws {
+        var availIn = input.count
+        var next = input.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        while true {
+            try cancel?.check()
+            var availOut = 1 << 20
+            var dst: UnsafeMutablePointer<UInt8>? = out
+            guard BrotliEncoderCompressStream(s, op, &availIn, &next, &availOut, &dst, nil) == BROTLI_TRUE else {
+                throw XipperError.codec("brotli compress failed")
+            }
+            let n = (1 << 20) - availOut
+            if n > 0 { try sink(UnsafeRawBufferPointer(start: out, count: n)) }
+            let done = op == BROTLI_OPERATION_FINISH ? BrotliEncoderIsFinished(s) == BROTLI_TRUE : availIn == 0
+            if done && BrotliEncoderHasMoreOutput(s) == BROTLI_FALSE { return }
+        }
     }
 }

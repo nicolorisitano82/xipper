@@ -65,6 +65,49 @@ struct RecoveryTests {
         #expect(try [UInt8](Data(contentsOf: zip)) == original)
     }
 
+    @Test func rollingCRCMatchesTheDirectOne() {
+        let data = sampleData(10_000, seed: 9)
+        for window in [4, 100, 4096] {
+            let roll = RollingCRC32(window: window)
+            var crc = CRC32.checksum(Array(data[0..<window]))
+            for pos in 1...(data.count - window) {
+                crc = roll.slide(crc, out: data[pos - 1], in: data[pos + window - 1])
+                if pos % 97 == 0 || pos == data.count - window { #expect(crc == CRC32.checksum(Array(data[pos..<(pos + window)]))) }
+            }
+        }
+    }
+
+    /// Bytes inserted or deleted in the middle shift every later slice: they are found at their
+    /// new offset (as par2cmdline does), so 5% of recovery data is enough.
+    @Test(arguments: [1000, -333])
+    func shiftedSlicesAreFound(shift: Int) throws {
+        let t = TempDir()
+        let (zip, original) = try archive(t, size: 1 << 20)
+        let written = try PAR2.create(for: [zip], redundancy: 5, targetSlices: 100)
+        var bytes = original
+        let at = 400_123
+        if shift > 0 { bytes.insert(contentsOf: sampleData(shift, seed: 4), at: at) } else { bytes.removeSubrange(at..<(at - shift)) }
+        try Data(bytes).write(to: zip)
+        let r = try PAR2.verify(written[0])
+        #expect(!r.isIntact && r.damagedSlices > 50 && r.missingSlices <= 2 && r.canRepair)
+        #expect(r.files[0].movedSlices == r.damagedSlices - r.missingSlices)
+        #expect(try PAR2.repair(written[0]).isIntact)
+        #expect(try [UInt8](Data(contentsOf: zip)) == original)
+    }
+
+    /// Garbage appended to the file: nothing to recover, the file is cut back.
+    @Test func trailingBytesAreCutWithoutRecoveryData() throws {
+        let t = TempDir()
+        let (zip, original) = try archive(t, size: 100_000)
+        let written = try PAR2.create(for: [zip], redundancy: 1, targetSlices: 10)
+        for f in written.dropFirst() { try FileManager.default.removeItem(at: f) }  // no recovery slices at all
+        try Data(original + [1, 2, 3]).write(to: zip)
+        let r = try PAR2.verify(written[0])
+        #expect(!r.isIntact && r.missingSlices == 0 && r.recoverySlices == 0 && r.canRepair)
+        #expect(try PAR2.repair(written[0]).isIntact)
+        #expect(try [UInt8](Data(contentsOf: zip)) == original)
+    }
+
     @Test func tooMuchDamageIsRefused() throws {
         let t = TempDir()
         let (zip, original) = try archive(t, size: 400_000)

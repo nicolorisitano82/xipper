@@ -48,6 +48,55 @@ final class PassthroughTransform: StreamTransform {
     func finish(_ sink: ByteSink) throws {}
 }
 
+// MARK: - Deflate64 (ZIP method 9, read only)
+
+final class Deflate64Decoder: StreamTransform {
+    private let s: OpaquePointer
+    /// Input the decoder has not taken yet (it waits for a whole symbol or block header).
+    private var pending: [UInt8] = []
+    private let out = UnsafeMutablePointer<UInt8>.allocate(capacity: 1 << 20)
+    private var ended = false
+
+    init() throws {
+        guard let s = xs_inflate64_new() else { throw XipperError.codec("Deflate64") }
+        self.s = s
+    }
+
+    deinit {
+        xs_inflate64_free(s)
+        out.deallocate()
+    }
+
+    func process(_ input: UnsafeRawBufferPointer, _ sink: ByteSink) throws {
+        pending.append(contentsOf: input)
+        try run(final: false, sink)
+    }
+
+    func finish(_ sink: ByteSink) throws {
+        try run(final: true, sink)
+        if !ended { throw XipperError.corrupt("Deflate64 data ends early") }
+    }
+
+    private func run(final: Bool, _ sink: ByteSink) throws {
+        var consumed = 0
+        defer { pending.removeFirst(consumed) }
+        while !ended {
+            var used = 0, produced = 0
+            let status = pending.withUnsafeBufferPointer { p in
+                xs_inflate64_run(s, p.baseAddress.map { $0 + consumed }, p.count - consumed, &used, out, 1 << 20, &produced, final ? 1 : 0)
+            }
+            consumed += used
+            if produced > 0 { try sink(UnsafeRawBufferPointer(start: out, count: produced)) }
+            switch Int(status) {
+            case XS_INFLATE64_END: ended = true
+            case XS_INFLATE64_OUTPUT_FULL: continue
+            case XS_INFLATE64_NEED_INPUT: return
+            default: throw XipperError.corrupt("invalid Deflate64 data")
+            }
+        }
+    }
+}
+
 // MARK: - Inflate (raw deflate / gzip)
 
 final class InflateDecoder: StreamTransform {

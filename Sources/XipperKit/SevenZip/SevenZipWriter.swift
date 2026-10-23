@@ -19,6 +19,18 @@ struct SevenZipOptions: Sendable {
     var workload: Workload = .interactive
 }
 
+/// A folder of an existing archive written again as it is (editing without recompression): its
+/// packed streams are copied byte for byte, with its coders, keys and CRCs.
+struct SevenZipCarriedFolder {
+    var source: SevenZipArchive
+    var folder: SZFolder
+    /// Absolute offsets and sizes of its packed streams in `source`.
+    var packs: [(offset: Int64, size: Int64)]
+    var subSizes: [Int64]
+    var subCRCs: [UInt32?]
+    var files: [SZFile]
+}
+
 /// Writes 7z archives: LZMA2 encoded in parallel (independent chunks joined with dictionary
 /// resets, like 7-Zip's multi-threaded LZMA2), solid blocks, ARM64 filter for executables,
 /// AES-256 for data and header, CRC-32 for every file.
@@ -46,6 +58,7 @@ enum SevenZipWriter {
     }
 
     static func write(items: [ArchiveItem], to path: String, options o: SevenZipOptions, overwrite: Bool,
+                      carried: [SevenZipCarriedFolder] = [],
                       progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let password = o.password.map(SevenZipAES.passwordBytes)
         if let p = password, p.isEmpty { throw XipperError.invalidArgument("empty password") }
@@ -100,6 +113,21 @@ enum SevenZipWriter {
         let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count, handler: progress)
         let out = try VolumeWriter(path: path, volumeSize: o.volumeSize)
         try out.write([UInt8](repeating: 0, count: SevenZip.signatureHeaderSize))
+
+        // Folders carried over from an edited archive come first, copied as they are.
+        var carriedPackSizes: [Int64] = []
+        for c in carried {
+            for p in c.packs {
+                var done: Int64 = 0
+                while done < p.size {
+                    try cancel?.check()
+                    let n = Int(min(Int64(4 << 20), p.size - done))
+                    try out.write(try c.source.input.read(at: p.offset + done, count: n))
+                    done += Int64(n)
+                }
+                carriedPackSizes.append(p.size)
+            }
+        }
 
         // 2. Data: a pool of workers compresses chunks while the next ones are read; chunks are
         //    written in order. Chunks hold at most `chunk` bytes of one folder.
@@ -226,14 +254,25 @@ enum SevenZipWriter {
         // 3. Header.
         var h = SZHeader()
         h.streams.packPos = 0
-        h.streams.packSizes = folders.map(\.packSize)
+        h.streams.packSizes = carriedPackSizes + folders.map(\.packSize)
+        var pack = 0
+        for c in carried {
+            var f = c.folder
+            f.firstPackStream = pack
+            pack += c.packs.count
+            h.streams.folders.append(f)
+            h.streams.numUnpackStreams.append(c.subSizes.count)
+            h.streams.subSizes.append(contentsOf: c.subSizes)
+            h.streams.subCRCs.append(contentsOf: c.subCRCs)
+        }
         for (i, f) in folders.enumerated() {
-            h.streams.folders.append(folderInfo(f, encrypted: key != nil, firstPack: i))
+            h.streams.folders.append(folderInfo(f, encrypted: key != nil, firstPack: pack + i))
             h.streams.numUnpackStreams.append(f.members.count)
             h.streams.subSizes.append(contentsOf: f.members.map(\.size))
             h.streams.subCRCs.append(contentsOf: f.crcs)
         }
         for item in empties { h.files.append(fileRecord(item, hasStream: false)) }
+        for c in carried { h.files.append(contentsOf: c.files) }
         for f in folders { for m in f.members { h.files.append(fileRecord(m.item, hasStream: true)) } }
         tracker.add(bytes: 0, entries: empties.count)
 
@@ -314,7 +353,7 @@ enum SevenZipWriter {
         return folder
     }
 
-    private static func fileRecord(_ item: ArchiveItem, hasStream: Bool) -> SZFile {
+    static func fileRecord(_ item: ArchiveItem, hasStream: Bool) -> SZFile {
         var f = SZFile()
         f.name = item.name
         f.hasStream = hasStream

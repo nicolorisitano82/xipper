@@ -2,7 +2,7 @@
 
 *Italiano · [English](README.en.md)*
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP, 7z, tar (gz, bz2, xz, zst) e XIZ, il formato di Xipper ([specifica](docs/XIZ_SPEC.md)), più file singoli compressi e BGZF/bgzip per la genomica (con indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e manifest dei checksum). Modifica gli archivi senza estrarli (ZIP e XIZ senza ricomprimere quello che non cambia) e li protegge con dati di recupero PAR2. Monta anche un archivio come volume, in lettura e scrittura: lo apri e lo modifichi nel Finder, e alla fine Xipper salva le modifiche nell'archivio. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP, 7z, tar (gz, bz2, xz, zst) e XIZ, il formato di Xipper ([specifica](docs/XIZ_SPEC.md)), più file singoli compressi e BGZF/bgzip per la genomica (con indici tabix/CSI, verifica di VCF/BCF/BAM/CRAM e manifest dei checksum). Modifica gli archivi senza estrarli (ZIP, 7z e XIZ senza ricomprimere quello che non cambia) e li protegge con dati di recupero PAR2. Monta anche un archivio come volume, in lettura e scrittura: lo apri e lo modifichi nel Finder, e alla fine Xipper salva le modifiche nell'archivio. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)

@@ -1,0 +1,5 @@
+// Ours (Xipper): exposes the brotli encoder to Swift.
+module CBrotli {
+    header "brotli/encode.h"
+    export *
+}
