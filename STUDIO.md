@@ -10,7 +10,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 
 | Area | Stato |
 |---|---|
-| **Versione** | **2.0.0 pubblicata** il 23/10/2026 su GitHub (DMG firmato self-signed). Prima: 1.0.0–1.0.2 (22/10/2026). **2.1** completata nel codice il 23/10/2026 (su `main`, non ancora rilasciata come DMG). |
+| **Versione** | **2.0.0 pubblicata** il 23/10/2026 su GitHub (DMG firmato self-signed). Prima: 1.0.0–1.0.2 (22/10/2026). **2.1.0 pubblicata** il 23/10/2026. |
 | **Test** | 172 test automatici verdi (23/10/2026, 2.1) (con interoperabilità samtools/bcftools/7zz/bsdtar/unzip/lz4/brotli), fuzzing a 1000 mutazioni per formato. Da provare a mano sulla 2.0.0: la checklist della rc2 (CRAM nell'app, Riconoscimenti, disco pieno, montaggio dal Finder, menu e icone del Finder, Touch ID, trascinamento, Comandi Rapidi). |
 | **Formati** | ZIP (anche bzip2, LZMA, xz; a volumi `.z01`/`.zip.001`), 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive, **XIZ 1.2** in lettura e scrittura; ZIP Deflate64 e **RAR/RAR5** in lettura (anche RAR5 cifrati); BGZF, **CRAM 3.1 ↔ BAM** e indici genomici (.bai/.csi/.crai/.fai/tabix) (§4.2). |
 | **XIZ** | Formato proprio stabile: specifica pubblica in [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md) (1.0 congelata il 22/10, 1.1 con segmenti aggiunti), cifratura Argon2id + AES-256-GCM, deduplicazione per file e a blocchi (FastCDC). |
@@ -21,7 +21,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
 | **Genomica nativa (XIG)** | Decisione del 23/10/2026: profilo genomico nativo di XIZ, opzione (b) dello studio [docs/XIZ_GENOMICS_STUDY.md](docs/XIZ_GENOMICS_STUDY.md), con il rischio brevettuale accettato dal titolare. Disegno in [docs/XIG_DESIGN.md](docs/XIG_DESIGN.md): estensione `.xig` per gli archivi genomici, `.xiz` per gli altri. Un lettore XIG per IGV è in sviluppo in un repository separato. |
-| **Prossimi passi** | Rilascio della 2.1 (DMG); XIG fase X1 (prototipo Swift e benchmark B3, soglia ≥5% meno di CRAM 3.1); automazione (Tasks MCP, Comandi Rapidi) e rifiniture dell'interfaccia. In backlog, senza data: ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
+| **Prossimi passi** | XIG fase X1 (prototipo Swift e benchmark B3, soglia ≥5% meno di CRAM 3.1); automazione (Tasks MCP, Comandi Rapidi) e rifiniture dell'interfaccia. In backlog, senza data: ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 
@@ -562,7 +562,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **2. App v1** ✅ | UI SwiftUI con Liquid Glass (crea, estrai, sfoglia, verifica, password), Finder Sync, Quick Look, App Intents, Keychain | beta4 pubblicata il 21/10/2026; **1.0.0 costruita il 22/10/2026** (non ancora pubblicata); distribuzione solo DMG su GitHub; restano da fare a mano i test di Touch ID, trascinamento e Comandi Rapidi → [FASE2.md](FASE2.md), [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **3. 7z** ✅ | 7z completo (LZMA2, PPMd, BCJ-ARM64, AES, intestazioni cifrate, multi-volume) | completata il 21/10/2026 in XipperKit, CLI e MCP (l'app la integra a parte) → [FASE1.md](FASE1.md) |
 | **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; ✅ RAR/RAR5 in lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | **2.0.0 pubblicata il 23/10/2026** |
-| **4.1 v2.1** ✅ | Modifica di 7z senza ricompressione; ricerca dei blocchi spostati in PAR2; ZIP a volumi in scrittura; Deflate64 in lettura; creazione di lz4 e brotli; AES di RAR5 | completata nel codice il 23/10/2026 (DMG da rilasciare) |
+| **4.1 v2.1** ✅ | Modifica di 7z senza ricompressione; ricerca dei blocchi spostati in PAR2; ZIP a volumi in scrittura; Deflate64 in lettura; creazione di lz4 e brotli; AES di RAR5 | **2.1.0 pubblicata il 23/10/2026** |
 | **XIG** | Profilo genomico nativo di XIZ (opzione b): X1 prototipo e benchmark, X2 spec XIZ 1.3, X3 Xipper, X4 libxiz in C con plugin htslib, X5 lettori Java e Python; lettore per IGV in parallelo ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)) | decisione del 23/10/2026; 32–46 g fino a X3, 127–185 g con le librerie [stima] |
 | **Backlog** | Formati in sola lettura: ~~RAR/RAR5~~ (fatto nella 2.0/2.1), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | senza data (decisione del 23/10/2026; prima previsti nella v3) |
 

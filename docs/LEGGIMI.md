@@ -1,8 +1,8 @@
-# Xipper 2.0
+# Xipper 2.1
 
 *Italiano · [English](README-USER.en.md)*
 
-Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica, ripara ed estrae archivi in modo veloce e sicuro: ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive e XIZ, il formato di Xipper. Per la genomica converte BAM ↔ CRAM 3.1 e crea gli indici che usano samtools, bcftools e tabix.
+Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica, ripara ed estrae archivi in modo veloce e sicuro: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive e XIZ, il formato di Xipper; apre anche i RAR, compresi i RAR5 cifrati. Per la genomica converte BAM ↔ CRAM 3.1 e crea gli indici che usano samtools, bcftools e tabix.
 
 ## Installazione
 1. Apri il file `.dmg` di Xipper e trascina **Xipper** nella cartella **Applicazioni**.
@@ -23,7 +23,7 @@ Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 
 - **Estrai:** accanto all'archivio, oppure le voci scelte dove vuoi. Xipper non scrive mai fuori dalla destinazione, blocca le zip-bomb e mantiene la quarantena dei file scaricati.
 - **Modifica senza estrarre:** nel browser, tasto destro › **Rinomina…**, **Elimina**, **Aggiungi file…**, oppure trascina file nella tabella. Con ZIP, 7z e XIZ quello che non cambia non viene ricompresso (in un 7z solido si ricomprimono solo i blocchi toccati).
 - **Monta come volume:** pulsante **Monta** (o Finder › Xipper › Monta come volume). L'archivio compare in `/Volumes`, lo apri e lo modifichi nel Finder; quando lo espelli Xipper chiede se salvare le modifiche.
-- **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce.
+- **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce, anche quando dei dati sono stati spostati da un'inserzione o una cancellazione.
 - **Genomica:**
   - BGZF compatibile con `bgzip`;
   - **CRAM 3.1**: apri un `.cram` o un `.bam` e usa **Converti in BAM…** / **Converti in CRAM…** con il riferimento FASTA (il CRAM è di solito il 30–50% più piccolo del BAM, e samtools lo legge);

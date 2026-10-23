@@ -1,8 +1,8 @@
-# Xipper 2.0
+# Xipper 2.1
 
 *[Italiano](LEGGIMI.md) · English*
 
-Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 26 or later**. It creates, opens, verifies, repairs and extracts archives quickly and safely: ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive and XIZ, Xipper's own format. For genomics it converts BAM ↔ CRAM 3.1 and builds the indexes samtools, bcftools and tabix use.
+Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 26 or later**. It creates, opens, verifies, repairs and extracts archives quickly and safely: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive and XIZ, Xipper's own format; it also opens RAR, encrypted RAR5 included. For genomics it converts BAM ↔ CRAM 3.1 and builds the indexes samtools, bcftools and tabix use.
 
 ## Installing
 1. Open the Xipper `.dmg` file and drag **Xipper** into **Applications**.
@@ -23,7 +23,7 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Extract:** next to the archive, or chosen entries anywhere. Xipper never writes outside the destination, blocks zip bombs and keeps the quarantine of downloaded files.
 - **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP, 7z and XIZ keep what does not change as it is, without recompressing it (in a solid 7z, only the blocks you touch are compressed again).
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
-- **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it.
+- **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion.
 - **Genomics:**
   - BGZF compatible with `bgzip`;
   - **CRAM 3.1**: open a `.cram` or `.bam` and use **Convert to BAM…** / **Convert to CRAM…** with the reference FASTA (CRAM is usually 30–50% smaller than BAM, and samtools reads it);
