@@ -470,3 +470,9 @@ CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla
   - Ora il gestore nasce fuori da ogni actor (`cancelOnInterrupt`). Ctrl-C annulla con codice 130, smonta e salva.
   - Test di regressione: suite "CLI".
 - **Test manuali:** checklist in `dist/test-2.0/CHECKLIST.md`, insieme ai file di prova. Vanno fatti a mano: in questa sessione non c'è il controllo del computer.
+
+## Rilascio 2.0.0 (23/10/2026)
+
+- Pubblicata su GitHub come release (non pre-release), con il DMG firmato self-signed e lo SHA-256.
+- Note per gli utenti (`docs/LEGGIMI.md`, `docs/README-USER.en.md`) aggiornate alla 2.0: CRAM, indici, ZIP con bzip2/LZMA/xz, menu del Finder contestuale, Riconoscimenti.
+- I test manuali della checklist della rc2 non sono stati fatti prima del rilascio (scelta del titolare): vanno fatti sulla 2.0.0 installata.

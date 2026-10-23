@@ -21,7 +21,7 @@ Restano **fuori dalla 1.0** per scelta: RAR, ZIP Deflate64, scrittura di lz4 e b
 
 ---
 
-## 2.0
+## 2.0 — pubblicata il 23/10/2026 (v2.0.0)
 
 ### 1. ⭐ Montaggio degli archivi come volume (prima priorità)
 

@@ -6,13 +6,13 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 
 ---
 
-## Stato del progetto (22/10/2026)
+## Stato del progetto (23/10/2026)
 
 | Area | Stato |
 |---|---|
-| **Versione** | **1.0.0 costruita** (`scripts/release.sh final` → `dist/Xipper-1.0.0.dmg`, firmata self-signed, DMG con sfondo). Non ancora pubblicata: l'ultima release su GitHub è la pre-release 0.9.0-beta4. |
-| **Test** | 129 test automatici verdi, fuzzing a 1000 mutazioni per formato (anche XIZ cifrato e con segmenti). Da provare a mano: Touch ID, trascinamento dal browser al Finder, esecuzione delle azioni di Comandi Rapidi. |
-| **Formati** | ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive, **XIZ 1.1** in lettura e scrittura; lz4, brotli e ZIP divisi in lettura; BGZF e indici genomici (§4.2). |
+| **Versione** | **2.0.0 pubblicata** il 23/10/2026 su GitHub (DMG firmato self-signed). Prima: 1.0.0–1.0.2 (22/10/2026). |
+| **Test** | 152 test automatici verdi (con interoperabilità samtools/bcftools/7zz/bsdtar), fuzzing a 1000 mutazioni per formato. Da provare a mano sulla 2.0.0: la checklist della rc2 (CRAM nell'app, Riconoscimenti, disco pieno, montaggio dal Finder, menu e icone del Finder, Touch ID, trascinamento, Comandi Rapidi). |
+| **Formati** | ZIP (anche bzip2, LZMA, xz), 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive, **XIZ 1.2** in lettura e scrittura; lz4, brotli e ZIP divisi in lettura; BGZF, **CRAM 3.1 ↔ BAM** e indici genomici (.bai/.csi/.crai/.fai/tabix) (§4.2). |
 | **XIZ** | Formato proprio stabile: specifica pubblica in [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md) (1.0 congelata il 22/10, 1.1 con segmenti aggiunti), cifratura Argon2id + AES-256-GCM, deduplicazione per file e a blocchi (FastCDC). |
 | **Modifica in place** | `Xipper.edit` / `xipper edit` e browser (rinomina, elimina, aggiungi, trascina): ZIP senza ricomprimere le voci invariate, XIZ con segmenti in coda, altri formati ricostruiti. |
 | **Recupero** | PAR2 scritto da zero dalla specifica, compatibile con par2cmdline: crea, verifica, ripara (CLI, inspector, «Ripara» nelle voci danneggiate). |
@@ -20,7 +20,7 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Prossimi passi** | v2: modifica di 7z senza ricompressione, ricerca dei blocchi spostati in PAR2, ZIP multi-volume in scrittura, automazione (Tasks MCP, Comandi Rapidi), rifiniture dell'interfaccia, rilascio 2.0. v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura (studio in [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
+| **Prossimi passi** | 2.1: modifica di 7z senza ricompressione, ricerca dei blocchi spostati in PAR2, ZIP multi-volume in scrittura, automazione (Tasks MCP, Comandi Rapidi), rifiniture dell'interfaccia. v3: RAR, ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 
