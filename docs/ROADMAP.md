@@ -109,7 +109,8 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 ### 8. Genomica
 
 - tabix per formati aggiuntivi;
-- **CRAM 3.1** in lettura e scrittura (GA4GH, nessun nodo brevettuale noto): è l'opzione preferita per la genomica compressa;
+- ✅ **indici** per altri formati (23/10/2026): `.bai`/`.csi` per BAM, `.crai`, `.csi` per BCF, `.fai` (+`.gzi`), tabix per SAM; `xipper index`;
+- ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; da fare app e MCP);
 - MPEG-G: al massimo il riconoscimento dei file `.mgb`/`.mgg`. Decodifica e codifica solo dopo la verifica legale (G0 in STUDIO §4.5, analisi del 21/10/2026).
 
 ---

@@ -82,6 +82,14 @@ enum BGZF {
     }
 
     /// Decompresses and verifies one complete block. Returns its content.
+    /// The data of the block at the start of `b` (to recognize BAM, BCF, FASTA… inside BGZF).
+    static func decompressFirstBlock(_ b: UnsafeRawBufferPointer) throws -> [UInt8] {
+        guard let size = blockSize(at: b), size <= b.count else { throw XipperError.corrupt("BGZF block truncated") }
+        let d = libdeflate_alloc_decompressor()!
+        defer { libdeflate_free_decompressor(d) }
+        return try decompressBlock(UnsafeRawBufferPointer(rebasing: b[..<size]), decompressor: d)
+    }
+
     static func decompressBlock(_ block: UnsafeRawBufferPointer, decompressor d: OpaquePointer) throws -> [UInt8] {
         guard let size = blockSize(at: block), size == block.count, size >= headerSize + footerSize else {
             throw XipperError.corrupt("invalid BGZF block header")

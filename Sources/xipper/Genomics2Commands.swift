@@ -3,11 +3,11 @@ import Darwin
 import Foundation
 import XipperKit
 
-let genomics2Commands: Set<String> = ["tabix", "index-check", "manifest"]
+let genomics2Commands: Set<String> = ["tabix", "index-check", "manifest", "cram", "index"]
 
 let genomics2Usage = """
   tabix   [options] <file.gz>...  build a tabix (.tbi) or CSI index (htslib-compatible)
-      -p, --preset P       vcf, bed, gff (default: from the file name)
+      -p, --preset P       vcf, bed, gff, sam (default: from the file name)
       -C, --csi            CSI index (positions beyond 512 Mbp);  -m, --min-shift N (default 14)
       -s, --sequence N  -b, --begin N  -e, --end N   1-based columns for other formats
       -0, --zero-based     coordinates are 0-based half-open (BED-like);  -c, --comment C (default #)
@@ -26,6 +26,17 @@ let genomics2Usage = """
                            (default: from the name; JSON: sha-256,md5,crc32c)
       -f, --force          overwrite an existing manifest
   manifest verify [-a ALGO] <manifest>...   .json, sha256sum/md5sum or BSD-style text
+  index   [options] <file>...    the usual index, as htslib tools build it:
+                           BAM → .bai (-C: .csi), CRAM → .crai, BCF → .csi, FASTA/FASTQ → .fai (+ .gzi),
+                           VCF/BED/GFF/SAM .gz → .tbi (-C: .csi)
+      -C, --csi            CSI instead of .bai/.tbi;  -m, --min-shift N (default 14)
+      -o, --output FILE    index path (one input only)
+  cram    [options] <file.bam|file.cram>...   BAM → CRAM 3.1, or CRAM 3.0/3.1 → BAM
+      -r, -T, --reference FASTA   reference (uncompressed, .fai used if present); required for BAM → CRAM
+      -o, --output FILE    output (default: same name with .cram or .bam)
+          --version 3.0    write CRAM 3.0 (rANS 4x8 and gzip only, for older readers)
+          --no-md          CRAM → BAM: do not add the MD/NM tags samtools regenerates
+      -f, --force          overwrite the output
 """
 
 @MainActor func runGenomics2(_ command: String, _ rawArgs: [String]) -> Never {
@@ -38,9 +49,10 @@ let genomics2Usage = """
     }
     let valueOptions: Set<String> = ["-p", "--preset", "-m", "--min-shift", "-s", "--sequence", "-b", "--begin", "-e", "--end",
                                      "-c", "--comment", "-S", "--skip-lines", "--data", "-o", "--output", "-a", "--algorithms",
+                                     "-r", "-T", "--reference", "--version",
                                      "-j", "--threads"]
     let flagOptions: Set<String> = ["-C", "--csi", "-0", "--zero-based", "--bgzip", "-f", "--force", "--no-index",
-                                    "-q", "--quiet", "--background", "-h", "--help"]
+                                    "-q", "--quiet", "--background", "-h", "--help", "--no-md"]
     var flags = Set<String>(), values: [String: String] = [:], files: [String] = []
     var i = 0
     while i < args.count {
@@ -88,7 +100,7 @@ let genomics2Usage = """
         case ("tabix", _):
             var config: TabixConfig?
             if let p = value("-p", "--preset") {
-                guard let preset = TabixConfig.Preset(rawValue: p.lowercased()) else { fail("unknown preset \(p) (vcf, bed, gff)", code: 2) }
+                guard let preset = TabixConfig.Preset(rawValue: p.lowercased()) else { fail("unknown preset \(p) (vcf, bed, gff, sam)", code: 2) }
                 config = TabixConfig(preset: preset)
             }
             if let s = int("-s", "--sequence"), let b = int("-b", "--begin") {
@@ -182,6 +194,41 @@ let genomics2Usage = """
                 print(r.isOK ? String(format: "%@: OK, %d files (%@) in %.2fs", path, r.checked, r.bytes.bytesText, r.elapsed)
                              : "\(path): \(r.mismatches.count) mismatched, \(r.missing.count) missing, \(r.refused.count) refused, \(r.checked) checked")
                 failed = failed || !r.isOK
+            }
+
+        case ("index", _):
+            guard files.count == 1 || value("-o", "--output") == nil else { fail("-o needs a single input", code: 2) }
+            for path in files {
+                let r = try Xipper.buildIndex(URL(fileURLWithPath: path), csi: flag("-C", "--csi"), minShift: int("-m", "--min-shift") ?? 14,
+                                              to: value("-o", "--output").map { URL(fileURLWithPath: $0) }, overwrite: true,
+                                              workload: workload, progress: progress, cancel: cancel)
+                clear()
+                if !quiet { print(String(format: "%@: %d records, %d sequences in %.2fs", r.index.path, r.records, r.sequences, r.elapsed)) }
+            }
+
+        case ("cram", _):
+            let ref = value("-r", "-T", "--reference").map { URL(fileURLWithPath: $0) }
+            guard files.count == 1 || value("-o", "--output") == nil else { fail("-o needs a single input", code: 2) }
+            for path in files {
+                let url = URL(fileURLWithPath: path)
+                let isCRAM = (FileHandle(forReadingAtPath: path)?.readData(ofLength: 4)).map { $0 == Data("CRAM".utf8) } ?? false
+                let out = value("-o", "--output").map { URL(fileURLWithPath: $0) }
+                    ?? url.deletingPathExtension().appendingPathExtension(isCRAM ? "bam" : "cram")
+                let r: CRAMConversionReport
+                if isCRAM {
+                    r = try Xipper.cramToBAM(url, output: out, reference: ref, overwrite: flag("-f", "--force"),
+                                             regenerateMDNM: !flag("--no-md"), workload: workload, progress: progress, cancel: cancel)
+                } else {
+                    guard let ref else { fail("BAM → CRAM needs the reference: -r FASTA", code: 2) }
+                    let minor: UInt8 = switch value("--version") { case nil, "3.1": 1; case "3.0": 0; case let v?: fail("unsupported CRAM version \(v) (3.0, 3.1)", code: 2) }
+                    r = try Xipper.bamToCRAM(url, output: out, reference: ref, minor: minor, overwrite: flag("-f", "--force"),
+                                             workload: workload, progress: progress, cancel: cancel)
+                }
+                clear()
+                if !quiet {
+                    print(String(format: "%@ → %@: %lld records, %@ → %@ in %.2fs", path, out.lastPathComponent, r.records,
+                                 r.inputBytes.bytesText, r.outputBytes.bytesText, r.elapsed))
+                }
             }
 
         default:

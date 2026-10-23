@@ -74,6 +74,21 @@ let package = Package(
                 .define("NDEBUG", .when(configuration: .release)),
             ]
         ),
+        // htscodecs 1.6.7 (BSD, rANS/range coder public domain): CRAM 3.0/3.1 codecs (rANS 4x8 and
+        // Nx16 with the NEON path, adaptive arithmetic coder, fqzcomp_qual, name tokeniser).
+        .target(
+            name: "CHtsCodecs",
+            path: "Vendor/htscodecs",
+            exclude: ["LICENSE.md"],
+            sources: ["htscodecs"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("htscodecs"),
+                .define("NDEBUG", .when(configuration: .release)),
+                .unsafeFlags(["-Wno-everything"]),
+            ],
+            linkerSettings: [.linkedLibrary("bz2")]
+        ),
         // Argon2id (password KDF of encrypted XIZ archives): P-H-C reference code, portable C, CC0/Apache-2.0.
         .target(
             name: "CArgon2",
@@ -90,7 +105,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.

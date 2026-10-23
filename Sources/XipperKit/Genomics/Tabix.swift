@@ -3,7 +3,7 @@ import Foundation
 
 /// How tabix reads coordinates from a text line (htslib `tbx_conf_t`). Columns are 1-based.
 public struct TabixConfig: Sendable, Equatable {
-    public enum Preset: String, Sendable, CaseIterable { case vcf, bed, gff }
+    public enum Preset: String, Sendable, CaseIterable { case vcf, bed, gff, sam }
 
     /// 0 generic, 1 SAM, 2 VCF; | 0x10000 for zero-based half-open coordinates (UCSC/BED).
     public var format: Int32
@@ -16,6 +16,7 @@ public struct TabixConfig: Sendable, Equatable {
 
     public var zeroBased: Bool { format & 0x10000 != 0 }
     var isVCF: Bool { format & 0xFFFF == 2 }
+    var isSAM: Bool { format & 0xFFFF == 1 }
 
     public init(format: Int32, sequenceColumn: Int32, beginColumn: Int32, endColumn: Int32, metaChar: UInt8 = UInt8(ascii: "#"), skipLines: Int32 = 0) {
         self.format = format
@@ -32,6 +33,7 @@ public struct TabixConfig: Sendable, Equatable {
         case .vcf: self.init(format: 2, sequenceColumn: 1, beginColumn: 2, endColumn: 0)
         case .bed: self.init(format: 0x10000, sequenceColumn: 1, beginColumn: 2, endColumn: 3)
         case .gff: self.init(format: 0, sequenceColumn: 1, beginColumn: 4, endColumn: 5)
+        case .sam: self.init(format: 1, sequenceColumn: 3, beginColumn: 4, endColumn: 0, metaChar: UInt8(ascii: "@"))
         }
     }
 
@@ -43,6 +45,7 @@ public struct TabixConfig: Sendable, Equatable {
         case "vcf": return .vcf
         case "bed", "bedgraph", "narrowpeak", "broadpeak": return .bed
         case "gff", "gff3", "gtf": return .gff
+        case "sam": return .sam
         default: return nil
         }
     }
@@ -361,7 +364,7 @@ struct TabixLineParser {
 
     init(config: TabixConfig) {
         self.config = config
-        lastColumn = config.isVCF ? Int.max : Int(max(config.sequenceColumn, config.beginColumn, config.endColumn))
+        lastColumn = config.isVCF ? Int.max : Int(max(config.sequenceColumn, config.beginColumn, config.endColumn, config.isSAM ? 6 : 0))
     }
 
     struct Interval { var name: Range<Int>; var beg: Int64; var end: Int64 }
@@ -374,6 +377,7 @@ struct TabixLineParser {
         // VCF state
         var refLength: Int64 = 0, infoEnd: Int64 = -1, svlen: Int64 = 0, fmtlen: Int64 = 0
         var symbolic = false, gvcf = false, lenPos = -1
+        var samLength: Int64 = 1
         let n = line.count
         var i = 0
         while col <= lastColumn {
@@ -387,6 +391,17 @@ struct TabixLineParser {
             } else if config.endColumn != 0 && col == config.endColumn && !config.isVCF {
                 guard let v = Self.integer(line, field) else { return nil }
                 end = v
+            }
+            if config.isSAM && col == 6 {
+                // htslib tbx_parse1: reference length from M, D and N only (not = or X); 1 when none.
+                var l: Int64 = 0, num: Int64 = 0
+                for k in field {
+                    let c = line[k]
+                    if c >= 48 && c <= 57 { num = num * 10 + Int64(c - 48); continue }
+                    if [77, 68, 78, 109, 100, 110].contains(c) { l += num }
+                    num = 0
+                }
+                samLength = l == 0 ? 1 : l
             }
             if config.isVCF {
                 switch col {
@@ -422,6 +437,8 @@ struct TabixLineParser {
         if config.isVCF {
             end = beg + max(refLength, svlen, fmtlen, 1)
             if infoEnd > end { end = infoEnd }
+        } else if config.isSAM {
+            end = beg + samLength
         } else if config.endColumn == 0 || end <= beg {
             end = beg + 1
         }

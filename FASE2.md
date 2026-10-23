@@ -386,3 +386,54 @@ Profilate con `sample` le operazioni del corpus di benchmark e PAR2 su 512 MB; n
 - **Alternative misurate:** MinHash del contenuto (peggio del nome), sola estensione, estensione e dimensione.
 - **Costo:** l'estrazione di una sola cartella può dover decomprimere più frame, perché i suoi file sono sparsi per tipo.
 - **Test:** `dataIsStoredSortedByTypeCatalogIsNot`.
+
+## CRAM 3.1 in lettura e scrittura (23/10/2026)
+
+CRAM ↔ BAM con riferimento FASTA, in `Sources/XipperKit/Genomics/CRAM/`, dalla specifica (hts-specs, CRAMv3.tex).
+
+- **Codec:** htscodecs 1.6.7 vendorizzato (BSD; rANS 4x8 e Nx16 con il percorso NEON, codificatore aritmetico adattivo, fqzcomp, tokenizer dei nomi), più gzip, bzip2 e xz di Xipper.
+- **Lettura (CRAM 3.0/3.1 → BAM):**
+  - container e blocchi con i loro CRC32;
+  - tutte le codifiche: EXTERNAL, HUFFMAN, BETA, SUBEXP, GAMMA, BYTE_ARRAY_LEN/STOP, Golomb;
+  - feature delle letture sul riferimento, mate "attaccati" e staccati, slice multi-riferimento, riferimento incorporato;
+  - MD5 di ogni slice confrontato con il riferimento dato;
+  - MD/NM rigenerati come fa samtools (disattivabile con `--no-md`);
+  - container decodificati in parallelo.
+- **Scrittura (BAM → CRAM 3.1, o 3.0):**
+  - un blocco esterno per serie di dati, compresso con il migliore tra rANS Nx16 (con PACK/RLE), arith e gzip;
+  - nomi con il tokenizer, qualità con fqzcomp;
+  - mate memorizzati per intero;
+  - sostituzioni con matrice ordinata per frequenza, basi ambigue come tratti `b`;
+  - `@SQ M5` aggiunti dal riferimento, o confrontati se già presenti.
+- **CLI:** `xipper cram [-r ref.fa] file.bam|file.cram` (`-o`, `--version 3.0`, `--no-md`, `-f`).
+- **Interoperabilità** (samtools 1.24):
+  - la nostra lettura dà gli stessi record di `samtools view` sui CRAM 3.0 e 3.1 di samtools: profili, riferimento incorporato, file ordinato per nome (slice multi-riferimento), bzip2/LZMA;
+  - samtools legge i nostri CRAM con record identici all'originale (a parte MD/NM che aggiunge).
+- **Misure** (248.573 letture simulate, BAM 27,8 MB):
+  - scrittura 0,76 s, 20,1 MB (samtools: 0,57 s, 19,9 MB);
+  - lettura 0,56 s (samtools: 0,85 s).
+- **Test:** suite "CRAM 3.1":
+  - andata e ritorno esatta 3.1 e 3.0 su dati generati con ogni operazione CIGAR e ogni tipo di tag;
+  - riferimento sbagliato e blocco danneggiato rifiutati;
+  - interop con samtools su 4 varianti in lettura e 2 in scrittura.
+- **Da fare:** CRAM nell'app (inspector, Quick Look, conversione); strumento MCP. (Il `.crai` si crea con `xipper index`.)
+
+## Indici per altri formati (23/10/2026)
+
+`xipper index <file>` (e `Xipper.buildIndex`) costruisce l'indice usuale, come gli strumenti di htslib:
+
+| Formato | Indice | Confronto con htslib |
+|---|---|---|
+| BAM | `.bai`, o `.csi` con `-C` | stesse `samtools idxstats` e stessi record su 300 regioni casuali |
+| CRAM | `.crai`, con una riga per riferimento nelle slice multi-riferimento | identico byte per byte a `samtools index` |
+| BCF | `.csi`, con la profondità calcolata dalle `##contig` | stessi record di `bcftools index -c` su 300 regioni |
+| FASTA/FASTQ, anche BGZF | `.fai` (con `.gzi` se compressi) | identici a `samtools faidx` |
+| SAM.gz | tabix, nuovo preset `sam` (fine dal CIGAR, solo M/D/N, commenti `@`) | stessa lista di sequenze e stessi record di `tabix -p sam` |
+
+- **BAM e BCF:** port di `hts_idx_push`/`hts_idx_finish` di htslib (`HTSIndexBuilder`):
+  - indice lineare solo per le letture mappate;
+  - conteggi mappate/non mappate nel bin meta;
+  - `n_no_coor` per le letture senza riferimento;
+  - i bin piccoli confluiscono nel padre.
+- **Verifica:** `index-check` controlla anche questi indici.
+- **Test:** suite "Genomics indexes".
