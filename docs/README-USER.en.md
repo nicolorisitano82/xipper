@@ -42,7 +42,7 @@ Xipper's Finder menu offers the fitting action first: **Decompress** on archives
 Finder actions always create new files next to the originals and never overwrite anything.
 
 ## Known limits
-- **RAR** opens read-only (multi-volume too); encrypted RAR5 archives open with their password, but not encrypted RAR 4 or encrypted multi-volume ones; ISO and MPEG-G are planned for 3.0.
+- **RAR** opens read-only (multi-volume too); encrypted RAR5 archives open with their password, but not encrypted RAR 4 or encrypted multi-volume ones; ISO, DMG and MPEG-G are planned, with no date yet.
 - CRAM files are not browsed like archives: convert them to BAM, with the reference FASTA they were written with.
 - Encrypted Apple Archives need a password of at least 20 characters (a macOS limit).
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.

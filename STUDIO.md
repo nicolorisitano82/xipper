@@ -20,8 +20,8 @@ Archiviatore nativo per macOS su Apple Silicon (arm64)
 | **Integrazione** | Finder Sync, Quick Look e miniature, Comandi Rapidi, Servizi, Dock e notifiche, barra dei menu, CLI inclusa, server MCP. |
 | **Grafica** | Icona e simboli ridisegnati dallo sprite A, icone dei documenti per formato dallo sprite C ([docs/design/](docs/design/)), sfondo del DMG. |
 | **Distribuzione** | Solo DMG su GitHub, firma self-signed, aggiornamenti manuali dall'app (§0). |
-| **Genomica nativa (XIG)** | Decisione del 23/10/2026: profilo genomico nativo di XIZ, opzione (b) dello studio [docs/XIZ_GENOMICS_STUDY.md](docs/XIZ_GENOMICS_STUDY.md), con il rischio brevettuale accettato dal titolare. Disegno in [docs/XIG_DESIGN.md](docs/XIG_DESIGN.md); un lettore XIG per IGV è in sviluppo in un repository separato. |
-| **Prossimi passi** | Rilascio della 2.1 (DMG); XIG fase X1 (prototipo Swift e benchmark B3, soglia ≥5% meno di CRAM 3.1); automazione (Tasks MCP, Comandi Rapidi) e rifiniture dell'interfaccia. v3: ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
+| **Genomica nativa (XIG)** | Decisione del 23/10/2026: profilo genomico nativo di XIZ, opzione (b) dello studio [docs/XIZ_GENOMICS_STUDY.md](docs/XIZ_GENOMICS_STUDY.md), con il rischio brevettuale accettato dal titolare. Disegno in [docs/XIG_DESIGN.md](docs/XIG_DESIGN.md): estensione `.xig` per gli archivi genomici, `.xiz` per gli altri. Un lettore XIG per IGV è in sviluppo in un repository separato. |
+| **Prossimi passi** | Rilascio della 2.1 (DMG); XIG fase X1 (prototipo Swift e benchmark B3, soglia ≥5% meno di CRAM 3.1); automazione (Tasks MCP, Comandi Rapidi) e rifiniture dell'interfaccia. In backlog, senza data: ISO/UDF e DMG, MPEG-G in sola lettura ([docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)). Dettagli in [docs/ROADMAP.md](docs/ROADMAP.md). |
 
 ---
 
@@ -163,11 +163,11 @@ Legenda: ✅ v1 · 🔜 v2 · 📖 solo lettura · ❌ no
 | **tar.zst**, **zstd** | ✅ | ✅ | | zstd (BSD), multithread nativo |
 | lz4, brotli (anche `tar.lz4`, `tar.br`) | ✅ 2.1 | ✅ fatto | | lz4: decoder del formato frame nostro; scrittura con lz4 1.10.0 vendorizzato (BSD-2), blocchi indipendenti da 4 MiB in parallelo, livelli veloci 1–2 e HC 3–12. brotli: decodifica con Compression di sistema, scrittura con brotli 1.2.1 vendorizzato (MIT, solo encoder), qualità 0–11 |
 | CPIO (newc, crc, odc), `.aar` (Apple Archive) | ✅ fatto | ✅ fatto | ✅ AEA (password di almeno 20 caratteri, limite di macOS) | cpio nostro (scrittura newc); Apple Archive tramite il framework AppleArchive di sistema (LZ4/LZFSE/LZMA, attributi estesi), con l'estrazione sicura di Xipper |
-| ISO 9660 / UDF | ❌ | 🔜 📖 v3 | | nostro (lettura semplice) |
+| ISO 9660 / UDF | ❌ | 📖 backlog (senza data) | | nostro (lettura semplice) |
 | **RAR / RAR5** | ❌ (vietato dalla licenza RAR) | ✅ solo lettura (23/10/2026, anticipata dalla v3) | ✅ RAR5 (2.1): AES-256, anche nomi cifrati e solidi, su un volume; ❌ RAR 4 cifrati e RAR5 cifrati a volumi | lettori RAR e RAR5 di libarchive 3.8.10 (BSD-2); decifratura RAR5 nostra (`Rar5Crypto.swift`), vedi sotto |
 | DMG | ❌ | ❌ | | si gestisce con `hdiutil`; non è un formato di archivio aperto |
 | **BGZF / bgzip** (`.gz`, `.bgz`, `.vcf.gz`, `.bed.gz`, `.fa.gz`; contenitore di BAM/BCF) | ✅ fase 1.6 | ✅ parallela | — | nostro, su libdeflate; vedi §4.4 |
-| **MPEG-G** (ISO/IEC 23092, `.mgb`/`.mgg`) | ❌ | 🔜 v3, sola lettura | — | rischio brevettuale accettato dal titolare il 23/10/2026; estensione di Genie, vedi §4.5 e [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md) |
+| **MPEG-G** (ISO/IEC 23092, `.mgb`/`.mgg`) | ❌ | 📖 backlog (senza data), sola lettura | — | rischio brevettuale accettato dal titolare il 23/10/2026; estensione di Genie, vedi §4.5 e [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md) |
 | **XIZ** (formato di Xipper, `.xiz`) | ✅ 1.1 | ✅ | ✅ Argon2id + AES-256-GCM su dati, nomi e metadati | nostro; [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md): frame zstd indipendenti, catalogo in coda, deduplicazione FastCDC, segmenti aggiunti in coda per la modifica in place |
 | **PAR2** (dati di recupero, `.par2`) | ✅ | ✅ verifica e riparazione | — | nostro, dalla specifica PAR 2.0 (Reed-Solomon su GF(2^16)); vale per qualsiasi archivio |
 
@@ -564,7 +564,7 @@ Dopo il core (fase 1) e prima dell'app: fase **1.5** "CLI + MCP", stimata in 1�
 | **4. v2** 🚧 | ✅ **Montaggio dell'archivio come volume**, in lettura e scrittura (WebDAV locale; FSKit bloccato dall'entitlement riservato). ✅ **XIZ stabile** (1.0, 1.1, 1.2 con i dizionari). ✅ **PAR2**. ✅ **Modifica in place**. ✅ **Ottimizzazioni ARM64/NEON, primo giro** (GF(2^16) di PAR2 in NEON, bzip2 a blocchi paralleli, xz con l'assembler di 7-Zip; GPU senza punti caldi che la ripaghino; [docs/BENCHMARK.md](docs/BENCHMARK.md)). ✅ dizionari XIZ; ✅ ZIP con bzip2, LZMA e xz; ✅ CRAM 3.1 in lettura e scrittura; ✅ RAR/RAR5 in lettura. Ordine e dettagli in [docs/ROADMAP.md](docs/ROADMAP.md) | **2.0.0 pubblicata il 23/10/2026** |
 | **4.1 v2.1** ✅ | Modifica di 7z senza ricompressione; ricerca dei blocchi spostati in PAR2; ZIP a volumi in scrittura; Deflate64 in lettura; creazione di lz4 e brotli; AES di RAR5 | completata nel codice il 23/10/2026 (DMG da rilasciare) |
 | **XIG** | Profilo genomico nativo di XIZ (opzione b): X1 prototipo e benchmark, X2 spec XIZ 1.3, X3 Xipper, X4 libxiz in C con plugin htslib, X5 lettori Java e Python; lettore per IGV in parallelo ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)) | decisione del 23/10/2026; 32–46 g fino a X3, 127–185 g con le librerie [stima] |
-| **5. v3** | Formati in sola lettura: ~~RAR/RAR5~~ (anticipato nella 2.0/2.1), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | da pianificare (decisione del 23/10/2026) |
+| **Backlog** | Formati in sola lettura: ~~RAR/RAR5~~ (fatto nella 2.0/2.1), **ISO 9660/UDF** e **DMG** non cifrati, **MPEG-G** (estensione di Genie, [docs/MPEGG_STUDY.md](docs/MPEGG_STUDY.md)) | senza data (decisione del 23/10/2026; prima previsti nella v3) |
 
 ---
 
@@ -579,7 +579,7 @@ Nome ed estensione: **XIZ**, **`.xiz`** (`.xip` è già di Apple; `.xiz` è usat
 2. ~~Livello di autoinclusione~~ → **B**, codec permissivi vendorizzati (21/10/2026).
 3. ~~Canale di distribuzione~~ → **solo DMG su GitHub, firma self-signed** (21/10/2026), senza account Apple Developer: niente notarizzazione, niente Mac App Store, niente FSKit (montaggio via WebDAV).
 4. ~~RAR~~ → **sola lettura, clean-room** (21/10/2026), §4.2.
-5. ~~MPEG-G~~ → rischio brevettuale accettato dal titolare per la **sola lettura** (23/10/2026, v3); CRAM 3.1 fatto nella v2.
+5. ~~MPEG-G~~ → rischio brevettuale accettato dal titolare per la **sola lettura** (23/10/2026, in backlog senza data); CRAM 3.1 fatto nella v2.
 7. ~~Genomica nativa in XIZ~~ → **opzione (b), XIG** (23/10/2026): profilo nativo con serie per campo, rischio brevettuale accettato dal titolare, regole del §3.3 dello studio genomico obbligatorie ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)). Restano aperte le domande del §11 del disegno (estensione, codec in Java/Python, FASTQ, parametri, parere sulle domande pendenti).
 6. ~~Modello di business~~ → **gratuito e open source, licenza MIT** (decisa il 21/10/2026, file `LICENSE`). Motivazioni:
    - **Compatibilità:** tutte le dipendenze sono permissive (zstd BSD-3, libdeflate MIT, liblzma 0BSD, ed eventualmente libarchive BSD-2 per RAR), quindi MIT non crea attriti.

@@ -18,7 +18,7 @@
   - l'export non è byte-esatto: si riottiene un BAM, SAM o CRAM **equivalente nei record**, verificabile con un digest dei record (§6.3);
   - un lettore XIZ 1.2 rifiuta l'archivio (bit obbligatorio nuovo);
   - un decoder di record in ogni linguaggio di lettura (C, Java, Python): è il costo principale (§10).
-- **Il formato dei file resta `.xiz`**: XIG è un profilo, segnalato dai bit di funzione; un archivio può contenere insieme allineamenti XIG, VCF, FASTA e file qualsiasi.
+- **Estensione `.xig` per la genomica, `.xiz` per tutto il resto** (decisione del 23/10/2026). Il contenitore è lo stesso (magic, catalogo, frame di XIZ): un archivio con insiemi di allineamenti (bit `genomic_codecs`) si chiama `.xig` e può contenere anche il FASTA di riferimento, VCF/BCF e altri file della stessa analisi. I lettori riconoscono il formato dai byte iniziali, non dall'estensione (§11).
 
 ---
 
@@ -68,13 +68,15 @@ Vantaggi:
 | Gruppo | Serie (nomi CRAM) | Contenuto | Granularità | Codec di default |
 |---|---|---|---|---|
 | **P** posizione | `BF` flag BAM · `CF` flag CRAM · `RI` ref id (solo slice multi-ref) · `RL` lunghezza · `AP` posizione (delta in slice ordinata) · `MQ` qualità di mappatura · `RG` read group | per record | slice | rANS Nx16 o1 (`AP`, `RL`: con pack/RLE automatici) |
-| **M** mate | `MF` flag del mate · `NS` ref del mate · `NP` posizione del mate · `TS` template size | per record, **sempre "detached"** (§9 regola 2) | slice | rANS Nx16 o1 |
+| **M** mate | `MF` flag del mate · `NS` ref del mate · `NP` posizione del mate · `TS` template size; per i mate nella stessa slice `NF` (distanza in record dal mate successivo), come CRAM 3.0 | per record; "attached" solo se il mate cade nella stessa slice (§11, decisione 6) | slice | rANS Nx16 o1 |
 | **F** feature | `FN` numero · `FC` codice · `FP` posizione · `DL` lunghezza di delezione · `RS` skip · `PD` padding · `HC` hard clip | per record | slice | rANS Nx16 o1 |
 | **S** sequenza | `BS` codice di sostituzione · `BA` basi · `IN` inserzioni · `SC` soft clip · `BB` blocchi di basi | per record | slice | aritmetico o1 (`BA`, `IN`, `SC`); rANS o1 (`BS`) |
 | **Q** qualità | `QS` (una stringa per record, `RL` byte) | per record | **span** | fqzcomp_qual |
 | **N** nomi | `RN` | per record | **span** | tokenizzatore 3 (con aritmetico) |
 | **T** tag | `TL` riga di tag · una serie per chiave e tipo (`NMc`, `MDZ`, `XAZ`…), come i content id dei tag in CRAM | per record | **span** (tag piccoli e caldi come `NM`, `AS`: slice, se il writer lo sceglie) | zstd 19 per le stringhe, rANS o1 per gli interi, scelta a campione |
 
+- **Senza riferimento, `BA` va compresso con un codec LZ (zstd, finestra lunga), non con l'aritmetico.** Misura del 23/10/2026 su un esoma reale (chr20, 6,6 M letture): le basi verbatim (814 MB) diventano 197 MB con l'aritmetico o1, ma 20 MB con il gzip di CRAM (serie `BB`), perché ad alta profondità le letture vicine si sovrappongono e ripetono la stessa sequenza, che solo un codec LZ trova.
+- **I writer scelgono il codec più piccolo per ogni serie** tra quelli ammessi (come `cram_compress_block` di htslib con le sue metriche), non un codec fisso.
 - **La scelta della granularità è per serie e scritta nell'XGI** (§5): il lettore non la presuppone. I default sopra sono raccomandazioni per i writer.
 - Una serie vuota (nessun valore nella slice o nello span) non ha frame.
 - Uno span non attraversa i confini di riferimento solo se il writer lo vuole: non serve alla correttezza.
@@ -231,7 +233,7 @@ Rischio accettato dal proprietario il 23/10/2026; le regole dello studio §3.3 r
 | Brevetto | Elemento richiesto dalla rivendicazione | In XIG |
 |---|---|---|
 | EP3526711B1, EP3526709B1 | classificazione delle letture in classi per tipo di mismatch, descrittori per classe, master index per classe | **nessuna classificazione**: tutti i record di una slice, mappati o no, perfetti o con indel, sono in un'unica sequenza in ordine di coordinata, con le stesse serie (regola 1) |
-| US11763918B2, EP3526706B1 | indice separato con start/end per unità **e** soglia MaxD nell'header che decide la collocazione delle coppie | **nessun MaxD** né equivalente; i mate sono sempre "detached" (`MF`, `NS`, `NP`, `TS` per record), mai raggruppati per distanza; selezione per sovrapposizione standard (regola 2). L'indice separato da solo è CRAI/BAI |
+| US11763918B2, EP3526706B1 | indice separato con start/end per unità **e** soglia MaxD nell'header che decide la collocazione delle coppie | **nessun MaxD** né equivalente: le slice si chiudono per numero di record, mai in base alla distanza tra i mate, e un mate viene collegato (`NF`) solo se capita già nella stessa slice, come in CRAM 3.0 (2014); nessuna coppia viene spostata o raggruppata; selezione per sovrapposizione standard (regola 2). L'indice separato da solo è CRAI/BAI |
 | US11404143B2 | non mappate raggruppate in cluster per signature | non mappate in coda, nell'ordine d'ingresso; nessun clustering (regola 3) |
 | US11386979B2 | unità di porzioni di riferimento con posizione assoluta, insieme a unità di letture classificate | riferimento esterno o FASTA intero per digest; nessun segmento di riferimento nell'insieme (regola 4) |
 | EP3652862B1 / US10938415B2 | codebook di quantizzazione delle qualità scelti per locus | qualità lossless con fqzcomp (regola 5) |
@@ -263,10 +265,20 @@ Totale fino a X3, cioè XIG in Xipper: **32–46 g**. Con le librerie: **127–1
 
 ---
 
-## 11. Domande ancora aperte
+## 11. Decisioni (23/10/2026)
 
-1. **Estensione**: `.xiz` per tutto (proposta), oppure `.xig` per gli archivi che contengono insiemi di allineamenti?
-2. **Codec in Java e Python** (X5): reimplementare fqzcomp e tok3 in puro Java/Python (lento, molto lavoro) o legare htscodecs via JNI/cffi (wheel e JAR per piattaforma)? Proposta: binding nativo solo per i codec, il resto puro.
-3. **FASTQ** non allineati: entrano in XIG (stesse serie Q e N, senza P/M/F, basi in `BA` con aritmetico)? Senza clustering (regola 3) il guadagno su zstd/BGZF è soprattutto da fqzcomp e tok3.
-4. **Parametri di default**: slice 10k e span 10 sono il punto di partenza; B7 li fissa.
-5. **Consulente brevettuale**: il rischio è accettato; resta utile un parere su EP3526712 e sulla domanda pendente US20200051665 prima di pubblicare la spec?
+Il proprietario ha deciso l'estensione e ha lasciato il resto a chi scrive il disegno.
+
+1. **Estensione: `.xig` per la genomica, `.xiz` per gli altri archivi** (decisione del proprietario).
+   - Un writer usa `.xig` quando l'archivio contiene almeno un insieme di allineamenti; dentro possono stare anche FASTA, VCF/BCF, indici e file qualsiasi della stessa analisi.
+   - Il contenitore è identico: i lettori (Xipper, libxiz, IGV, Java, Python) riconoscono `.xig` e `.xiz` dai byte iniziali e accettano entrambe le estensioni.
+   - Xipper dichiara un tipo `app.xipper.xig` (conforme a `app.xipper.xiz`) con la sua icona di documento.
+2. **Codec in Java e Python.**
+   - **Java: tutto puro.** htsjdk contiene già rANS Nx16, il range coder, fqzcomp e il tokenizzatore 3 in Java (il lettore IGV li usa e i round trip sul BAM reale passano): nessun JNI.
+   - **Python: puro per il contenitore, binding nativo solo per i quattro codec** (cffi su htscodecs, wheel per macOS arm64/x86-64, Linux, Windows). Reimplementare fqzcomp e tok3 in Python sarebbe lento e costoso; zstd, AES e Argon2 arrivano già da pacchetti con wheel.
+3. **FASTQ non allineati: fuori dalla prima versione**, in backlog. Restano entry normali (zstd o BGZF). Quando entreranno, sarà con le serie Q, N e `BA` (zstd), senza riordino né clustering (regola 3).
+4. **Parametri di default: slice da 10.000 record, span da 10 slice**, provvisori fino ai risultati B7 sul BAM reale (span 10 contro 16, con e senza riferimento). Il writer li scrive nell'XGI, quindi cambiarli non cambia il formato.
+5. **Parere brevettuale: non è un prerequisito** (rischio accettato). Prima di pubblicare la spec XIZ 1.3 si ricontrolla lo stato della domanda US20200051665 e di eventuali continuation; se sono state concesse rivendicazioni nuove, si rilegge il §9.
+6. **Mate collegati nella stessa slice** (aggiunta dopo il primo benchmark sul BAM reale: le serie `TS` e `NP` per record costavano circa 7–8 MB in più di CRAM su 6,6 M letture).
+   - Quando il mate di un record sta nella **stessa slice**, il record porta `NF` (quanti record più avanti) e il lettore ricava `NS`, `NP` e `TS` dal mate, come fa CRAM 3.0 dal 2014; altrimenti restano `MF`, `NS`, `NP`, `TS`.
+   - Le slice si chiudono **solo per numero di record** (e per i limiti di dimensione del §3.2), mai per tenere insieme una coppia; non esiste alcuna soglia di distanza (§9 regola 2).

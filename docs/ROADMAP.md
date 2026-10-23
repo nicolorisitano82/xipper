@@ -98,7 +98,7 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 - ✅ **indici** per altri formati (23/10/2026): `.bai`/`.csi` per BAM, `.crai`, `.csi` per BCF, `.fai` (+`.gzi`), tabix per SAM; `xipper index`;
 - ✅ **CRAM 3.1** in lettura e scrittura (23/10/2026: CRAM ↔ BAM con riferimento FASTA, htscodecs vendorizzato, interop con samtools; nell'app e in MCP dal 23/10/2026);
-- MPEG-G: spostato nella 3.0 (vedi sotto).
+- MPEG-G: in backlog, senza data (vedi sotto).
 
 ### Rinviate
 
@@ -121,15 +121,20 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 - ✅ **decisione** (23/10/2026): opzione (b) dello studio genomico, con il rischio brevettuale accettato dal proprietario; disegno in [XIG_DESIGN.md](XIG_DESIGN.md);
 - X1 prototipo Swift e benchmark B3 (soglia: ≥5% meno di CRAM 3.1 normal); X2 spec XIZ 1.3; X3 Xipper completo; X4 libxiz in C con plugin htslib; X5 lettori Java e Python;
-- lettore XIG per IGV, in una sessione separata.
+- ✅ **decisioni** (23/10/2026, [XIG_DESIGN.md §11](XIG_DESIGN.md)): estensione `.xig` per gli archivi genomici e `.xiz` per gli altri; Java puro (codec di htsjdk), Python puro con binding nativo solo per i codec; FASTQ in backlog; slice 10k e span 10 provvisori; mate collegati se cadono nella stessa slice, come CRAM 3.0;
+- primo benchmark sul BAM reale (chr20, 6,6 M letture, senza riferimento): XIG 106,6 MB contro CRAM 3.1 normal 106,7 MB e archive 91,7 MB, con lo scrittore di prova in Java; mancano le misure con riferimento e i mate collegati;
+- lettore XIG per IGV, in una sessione separata (branch `xig` di un fork locale, non pubblicato).
 
 ---
 
-## 3.0: formati in sola lettura
+## Formati in sola lettura
 
-Decisione del 23/10/2026: questi formati passano dalla 2.0 alla 3.0.
+- ✅ **RAR/RAR5** in sola lettura (23/10/2026, anticipato dalla 3.0), con i lettori di libarchive (BSD-2) e l'estrazione sicura di Xipper, volumi multipli compresi; RAR5 cifrati dalla 2.1.
 
-- ✅ **RAR/RAR5** in sola lettura (23/10/2026), con i lettori di libarchive (BSD-2) e l'estrazione sicura di Xipper, volumi multipli compresi; da fare: archivi cifrati (AES-256 di RAR5, intestazioni cifrate);
+## Backlog (senza data)
+
+Decisione del 23/10/2026: questi formati escono dalla 3.0 e restano in backlog, senza versione né data.
+
 - **ISO 9660/UDF** e **DMG** non cifrati;
 - **MPEG-G** in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie. Studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md), stima 35–50 giorni-persona; decisioni aperte nella §7 dello studio.
 

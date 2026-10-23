@@ -42,7 +42,7 @@ Il menu di Xipper nel Finder propone per prima l'azione adatta: **Decomprimi** s
 Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovrascrivono mai nulla.
 
 ## Limiti noti
-- **RAR** si apre in sola lettura (anche a volumi); i RAR5 cifrati si aprono con la loro password, non ancora i RAR 4 cifrati né i RAR5 cifrati a volumi; ISO e MPEG-G arriveranno con la 3.0.
+- **RAR** si apre in sola lettura (anche a volumi); i RAR5 cifrati si aprono con la loro password, non ancora i RAR 4 cifrati né i RAR5 cifrati a volumi; ISO, DMG e MPEG-G sono in programma, senza una data.
 - I CRAM non si sfogliano come archivi: si convertono in BAM, con il riferimento FASTA usato per scriverli.
 - Gli Apple Archive cifrati richiedono una password di almeno 20 caratteri (limite di macOS).
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.
