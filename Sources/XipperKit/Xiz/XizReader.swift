@@ -18,6 +18,14 @@ final class XizArchive: @unchecked Sendable {
     let segments: Int
     /// Dictionary frames (1.2): ID → frame index.
     let dictionaries: [UInt16: Int]
+    /// Keys per access group (1.3); a 1.0–1.2 encrypted archive has group 0 only.
+    let groupKeys: [UInt16: XizKeys]
+    /// 1.3: groups this reader has no key for (their entries are not listed).
+    let hiddenGroups: Int
+    /// 1.3: name and folders of each group it opened.
+    let groupInfo: [UInt16: (name: String, prefixes: [String])]
+    /// 1.3: the current segment's directory.
+    let directory: XizDirectory?
     private var ddicts: [UInt16: OpaquePointer] = [:]
     private let ddictLock = NSLock()
 
@@ -30,6 +38,12 @@ final class XizArchive: @unchecked Sendable {
 
     static func looksLike(_ head: [UInt8]) -> Bool { head.starts(with: Xiz.superMagic) }
 
+    /// XIZ 1.3 with a directory (access groups or signatures).
+    static func hasDirectory(_ path: String) throws -> Bool {
+        let r = try FileReader(path: path)
+        return try Xiz.Superblock.decode(try r.read(at: 0, count: Xiz.superblockSize)).required.contains(.directory)
+    }
+
     /// `passwordRequired` for an encrypted archive opened without a password, `wrongPassword` when it does not fit.
     init(path: String, password: String? = nil) throws {
         reader = try FileReader(path: path)
@@ -39,6 +53,23 @@ final class XizArchive: @unchecked Sendable {
         let sb = try Xiz.Superblock.decode(sbBytes)
         superblock = sb
         let dataStart = Int64(Xiz.superblockSize) + Int64(sb.keysLength)
+        if sb.required.contains(.directory) {
+            let l = try Self.loadDirectory(reader, sb: sb, sbBytes: sbBytes, dataStart: dataStart, password: password,
+                                           name: (path as NSString).lastPathComponent)
+            catalog = l.catalog
+            footer = l.footer
+            keys = l.groupKeys[0] ?? l.groupKeys.values.first
+            groupKeys = l.groupKeys
+            segments = l.segments
+            dictionaries = [:]
+            hiddenGroups = l.hidden
+            groupInfo = l.info
+            directory = l.directory
+            return
+        }
+        groupInfo = [:]
+        hiddenGroups = 0
+        directory = nil
         if sb.required.contains(.encrypted) {
             guard let password else { throw XipperError.passwordRequired(entry: (path as NSString).lastPathComponent) }
             guard dataStart + Int64(Xiz.footerSize) <= size else { throw XipperError.corrupt("XIZ keys block") }
@@ -53,6 +84,7 @@ final class XizArchive: @unchecked Sendable {
         } else {
             keys = nil
         }
+        groupKeys = keys.map { [0: $0] } ?? [:]
 
         let (footerStart, footer) = try Self.lastFooter(reader, dataStart: dataStart)
         guard footer.major == sb.major else { throw XipperError.corrupt("XIZ footer does not match the superblock") }
@@ -138,9 +170,139 @@ final class XizArchive: @unchecked Sendable {
         self.footer = footer
     }
 
+    struct Loaded {
+        var catalog: Xiz.Catalog
+        var footer: Xiz.Footer
+        var groupKeys: [UInt16: XizKeys]
+        var segments: Int
+        var hidden: Int
+        var info: [UInt16: (name: String, prefixes: [String])]
+        var directory: XizDirectory
+    }
+
+    /// 1.3 (§13): group keys from the stanzas the credentials open, the directory, the catalogs of
+    /// the groups held, and the same layout checks as for 1.0–1.2.
+    private static func loadDirectory(_ reader: FileReader, sb: Xiz.Superblock, sbBytes: [UInt8], dataStart: Int64,
+                                      password: String?, name: String) throws -> Loaded {
+        var groupKeys: [UInt16: XizKeys] = [:]
+        if sb.required.contains(.encrypted) {
+            let passwords = (password.map { [$0] } ?? []) + XizCredentials.shared.passwords
+            let identities = XizCredentials.shared.identities
+            guard !passwords.isEmpty || !identities.isEmpty else { throw XipperError.passwordRequired(entry: name) }
+            guard dataStart + Int64(Xiz.footerSize) <= reader.size else { throw XipperError.corrupt("XIZ keys block") }
+            let block = try reader.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength))
+            let opened = try XizAccessKeys.open(block, superblock: sbBytes, passwords: passwords, identities: identities)
+            guard !opened.groupKeys.isEmpty else {
+                if let t = opened.thresholds.first(where: { $0.opened > 0 && $0.opened < $0.k }) {
+                    throw XipperError.invalidArgument("\(name): \(t.label) needs \(t.k) custodians, \(t.opened) unlocked")
+                }
+                throw XipperError.wrongPassword(entry: name)
+            }
+            for (g, k) in opened.groupKeys { groupKeys[g] = XizKeys(fileKey: k, archiveID: sb.archiveID) }
+        }
+        let (footerStart, footer) = try lastFooter(reader, dataStart: dataStart)
+        guard footer.major == sb.major, footer.catalogCSize >= 16, footer.catalogCSize <= Int64(Xiz.maxCatalog),
+              footer.catalogOffset + footer.catalogCSize == footerStart else { throw XipperError.corrupt("invalid XIZ directory location") }
+        let dirBytes = try reader.read(at: footer.catalogOffset, count: Int(footer.catalogCSize))
+        guard Xiz.sha256(dirBytes) == footer.catalogSHA256 else { throw XipperError.corrupt("XIZ directory hash mismatch") }
+        let directory = try XizDirectory.decode(dirBytes)
+
+        // Earlier segments: from their first group catalog to the end of their footer is a declared gap.
+        var gaps: [Int64: Int64] = [:]
+        var segment: UInt32 = 0
+        var prev = Int64(bitPattern: footer.previousFooter)
+        var bound = footer.catalogOffset
+        while prev != 0 {
+            guard prev >= dataStart, prev + Int64(Xiz.footerSize) <= bound, segment < 65535 else { throw XipperError.corrupt("XIZ segment chain") }
+            let older = try Xiz.Footer.decode(try reader.read(at: prev, count: Xiz.footerSize))
+            guard older.catalogOffset >= dataStart, older.catalogOffset + older.catalogCSize == prev, older.catalogCSize <= Int64(Xiz.maxCatalog) else {
+                throw XipperError.corrupt("XIZ segment chain")
+            }
+            let od = try XizDirectory.decode(try reader.read(at: older.catalogOffset, count: Int(older.catalogCSize)))
+            let start = od.groups.map(\.offset).min()!
+            guard start >= dataStart, start <= older.catalogOffset else { throw XipperError.corrupt("XIZ segment chain") }
+            gaps[start] = prev + Int64(Xiz.footerSize)
+            bound = start
+            prev = Int64(bitPattern: older.previousFooter)
+            segment += 1
+        }
+
+        // Group catalogs: contiguous, right before the directory; those held are opened.
+        var next = directory.groups[0].offset
+        let catalogsStart = next
+        var frames: [Xiz.Frame]?
+        var entries: [Xiz.Entry] = []
+        var info: [UInt16: (name: String, prefixes: [String])] = [:]
+        var hidden = 0
+        for g in directory.groups {
+            guard g.offset == next, g.csize > 0, g.usize > 0, g.usize <= Int64(Xiz.maxCatalog), g.segment == segment else {
+                throw XipperError.corrupt("XIZ group catalogs out of place")
+            }
+            next = g.offset + g.csize
+            let k = groupKeys[g.group]
+            if sb.required.contains(.encrypted) && k == nil { hidden += 1; continue }
+            var packed = try reader.read(at: g.offset, count: Int(g.csize))
+            guard Xiz.sha256(packed) == g.sha256 else { throw XipperError.corrupt("XIZ group catalog hash mismatch") }
+            if let k {
+                let aad = XizKeys.groupCatalogAAD(archiveID: sb.archiveID, group: g.group, segment: g.segment, usize: g.usize,
+                                                  frameCount: footer.frameCount)
+                packed = try k.openCatalog(packed, aad: aad, segment: g.segment)
+            }
+            let raw = try packed.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(g.usize)) }
+            var c = try Xiz.decodeCatalog(raw)
+            guard let gi = c.group, c.frames.count == Int(footer.frameCount) else { throw XipperError.corrupt("XIZ group catalog") }
+            if let frames, frames != c.frames { throw XipperError.corrupt("XIZ group catalogs disagree on the frames") }
+            frames = c.frames
+            info[g.group] = gi
+            for i in c.entries.indices { c.entries[i].group = g.group }
+            entries += c.entries
+        }
+        guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ group catalogs do not reach the directory") }
+        // A reader holding no group catalog still knows the frame table from the footer only by count.
+        let c = Xiz.Catalog(frames: frames ?? [], entries: entries)
+        if frames != nil {
+            let overhead = UInt32(sb.required.contains(.encrypted) ? Xiz.tagSize : 0)
+            var at = dataStart
+            func skipGaps() { while let end = gaps[at] { at = end } }
+            for f in c.frames {
+                skipGaps()
+                guard f.offset == at, f.usize <= UInt32(Xiz.maxFrameData), f.csize <= UInt32(Xiz.maxFrameData) + 4096,
+                      f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead, f.flags == 0, f.dictionary == 0,
+                      directory.groups.contains(where: { $0.group == f.group }) else {
+                    throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
+                }
+                at = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
+            }
+            skipGaps()
+            guard at == catalogsStart else { throw XipperError.corrupt("XIZ frames overlap the catalogs") }
+        }
+        var total: UInt64 = 0
+        for e in c.entries {
+            var sum: UInt64 = 0
+            for x in e.extents {
+                guard Int(x.frame) < c.frames.count, c.frames[Int(x.frame)].group == e.group,
+                      UInt64(x.offset) + UInt64(x.length) <= UInt64(c.frames[Int(x.frame)].usize) else {
+                    throw XipperError.corrupt("XIZ extent outside its frame or its group: \(e.path)")
+                }
+                sum += UInt64(x.length)
+            }
+            guard e.type == .file ? sum == e.size : (e.extents.isEmpty && e.size == 0) else {
+                throw XipperError.corrupt("XIZ entry size does not match its data: \(e.path)")
+            }
+            total += e.size
+        }
+        if hidden == 0 {
+            guard total == footer.totalBytes, c.entries.count == Int(footer.entryCount) else { throw XipperError.corrupt("XIZ declared size mismatch") }
+        } else {
+            guard total <= footer.totalBytes, c.entries.count <= Int(footer.entryCount) else { throw XipperError.corrupt("XIZ declared size mismatch") }
+        }
+        return Loaded(catalog: c, footer: footer, groupKeys: groupKeys, segments: Int(segment) + 1, hidden: hidden, info: info,
+                      directory: directory)
+    }
+
     /// The last valid footer: normally the file's last 96 bytes; after an interrupted append, the
     /// one before the incomplete segment (searched backwards, its catalog location must fit).
-    private static func lastFooter(_ reader: FileReader, dataStart: Int64) throws -> (Int64, Xiz.Footer) {
+    static func lastFooter(_ reader: FileReader, dataStart: Int64) throws -> (Int64, Xiz.Footer) {
         let size = reader.size
         if let f = try? Xiz.Footer.decode(try reader.read(at: size - Int64(Xiz.footerSize), count: Xiz.footerSize)),
            f.catalogOffset + f.catalogCSize == size - Int64(Xiz.footerSize) {
@@ -176,9 +338,20 @@ final class XizArchive: @unchecked Sendable {
         }
     }
 
-    /// The digest stored for file content: SHA-256, or HMAC-SHA-256 under the archive's key.
-    func digest(_ chunks: [UnsafeRawBufferPointer]) -> [UInt8] {
-        if let keys {
+    /// The keys that open frame `index` (its group's), nil when not encrypted or not held.
+    func frameKeys(_ index: Int) -> XizKeys? {
+        directory == nil ? keys : groupKeys[catalog.frames[index].group]
+    }
+
+    /// The keys of an entry's group (its digest is keyed with them).
+    func entryKeys(_ e: Xiz.Entry) -> XizKeys? { directory == nil ? keys : groupKeys[e.group] }
+
+    /// Frames this reader can decode (all, unless groups are hidden from it).
+    func canOpen(frame index: Int) -> Bool { !superblock.required.contains(.encrypted) || frameKeys(index) != nil }
+
+    /// The digest stored for file content: SHA-256, or HMAC-SHA-256 under the entry's group key.
+    func digest(_ chunks: [UnsafeRawBufferPointer], for e: Xiz.Entry) -> [UInt8] {
+        if let keys = entryKeys(e) {
             var h = keys.fileDigest()
             for c in chunks { h.update(data: c) }
             return Array(h.finalize())
@@ -200,7 +373,8 @@ final class XizArchive: @unchecked Sendable {
         guard crc == f.crc else {
             throw XipperError.checksumMismatch(entry: "frame \(index)", expected: f.crc, actual: crc)
         }
-        if let keys { payload = try keys.openFrame(payload, index: UInt32(index), f) }
+        if let k = frameKeys(index) { payload = try k.openFrame(payload, index: UInt32(index), f) }
+        else if superblock.required.contains(.encrypted) { throw XipperError.passwordRequired(entry: "frame \(index)") }
         switch f.codec {
         case .store:
             guard payload.count == Int(f.usize) else { throw XipperError.corrupt("XIZ frame \(index) size") }
@@ -345,7 +519,7 @@ enum XizExtractor {
                 let f = try cache.frame(Int(x.frame))
                 data.append(contentsOf: f[Int(x.offset)..<Int(x.offset + x.length)])
             }
-            if let h = e.sha256, data.withUnsafeBytes({ a.digest([$0]) }) != h {
+            if let h = e.sha256, data.withUnsafeBytes({ a.digest([$0], for: e) }) != h {
                 throw XipperError.integrity(entry: e.path, detail: "SHA-256 mismatch")
             }
             for x in e.extents where lastUse[Int(x.frame)] == pos { cache.evict(Int(x.frame)) }
@@ -375,7 +549,7 @@ enum XizExtractor {
                        _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
         var left: [Int: Int] = [:]
         for x in e.extents { left[Int(x.frame), default: 0] += 1 }
-        var digest = XizContentDigest(keys: a.keys)
+        var digest = XizContentDigest(keys: a.entryKeys(e))
         var k = 0
         while k < e.extents.count {
             let batch = e.extents[k..<min(e.extents.count, k + window)]
@@ -405,6 +579,7 @@ enum XizExtractor {
         let failedFrames = Mutex<[Int: XipperError]>([:])
         if digests == nil {
             try parallelFor(a.catalog.frames.count, workload: workload, cancel: cancel) { i in
+                guard a.canOpen(frame: i) else { return }  // a group this reader cannot open
                 do {
                     let d = try a.frameData(i)
                     tracker.add(bytes: Int64(d.count))

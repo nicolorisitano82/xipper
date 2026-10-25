@@ -61,7 +61,7 @@ usage: xipper <command> [options]
           --convert        recompress a plain .gz as BGZF in place
           --info           block count, sizes, end-of-file marker
 \(genomics2Usage)
-
+\(xizUsage)
 common options:
   -j, --threads N          worker threads (default: performance cores)
       --background         run on efficiency cores at low priority
@@ -87,11 +87,12 @@ let knownFlags: Set<String> = command == "bgzip"
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
-                         "--read-only", "--discard", "--compact", "--numbered"])
+                         "--read-only", "--discard", "--compact", "--numbered", "--signing"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
-       "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir"]
+       "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
+       "--access", "--identity", "--sign", "--signer", "--timestamp", "-o", "--output"]
 do {
     var i = 0
     while i < args.count {
@@ -149,6 +150,8 @@ let workload: Workload = {
 @MainActor func readPassword(confirm: Bool) -> String? {
     if flag("--password-stdin") {
         guard let line = readLine(strippingNewline: true), !line.isEmpty else { fail("no password on stdin") }
+        // Further lines: more passwords (custodians of an XIZ k-of-n group).
+        while let more = readLine(strippingNewline: true) { if !more.isEmpty { XizCredentials.shared.add(password: more) } }
         return line
     }
     guard flag("-p", "--password") else { return nil }
@@ -168,6 +171,9 @@ let workload: Workload = {
 
 let cancel = CancellationToken()
 let sigint = cancelOnInterrupt(cancel)
+loadXizIdentities()
+if command == "keygen" { runKeygen() }
+if command == "history" { runHistory() }
 
 let showProgress = !flag("-q", "--quiet") && isatty(STDERR_FILENO) != 0
 let progress: ProgressHandler? = showProgress ? progressPrinter() : nil
@@ -237,7 +243,13 @@ case "create", "c":
     o.overwrite = flag("--overwrite")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
     o.workload = workload
-    o.password = readPassword(confirm: true)
+    if let p = value("--access") {
+        guard o.format == .xiz else { fail("--access needs the xiz format", code: 2) }
+        o.xizAccess = loadAccessPolicy(p)
+    }
+    o.xizSigner = xizSigner()
+    if o.xizSigner != nil && o.format != .xiz { fail("--sign needs the xiz format", code: 2) }
+    o.password = o.xizAccess != nil && !flag("-p", "--password", "--password-stdin") ? nil : readPassword(confirm: true)
     if o.format == .zip, let pw = o.password, pw.utf8.contains(where: { $0 >= 0x80 }) {
         fputs("xipper: warning: non-ASCII passwords cannot be entered in 7-Zip\n", stderr)
     }
@@ -303,6 +315,9 @@ case "list", "l":
     let pw = readPassword(confirm: false)
     run {
         let entries = try Xipper.list(URL(fileURLWithPath: positional[0]), password: pw, workload: workload)
+        if let access = try? Xipper.xizAccess(URL(fileURLWithPath: positional[0]), password: pw), access.hidden > 0 {
+            fputs("xipper: \(access.hidden) access group(s) of this archive are not opened by these credentials\n", stderr)
+        }
         let long = flag("--long")
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd HH:mm"
@@ -344,7 +359,9 @@ case "edit":
     let pw = readPassword(confirm: false)
     run {
         let archive = URL(fileURLWithPath: positional[0])
-        let r = try Xipper.edit(archive, changes: changes, password: pw, compact: flag("--compact"), progress: progress, cancel: cancel)
+        var o = CreateOptions()
+        o.xizSigner = xizSigner()
+        let r = try Xipper.edit(archive, changes: changes, password: pw, options: o, compact: flag("--compact"), progress: progress, cancel: cancel)
         endProgress()
         print("\(archive.lastPathComponent): \(r.entries) entries, \(r.copied) kept as they were, \(r.compressed) written\(r.rebuilt ? " (rebuilt)" : ""), \(r.outputBytes.bytesText)")
     }

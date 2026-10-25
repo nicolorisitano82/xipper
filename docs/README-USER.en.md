@@ -24,6 +24,7 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP, 7z and XIZ keep what does not change as it is, without recompressing it (in a solid 7z, only the blocks you touch are compressed again).
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
 - **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion.
+- **XIZ for sensitive data** (command line for now): give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, and sign every change so `xipper history` shows who changed what and when. `xipper help` lists `keygen`, `--access`, `--identity`, `--sign`, `--timestamp`, `history`.
 - **Genomics:**
   - BGZF compatible with `bgzip`;
   - **CRAM 3.1**: open a `.cram` or `.bam` and use **Convert to BAM…** / **Convert to CRAM…** with the reference FASTA (CRAM is usually 30–50% smaller than BAM, and samtools reads it);

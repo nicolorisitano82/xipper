@@ -1,7 +1,8 @@
-# XIZ archive format, version 1.2
+# XIZ archive format, version 1.3
 
-Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
-(2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+Status: **stable** up to 1.2. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
+(2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, draft
+until released in Xipper) adds access groups, k-of-n threshold keys and signed segments (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -56,7 +57,9 @@ There are no gaps and no overlaps. The footer ends the file.
 | 0 | encrypted | defined (§6) |
 | 1 | dictionaries | 1.2: dictionary frames and frames compressed with them (§12) |
 | 2 | append_chain | reserved, never set (appended segments are signalled by the footer, §11: the superblock is authenticated by the keys block and is never rewritten) |
-| 3–15 | — | reserved, zero |
+| 3 | genomic_codecs | reserved for the genomic profile XIG (docs/XIG_DESIGN.md), not yet specified |
+| 4 | directory | 1.3: catalog directory, access groups, threshold keys, signed segments (§13) |
+| 5–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved for embedded
 recovery data; bits 1–15 are reserved and zero. Recovery data for XIZ (and any other archive) is
@@ -332,3 +335,146 @@ its size of files under 128 KiB, only from zstd level 9 and when such files add 
 more. It uses the dictionary for frames made at least half of such files, loaded into the window
 (`ZSTD_dictForceLoad`) rather than attached. On 20,000 source files (53.6 MB) the archive is 1.0%
 smaller at level 12 and 1.1% at level 19, for about 0.4 s of training; at level 3 the gain is nil.
+
+## 13. Version 1.3: access groups, threshold keys, signed segments
+
+An archive that uses any of the following sets the required feature `directory` (superblock bit 4,
+`version_minor = 3`); readers without it refuse the archive.
+
+- **Access groups**: parts of the archive (folders) encrypted under different keys, so that each
+  recipient sees and extracts only the groups it holds keys for.
+- **Recipients**: the keys block can hold several recipients, each with a password or an X25519
+  public key, each unlocking its own set of groups.
+- **Threshold keys**: a set of groups can be unlocked only by *k* of *n* custodians together
+  (Shamir secret sharing); no custodian alone can open it.
+- **Signed segments**: every segment (§11) can carry an Ed25519 signature of its author, chained to
+  the previous segment's signature and optionally time-stamped by an RFC 3161 authority, so the
+  history of the archive's changes is attributable and tamper-evident.
+
+### 13.1 Layout and directory
+
+With `directory`, the footer's catalog fields (§7) locate the **directory** instead of a catalog:
+`catalog_offset`/`catalog_csize` are its position and length, `catalog_usize` equals `catalog_csize`,
+`catalog_sha256` is its SHA-256. Each segment is laid out as
+
+```
+frames                 (§4; frames of a group are sealed with that group's data key)
+group catalogs         one per group, in group order
+directory              plaintext, never compressed or encrypted
+footer                 (§7)
+```
+
+Directory:
+
+```
+magic             "XDIR"
+version           u16 = 1
+group_count       u16, at least 1
+groups            group_count × (group u16, segment u32, catalog_offset u64,
+                                 catalog_csize u64, catalog_usize u64, catalog_sha256[32])
+signature_length  u32 (0: unsigned)
+signature         signature_length bytes (§13.5)
+crc               u32: CRC32C of everything before it
+```
+
+- `group` values are strictly increasing; group 0 is always present.
+- `segment` is the segment whose nonces seal that catalog (§6.5): the current one for catalogs written
+  in this segment.
+- Group catalogs and the directory sit right after the last frame of the segment and right before
+  the footer, with no gaps; between frames, the regions allowed by §11 are earlier segments'
+  catalogs, directories and footers.
+- `frame_count`, `entry_count` and `total_bytes` in the footer are the totals over all groups.
+
+### 13.2 Group catalogs
+
+A group catalog is a catalog (§5) with `version = 2`:
+
+- its frame table lists **every** frame of the archive (frame headers are public anyway), so frame
+  indexes in extents stay global; each frame record is followed by `group u16`, the group whose key
+  seals the frame (also written in bytes 24–25 of the frame header, §4.1, which are zero otherwise),
+  so a reader knows which frames it can open, including frames no entry uses any more;
+- its entries are the entries of that group only;
+- after the last entry: `name_length u16`, `name` (UTF-8), `prefix_count u16`, then `prefix_count` ×
+  (`length u16`, path prefix as UTF-8). Group 0 has no prefixes ("everything else").
+
+An entry belongs to the group with the longest prefix equal to its path or to a leading run of its
+path components; otherwise to group 0. Writers list a directory in the group of its own path and
+**must not** let a group's extents point at frames sealed for another group: deduplication happens
+inside a group only. With more than one group, dictionaries (§12) are not used.
+
+Unencrypted archives with `directory` have exactly one group, 0, and their catalog is compressed as
+in §5 but not sealed (signed segments are their main use). In encrypted archives each group catalog
+is sealed as in §6.5 with that group's catalog key, nonces from the directory's `segment`, and
+
+`associated data = "XIZ13catalog" ‖ archive_id ‖ u16(group) ‖ u32(segment) ‖ u64(catalog_usize) ‖ u32(frame_count)`
+
+where `frame_count` is the footer's. Entry counts and sizes of a group are visible only inside its
+sealed catalog.
+
+### 13.3 Group keys and recipients
+
+Each group has its own random 256-bit **group key**; its data, catalog and file-MAC keys are derived
+from it as in §6.1. A recipient unlocks a **bundle** of group keys:
+
+```
+bundle = count u16, count × (group u16, key[32])
+```
+
+sealed with AES-256-GCM under a recipient key-encryption key (KEK), random 12-byte nonce, and
+`associated data = superblock[0..<60] ‖ type ‖ header`, where `header` is the stanza body up to the
+nonce. New stanza types in the keys block (§6.2):
+
+| Type | Name | Header | KEK |
+|---:|---|---|---|
+| 2 | password recipient | Argon2id memory u32, iterations u32, parallelism u32, salt[32], label | Argon2id as §6.2 |
+| 3 | public-key recipient | ephemeral X25519 public key[32], recipient key id[8], label | HKDF-SHA-256(X25519(ephemeral, recipient), salt = ephemeral ‖ recipient public key, info `xiz/1.3/x25519`) |
+| 4 | threshold group | threshold id u8, k u8, n u8, label | HKDF-SHA-256(T, salt = archive_id, info `xiz/1.3/threshold`) |
+| 5 | custodian share | threshold id u8, x u8, kind u8, then as type 2 (kind 1) or type 3 (kind 2) without the label, label | as type 2 or 3; the sealed plaintext is the share (32 bytes) instead of a bundle |
+
+- `label` is `u8 length` + UTF-8 (who the recipient is: "Laboratorio", "DPO"…); it is visible.
+- The recipient key id is the first 8 bytes of SHA-256 of the recipient's X25519 public key, so a
+  reader holding several identities tries only the matching one.
+- Each stanza body ends with `nonce[12] ‖ ciphertext ‖ tag[16]`.
+- **Threshold**: T is a random 256-bit secret split with Shamir's scheme over GF(2^8) (polynomial
+  x⁸+x⁴+x³+x+1), byte by byte, with a random polynomial of degree k−1 per byte; share *x* (1…n) is the
+  32 values at *x*. Any *k* shares rebuild T by Lagrange interpolation at 0; fewer reveal nothing.
+  `2 ≤ k ≤ n ≤ 255`.
+- A reader opens every stanza it can with the credentials it was given (passwords, X25519
+  identities, custodian credentials), unions the group keys, and shows only the groups it has keys
+  for. An archive where no group can be opened is refused like a wrong password.
+- Type 1 (§6.2) is not used together with `directory`.
+- The keys block is written once with the superblock: adding or removing recipients rewrites the archive.
+
+### 13.4 Appending
+
+A writer appends a segment (§11) only if it holds the keys of **all** groups: every group catalog is
+complete and rewritten in the new segment. (Holders of some groups only read.)
+
+### 13.5 Signed segments
+
+```
+algorithm        u8 = 1 (Ed25519)
+public_key       [32]
+label            u8 length + UTF-8 (the signer's name, visible)
+time             i64: seconds since 1970 UTC, by the signer's clock
+previous         [32]: the chained digest of the previous segment's signature, zeros if the previous
+                 segment is unsigned or there is none
+signature        [64]
+token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
+```
+
+- The signed message is
+  `"XIZ13sign" ‖ archive_id ‖ u32(segment) ‖ SHA-256(directory bytes before signature_length) ‖
+  u64(previous_footer) ‖ i64(time) ‖ previous ‖ algorithm ‖ public_key ‖ label`.
+  The directory lists the SHA-256 of every group catalog, each catalog lists every frame with its
+  CRC (and the AEAD binds each frame to its index), so the signature covers the whole segment.
+  It can be checked without any key to the content.
+- The **chained digest** of a signature is SHA-256(message ‖ signature); the next segment's
+  `previous` must equal it. A reader reports, for every segment: signed or not, signer key and
+  label, time, whether the chain holds, and the time-stamp. Which keys are trusted is up to the
+  reader (Xipper keeps a list).
+- The time-stamp token's message imprint is SHA-256 of the 64-byte signature. Readers verify the
+  token's CMS signature and report its `genTime` and authority; a time-stamp only proves that the
+  signature existed at that time.
+- Writers time-stamp only when the user configures an authority URL (Xipper makes no network
+  connection otherwise).

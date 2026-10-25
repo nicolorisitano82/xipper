@@ -56,6 +56,9 @@ extension Xipper {
         if format == .xiz && !compact {
             return try XizEditor.apply(tree, to: path, options: o, progress: progress, cancel: cancel)
         }
+        if format == .xiz, try XizArchive.hasDirectory(path) {
+            throw XipperError.unsupported("compacting an XIZ archive with access groups or signatures would drop them: create a new archive instead")
+        }
         if format == .sevenZip, let r = try SevenZipEditor.apply(tree, to: path, options: o, work: work, progress: progress, cancel: cancel) {
             return r
         }
@@ -464,6 +467,10 @@ enum XizEditor {
     static func apply(_ tree: EditTree, to path: String, options: CreateOptions, progress: ProgressHandler?,
                       cancel: CancellationToken?) throws -> EditReport {
         let a = try XizArchive(path: path, password: options.password)
+        if a.directory != nil { return try applyWithDirectory(a, tree, to: path, options: options, progress: progress, cancel: cancel) }
+        if options.xizSigner != nil {
+            throw XipperError.unsupported("this XIZ archive predates signed changes (XIZ 1.3): create it again with a signer")
+        }
         var byPath: [String: Xiz.Entry] = [:]
         var known: [[UInt8]: [Xiz.Extent]] = [:]
         for e in a.catalog.entries {
@@ -508,6 +515,78 @@ enum XizEditor {
         try out.sync()
         tracker.finish()
         return EditReport(entries: entries.count, copied: copied, compressed: entries.count - copied, rebuilt: false, outputBytes: out.position)
+    }
+
+    /// 1.3: the new segment rewrites every group's catalog, so it needs every group's key; new
+    /// data goes into the group of its path, deduplicated within that group; the segment is signed
+    /// (and chained to the previous signature) when `options.xizSigner` is set.
+    static func applyWithDirectory(_ a: XizArchive, _ tree: EditTree, to path: String, options: CreateOptions, progress: ProgressHandler?,
+                                   cancel: CancellationToken?) throws -> EditReport {
+        guard a.hiddenGroups == 0, let directory = a.directory else {
+            throw XipperError.unsupported("changing this archive needs the keys of every access group")
+        }
+        let groups = try directory.groups.map { g -> (id: UInt16, name: String, prefixes: [String]) in
+            guard let info = a.groupInfo[g.group] else { throw XipperError.corrupt("XIZ group \(g.group) without catalog") }
+            return (g.group, info.name, info.prefixes)
+        }
+        let map = XizGroupMap(groups: groups)
+        var byPath: [String: Xiz.Entry] = [:]
+        var known: [UInt16: [[UInt8]: [Xiz.Extent]]] = [:]
+        for e in a.catalog.entries {
+            if let p = MountedArchive.normalize(e.path), byPath[p] == nil { byPath[p] = e }
+            if let d = e.sha256, e.type == .file, known[e.group]?[d] == nil { known[e.group, default: [:]][d] = e.extents }
+        }
+        var fresh: [UInt16: [ArchiveItem]] = [:]
+        var freshCount = 0
+        for key in tree.order { if case let .disk(item)? = tree.nodes[key] { fresh[map.group(of: key), default: []].append(item); freshCount += 1 } }
+
+        let end = a.footerOffset + Int64(Xiz.footerSize)
+        let out = try AppendFile(path: path, at: end)
+        defer { out.close() }
+        let tracker = ProgressTracker(totalBytes: fresh.values.joined().reduce(0) { $0 + $1.size }, totalEntries: freshCount, handler: progress)
+        var frames = a.catalog.frames
+        var newByName: [String: Xiz.Entry] = [:]
+        for g in groups {
+            let (f, written) = try XizWriter.writeData(fresh[g.id] ?? [], to: out, startFrame: frames.count, known: known[g.id] ?? [:],
+                                                       keys: a.groupKeys[g.id], group: g.id, level: options.level ?? 3,
+                                                       extendedAttributes: options.storeExtendedAttributes,
+                                                       workload: options.workload, tracker: tracker, cancel: cancel)
+            frames += f
+            for e in written { newByName[e.path] = e }
+        }
+        var entries: [UInt16: [Xiz.Entry]] = [:]
+        var copied = 0, total = 0
+        for key in tree.order {
+            let group = map.group(of: key)
+            switch tree.nodes[key] {
+            case let .original(entry)?:
+                guard var e = byPath[MountedArchive.normalize(entry.path) ?? ""] else { continue }
+                guard e.group == group else {
+                    throw XipperError.invalidArgument("\(key): moving files to another access group is not supported (extract and add them)")
+                }
+                e.path = key
+                entries[group, default: []].append(e)
+                copied += 1
+            case .disk?:
+                if let e = newByName[key] { entries[group, default: []].append(e) }
+            case .newDirectory?:
+                let now = Date().timeIntervalSince1970
+                entries[group, default: []].append(Xiz.Entry(type: .directory, path: key, mode: 0o755, uid: getuid(), gid: getgid(),
+                                                             mtimeSec: Int64(now), mtimeNsec: 0, size: 0, link: "", xattrs: [], extents: [], sha256: nil))
+            case nil:
+                continue
+            }
+            total += 1
+        }
+        let previous = XizSignature.chainDigest(archiveID: a.superblock.archiveID, segment: UInt32(a.segments - 1), directory: directory,
+                                                previousFooter: a.footer.previousFooter)
+        try XizWriter.writeDirectorySegment(groups: groups, frames: frames, entries: entries, keys: a.groupKeys,
+                                            archiveID: a.superblock.archiveID, segment: UInt32(a.segments),
+                                            previousFooter: UInt64(a.footerOffset), signer: options.xizSigner,
+                                            previousSignature: previous, to: out)
+        try out.sync()
+        tracker.finish()
+        return EditReport(entries: total, copied: copied, compressed: total - copied, rebuilt: false, outputBytes: out.position)
     }
 }
 

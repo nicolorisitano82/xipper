@@ -117,6 +117,17 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 ---
 
+## XIZ 1.3: accesso per cartella, sblocco k-di-n, cronologia firmata
+
+Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in [XIZ_SPEC.md §13](XIZ_SPEC.md)):
+
+- ✅ **accesso per cartella** (25/10/2026): gruppi di accesso cifrati con chiavi diverse; più destinatari, ciascuno con una password o una chiave pubblica X25519, vedono ed estraggono solo i gruppi per cui hanno la chiave (gli altri non compaiono nemmeno nell'elenco);
+- ✅ **sblocco k-di-n** (25/10/2026): un gruppo si apre solo se k custodi su n danno insieme la loro credenziale (Shamir su GF(2⁸));
+- ✅ **cronologia firmata** (25/10/2026): ogni modifica aggiunta all'archivio è firmata Ed25519 dal suo autore, concatenata alla firma precedente e, a richiesta, marcata temporalmente da un'autorità RFC 3161; `xipper history` mostra chi ha cambiato cosa e quando, e se la catena è integra (la verifica non richiede la password);
+- per ora da riga di comando e in XipperKit (`xipper keygen`, `--access`, `--identity`, `--sign`, `--timestamp`, `xipper history`); da fare: le schermate nell'app (destinatari, custodi, cronologia) e le chiavi nel Portachiavi.
+
+---
+
 ## XIG: profilo genomico nativo di XIZ
 
 - ✅ **decisione** (23/10/2026): opzione (b) dello studio genomico, con il rischio brevettuale accettato dal proprietario; disegno in [XIG_DESIGN.md](XIG_DESIGN.md);

@@ -42,7 +42,9 @@ enum Xiz {
         static let dictionaries = Required(rawValue: 1 << 1)
         /// Reserved for 1.x: appended segments (footer.previousFooter).
         static let appendChain = Required(rawValue: 1 << 2)
-        static let understood: Required = [.encrypted, .dictionaries]
+        /// 1.3: catalog directory, access groups, threshold keys, signed segments (§13).
+        static let directory = Required(rawValue: 1 << 4)
+        static let understood: Required = [.encrypted, .dictionaries, .directory]
     }
 
     /// Features a reader may ignore.
@@ -63,6 +65,8 @@ enum Xiz {
         var codec: Codec
         var flags: UInt8 = 0
         var dictionary: UInt16 = 0
+        /// Access group whose key seals it (1.3); 0 otherwise.
+        var group: UInt16 = 0
     }
 
     struct Extent: Equatable {
@@ -85,6 +89,8 @@ enum Xiz {
         var extents: [Extent]
         /// SHA-256 of the content (HMAC-SHA-256 with the archive's MAC key when encrypted).
         var sha256: [UInt8]?
+        /// Access group (1.3); not stored in the entry, it is the group of the catalog that lists it.
+        var group: UInt16 = 0
 
         var modified: Date { Date(timeIntervalSince1970: Double(mtimeSec) + Double(mtimeNsec) / 1e9) }
     }
@@ -92,6 +98,8 @@ enum Xiz {
     struct Catalog {
         var frames: [Frame] = []
         var entries: [Entry] = []
+        /// Group catalogs (1.3, catalog version 2): the group's name and folders.
+        var group: (name: String, prefixes: [String])?
     }
 
     static func crc32c(_ data: UnsafeRawBufferPointer) -> UInt32 {
@@ -202,7 +210,8 @@ enum Xiz {
         var w = ByteWriter(capacity: frameHeaderSize)
         w.append(frameMagic); w.u8(f.codec.rawValue); w.u8(f.flags); w.u16(f.dictionary)
         w.u32(index); w.u32(f.csize); w.u32(f.usize); w.u32(f.crc)
-        w.append([UInt8](repeating: 0, count: 8))
+        w.u16(f.group)
+        w.append([UInt8](repeating: 0, count: 6))
         return w.bytes
     }
 
@@ -216,11 +225,12 @@ enum Xiz {
 
     static func encodeCatalog(_ c: Catalog) -> [UInt8] {
         var w = ByteWriter(capacity: 64 + c.frames.count * 24 + c.entries.count * 80)
-        w.append(catalogMagic); w.u16(versionMajor)
+        w.append(catalogMagic); w.u16(c.group == nil ? versionMajor : 2)
         w.u32(UInt32(c.frames.count))
         for f in c.frames {
             w.u64(UInt64(f.offset)); w.u32(f.csize); w.u32(f.usize); w.u32(f.crc); w.u8(f.codec.rawValue); w.u8(f.flags)
             w.u16(f.dictionary)
+            if c.group != nil { w.u16(f.group) }
         }
         w.u32(UInt32(c.entries.count))
         for e in c.entries {
@@ -247,6 +257,11 @@ enum Xiz {
             w.u16(UInt16(fields.count))
             for (tag, bytes) in fields { w.u16(tag.rawValue); w.u32(UInt32(bytes.count)); w.append(bytes) }
         }
+        if let g = c.group {
+            let n = Array(g.name.utf8); w.u16(UInt16(n.count)); w.append(n)
+            w.u16(UInt16(g.prefixes.count))
+            for p in g.prefixes { let b = Array(p.utf8); w.u16(UInt16(b.count)); w.append(b) }
+        }
         return w.bytes
     }
 
@@ -256,7 +271,7 @@ enum Xiz {
             guard Array(try r.bytes(4)) == catalogMagic else { throw XipperError.corrupt("XIZ catalog magic") }
             let version = try r.u16()
             if version == 0 { return try decodeLegacyCatalog(&r, size: raw.count) }
-            guard version == versionMajor else { throw XipperError.unsupported("XIZ catalog version \(version)") }
+            guard version == versionMajor || version == 2 else { throw XipperError.unsupported("XIZ catalog version \(version)") }
             var c = Catalog()
             let frames = Int(try r.u32())
             guard frames <= raw.count / 24 else { throw XipperError.corrupt("XIZ frame count") }
@@ -266,7 +281,8 @@ enum Xiz {
                 guard let codec = Codec(rawValue: try r.u8()) else { throw XipperError.unsupported("XIZ codec") }
                 let flags = try r.u8(), dict = try r.u16()
                 guard flags & ~dictionaryFrame == 0 else { throw XipperError.unsupported("XIZ frame flags \(flags)") }
-                c.frames.append(Frame(offset: off, csize: cs, usize: us, crc: crc, codec: codec, flags: flags, dictionary: dict))
+                let group = version == 2 ? try r.u16() : 0
+                c.frames.append(Frame(offset: off, csize: cs, usize: us, crc: crc, codec: codec, flags: flags, dictionary: dict, group: group))
             }
             let entries = Int(try r.u32())
             guard entries <= raw.count / 5 else { throw XipperError.corrupt("XIZ entry count") }
@@ -307,6 +323,12 @@ enum Xiz {
                 }
                 if type == .file && !(sawSize && sawExtents) { throw XipperError.corrupt("XIZ file without size or data: \(path)") }
                 c.entries.append(e)
+            }
+            if version == 2 {
+                let name = String(decoding: try r.bytes(Int(try r.u16())), as: UTF8.self)
+                var prefixes: [String] = []
+                for _ in 0..<Int(try r.u16()) { prefixes.append(String(decoding: try r.bytes(Int(try r.u16())), as: UTF8.self)) }
+                c.group = (name, prefixes)
             }
             guard r.remaining == 0 else { throw XipperError.corrupt("XIZ catalog trailing data") }
             return c
@@ -594,6 +616,14 @@ struct XizKeys: @unchecked Sendable {
     }
 
     func sealCatalog(_ plain: [UInt8], footer: Xiz.Footer, segment: UInt32 = 0) throws -> [UInt8] {
+        try sealCatalog(plain, aad: catalogAAD(footer), segment: segment)
+    }
+
+    func openCatalog(_ sealed: [UInt8], footer: Xiz.Footer, segment: UInt32 = 0) throws -> [UInt8] {
+        try openCatalog(sealed, aad: catalogAAD(footer), segment: segment)
+    }
+
+    func sealCatalog(_ plain: [UInt8], aad: Data, segment: UInt32) throws -> [UInt8] {
         precondition(segment < 1 << 24)
         var out = [UInt8]()
         out.reserveCapacity(plain.count + (plain.count / Self.catalogChunk + 1) * Xiz.tagSize)
@@ -601,7 +631,7 @@ struct XizKeys: @unchecked Sendable {
         repeat {
             let end = min(plain.count, start + Self.catalogChunk)
             let box = try AES.GCM.seal(plain[start..<end], using: catalog, nonce: try catalogNonce(counter, last: end == plain.count, segment: segment),
-                                       authenticating: catalogAAD(footer))
+                                       authenticating: aad)
             out += Array(box.ciphertext) + Array(box.tag)
             start = end
             counter += 1
@@ -609,7 +639,7 @@ struct XizKeys: @unchecked Sendable {
         return out
     }
 
-    func openCatalog(_ sealed: [UInt8], footer: Xiz.Footer, segment: UInt32 = 0) throws -> [UInt8] {
+    func openCatalog(_ sealed: [UInt8], aad: Data, segment: UInt32) throws -> [UInt8] {
         guard segment < 1 << 24 else { throw XipperError.corrupt("XIZ segment number") }
         var out = [UInt8]()
         var start = 0, counter: UInt64 = 0
@@ -621,7 +651,7 @@ struct XizKeys: @unchecked Sendable {
             do {
                 let box = try AES.GCM.SealedBox(nonce: try catalogNonce(counter, last: last, segment: segment), ciphertext: sealed[start..<(end - Xiz.tagSize)],
                                                 tag: sealed[(end - Xiz.tagSize)..<end])
-                out += Array(try AES.GCM.open(box, using: catalog, authenticating: catalogAAD(footer)))
+                out += Array(try AES.GCM.open(box, using: catalog, authenticating: aad))
             } catch {
                 throw XipperError.integrity(entry: "catalog", detail: "authentication failed (data altered or truncated)")
             }

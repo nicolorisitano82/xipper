@@ -88,6 +88,32 @@ struct FuzzTests {
         }
     }
 
+    /// XIZ 1.3: keys block with several recipients and a k-of-n group, the directory, group
+    /// catalogs, a signed appended segment, under mutation.
+    @Test func mutatedXiz13NeverCrashesOrEscapes() throws {
+        let t = TempDir()
+        t.write("src/a.txt", String(repeating: "Xipper fuzz ", count: 300))
+        t.write("src/sub/b.bin", sampleData(20 << 10, seed: 5))
+        t.write("src/priv/c.txt", "riservato\n")
+        t.write("more.txt", "appended\n")
+        var o = CreateOptions()
+        o.format = .xiz
+        o.xizKDF = .minimum
+        o.xizAccess = XizAccess(groups: [.init(name: "priv", prefixes: ["src/priv"])],
+                                recipients: [.init(label: "A", credential: .password("fuzz")),
+                                             .init(label: "B", credential: .password("other"), groups: ["priv"])],
+                                thresholds: [.init(label: "T", k: 2, custodians: [.init(label: "1", credential: .password("x")),
+                                                                                    .init(label: "2", credential: .password("y"))])])
+        let signer = XizSigner(key: XizSigningKey(), label: "Fuzz")
+        o.xizSigner = signer
+        try fuzz(.xiz, o, password: "fuzz", t) { a in
+            var e = CreateOptions()
+            e.xizSigner = signer
+            try Xipper.edit(a, changes: [.delete("src/a.txt"), .add(t.url("more.txt"), as: "src/more.txt")], password: "fuzz", options: e)
+            _ = try Xipper.xizHistory(a)
+        }
+    }
+
     /// RAR (read only, libarchive's readers): libarchive's own test vectors under mutation.
     /// The encrypted RAR5 vectors go through Xipper's decrypting stream (Rar5Crypto.swift).
     @Test(arguments: ["rar_compress_normal.rar", "rar5_multiple_files_solid.rar", "rar5_compressed.rar", "rar_unicode.rar",
@@ -133,6 +159,7 @@ struct FuzzTests {
             _ = try? ArchiveFormat.detect(sample)
             _ = try? Xipper.list(sample, password: password)
             _ = try? Xipper.test(sample, password: password, workload: .threads(2))
+            if format == .xiz { _ = try? Xipper.xizHistory(sample) }
             let dest = "out\(i)"
             t.mkdir(dest)
             var options = ExtractOptions()

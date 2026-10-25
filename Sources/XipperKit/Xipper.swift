@@ -125,6 +125,11 @@ public struct CreateOptions: Sendable {
     public var xizDictionary = true
     /// Tests: small-file bytes needed for a dictionary (default XizDictionary.minimumSmallBytes).
     var xizDictionaryThreshold: Int64?
+    /// XIZ 1.3: access groups, recipients and threshold custodians (the password, if any, is one
+    /// more recipient opening everything).
+    public var xizAccess: XizAccess?
+    /// XIZ 1.3: signs the archive (and, in `Xipper.edit`, each change appended to it).
+    public var xizSigner: XizSigner?
     /// ZIP: also store them as AppleDouble files in `__MACOSX/`, like the Finder's "Compress"
     /// (off by default: Windows users see that folder).
     public var zipAppleDouble = false
@@ -266,6 +271,7 @@ public enum Xipper {
             return try XizWriter.write(items: items, to: path, level: options.level ?? 3, password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
+                                       access: options.xizAccess, signer: options.xizSigner,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .rar:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
@@ -429,6 +435,19 @@ public enum Xipper {
     }
 
     /// `password` is needed only for 7z archives with encrypted names.
+    /// XIZ 1.3: every segment's signature, oldest first: signer, time, whether it checks, whether
+    /// the chain to the previous change holds, the time-stamp. Needs no password.
+    public static func xizHistory(_ archive: URL) throws -> [XizSegmentSignature] {
+        try XizSignature.history(archive.standardizedFileURL.path)
+    }
+
+    /// XIZ 1.3: which access groups the credentials open (names; "" is the main group) and how
+    /// many stay hidden.
+    public static func xizAccess(_ archive: URL, password: String? = nil) throws -> (groups: [String], hidden: Int) {
+        let a = try XizArchive(path: archive.standardizedFileURL.path, password: password)
+        return (a.groupInfo.sorted { $0.key < $1.key }.map(\.value.name), a.hiddenGroups)
+    }
+
     public static func list(_ archive: URL, password: String? = nil, workload: Workload = .interactive) throws -> [ArchiveEntry] {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }

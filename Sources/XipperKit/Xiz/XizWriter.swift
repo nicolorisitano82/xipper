@@ -32,7 +32,13 @@ enum XizWriter {
 
     static func write(items: [ArchiveItem], to path: String, level: Int, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
+                      access: XizAccess? = nil, signer: XizSigner? = nil,
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
+        if access != nil || signer != nil {
+            return try writeWithDirectory(items: items, to: path, level: level, password: password, kdf: kdf,
+                                          extendedAttributes: extendedAttributes, access: access, signer: signer,
+                                          workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
+        }
         let total = items.reduce(Int64(0)) { $0 + $1.size }
         let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count, handler: progress)
         var archiveID = [UInt8](repeating: 0, count: 16)
@@ -110,7 +116,7 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
+                          group: UInt16 = 0, level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
         let gear = gear(keys)
@@ -324,7 +330,7 @@ enum XizWriter {
                     codec = .zstd
                     payload = c
                 }
-                var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec, dictionary: dictID)
+                var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec, dictionary: dictID, group: group)
                 if let keys { payload = try keys.sealFrame(payload, index: UInt32(global), f) }
                 f.csize = UInt32(payload.count)
                 f.crc = Xiz.crc32c(payload)
@@ -358,6 +364,108 @@ enum XizWriter {
         footer.catalogCSize = Int64(packed.count)
         footer.catalogSHA256 = Xiz.sha256(packed)
         try packed.withUnsafeBytes { try out.write($0) }
+        try out.write(footer.encode())
+    }
+
+    // MARK: 1.3: directory, access groups, signed segments (§13)
+
+    /// An archive with a directory: each access group's data is written as if it were an archive of
+    /// its own (frames sealed with the group's key, deduplication inside the group), then one
+    /// catalog per group, the directory (signed when there is a signer) and the footer.
+    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, password: String?, kdf: XizKeys.KDF,
+                                   extendedAttributes: Bool, access: XizAccess?, signer: XizSigner?,
+                                   workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
+        let total = items.reduce(Int64(0)) { $0 + $1.size }
+        let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count, handler: progress)
+        var archiveID = [UInt8](repeating: 0, count: 16)
+        arc4random_buf(&archiveID, 16)
+        var superblock = Xiz.Superblock(archiveID: archiveID)
+        superblock.required.insert(.directory)
+        superblock.minor = 3
+        let map = try XizGroupMap(access)
+
+        // The password of the call, if any, is one more recipient that opens every group.
+        var policy = access ?? XizAccess()
+        if let password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(password)), at: 0) }
+        let encrypted = !policy.recipients.isEmpty || !policy.thresholds.isEmpty
+        guard encrypted || map.groups.count == 1 else {
+            throw XipperError.invalidArgument("access groups need recipients (a password or a public key)")
+        }
+        var groupKeys: [UInt16: XizKeys] = [:]
+        var keysBlock: [UInt8] = []
+        if encrypted {
+            var raw: [UInt16: SymmetricKey] = [:]
+            for g in map.groups {
+                raw[g.id] = SymmetricKey(size: .bits256)
+                groupKeys[g.id] = XizKeys(fileKey: raw[g.id]!, archiveID: archiveID)
+            }
+            let stanzas = try XizAccessKeys.prepare(policy, groupIDs: map.ids, groupKeys: raw, archiveID: archiveID, kdf: kdf)
+            let size = XizAccessKeys.size(stanzas)
+            guard size <= Xiz.maxKeysBlock else { throw XipperError.limitExceeded("too many recipients for one XIZ archive") }
+            superblock.required.insert(.encrypted)
+            superblock.keysLength = UInt32(size)
+            keysBlock = try XizAccessKeys.seal(stanzas, superblock: superblock.encode())
+        }
+        if !overwrite && FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
+        let out = try OutputFile(path: path)
+        try out.write(superblock.encode())
+        if !keysBlock.isEmpty { try out.write(keysBlock) }
+
+        var byGroup: [UInt16: [ArchiveItem]] = [:]
+        for item in items { byGroup[map.group(of: MountedArchive.normalize(item.name) ?? item.name), default: []].append(item) }
+        var frames: [Xiz.Frame] = []
+        var entries: [UInt16: [Xiz.Entry]] = [:]
+        for g in map.groups {
+            let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
+                                       group: g.id, level: level, extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
+            frames += f
+            entries[g.id] = e
+        }
+        try writeDirectorySegment(groups: map.groups, frames: frames, entries: entries, keys: groupKeys, archiveID: archiveID,
+                                  segment: 0, previousFooter: 0, signer: signer, previousSignature: [UInt8](repeating: 0, count: 32), to: out)
+        let size = out.position
+        try out.commit(overwrite: overwrite)
+        tracker.add(bytes: total - tracker.completedBytes, entries: items.count)
+        tracker.finish()
+        return WriteReport(entries: items.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
+    }
+
+    /// The end of a 1.3 segment: one catalog per group (every frame of the archive, the group's
+    /// entries, its name and folders; sealed with the group's key when encrypted), the directory
+    /// (signed by `signer`, chained to `previousSignature`) and the footer.
+    static func writeDirectorySegment(groups: [(id: UInt16, name: String, prefixes: [String])], frames: [Xiz.Frame],
+                                      entries: [UInt16: [Xiz.Entry]], keys: [UInt16: XizKeys], archiveID: [UInt8], segment: UInt32,
+                                      previousFooter: UInt64, signer: XizSigner?, previousSignature: [UInt8], to out: XizOutput) throws {
+        var directory = XizDirectory(groups: [])
+        var entryCount = 0
+        var totalBytes: UInt64 = 0
+        for g in groups {
+            let list = entries[g.id] ?? []
+            entryCount += list.count
+            totalBytes += list.reduce(UInt64(0)) { $0 + $1.size }
+            let raw = Xiz.encodeCatalog(Xiz.Catalog(frames: frames, entries: list, group: (g.name, g.prefixes)))
+            var packed = raw.withUnsafeBytes { ZipWriter.zstdCompress($0, level: 9, allowExpansion: true) } ?? raw
+            if let k = keys[g.id] {
+                let aad = XizKeys.groupCatalogAAD(archiveID: archiveID, group: g.id, segment: segment, usize: Int64(raw.count),
+                                                  frameCount: UInt32(frames.count))
+                packed = try k.sealCatalog(packed, aad: aad, segment: segment)
+            }
+            directory.groups.append(XizDirectory.GroupCatalog(group: g.id, segment: segment, offset: out.position, csize: Int64(packed.count),
+                                                              usize: Int64(raw.count), sha256: Xiz.sha256(packed)))
+            try out.write(packed)
+        }
+        if let signer {
+            let record = try XizSignature.sign(signer, archiveID: archiveID, segment: segment, directory: directory,
+                                               previousFooter: previousFooter, previous: previousSignature)
+            directory.signature = record.encode()
+        }
+        let dir = directory.encode()
+        var footer = Xiz.Footer(catalogOffset: out.position, catalogCSize: Int64(dir.count), catalogUSize: Int64(dir.count),
+                                frameCount: UInt32(frames.count), entryCount: UInt32(entryCount), totalBytes: totalBytes,
+                                catalogSHA256: Xiz.sha256(dir))
+        footer.minor = 3
+        footer.previousFooter = previousFooter
+        try out.write(dir)
         try out.write(footer.encode())
     }
 
