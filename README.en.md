@@ -2,7 +2,11 @@
 
 *[Italiano](README.md) · English*
 
-A native archiver for macOS on Apple Silicon. It creates, extracts, verifies and encrypts ZIP, 7z, tar (gz, bz2, xz, zst), cpio, Apple Archive and XIZ, Xipper's own format ([specification](docs/XIZ_SPEC.md)). It also reads lz4, brotli and split ZIP archives, and handles single compressed files and BGZF/bgzip for genomics (tabix/CSI indexes, VCF/BCF/BAM/CRAM checks, checksum manifests).
+A native archiver for macOS on Apple Silicon. It creates, extracts, verifies and encrypts ZIP (also bzip2, LZMA, xz, zstd, Deflate64, split volumes), 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive and XIZ, Xipper's own format ([specification](docs/XIZ_SPEC.md)). It also opens RAR and RAR5 archives, encrypted RAR5 included. For genomics it converts BAM ↔ CRAM 3.1, writes BGZF/bgzip and the indexes samtools, bcftools and tabix use, and checks VCF/BCF/BAM/CRAM files.
+
+| Compress | Browse, verify, repair |
+|---|---|
+| ![Xipper's main window: drop files to compress, with format, level and password](docs/screenshots/comprimi.png) | ![An XIZ archive open in Xipper: entries, inspector, verification and PAR2 recovery data](docs/screenshots/archivio.png) |
 
 It needs no third-party software at run time: the open-source codecs are compiled into the app (see [Vendor/README.md](Vendor/README.md)). The project documents are written in Italian.
 
@@ -12,7 +16,9 @@ It needs no third-party software at run time: the open-source codecs are compile
 - SwiftUI app (phase 2): [FASE2.md](FASE2.md) · UI specification: [docs/UI_SPEC.md](docs/UI_SPEC.md)
 - Benchmarks: [docs/BENCHMARK.md](docs/BENCHMARK.md)
 - Beta testers: [docs/BETA_TESTERS.en.md](docs/BETA_TESTERS.en.md)
-- Roadmap (v1.0, v2; in Italian): [docs/ROADMAP.md](docs/ROADMAP.md)
+- Roadmap (in Italian): [docs/ROADMAP.md](docs/ROADMAP.md)
+- XIZ format specification: [docs/XIZ_SPEC.md](docs/XIZ_SPEC.md)
+- Genomics: [XIZ for genomics, study](docs/XIZ_GENOMICS_STUDY.md) · [XIG design](docs/XIG_DESIGN.md) · [MPEG-G study](docs/MPEGG_STUDY.md) (in Italian)
 
 ## Highlights
 
@@ -25,8 +31,15 @@ It needs no third-party software at run time: the open-source codecs are compile
   - XIZ: Argon2id and AES-256-GCM over data, names and metadata.
   - Passwords can be saved in the Keychain and unlocked with Touch ID.
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
-- **Edit archives without unpacking them.** Delete, rename and add entries; ZIP and XIZ keep untouched entries as they are (no recompression).
-- **PAR2 recovery data.** Written from the specification, compatible with par2cmdline and MultiPar; damaged archives are repaired from the window or the CLI.
+- **Edit archives without unpacking them.** Delete, rename and add entries; ZIP, 7z and XIZ keep untouched entries as they are (no recompression; in a solid 7z only the touched blocks).
+- **PAR2 recovery data.** Written from the specification, compatible with par2cmdline and MultiPar; damaged archives are repaired from the window or the CLI, also when data was shifted by an insertion or a deletion.
+- **XIZ for sensitive data** (XIZ 1.3, command line for now), features no common archive format has:
+  - **per-folder access:** several recipients (password or X25519 public key), each sees and extracts only its folders; the others do not even appear;
+  - **k-of-n unlock:** a folder opens only when, say, 2 of 3 custodians unlock together (Shamir secret sharing);
+  - **signed history:** every change is signed (Ed25519), chained to the previous one and optionally time-stamped (RFC 3161); `xipper history` checks it without the password;
+  - **proof of one file:** prove that a file belongs to the signed archive without handing over the rest (Merkle tree, RFC 6962); anyone can verify it with the file alone;
+  - **erasure:** in archives created as erasable each file has its own key; erasing it makes the content unreadable in every version of the archive (copies made earlier keep it).
+- **Genomics.** CRAM 3.1 read and write (htscodecs), `.bai`/`.csi`/`.crai`/`.fai`/tabix indexes, BGZF compatible with `bgzip`, checks of VCF/BCF/BAM/CRAM. XIG, a native genomic profile of XIZ, is being designed ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)).
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**
   - Finder extension, Quick Actions, Quick Look previews and thumbnails.
@@ -39,17 +52,19 @@ It needs no third-party software at run time: the open-source codecs are compile
 
 ```
 Package.swift            SwiftPM: C codecs + XipperKit + CLI + tests (macOS 26, arm64)
-Vendor/                  zstd, libdeflate, liblzma, LZMA SDK (PPMd, ARM64 LZMA decoder)
-Sources/CXipShims/       C wrappers over the system zlib/bzip2, CRC-32C
+Vendor/                  zstd, libdeflate, liblzma, LZMA SDK (PPMd, ARM64 LZMA decoder), htscodecs, libarchive (RAR),
+                         lz4, brotli (encoder), Argon2
+Sources/CXipShims/       C helpers: zlib/bzip2 wrappers, CRC-32C, GF(2^16) NEON for PAR2, Deflate64
 Sources/XipperKit/       Swift core
   Xipper.swift           public API: create / extract / test / list, format detection
   Zip/                   parallel writer (ZIP64, AES-256, ZipCrypto, zstd), reader (also split), extraction, verification
-  Tar/                   tar, cpio, Apple Archive; streaming (de)compression
+  Tar/                   tar, cpio, Apple Archive, RAR (libarchive) with RAR5 decryption; streaming (de)compression
+  Xiz/                   XIZ: writer, reader, access groups and recipients, signatures, proofs, erasure
   SevenZip/              7z: headers, coder graph, BCJ/BCJ2 filters, parallel LZMA2, volumes
   Codecs/                deflate, parallel gzip/bzip2/BGZF, xz/zstd, LZ4 frames, brotli, CRC-32
   Crypto/                WinZip AES, 7z AES-256-CBC, ZipCrypto
   Extraction/            safe extraction shared by every format
-  Genomics/              tabix/CSI, index and CRAM/VCF/BCF checks, checksum manifests
+  Genomics/              CRAM 3.1, BAM, indexes (tabix/CSI/BAI/CRAI/FAI), CRAM/VCF/BCF checks, checksum manifests
   Mount/                 archives mounted as volumes: copy-on-write tree, local WebDAV server, NetFS
   Support/               P/E-core concurrency, I/O, source scanning, extended attributes, AppleDouble
 Sources/XipperMCP/       MCP server
@@ -155,6 +170,42 @@ Genomics (BGZF, compatible with `bgzip`), tabix/CSI indexes and checksum manifes
 .build/release/xipper manifest create -o delivery.json data/
 ```
 
+XIZ for sensitive data: keys, access policy, signed changes, proofs, erasure:
+
+```bash
+.build/release/xipper keygen -o research.key
+```
+
+```bash
+.build/release/xipper keygen --signing -o signing.key
+```
+
+```bash
+.build/release/xipper create -f xiz --access policy.json --sign signing.key --signer "Lab" case.xiz case/
+```
+
+```bash
+.build/release/xipper list --identity research.key case.xiz
+```
+
+```bash
+.build/release/xipper history case.xiz
+```
+
+```bash
+.build/release/xipper prove -p case.xiz case/reports/r1.pdf -o r1.proof.json
+```
+
+```bash
+.build/release/xipper verify-proof r1.proof.json r1.pdf
+```
+
+```bash
+.build/release/xipper erase -p --sign signing.key case.xiz case/reports/r1.pdf
+```
+
+The policy file (passwords never sit in it: `password_env` or `password_prompt`) is described in `xipper help` and in [docs/XIZ_SPEC.md §13](docs/XIZ_SPEC.md).
+
 MCP server for AI agents (Claude Code, Claude Desktop):
 
 ```bash
@@ -165,4 +216,4 @@ Exit codes: `0` ok, `1` error, `2` usage error, `3` skipped entries or failed ve
 
 ## License
 
-[MIT](LICENSE). The code in `Vendor/` keeps its own license: zstd BSD-3-Clause, libdeflate MIT, liblzma 0BSD, LZMA SDK public domain (see [Vendor/README.md](Vendor/README.md)).
+[MIT](LICENSE). The code in `Vendor/` keeps its own license: zstd BSD-3-Clause, libdeflate MIT, liblzma 0BSD, LZMA SDK public domain, htscodecs BSD-3-Clause, libarchive BSD-2-Clause, lz4 BSD-2-Clause, brotli MIT, Argon2 CC0/Apache-2.0 (see [Vendor/README.md](Vendor/README.md)).

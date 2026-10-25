@@ -117,7 +117,7 @@ Ogni ottimizzazione deve avere un percorso portabile di riserva, test di equival
 
 ---
 
-## XIZ 1.3: accesso per cartella, sblocco k-di-n, cronologia firmata
+## 2.2 — pubblicata il 25/10/2026 (v2.2.0): XIZ 1.3, accesso per cartella, sblocco k-di-n, cronologia firmata, prove, cancellazione
 
 Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in [XIZ_SPEC.md §13](XIZ_SPEC.md)):
 

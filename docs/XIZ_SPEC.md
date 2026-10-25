@@ -1,9 +1,9 @@
 # XIZ archive format, version 1.3
 
-Status: **stable** up to 1.2. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
-(2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, draft
-until released in Xipper) adds access groups, k-of-n threshold keys, signed segments, erasable
-entries and inclusion proofs (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
+(2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
+Xipper 2.2.0) adds access groups, k-of-n threshold keys, signed segments, erasable entries and
+inclusion proofs (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 

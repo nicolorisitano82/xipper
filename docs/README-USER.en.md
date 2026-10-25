@@ -1,4 +1,4 @@
-# Xipper 2.1
+# Xipper 2.2
 
 *[Italiano](LEGGIMI.md) · English*
 
