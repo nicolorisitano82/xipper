@@ -26,6 +26,10 @@ final class XizArchive: @unchecked Sendable {
     let groupInfo: [UInt16: (name: String, prefixes: [String])]
     /// 1.3: the current segment's directory.
     let directory: XizDirectory?
+    /// 1.3: keys of frames sealed with their entry's key (erasable entries).
+    let entryFrameKeys: [Int: XizKeys]
+    /// 1.3: entries whose key slot was erased (they are not listed).
+    let erasedEntries: Int
     private var ddicts: [UInt16: OpaquePointer] = [:]
     private let ddictLock = NSLock()
 
@@ -65,11 +69,15 @@ final class XizArchive: @unchecked Sendable {
             hiddenGroups = l.hidden
             groupInfo = l.info
             directory = l.directory
+            entryFrameKeys = l.entryFrameKeys
+            erasedEntries = l.erased
             return
         }
         groupInfo = [:]
         hiddenGroups = 0
         directory = nil
+        entryFrameKeys = [:]
+        erasedEntries = 0
         if sb.required.contains(.encrypted) {
             guard let password else { throw XipperError.passwordRequired(entry: (path as NSString).lastPathComponent) }
             guard dataStart + Int64(Xiz.footerSize) <= size else { throw XipperError.corrupt("XIZ keys block") }
@@ -178,6 +186,8 @@ final class XizArchive: @unchecked Sendable {
         var hidden: Int
         var info: [UInt16: (name: String, prefixes: [String])]
         var directory: XizDirectory
+        var entryFrameKeys: [Int: XizKeys]
+        var erased: Int
     }
 
     /// 1.3 (§13): group keys from the stanzas the credentials open, the directory, the catalogs of
@@ -219,7 +229,9 @@ final class XizArchive: @unchecked Sendable {
                 throw XipperError.corrupt("XIZ segment chain")
             }
             let od = try XizDirectory.decode(try reader.read(at: older.catalogOffset, count: Int(older.catalogCSize)))
-            let start = od.groups.map(\.offset).min()!
+            var start = od.groups.map(\.offset).min()!
+            // Its own slot table, if it wrote one, ends right where its first catalog starts.
+            if let t = od.slotTables.first(where: { $0.offset + Int64($0.count) * Int64(XizSlots.size) == start && $0.count > 0 }) { start = t.offset }
             guard start >= dataStart, start <= older.catalogOffset else { throw XipperError.corrupt("XIZ segment chain") }
             gaps[start] = prev + Int64(Xiz.footerSize)
             bound = start
@@ -227,9 +239,11 @@ final class XizArchive: @unchecked Sendable {
             segment += 1
         }
 
-        // Group catalogs: contiguous, right before the directory; those held are opened.
+        // This segment's slot table (if it wrote one) ends where the catalogs start.
         var next = directory.groups[0].offset
-        let catalogsStart = next
+        let currentSlots = directory.slotTables.first { $0.segment == segment }
+        if let t = currentSlots, t.offset + Int64(t.count) * Int64(XizSlots.size) != next { throw XipperError.corrupt("XIZ key slots out of place") }
+        let frameEnd = currentSlots?.offset ?? next
         var frames: [Xiz.Frame]?
         var entries: [Xiz.Entry] = []
         var info: [UInt16: (name: String, prefixes: [String])] = [:]
@@ -257,9 +271,39 @@ final class XizArchive: @unchecked Sendable {
             for i in c.entries.indices { c.entries[i].group = g.group }
             entries += c.entries
         }
-        guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ group catalogs do not reach the directory") }
+        if directory.version >= 2 {
+            guard directory.leafOffset == next, next + Int64(directory.leafCount) * 32 == footer.catalogOffset,
+                  directory.leafCount <= footer.entryCount else { throw XipperError.corrupt("XIZ leaf table out of place") }
+        } else {
+            guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ group catalogs do not reach the directory") }
+        }
+        for t in directory.slotTables {
+            guard t.segment <= segment, t.offset >= dataStart, t.offset + Int64(t.count) * Int64(XizSlots.size) <= footer.catalogOffset else {
+                throw XipperError.corrupt("XIZ key slot table")
+            }
+        }
+        // Erasable entries: open their key slots; a zeroed slot means the entry was erased.
+        var erased = 0
+        var kept: [Xiz.Entry] = []
+        for var e in entries {
+            guard let s = e.slot else { kept.append(e); continue }
+            guard let t = directory.slotTables.first(where: { $0.segment == s.segment }), s.index < t.count,
+                  let gk = groupKeys[e.group] else { throw XipperError.corrupt("XIZ key slot of \(e.path)") }
+            let bytes = try reader.read(at: t.offset + Int64(s.index) * Int64(XizSlots.size), count: XizSlots.size)
+            if bytes.allSatisfy({ $0 == 0 }) { erased += 1; continue }
+            guard Xiz.sha256(bytes) == s.sha256 else { throw XipperError.corrupt("XIZ key slot of \(e.path) was altered") }
+            e.secret = try XizSlots.open(bytes, group: gk, segment: s.segment, index: s.index)
+            kept.append(e)
+        }
+        entries = kept
         // A reader holding no group catalog still knows the frame table from the footer only by count.
         let c = Xiz.Catalog(frames: frames ?? [], entries: entries)
+        var entryFrameKeys: [Int: XizKeys] = [:]
+        for e in c.entries {
+            guard let s = e.secret else { continue }
+            let k = XizKeys(fileKey: s, archiveID: sb.archiveID)
+            for x in e.extents { entryFrameKeys[Int(x.frame)] = k }
+        }
         if frames != nil {
             let overhead = UInt32(sb.required.contains(.encrypted) ? Xiz.tagSize : 0)
             var at = dataStart
@@ -267,20 +311,22 @@ final class XizArchive: @unchecked Sendable {
             for f in c.frames {
                 skipGaps()
                 guard f.offset == at, f.usize <= UInt32(Xiz.maxFrameData), f.csize <= UInt32(Xiz.maxFrameData) + 4096,
-                      f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead, f.flags == 0, f.dictionary == 0,
+                      f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead, f.dictionary == 0,
+                      f.flags & ~Xiz.entryKeyFrame == 0, f.flags == 0 || sb.required.contains(.encrypted),
                       directory.groups.contains(where: { $0.group == f.group }) else {
                     throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
                 }
                 at = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
             }
             skipGaps()
-            guard at == catalogsStart else { throw XipperError.corrupt("XIZ frames overlap the catalogs") }
+            guard at == frameEnd else { throw XipperError.corrupt("XIZ frames overlap the catalogs") }
         }
         var total: UInt64 = 0
         for e in c.entries {
             var sum: UInt64 = 0
             for x in e.extents {
                 guard Int(x.frame) < c.frames.count, c.frames[Int(x.frame)].group == e.group,
+                      (c.frames[Int(x.frame)].flags & Xiz.entryKeyFrame != 0) == (e.slot != nil),
                       UInt64(x.offset) + UInt64(x.length) <= UInt64(c.frames[Int(x.frame)].usize) else {
                     throw XipperError.corrupt("XIZ extent outside its frame or its group: \(e.path)")
                 }
@@ -291,13 +337,13 @@ final class XizArchive: @unchecked Sendable {
             }
             total += e.size
         }
-        if hidden == 0 {
+        if hidden == 0 && erased == 0 {
             guard total == footer.totalBytes, c.entries.count == Int(footer.entryCount) else { throw XipperError.corrupt("XIZ declared size mismatch") }
         } else {
             guard total <= footer.totalBytes, c.entries.count <= Int(footer.entryCount) else { throw XipperError.corrupt("XIZ declared size mismatch") }
         }
         return Loaded(catalog: c, footer: footer, groupKeys: groupKeys, segments: Int(segment) + 1, hidden: hidden, info: info,
-                      directory: directory)
+                      directory: directory, entryFrameKeys: entryFrameKeys, erased: erased)
     }
 
     /// The last valid footer: normally the file's last 96 bytes; after an interrupted append, the
@@ -340,11 +386,27 @@ final class XizArchive: @unchecked Sendable {
 
     /// The keys that open frame `index` (its group's), nil when not encrypted or not held.
     func frameKeys(_ index: Int) -> XizKeys? {
-        directory == nil ? keys : groupKeys[catalog.frames[index].group]
+        if directory == nil { return keys }
+        let f = catalog.frames[index]
+        return f.flags & Xiz.entryKeyFrame != 0 ? entryFrameKeys[index] : groupKeys[f.group]
     }
 
-    /// The keys of an entry's group (its digest is keyed with them).
-    func entryKeys(_ e: Xiz.Entry) -> XizKeys? { directory == nil ? keys : groupKeys[e.group] }
+    /// The keys an entry's digest is keyed with: its own (erasable entries) or its group's.
+    func entryKeys(_ e: Xiz.Entry) -> XizKeys? {
+        if directory == nil { return keys }
+        if let s = e.secret { return XizKeys(fileKey: s, archiveID: superblock.archiveID) }
+        return groupKeys[e.group]
+    }
+
+    /// The entry key of an erasable entry.
+    func entryKey(_ e: Xiz.Entry) -> SymmetricKey? { e.secret }
+
+    /// The current segment's Merkle leaves (§13.6).
+    func leafTable() throws -> [[UInt8]] {
+        guard let d = directory, d.version >= 2 else { return [] }
+        let b = try reader.read(at: d.leafOffset, count: Int(d.leafCount) * 32)
+        return stride(from: 0, to: b.count, by: 32).map { Array(b[$0..<($0 + 32)]) }
+    }
 
     /// Frames this reader can decode (all, unless groups are hidden from it).
     func canOpen(frame index: Int) -> Bool { !superblock.required.contains(.encrypted) || frameKeys(index) != nil }

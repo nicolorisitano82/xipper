@@ -103,13 +103,15 @@ struct FuzzTests {
                                 recipients: [.init(label: "A", credential: .password("fuzz")),
                                              .init(label: "B", credential: .password("other"), groups: ["priv"])],
                                 thresholds: [.init(label: "T", k: 2, custodians: [.init(label: "1", credential: .password("x")),
-                                                                                    .init(label: "2", credential: .password("y"))])])
+                                                                                    .init(label: "2", credential: .password("y"))])],
+                                erasable: true)
         let signer = XizSigner(key: XizSigningKey(), label: "Fuzz")
         o.xizSigner = signer
         try fuzz(.xiz, o, password: "fuzz", t) { a in
             var e = CreateOptions()
             e.xizSigner = signer
             try Xipper.edit(a, changes: [.delete("src/a.txt"), .add(t.url("more.txt"), as: "src/more.txt")], password: "fuzz", options: e)
+            try Xipper.xizErase(a, paths: ["src/priv/c.txt"], password: "fuzz", options: e)
             _ = try Xipper.xizHistory(a)
         }
     }
@@ -159,7 +161,10 @@ struct FuzzTests {
             _ = try? ArchiveFormat.detect(sample)
             _ = try? Xipper.list(sample, password: password)
             _ = try? Xipper.test(sample, password: password, workload: .threads(2))
-            if format == .xiz { _ = try? Xipper.xizHistory(sample) }
+            if format == .xiz {
+                _ = try? Xipper.xizHistory(sample)
+                if let p = try? Xipper.xizProof(sample, path: "src/sub/b.bin", password: password) { _ = try? Xipper.xizVerifyProof(p, file: t.url("src/sub/b.bin")) }
+            }
             let dest = "out\(i)"
             t.mkdir(dest)
             var options = ExtractOptions()

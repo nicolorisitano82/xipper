@@ -174,6 +174,9 @@ let sigint = cancelOnInterrupt(cancel)
 loadXizIdentities()
 if command == "keygen" { runKeygen() }
 if command == "history" { runHistory() }
+if command == "erase" { runErase() }
+if command == "prove" { runProve() }
+if command == "verify-proof" { runVerifyProof() }
 
 let showProgress = !flag("-q", "--quiet") && isatty(STDERR_FILENO) != 0
 let progress: ProgressHandler? = showProgress ? progressPrinter() : nil

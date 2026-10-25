@@ -2,7 +2,8 @@
 
 Status: **stable** up to 1.2. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, draft
-until released in Xipper) adds access groups, k-of-n threshold keys and signed segments (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+until released in Xipper) adds access groups, k-of-n threshold keys, signed segments, erasable
+entries and inclusion proofs (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -350,6 +351,11 @@ An archive that uses any of the following sets the required feature `directory` 
 - **Signed segments**: every segment (§11) can carry an Ed25519 signature of its author, chained to
   the previous segment's signature and optionally time-stamped by an RFC 3161 authority, so the
   history of the archive's changes is attributable and tamper-evident.
+- **Inclusion proofs**: every segment commits to all its entries with a Merkle tree; one file can be
+  shown to belong to a (signed) archive without revealing anything else (§13.6).
+- **Erasable entries**: each file can have its own key, kept in a key slot that can be overwritten in
+  place; erasing the slot makes the file's content unreadable in this archive, in every segment and in
+  every copy made afterwards (§13.7).
 
 ### 13.1 Layout and directory
 
@@ -359,7 +365,9 @@ With `directory`, the footer's catalog fields (§7) locate the **directory** ins
 
 ```
 frames                 (§4; frames of a group are sealed with that group's data key)
+key slots              this segment's key slot table, when it adds erasable entries (§13.7)
 group catalogs         one per group, in group order
+leaf table             leaf_count × 32 bytes: the Merkle leaves (§13.6)
 directory              plaintext, never compressed or encrypted
 footer                 (§7)
 ```
@@ -368,10 +376,15 @@ Directory:
 
 ```
 magic             "XDIR"
-version           u16 = 1
+version           u16 = 2 (1: the same without the fields marked *)
+* flags           u16: bit 0 = erasable (§13.7: files added by later segments get key slots too);
+                  other bits zero
 group_count       u16, at least 1
 groups            group_count × (group u16, segment u32, catalog_offset u64,
                                  catalog_csize u64, catalog_usize u64, catalog_sha256[32])
+* slot_tables     u16 count, then count × (segment u32, offset u64, slot_count u32): every key slot
+                  table of the archive, in segment order
+* leaf_offset     u64, leaf_count u32, merkle_root[32] (§13.6)
 signature_length  u32 (0: unsigned)
 signature         signature_length bytes (§13.5)
 crc               u32: CRC32C of everything before it
@@ -380,9 +393,10 @@ crc               u32: CRC32C of everything before it
 - `group` values are strictly increasing; group 0 is always present.
 - `segment` is the segment whose nonces seal that catalog (§6.5): the current one for catalogs written
   in this segment.
-- Group catalogs and the directory sit right after the last frame of the segment and right before
-  the footer, with no gaps; between frames, the regions allowed by §11 are earlier segments'
-  catalogs, directories and footers.
+- The key slot table, the group catalogs, the leaf table and the directory sit right after the last
+  frame of the segment and right before the footer, in that order, with no gaps; between frames, the
+  regions allowed by §11 are those of earlier segments, from their slot table (or first catalog) to
+  the end of their footer.
 - `frame_count`, `entry_count` and `total_bytes` in the footer are the totals over all groups.
 
 ### 13.2 Group catalogs
@@ -478,3 +492,49 @@ token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
   signature existed at that time.
 - Writers time-stamp only when the user configures an authority URL (Xipper makes no network
   connection otherwise).
+
+### 13.6 Inclusion proofs
+
+Each segment commits to every entry of the archive (all groups) with a Merkle tree as in RFC 6962
+§2.1 (`leaf = SHA-256(0x00 ‖ data)`, `node = SHA-256(0x01 ‖ left ‖ right)`, split at the largest power
+of two below the size). Leaves are sorted by their hash bytes. A leaf's data is
+
+`salt[16] ‖ u16(path length) ‖ path ‖ u8(type) ‖ u64(size) ‖ content_sha256[32]`
+
+- `salt` is random per entry, so a leaf hash reveals nothing about small or guessable files;
+- `content_sha256` is the plain SHA-256 of the content (of the target for symbolic links, zeros for
+  directories), even in encrypted archives;
+- both are stored with the entry in field `0x0009 proof` (48 bytes: salt, content SHA-256), inside the
+  group's sealed catalog.
+
+The leaf table (plaintext) lists the leaf hashes in order; the directory gives its position, its size
+and the root. The root is in the signed part of the directory, so a signed segment vouches for
+every leaf.
+
+A **proof** for one entry consists of: the archive ID, the segment number, the directory bytes before
+`signature_length`, the signature record, the footer's `previous_footer`, the leaf data, the leaf's
+index and the audit path (RFC 6962 §2.1.1). A verifier needs no key and no other part of the
+archive: it hashes the file it was given, rebuilds the leaf and the root, compares the root with
+the directory, and checks the signature (§13.5). Xipper writes proofs as JSON (`xiz-proof-1`).
+
+### 13.7 Erasable entries
+
+An archive created with `erasable` gives each file its own random 256-bit **entry key**:
+
+- the file's data goes into frames of its own (no other file's data, deduplication only within the
+  file), with flags bit 1 set (`entry key`) and sealed with the data key derived from the entry key
+  (§6.1); such frames are allowed only in encrypted archives with `directory`;
+- the entry key is wrapped in a 60-byte **key slot**: `nonce[12] ‖ AES-256-GCM(slot key, entry key) ‖
+  tag[16]`, with `slot key = HKDF-SHA-256(group key, salt = archive_id, info "xiz/1.3/slots")` and
+  `associated data = "XIZ13slot" ‖ archive_id ‖ u32(segment) ‖ u32(index)`;
+- each segment that adds such files writes its slots as one table; the directory lists every table;
+- the entry carries field `0x800A key slot` (critical): `segment u32`, `index u32`, and the SHA-256 of
+  the slot bytes as written.
+
+**Erasing** an entry overwrites its 60 slot bytes with zeros, in place: the only write XIZ allows
+outside appending. A reader that finds a zeroed slot reports the entry as erased and never shows its
+content; a non-zero slot whose SHA-256 differs from the stored one is corruption. Signatures and
+proofs stay valid: they cover the slot's hash, not the slot. The erased entry is then removed from the
+catalog by appending a segment (when the eraser holds every group); its name stays in the sealed
+catalogs of earlier segments, readable by holders of its group key, until the archive is rewritten.
+Copies of the archive made before the erasure still hold the slot.

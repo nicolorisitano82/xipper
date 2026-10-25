@@ -116,7 +116,7 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          group: UInt16 = 0, level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
+                          group: UInt16 = 0, proofs: Bool = false, level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
         let gear = gear(keys)
@@ -149,6 +149,7 @@ enum XizWriter {
         }
         work.sort { cost($0) > cost($1) }
         let wholes = Mutex<[Int: [UInt8]]>([:])
+        let plains = Mutex<[Int: [UInt8]]>([:])  // plain SHA-256 for proofs, when the digest is keyed
         let regions = Mutex<[Int: [Int64: [(Int64, Int, [UInt8])]]]>([:])
         try parallelFor(work.count, workload: workload, cancel: cancel) { k in
             let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
@@ -157,16 +158,19 @@ enum XizWriter {
             case let .whole(i):
                 let r = try FileReader(path: items[i].sourcePath)
                 var whole = newDigest()
+                var plain: SHA256? = proofs && keys != nil ? SHA256() : nil
                 var off: Int64 = 0
                 while off < r.size {
                     try cancel?.check()
                     let n = try r.readSome(at: off, into: buf, count: 1 << 20)
                     if n == 0 { break }
                     whole.update(UnsafeRawBufferPointer(start: buf, count: n))
+                    plain?.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: n))
                     off += Int64(n)
                 }
                 let d = whole.finish()
                 wholes.withLock { $0[i] = d }
+                if let plain { let p = Array(plain.finalize()); plains.withLock { $0[i] = p } }
             case let .region(i, from, to):
                 let r = try FileReader(path: items[i].sourcePath)
                 let chunker = FastCDC(gear: gear)
@@ -198,6 +202,7 @@ enum XizWriter {
             }
         }
         let allWholes = wholes.withLock { $0 }
+        let allPlains = plains.withLock { $0 }
         let allRegions = regions.withLock { $0 }
         var hashedFiles: [Int: Hashed] = [:]
         for i in files {
@@ -277,6 +282,7 @@ enum XizWriter {
                 e.size = UInt64(size)
                 e.sha256 = digests[i]?.digest  // nil: empty file
                 e.extents = placed[i] ?? []
+                if proofs { e.proof = (XizLeaf.randomSalt(), size == 0 ? Xiz.sha256([]) : (allPlains[i] ?? digests[i]?.digest ?? Xiz.sha256([]))) }
             }
             if extendedAttributes, e.type != .symlink { e.xattrs = ExtendedAttributes.read(item.sourcePath) }
             entries.append(e)
@@ -413,16 +419,30 @@ enum XizWriter {
 
         var byGroup: [UInt16: [ArchiveItem]] = [:]
         for item in items { byGroup[map.group(of: MountedArchive.normalize(item.name) ?? item.name), default: []].append(item) }
+        let erasable = access?.erasable ?? false
+        guard !erasable || encrypted else { throw XipperError.invalidArgument("erasable files need encryption (a password or recipients)") }
         var frames: [Xiz.Frame] = []
         var entries: [UInt16: [Xiz.Entry]] = [:]
+        var slots: [[UInt8]] = []
         for g in map.groups {
-            let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
-                                       group: g.id, level: level, extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
-            frames += f
-            entries[g.id] = e
+            if erasable {
+                let (f, e, s) = try writeErasable(byGroup[g.id] ?? [], to: out, startFrame: frames.count, group: groupKeys[g.id]!, groupID: g.id,
+                                                  segment: 0, firstSlot: UInt32(slots.count), level: level,
+                                                  extendedAttributes: extendedAttributes, tracker: tracker, cancel: cancel)
+                frames += f
+                entries[g.id] = e
+                slots += s
+            } else {
+                let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
+                                           group: g.id, proofs: true, level: level, extendedAttributes: extendedAttributes, workload: workload,
+                                           tracker: tracker, cancel: cancel)
+                frames += f
+                entries[g.id] = e
+            }
         }
         try writeDirectorySegment(groups: map.groups, frames: frames, entries: entries, keys: groupKeys, archiveID: archiveID,
-                                  segment: 0, previousFooter: 0, signer: signer, previousSignature: [UInt8](repeating: 0, count: 32), to: out)
+                                  segment: 0, previousFooter: 0, signer: signer, previousSignature: [UInt8](repeating: 0, count: 32),
+                                  newSlots: slots, olderSlotTables: [], erasable: erasable, to: out)
         let size = out.position
         try out.commit(overwrite: overwrite)
         tracker.add(bytes: total - tracker.completedBytes, entries: items.count)
@@ -435,12 +455,28 @@ enum XizWriter {
     /// (signed by `signer`, chained to `previousSignature`) and the footer.
     static func writeDirectorySegment(groups: [(id: UInt16, name: String, prefixes: [String])], frames: [Xiz.Frame],
                                       entries: [UInt16: [Xiz.Entry]], keys: [UInt16: XizKeys], archiveID: [UInt8], segment: UInt32,
-                                      previousFooter: UInt64, signer: XizSigner?, previousSignature: [UInt8], to out: XizOutput) throws {
-        var directory = XizDirectory(groups: [])
+                                      previousFooter: UInt64, signer: XizSigner?, previousSignature: [UInt8],
+                                      newSlots: [[UInt8]] = [], olderSlotTables: [XizDirectory.SlotTable] = [], erasable: Bool = false,
+                                      to out: XizOutput) throws {
+        var directory = XizDirectory(flags: erasable ? XizDirectory.erasableFlag : 0, groups: [])
+        directory.slotTables = olderSlotTables
+        if !newSlots.isEmpty {
+            directory.slotTables.append(XizDirectory.SlotTable(segment: segment, offset: out.position, count: UInt32(newSlots.count)))
+            for s in newSlots { try out.write(s) }
+        }
         var entryCount = 0
         var totalBytes: UInt64 = 0
+        var leaves: [[UInt8]] = []
         for g in groups {
-            let list = entries[g.id] ?? []
+            // Proof data for entries that have none yet (folders, links, new folders of an edit).
+            let list = (entries[g.id] ?? []).map { e -> Xiz.Entry in
+                var e = e
+                if e.proof == nil && e.sealedProof == nil {
+                    e.proof = (XizLeaf.randomSalt(), e.type == .symlink ? Xiz.sha256(Array(e.link.utf8)) : [UInt8](repeating: 0, count: 32))
+                }
+                return e
+            }
+            leaves += list.map { XizLeaf.hash($0, entryKey: $0.secret) }
             entryCount += list.count
             totalBytes += list.reduce(UInt64(0)) { $0 + $1.size }
             let raw = Xiz.encodeCatalog(Xiz.Catalog(frames: frames, entries: list, group: (g.name, g.prefixes)))
@@ -454,6 +490,11 @@ enum XizWriter {
                                                               usize: Int64(raw.count), sha256: Xiz.sha256(packed)))
             try out.write(packed)
         }
+        leaves.sort { $0.lexicographicallyPrecedes($1) }
+        directory.leafOffset = out.position
+        directory.leafCount = UInt32(leaves.count)
+        directory.merkleRoot = MerkleTree.root(leaves[...])
+        for l in leaves { try out.write(l) }
         if let signer {
             let record = try XizSignature.sign(signer, archiveID: archiveID, segment: segment, directory: directory,
                                                previousFooter: previousFooter, previous: previousSignature)
@@ -467,6 +508,71 @@ enum XizWriter {
         footer.previousFooter = previousFooter
         try out.write(dir)
         try out.write(footer.encode())
+    }
+
+    /// Erasable files (§13.7): each file gets a random entry key, frames of its own sealed with it,
+    /// a key slot (sealed with the group's slot key) and its proof data sealed with the entry key.
+    static func writeErasable(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, group: XizKeys, groupID: UInt16, segment: UInt32,
+                              firstSlot: UInt32, level: Int, extendedAttributes: Bool, tracker: ProgressTracker,
+                              cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry], [[UInt8]]) {
+        var frames: [Xiz.Frame] = []
+        var entries: [Xiz.Entry] = []
+        var slots: [[UInt8]] = []
+        let contexts = ZstdContextPool()
+        for item in items {
+            try cancel?.check()
+            let t = item.modified.timeIntervalSince1970
+            let sec = Int64(t.rounded(.down))
+            var e = Xiz.Entry(type: .file, path: item.name, mode: item.permissions, uid: item.uid, gid: item.gid,
+                              mtimeSec: sec, mtimeNsec: UInt32(clamping: Int64((t - Double(sec)) * 1e9)), size: 0, link: "",
+                              xattrs: [], extents: [], sha256: nil)
+            switch item.kind {
+            case .directory: e.type = .directory
+            case let .symlink(target): e.type = .symlink; e.link = target
+            case let .file(size):
+                let entryKey = SymmetricKey(size: .bits256)
+                let keys = XizKeys(fileKey: entryKey, archiveID: group.archiveID)
+                var keyed = keys.fileDigest()
+                var plain = SHA256()
+                let r = try FileReader(path: item.sourcePath)
+                guard r.size == size else { throw XipperError.io("read (file changed while archiving)", path: item.sourcePath, errno: EAGAIN) }
+                var off: Int64 = 0
+                while off < size {
+                    let n = Int(min(Int64(Xiz.frameData), size - off))
+                    let data = try r.read(at: off, count: n)
+                    keyed.update(data: data)
+                    plain.update(data: data)
+                    let index = UInt32(startFrame + frames.count)
+                    var payload = data
+                    var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(n), crc: 0, codec: .store, flags: Xiz.entryKeyFrame, group: groupID)
+                    if level > 0, let c = data.withUnsafeBytes({ ZipWriter.zstdCompress($0, level: level, pool: contexts) }) {
+                        payload = c
+                        f.codec = .zstd
+                    }
+                    payload = try keys.sealFrame(payload, index: index, f)
+                    f.csize = UInt32(payload.count)
+                    f.crc = Xiz.crc32c(payload)
+                    f.offset = out.position
+                    try out.write(Xiz.frameHeader(index: index, f))
+                    try out.write(payload)
+                    frames.append(f)
+                    e.extents.append(Xiz.Extent(frame: index, offset: 0, length: UInt32(n)))
+                    off += Int64(n)
+                    tracker.add(bytes: Int64(n))
+                }
+                e.size = UInt64(size)
+                e.sha256 = size > 0 ? Array(keyed.finalize()) : nil
+                let index = firstSlot + UInt32(slots.count)
+                let slot = try XizSlots.seal(entryKey, group: group, segment: segment, index: index)
+                slots.append(slot)
+                e.slot = (segment, index, Xiz.sha256(slot))
+                e.sealedProof = try XizLeaf.sealProof(salt: XizLeaf.randomSalt(), sha256: Array(plain.finalize()), entryKey: entryKey)
+                e.secret = entryKey
+            }
+            if extendedAttributes, e.type != .symlink { e.xattrs = ExtendedAttributes.read(item.sourcePath) }
+            entries.append(e)
+        }
+        return (frames, entries, slots)
     }
 
     /// Joins extents that continue each other in the same frame.

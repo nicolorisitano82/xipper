@@ -132,8 +132,11 @@ struct XizAccessTests {
             let f = try Xiz.Footer.decode(Array(b[at..<(at + Xiz.footerSize)]))
             if f.previousFooter == 0 {
                 let dir = Int(f.catalogOffset), len = Int(f.catalogCSize)
-                let groups = Int(UInt16(b[dir + 6]) | UInt16(b[dir + 7]) << 8)
-                return (dir, len, 8 + groups * 62 + 4, at)
+                func u16(_ o: Int) -> Int { Int(UInt16(b[dir + o]) | UInt16(b[dir + o + 1]) << 8) }
+                // Version 2: magic, version, flags, groups, slot tables, leaf table, then the signature.
+                let groups = u16(8)
+                let tables = u16(10 + groups * 62)
+                return (dir, len, 10 + groups * 62 + 2 + tables * 16 + 44 + 4, at)
             }
             at = Int(f.previousFooter)
         }
@@ -195,5 +198,108 @@ struct XizAccessTests {
         #expect(abs(ts.time.timeIntervalSinceNow) < 120)
         #expect(ts.authority.contains("Xipper Test TSA"))
         #expect(!(try RFC3161.verify(token, imprint: Xiz.sha256([1, 2, 3]))).valid)  // another signature
+    }
+
+    // MARK: inclusion proofs (§13.6)
+
+    @Test func proofsBindOneFileToTheSignedArchive() throws {
+        let t = TempDir()
+        tree(t)
+        var o = CreateOptions()
+        o.format = .xiz
+        o.xizKDF = .minimum
+        o.xizAccess = XizAccess(groups: [.init(name: "referti", prefixes: ["src/referti"])],
+                                recipients: [.init(label: "Lab", credential: .password("lab")),
+                                             .init(label: "Clinico", credential: .password("clin"), groups: ["referti"])])
+        let signer = XizSigner(key: XizSigningKey(), label: "Laboratorio")
+        o.xizSigner = signer
+        let a = t.url("p.xiz")
+        try Xipper.create(from: [t.url("src")], to: a, options: o)
+
+        // The clinician, who sees only the reports, proves one of them.
+        let proof = try Xipper.xizProof(a, path: "src/referti/r1.txt", password: "clin")
+        let ok = try Xipper.xizVerifyProof(proof, file: t.url("src/referti/r1.txt"))
+        #expect(ok.valid && ok.signerLabel == "Laboratorio" && ok.path == "src/referti/r1.txt")
+        // Another content, or a rigged index, does not pass.
+        t.write("fake.txt", "referto falso\n")
+        #expect(!(try Xipper.xizVerifyProof(proof, file: t.url("fake.txt"))).contentMatches)
+        var doc = try JSONSerialization.jsonObject(with: proof) as! [String: Any]
+        doc["index"] = ((doc["index"] as! Int) + 1) % (doc["tree_size"] as! Int)
+        #expect(!(try Xipper.xizVerifyProof(try JSONSerialization.data(withJSONObject: doc), file: t.url("src/referti/r1.txt"))).inTree)
+        // A big file, from the main group.
+        let big = try Xipper.xizVerifyProof(try Xipper.xizProof(a, path: "src/dati/grezzi/g2.bin", password: "lab"), file: t.url("src/dati/grezzi/g2.bin"))
+        #expect(big.valid)
+        // After a rename, the new name proves; the old proof still checks against its own segment.
+        var b = CreateOptions()
+        b.xizSigner = signer
+        try Xipper.edit(a, changes: [.rename("src/referti/r1.txt", to: "src/referti/primo.txt")], password: "lab", options: b)
+        #expect(try Xipper.xizVerifyProof(try Xipper.xizProof(a, path: "src/referti/primo.txt", password: "lab"), file: t.url("src/referti/r1.txt")).valid)
+        #expect(try Xipper.xizVerifyProof(proof, file: t.url("src/referti/r1.txt")).valid)
+        // Unsigned archives: the tree holds, nobody vouches for it.
+        var u = CreateOptions()
+        u.format = .xiz
+        u.xizAccess = XizAccess()
+        u.password = "x"
+        u.xizKDF = .minimum
+        try Xipper.create(from: [t.url("src")], to: t.url("u.xiz"), options: u)
+        let r = try Xipper.xizVerifyProof(try Xipper.xizProof(t.url("u.xiz"), path: "src/indice.txt", password: "x"), file: t.url("src/indice.txt"))
+        #expect(r.contentMatches && r.inTree && !r.signed && !r.valid)
+    }
+
+    // MARK: erasable entries (§13.7)
+
+    @Test func erasedFilesCannotBeReadEvenFromOlderSegments() throws {
+        let t = TempDir()
+        tree(t)
+        t.write("src/referti/copia.txt", "referto uno\n")  // same content as r1: not shared (one key per file)
+        var o = CreateOptions()
+        o.format = .xiz
+        o.xizKDF = .minimum
+        o.xizAccess = XizAccess(groups: [.init(name: "referti", prefixes: ["src/referti"])],
+                                recipients: [.init(label: "Lab", credential: .password("lab"))], erasable: true)
+        let signer = XizSigner(key: XizSigningKey(), label: "DPO")
+        o.xizSigner = signer
+        let a = t.url("e.xiz")
+        try Xipper.create(from: [t.url("src")], to: a, options: o)
+        #expect(try Xipper.test(a, password: "lab").isOK)
+        #expect(try String(decoding: Xipper.readEntry(a, path: "src/referti/r1.txt", password: "lab").data, as: UTF8.self) == "referto uno\n")
+        let firstSegmentEnd = try Data(contentsOf: a).count
+        let proof = try Xipper.xizProof(a, path: "src/indice.txt", password: "lab")
+
+        // Erase r1 and the big file: gone from the listing, the archive still verifies.
+        var b = CreateOptions()
+        b.xizSigner = signer
+        #expect(try Xipper.xizErase(a, paths: ["src/referti/r1.txt", "src/dati/grezzi/g2.bin"], password: "lab", options: b) == 2)
+        let left = try paths(a, password: "lab")
+        #expect(!left.contains("src/referti/r1.txt") && !left.contains("src/dati/grezzi/g2.bin") && left.contains("src/referti/copia.txt"))
+        #expect(try Xipper.test(a, password: "lab").isOK)
+        #expect(try String(decoding: Xipper.readEntry(a, path: "src/referti/copia.txt", password: "lab").data, as: UTF8.self) == "referto uno\n")
+
+        // The first segment, cut out of the erased file, still lists r1 in its catalog, but the
+        // slot is zeroed: the entry is reported erased, never readable.
+        let bytes = try Data(contentsOf: a)
+        try bytes.prefix(firstSegmentEnd).write(to: t.url("old.xiz"))
+        let old = try XizArchive(path: t.path + "/old.xiz", password: "lab")
+        #expect(old.erasedEntries == 2 && !old.catalog.entries.contains { $0.path == "src/referti/r1.txt" })
+        #expect(throws: XipperError.self) { _ = try Xipper.readEntry(t.url("old.xiz"), path: "src/referti/r1.txt", password: "lab") }
+
+        // History and the proofs of other files stay valid.
+        #expect(try Xipper.xizHistory(a).allSatisfy { $0.valid && $0.chained })
+        #expect(try Xipper.xizVerifyProof(proof, file: t.url("src/indice.txt")).valid)
+        // Files added later are erasable too.
+        t.write("extra/nuovo.txt", "nuovo\n")
+        try Xipper.edit(a, changes: [.add(t.url("extra/nuovo.txt"), as: "src/referti/nuovo.txt")], password: "lab", options: b)
+        #expect(try Xipper.xizErase(a, paths: ["src/referti/nuovo.txt"], password: "lab") == 1)
+        #expect(!(try paths(a, password: "lab")).contains("src/referti/nuovo.txt"))
+        #expect(try Xipper.test(a, password: "lab").isOK)
+
+        // A non-erasable archive refuses.
+        var n = CreateOptions()
+        n.format = .xiz
+        n.password = "x"
+        n.xizKDF = .minimum
+        n.xizSigner = signer
+        try Xipper.create(from: [t.url("src")], to: t.url("n.xiz"), options: n)
+        #expect(throws: XipperError.self) { try Xipper.xizErase(t.url("n.xiz"), paths: ["src/indice.txt"], password: "x") }
     }
 }

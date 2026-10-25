@@ -8,6 +8,14 @@ let xizUsage = """
                                   (Ed25519, --signing); writes the secret to FILE (mode 600) and
                                   prints the public key
   history <archive.xiz>           signed changes of an XIZ archive: signer, time, checks, time-stamp
+  erase   [options] <archive.xiz> <path>...
+                                  erase files of an archive created with "erasable": their keys are
+                                  destroyed in place, so their content is unreadable in every segment
+                                  (copies made earlier keep it)
+  prove   [options] <archive.xiz> <path> -o PROOF.json
+                                  a proof that this file is in the (signed) archive, for anyone
+  verify-proof <PROOF.json> <file>
+                                  checks a proof against the file: no archive, no password needed
 
 XIZ access and signatures (create, edit, and everything that opens an archive):
       --access POLICY.json   create: access groups, recipients, custodians (docs/XIZ_SPEC.md §13)
@@ -93,6 +101,7 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
         access.groups.append(XizAccess.Group(name: g["name"] as? String ?? "", prefixes: g["folders"] as? [String] ?? []))
     }
     access.recipients = (root["recipients"] as? [[String: Any]] ?? []).map(recipient)
+    access.erasable = root["erasable"] as? Bool ?? false
     for t in root["thresholds"] as? [[String: Any]] ?? [] {
         access.thresholds.append(XizAccess.Threshold(label: t["label"] as? String ?? "", k: t["k"] as? Int ?? 0,
                                                      custodians: (t["custodians"] as? [[String: Any]] ?? []).map(recipient),
@@ -114,6 +123,57 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
     guard ok else { fail("cannot write \(out)") }
     print(publicText)
     exit(0)
+}
+
+@MainActor func runErase() -> Never {
+    guard positional.count >= 2 else { fail("erase needs an archive and at least one path", code: 2) }
+    let pw = readPassword(confirm: false)
+    var o = CreateOptions()
+    o.xizSigner = xizSigner()
+    do {
+        let n = try Xipper.xizErase(URL(fileURLWithPath: positional[0]), paths: Array(positional.dropFirst()), password: pw, options: o)
+        print("\(n) file(s) erased")
+        exit(0)
+    } catch {
+        fail("\(error)")
+    }
+}
+
+@MainActor func runProve() -> Never {
+    guard positional.count == 2, let out = value("-o", "--output") else { fail("prove needs an archive, a path and -o FILE", code: 2) }
+    let pw = readPassword(confirm: false)
+    do {
+        let proof = try Xipper.xizProof(URL(fileURLWithPath: positional[0]), path: positional[1], password: pw)
+        try proof.write(to: URL(fileURLWithPath: out), options: .withoutOverwriting)
+        print("wrote \(out)")
+        exit(0)
+    } catch {
+        fail("\(error)")
+    }
+}
+
+@MainActor func runVerifyProof() -> Never {
+    guard positional.count == 2 else { fail("verify-proof needs a proof and the file", code: 2) }
+    do {
+        let proof = try Data(contentsOf: URL(fileURLWithPath: positional[0]))
+        let r = try Xipper.xizVerifyProof(proof, file: URL(fileURLWithPath: positional[1]))
+        let df = ISO8601DateFormatter()
+        print("\(r.path) (\(r.size) bytes), archive \(r.archiveID), change #\(r.segment)")
+        print("  content: \(r.contentMatches ? "matches" : "DIFFERENT")")
+        print("  in the archive: \(r.inTree ? "yes" : "NO")")
+        if r.signed {
+            print("  signed by \(r.signerLabel.isEmpty ? "?" : r.signerLabel) on \(r.signedAt.map(df.string) ?? "?") (\(r.signerKey))")
+        } else {
+            print("  NOT signed: the proof shows consistency, nobody vouches for it")
+        }
+        if let ts = r.timestamp {
+            print("  time-stamp \(df.string(from: ts.time)) by \(ts.authority)\(ts.valid ? (ts.trusted ? "" : " (authority not trusted by this Mac)") : " INVALID")")
+        }
+        print(r.valid ? "VALID" : "NOT VALID")
+        exit(r.valid ? 0 : 3)
+    } catch {
+        fail("\(error)")
+    }
 }
 
 @MainActor func runHistory() -> Never {

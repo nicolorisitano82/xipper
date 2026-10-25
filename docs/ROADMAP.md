@@ -124,7 +124,9 @@ Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in 
 - ✅ **accesso per cartella** (25/10/2026): gruppi di accesso cifrati con chiavi diverse; più destinatari, ciascuno con una password o una chiave pubblica X25519, vedono ed estraggono solo i gruppi per cui hanno la chiave (gli altri non compaiono nemmeno nell'elenco);
 - ✅ **sblocco k-di-n** (25/10/2026): un gruppo si apre solo se k custodi su n danno insieme la loro credenziale (Shamir su GF(2⁸));
 - ✅ **cronologia firmata** (25/10/2026): ogni modifica aggiunta all'archivio è firmata Ed25519 dal suo autore, concatenata alla firma precedente e, a richiesta, marcata temporalmente da un'autorità RFC 3161; `xipper history` mostra chi ha cambiato cosa e quando, e se la catena è integra (la verifica non richiede la password);
-- per ora da riga di comando e in XipperKit (`xipper keygen`, `--access`, `--identity`, `--sign`, `--timestamp`, `xipper history`); da fare: le schermate nell'app (destinatari, custodi, cronologia) e le chiavi nel Portachiavi.
+- ✅ **prova di appartenenza** (25/10/2026): ogni segmento si impegna su tutte le voci con un albero di Merkle (RFC 6962, foglie salate); `xipper prove` estrae la prova per un file e `xipper verify-proof` la verifica con il solo file, senza archivio né password, insieme alla firma del segmento;
+- ✅ **cancellazione crittografica** (25/10/2026): negli archivi creati con `"erasable": true` ogni file ha una chiave propria in uno slot sovrascrivibile; `xipper erase` azzera lo slot e il contenuto diventa illeggibile in tutti i segmenti dell'archivio e nelle copie fatte dopo (le copie precedenti conservano la chiave); firme e prove degli altri file restano valide;
+- per ora da riga di comando e in XipperKit (`xipper keygen`, `--access`, `--identity`, `--sign`, `--timestamp`, `history`, `erase`, `prove`, `verify-proof`); da fare: le schermate nell'app (destinatari, custodi, cronologia, cancellazione, prove) e le chiavi nel Portachiavi; possibile seguito: chiavi dei file fuori dall'archivio, perché la cancellazione valga anche per le copie già fatte.
 
 ---
 

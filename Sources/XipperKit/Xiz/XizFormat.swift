@@ -32,6 +32,8 @@ enum Xiz {
     static let maxKeysBlock = 64 << 10
     /// Frame flag (1.2): the frame holds a zstd dictionary, not file data.
     static let dictionaryFrame: UInt8 = 1
+    /// 1.3: frame sealed with its entry's own key (erasable entries, §13.7).
+    static let entryKeyFrame: UInt8 = 2
     static let maxDictionary = 1 << 20
 
     /// Features an archive needs; a reader refuses bits it does not know.
@@ -91,6 +93,14 @@ enum Xiz {
         var sha256: [UInt8]?
         /// Access group (1.3); not stored in the entry, it is the group of the catalog that lists it.
         var group: UInt16 = 0
+        /// 1.3 proofs (§13.6): random salt and plain SHA-256 of the content.
+        var proof: (salt: [UInt8], sha256: [UInt8])?
+        /// 1.3 erasable entries (§13.7): where its key slot is and the slot's SHA-256.
+        var slot: (segment: UInt32, index: UInt32, sha256: [UInt8])?
+        /// 1.3 erasable entries: the proof's salt and content SHA-256, sealed with the entry key.
+        var sealedProof: [UInt8]?
+        /// 1.3 erasable entries, when read: the entry key from its slot (not stored in the catalog).
+        var secret: SymmetricKey?
 
         var modified: Date { Date(timeIntervalSince1970: Double(mtimeSec) + Double(mtimeNsec) / 1e9) }
     }
@@ -221,6 +231,7 @@ enum Xiz {
         static let critical: UInt16 = 0x8000
         case size = 0x8001, extents = 0x8002, link = 0x8003
         case mode = 0x0004, owner = 0x0005, mtime = 0x0006, xattr = 0x0007, digest = 0x0008
+        case proof = 0x0009, keySlot = 0x800A, sealedProof = 0x000B
     }
 
     static func encodeCatalog(_ c: Catalog) -> [UInt8] {
@@ -254,6 +265,9 @@ enum Xiz {
                 field(.xattr) { f in let n = Array(name.utf8); f.u16(UInt16(n.count)); f.append(n); f.append(value) }
             }
             if let h = e.sha256 { field(.digest) { $0.append(h) } }
+            if let p = e.proof { field(.proof) { $0.append(p.salt); $0.append(p.sha256) } }
+            if let s = e.slot { field(.keySlot) { $0.u32(s.segment); $0.u32(s.index); $0.append(s.sha256) } }
+            if let p = e.sealedProof { field(.sealedProof) { $0.append(p) } }
             w.u16(UInt16(fields.count))
             for (tag, bytes) in fields { w.u16(tag.rawValue); w.u32(UInt32(bytes.count)); w.append(bytes) }
         }
@@ -280,7 +294,9 @@ enum Xiz {
                 let off = Int64(bitPattern: try r.u64()), cs = try r.u32(), us = try r.u32(), crc = try r.u32()
                 guard let codec = Codec(rawValue: try r.u8()) else { throw XipperError.unsupported("XIZ codec") }
                 let flags = try r.u8(), dict = try r.u16()
-                guard flags & ~dictionaryFrame == 0 else { throw XipperError.unsupported("XIZ frame flags \(flags)") }
+                guard flags & ~(version == 2 ? dictionaryFrame | entryKeyFrame : dictionaryFrame) == 0 else {
+                    throw XipperError.unsupported("XIZ frame flags \(flags)")
+                }
                 let group = version == 2 ? try r.u16() : 0
                 c.frames.append(Frame(offset: off, csize: cs, usize: us, crc: crc, codec: codec, flags: flags, dictionary: dict, group: group))
             }
@@ -316,6 +332,15 @@ enum Xiz {
                     case .digest?:
                         guard len == 32 else { throw XipperError.corrupt("XIZ digest") }
                         e.sha256 = Array(body)
+                    case .proof?:
+                        guard len == 48 else { throw XipperError.corrupt("XIZ proof field") }
+                        e.proof = (Array(body[0..<16]), Array(body[16..<48]))
+                    case .keySlot?:
+                        guard len == 40 else { throw XipperError.corrupt("XIZ key slot field") }
+                        e.slot = (try f.u32(), try f.u32(), Array(body[8..<40]))
+                    case .sealedProof?:
+                        guard len == 76 else { throw XipperError.corrupt("XIZ sealed proof field") }
+                        e.sealedProof = Array(body)
                     case nil:
                         // Unknown field: skipped, unless marked critical (a newer Xipper needs it understood).
                         if tag & Tag.critical != 0 { throw XipperError.unsupported("XIZ field 0x\(String(tag, radix: 16)) (made by a newer Xipper)") }
@@ -477,6 +502,8 @@ struct XizKeys: @unchecked Sendable {
     let data: SymmetricKey
     let catalog: SymmetricKey
     let fileMAC: SymmetricKey
+    /// 1.3: wraps the entry keys in key slots (§13.7).
+    let slotKey: SymmetricKey
 
     init(fileKey: SymmetricKey, archiveID: [UInt8]) {
         self.archiveID = archiveID
@@ -487,6 +514,8 @@ struct XizKeys: @unchecked Sendable {
         data = derive("data")
         catalog = derive("catalog")
         fileMAC = derive("file-mac")
+        slotKey = HKDF<SHA256>.deriveKey(inputKeyMaterial: fileKey, salt: Data(archiveID), info: Data("xiz/1.3/slots".utf8),
+                                         outputByteCount: 32)
     }
 
     static func argon2id(_ password: String, salt: [UInt8], _ kdf: KDF) throws -> SymmetricKey {

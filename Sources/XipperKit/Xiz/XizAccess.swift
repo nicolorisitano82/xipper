@@ -15,11 +15,15 @@ public struct XizAccess: Sendable {
     public var groups: [Group]
     public var recipients: [Recipient]
     public var thresholds: [Threshold]
+    /// Every file gets its own key in an erasable key slot (§13.7): `Xipper.xizErase` can later
+    /// make it unreadable. Files are then stored one per frame and deduplicated only within themselves.
+    public var erasable: Bool
 
-    public init(groups: [Group] = [], recipients: [Recipient] = [], thresholds: [Threshold] = []) {
+    public init(groups: [Group] = [], recipients: [Recipient] = [], thresholds: [Threshold] = [], erasable: Bool = false) {
         self.groups = groups
         self.recipients = recipients
         self.thresholds = thresholds
+        self.erasable = erasable
     }
 
     public struct Group: Sendable, Equatable {
@@ -505,16 +509,39 @@ struct XizDirectory {
         var sha256: [UInt8]
     }
 
+    struct SlotTable: Equatable {
+        var segment: UInt32
+        var offset: Int64
+        var count: UInt32
+    }
+
     static let magic: [UInt8] = Array("XDIR".utf8)
+    static let erasableFlag: UInt16 = 1
+    var version: UInt16 = 2
+    /// Version 2: bit 0, erasable (files added later get key slots too).
+    var flags: UInt16 = 0
     var groups: [GroupCatalog]
+    /// Version 2: every key slot table of the archive (§13.7).
+    var slotTables: [SlotTable] = []
+    /// Version 2: the leaf table and the Merkle root (§13.6).
+    var leafOffset: Int64 = 0
+    var leafCount: UInt32 = 0
+    var merkleRoot = [UInt8](repeating: 0, count: 32)
     var signature: [UInt8] = []
 
     /// Everything before `signature_length`: what a segment signature covers.
     var signedPart: [UInt8] {
-        var w = ByteWriter(capacity: 8 + groups.count * 62)
-        w.append(Self.magic); w.u16(1); w.u16(UInt16(groups.count))
+        var w = ByteWriter(capacity: 64 + groups.count * 62 + slotTables.count * 16)
+        w.append(Self.magic); w.u16(version)
+        if version >= 2 { w.u16(flags) }
+        w.u16(UInt16(groups.count))
         for g in groups {
             w.u16(g.group); w.u32(g.segment); w.u64(UInt64(g.offset)); w.u64(UInt64(g.csize)); w.u64(UInt64(g.usize)); w.append(g.sha256)
+        }
+        if version >= 2 {
+            w.u16(UInt16(slotTables.count))
+            for t in slotTables { w.u32(t.segment); w.u64(UInt64(t.offset)); w.u32(t.count) }
+            w.u64(UInt64(leafOffset)); w.u32(leafCount); w.append(merkleRoot)
         }
         return w.bytes
     }
@@ -532,10 +559,13 @@ struct XizDirectory {
         guard crc == Xiz.crc32c(Array(b[..<(b.count - 4)])) else { throw XipperError.corrupt("XIZ directory checksum mismatch") }
         return try b.withUnsafeBytes { raw in
             var r = ByteReader(UnsafeRawBufferPointer(rebasing: raw[..<(raw.count - 4)]), at: 4)
-            guard try r.u16() == 1 else { throw XipperError.unsupported("XIZ directory version") }
+            let version = try r.u16()
+            guard version == 1 || version == 2 else { throw XipperError.unsupported("XIZ directory version") }
+            let flags = version >= 2 ? try r.u16() : 0
+            guard flags & ~Self.erasableFlag == 0 else { throw XipperError.unsupported("XIZ directory flags \(flags)") }
             let n = Int(try r.u16())
             guard n >= 1 else { throw XipperError.corrupt("XIZ directory without groups") }
-            var d = XizDirectory(groups: [])
+            var d = XizDirectory(version: version, flags: flags, groups: [])
             for _ in 0..<n {
                 let g = GroupCatalog(group: try r.u16(), segment: try r.u32(), offset: Int64(bitPattern: try r.u64()),
                                      csize: Int64(bitPattern: try r.u64()), usize: Int64(bitPattern: try r.u64()), sha256: Array(try r.bytes(32)))
@@ -543,6 +573,14 @@ struct XizDirectory {
                 d.groups.append(g)
             }
             guard d.groups[0].group == 0 else { throw XipperError.corrupt("XIZ directory without group 0") }
+            if version >= 2 {
+                for _ in 0..<Int(try r.u16()) {
+                    let t = SlotTable(segment: try r.u32(), offset: Int64(bitPattern: try r.u64()), count: try r.u32())
+                    if let last = d.slotTables.last, last.segment >= t.segment { throw XipperError.corrupt("XIZ slot tables out of order") }
+                    d.slotTables.append(t)
+                }
+                d.leafOffset = Int64(bitPattern: try r.u64()); d.leafCount = try r.u32(); d.merkleRoot = Array(try r.bytes(32))
+            }
             let sl = Int(try r.u32())
             d.signature = Array(try r.bytes(sl))
             guard r.remaining == 0 else { throw XipperError.corrupt("XIZ directory trailing data") }

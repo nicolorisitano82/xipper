@@ -534,7 +534,7 @@ enum XizEditor {
         var known: [UInt16: [[UInt8]: [Xiz.Extent]]] = [:]
         for e in a.catalog.entries {
             if let p = MountedArchive.normalize(e.path), byPath[p] == nil { byPath[p] = e }
-            if let d = e.sha256, e.type == .file, known[e.group]?[d] == nil { known[e.group, default: [:]][d] = e.extents }
+            if let d = e.sha256, e.type == .file, e.slot == nil, known[e.group]?[d] == nil { known[e.group, default: [:]][d] = e.extents }
         }
         var fresh: [UInt16: [ArchiveItem]] = [:]
         var freshCount = 0
@@ -546,13 +546,25 @@ enum XizEditor {
         let tracker = ProgressTracker(totalBytes: fresh.values.joined().reduce(0) { $0 + $1.size }, totalEntries: freshCount, handler: progress)
         var frames = a.catalog.frames
         var newByName: [String: Xiz.Entry] = [:]
+        let erasable = directory.flags & XizDirectory.erasableFlag != 0
+        var slots: [[UInt8]] = []
         for g in groups {
-            let (f, written) = try XizWriter.writeData(fresh[g.id] ?? [], to: out, startFrame: frames.count, known: known[g.id] ?? [:],
-                                                       keys: a.groupKeys[g.id], group: g.id, level: options.level ?? 3,
-                                                       extendedAttributes: options.storeExtendedAttributes,
-                                                       workload: options.workload, tracker: tracker, cancel: cancel)
-            frames += f
-            for e in written { newByName[e.path] = e }
+            if erasable, let gk = a.groupKeys[g.id] {
+                let (f, written, s) = try XizWriter.writeErasable(fresh[g.id] ?? [], to: out, startFrame: frames.count, group: gk, groupID: g.id,
+                                                                  segment: UInt32(a.segments), firstSlot: UInt32(slots.count),
+                                                                  level: options.level ?? 3, extendedAttributes: options.storeExtendedAttributes,
+                                                                  tracker: tracker, cancel: cancel)
+                frames += f
+                slots += s
+                for e in written { newByName[e.path] = e }
+            } else {
+                let (f, written) = try XizWriter.writeData(fresh[g.id] ?? [], to: out, startFrame: frames.count, known: known[g.id] ?? [:],
+                                                           keys: a.groupKeys[g.id], group: g.id, proofs: true, level: options.level ?? 3,
+                                                           extendedAttributes: options.storeExtendedAttributes,
+                                                           workload: options.workload, tracker: tracker, cancel: cancel)
+                frames += f
+                for e in written { newByName[e.path] = e }
+            }
         }
         var entries: [UInt16: [Xiz.Entry]] = [:]
         var copied = 0, total = 0
@@ -583,7 +595,8 @@ enum XizEditor {
         try XizWriter.writeDirectorySegment(groups: groups, frames: frames, entries: entries, keys: a.groupKeys,
                                             archiveID: a.superblock.archiveID, segment: UInt32(a.segments),
                                             previousFooter: UInt64(a.footerOffset), signer: options.xizSigner,
-                                            previousSignature: previous, to: out)
+                                            previousSignature: previous, newSlots: slots, olderSlotTables: directory.slotTables,
+                                            erasable: erasable, to: out)
         try out.sync()
         tracker.finish()
         return EditReport(entries: total, copied: copied, compressed: total - copied, rebuilt: false, outputBytes: out.position)

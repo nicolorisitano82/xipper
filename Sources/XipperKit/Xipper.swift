@@ -448,6 +448,54 @@ public enum Xipper {
         return (a.groupInfo.sorted { $0.key < $1.key }.map(\.value.name), a.hiddenGroups)
     }
 
+    /// XIZ 1.3 (§13.7): erases files of an archive created with `XizAccess.erasable`: their key
+    /// slots are overwritten with zeros in place, so their content can no longer be decrypted from
+    /// this archive (all its segments) or from copies made afterwards. When the credentials open
+    /// every group, a segment is appended without them (signed by `options.xizSigner`). `paths` may
+    /// name folders. Returns how many files were erased.
+    @discardableResult
+    public static func xizErase(_ archive: URL, paths: [String], password: String? = nil,
+                                options: CreateOptions = CreateOptions()) throws -> Int {
+        let path = archive.standardizedFileURL.path
+        let a = try XizArchive(path: path, password: password)
+        guard let dir = a.directory else { throw XipperError.unsupported("this XIZ archive has no erasable files (XIZ 1.3)") }
+        let wanted = paths.compactMap { MountedArchive.normalize($0) }
+        let chosen = a.catalog.entries.filter { e in
+            guard let p = MountedArchive.normalize(e.path) else { return false }
+            return wanted.contains { p == $0 || p.hasPrefix($0 + "/") }
+        }
+        guard !chosen.isEmpty else { throw XipperError.invalidArgument("nothing to erase: \(paths.joined(separator: ", "))") }
+        if let e = chosen.first(where: { $0.type == .file && $0.slot == nil }) {
+            throw XipperError.unsupported("\(e.path) is not erasable (create the archive with erasable files)")
+        }
+        let fd = open(path, O_WRONLY)
+        guard fd >= 0 else { throw XipperError.posix("open", path) }
+        defer { close(fd) }
+        let zeros = [UInt8](repeating: 0, count: XizSlots.size)
+        var count = 0
+        for e in chosen {
+            guard let s = e.slot, let t = dir.slotTables.first(where: { $0.segment == s.segment }) else { continue }
+            let at = t.offset + Int64(s.index) * Int64(XizSlots.size)
+            guard pwrite(fd, zeros, zeros.count, off_t(at)) == zeros.count else { throw XipperError.posix("write", path) }
+            count += 1
+        }
+        guard fsync(fd) == 0 else { throw XipperError.posix("sync", path) }
+        if a.hiddenGroups == 0 { try edit(archive, changes: [], password: password, options: options) }
+        return count
+    }
+
+    /// XIZ 1.3 (§13.6): a proof (JSON) that `path` belongs to the archive as its last segment
+    /// stands, verifiable by anyone with `xizVerifyProof` and the file, without the archive.
+    public static func xizProof(_ archive: URL, path: String, password: String? = nil) throws -> Data {
+        Data(try XizProof.make(XizArchive(path: archive.standardizedFileURL.path, password: password), path: path))
+    }
+
+    /// Checks a proof against a file: same content, same name, in the tree the signed directory
+    /// commits to; who signed it and when.
+    public static func xizVerifyProof(_ proof: Data, file: URL) throws -> XizProofResult {
+        try XizProof.verify(Array(proof), content: file)
+    }
+
     public static func list(_ archive: URL, password: String? = nil, workload: Workload = .interactive) throws -> [ArchiveEntry] {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         if format == .zip { return try ZipArchive(path: archive.standardizedFileURL.path).records.map(\.entry) }
