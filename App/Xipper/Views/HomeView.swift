@@ -24,6 +24,10 @@ struct HomeView: View {
     @State private var rememberPassword = false
     @State private var legacyZipCrypto = false
     @State private var askPassword = false
+    @State private var xizDraft = XizAccessDraft()
+    @State private var askAccess = false
+    @State private var accessFolders: [String] = []
+    @State private var preparing = false
     @State private var job: Job?
     @Namespace private var glass
 
@@ -81,6 +85,9 @@ struct HomeView: View {
         .onDisappear {
             if job?.isRunning == true { hidePanel() } else { closePanel() }
         }
+        .sheet(isPresented: $askAccess) {
+            XizAccessSheet(draft: $xizDraft, availableFolders: accessFolders, hasPassword: password != nil)
+        }
         .sheet(isPresented: $askPassword) {
             PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }
@@ -98,6 +105,24 @@ struct HomeView: View {
                 if env["XIPPER_DEMO_ZIPCRYPTO"] != nil {
                     legacyZipCrypto = true
                     askPassword = true
+                }
+                if env["XIPPER_DEMO_ACCESS"] != nil {
+                    formatRaw = ArchiveFormat.xiz.rawValue
+                    var d = XizAccessDraft()
+                    let folders = archiveFolders(of: items)
+                    d.folders = [.init(name: "Referti", paths: folders.filter { $0.hasSuffix("documenti") }),
+                                 .init(name: "Dati grezzi", paths: folders.filter { $0.hasSuffix("dati") })]
+                    d.recipients = [.init(label: "Laboratorio", kind: .password, password: "x", confirm: "x"),
+                                    .init(label: "Clinico", kind: .password, password: "y", confirm: "y", folders: ["Referti"])]
+                    d.custodians = [.init(label: "Dati grezzi", k: 2, people: [.init(label: "DPO", password: "a", confirm: "a"),
+                                                                               .init(label: "Direttore", password: "b", confirm: "b"),
+                                                                               .init(label: "IT", password: "c", confirm: "c")],
+                                          folders: ["Dati grezzi"])]
+                    d.erasable = true
+                    if env["XIPPER_DEMO_ACCESS"] == "custodians" { d.folders = []; d.recipients = [] }
+                    xizDraft = d
+                    accessFolders = folders
+                    askAccess = true
                 }
                 if env["XIPPER_DEMO_COMPRESS"] != nil {
                     try? await Task.sleep(for: .seconds(1))
@@ -274,6 +299,17 @@ struct HomeView: View {
                 .buttonStyle(.borderless)
                 .disabled(!format.supportsPassword)
                 .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive"))
+                if format == .xiz {
+                    Divider().frame(height: 18)
+                    Button {
+                        accessFolders = archiveFolders(of: items)
+                        askAccess = true
+                    } label: {
+                        Label("Accesso", systemImage: xizDraft.isConfigured ? "person.2.badge.key.fill" : "person.2.badge.key")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Cartelle riservate, destinatari, custodi, file cancellabili e firma (XIZ)")
+                }
             }
             .menuStyle(.button)
             .buttonStyle(.borderless)
@@ -289,7 +325,7 @@ struct HomeView: View {
             }
             .buttonStyle(.glassProminent)
             .controlSize(.large)
-            .disabled(items.isEmpty)
+            .disabled(items.isEmpty || preparing)
             .keyboardShortcut(.defaultAction)
             .glassEffectID("primary", in: glass)
         }
@@ -407,8 +443,29 @@ struct HomeView: View {
 
     private func compress() {
         guard !items.isEmpty else { return }
+        guard format == .xiz, xizDraft.isConfigured else { return start(xiz: nil) }
+        if !xizDraft.problems(hasPassword: password != nil).isEmpty {
+            accessFolders = archiveFolders(of: items)
+            askAccess = true
+            return
+        }
+        preparing = true
+        Task {
+            defer { preparing = false }
+            var extras = XizExtras()
+            extras.access = try? xizDraft.access()
+            if !xizDraft.signingKey.isEmpty {
+                // Touch ID for the signing key; cancelling it cancels the compression.
+                guard let signer = await KeyVault.signer(named: xizDraft.signingKey) else { return }
+                extras.signer = signer
+            }
+            start(xiz: extras)
+        }
+    }
+
+    private func start(xiz: XizExtras?) {
         let dest = uniqueURL(folder.appendingPathComponent(archiveName))
-        let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password),
+        let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password, xiz: xiz),
                                  legacyZipCrypto: format == .zip && password != nil && legacyZipCrypto)
         started.rememberPassword = password != nil && rememberPassword
         jobs.focused.insert(started.id)
@@ -439,6 +496,7 @@ struct HomeView: View {
         name = ""
         password = nil
         saveFolder = nil
+        xizDraft = XizAccessDraft()
     }
 }
 

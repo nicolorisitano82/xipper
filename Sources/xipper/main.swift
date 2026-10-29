@@ -92,7 +92,7 @@ let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
-       "--access", "--identity", "--sign", "--signer", "--timestamp", "-o", "--output"]
+       "--access", "--identity", "--sign", "--signer", "--timestamp", "-o", "--output", "--keychain"]
 do {
     var i = 0
     while i < args.count {

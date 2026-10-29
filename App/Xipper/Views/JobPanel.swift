@@ -178,7 +178,7 @@ struct JobPanel: View {
     // MARK: helpers
 
     private var encrypted: Bool {
-        if case let .create(_, _, _, _, password) = job.kind { return password != nil }
+        if case let .create(_, _, _, _, password, xiz) = job.kind { return password != nil || xiz?.access != nil }
         return false
     }
 

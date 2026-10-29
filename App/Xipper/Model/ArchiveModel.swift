@@ -40,6 +40,18 @@ final class ArchiveModel {
     /// A 7z with encrypted names cannot even be listed without the password.
     private(set) var namesLocked = false
 
+    /// XIZ 1.3: who can open it, erasable, provable, signed (from its public parts).
+    private(set) var xizInfo: XizArchiveInfo?
+    /// XIZ 1.3: folders the credentials open and how many stay closed.
+    private(set) var xizAccess: (groups: [String], hidden: Int)?
+    /// XIZ 1.3: the signed history, oldest change first.
+    private(set) var history: [XizSegmentSignature] = []
+    /// XIZ 1.3: opened with the session's credentials (identities, custodians' passwords), so no
+    /// password is needed for its entries.
+    private(set) var openedWithCredentials = false
+    /// Why the last unlock did not open it (e.g. too few custodians).
+    private(set) var unlockMessage: String?
+
     init(url: URL) { self.url = url }
 
     var isEncrypted: Bool { namesLocked || entries.contains(where: \.isEncrypted) }
@@ -51,8 +63,15 @@ final class ArchiveModel {
         loading = true
         error = nil
         namesLocked = false
+        openedWithCredentials = false
         let url = url
         let pw = password
+        xizInfo = url.pathExtension.lowercased() == "xiz" || (try? ArchiveFormat.detect(url)) == .xiz
+            ? await Task.detached { try? Xipper.xizInfo(url) }.value : nil
+        // XIZ 1.3 for one of my identities: unlock it (Touch ID) before listing.
+        if let info = xizInfo, info.hasDirectory, info.encrypted, info.matches(publicKeys: XizKeychain.list(.identity).map(\.publicKey)) {
+            await KeyVault.unlockIdentities(for: url)
+        }
         alignment = await Task.detached { try? Xipper.alignmentSummary(url) }.value
         if alignment?.isCRAM == true {
             format = nil
@@ -85,11 +104,26 @@ final class ArchiveModel {
             entries = e
             bgzf = b
             folders = Self.folderSet(e).sorted()
+            unlockMessage = nil
+            if let info = xizInfo, info.hasDirectory {
+                openedWithCredentials = info.encrypted
+                let (access, history) = await Task.detached {
+                    (try? Xipper.xizAccess(url, password: pw), (try? Xipper.xizHistory(url)) ?? [])
+                }.value
+                xizAccess = access
+                self.history = history
+            }
         case let .failure(err):
             switch err as? XipperError {
             case .passwordRequired?, .wrongPassword?:
                 format = try? ArchiveFormat.detect(url)
                 namesLocked = true
+                self.password = nil
+            case let .invalidArgument(m)? where xizInfo?.hasDirectory == true:
+                // Too few custodians: still locked, with the reason.
+                format = .xiz
+                namesLocked = true
+                unlockMessage = m
                 self.password = nil
             default:
                 error = (err as? XipperError).map(Job.localized) ?? err.localizedDescription

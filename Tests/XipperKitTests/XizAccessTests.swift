@@ -302,4 +302,35 @@ struct XizAccessTests {
         try Xipper.create(from: [t.url("src")], to: t.url("n.xiz"), options: n)
         #expect(throws: XipperError.self) { try Xipper.xizErase(t.url("n.xiz"), paths: ["src/indice.txt"], password: "x") }
     }
+
+    /// Who can open an archive, from its public parts only (the app's unlock sheet).
+    @Test func publicInfoDescribesRecipientsAndCustodians() throws {
+        let t = TempDir()
+        tree(t)
+        let mine = XizIdentity(), other = XizIdentity()
+        var o = CreateOptions()
+        o.format = .xiz
+        o.xizKDF = .minimum
+        o.xizAccess = XizAccess(groups: [.init(name: "referti", prefixes: ["src/referti"])],
+                                recipients: [.init(label: "Laboratorio", credential: .password("lab")),
+                                             .init(label: "Ricerca", credential: .publicKey(mine.publicKey), groups: [""])],
+                                thresholds: [.init(label: "Dati", k: 2, custodians: [.init(label: "DPO", credential: .password("a")),
+                                                                                     .init(label: "IT", credential: .publicKey(other.publicKey))])],
+                                erasable: true)
+        o.xizSigner = XizSigner(key: XizSigningKey(), label: "S")
+        try Xipper.create(from: [t.url("src")], to: t.url("i.xiz"), options: o)
+        let info = try Xipper.xizInfo(t.url("i.xiz"))
+        #expect(info.hasDirectory && info.encrypted && info.erasable && info.provable && info.signed && info.needsCustodians)
+        #expect(info.recipients.map(\.label) == ["Laboratorio", "Ricerca", "Dati", "DPO", "IT"])  // custodians right after their group
+        if case let .threshold(k, n) = info.recipients[2].kind { #expect(k == 2 && n == 2) } else { Issue.record("threshold") }
+        #expect(info.matches(publicKeys: [mine.publicText]))
+        #expect(info.matches(publicKeys: [other.publicText]))  // a custodian's key
+        #expect(!info.matches(publicKeys: [XizIdentity().publicText]))
+        // A plain XIZ: no directory, one password.
+        var p = CreateOptions()
+        p.format = .xiz
+        try Xipper.create(from: [t.url("src")], to: t.url("p.xiz"), options: p)
+        let plain = try Xipper.xizInfo(t.url("p.xiz"))
+        #expect(!plain.hasDirectory && !plain.encrypted && plain.recipients.isEmpty)
+    }
 }

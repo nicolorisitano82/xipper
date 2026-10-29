@@ -7,6 +7,8 @@ A native archiver for macOS on Apple Silicon. It creates, extracts, verifies and
 | Compress | Browse, verify, repair |
 |---|---|
 | ![Xipper's main window: drop files to compress, with format, level and password](docs/screenshots/comprimi.png) | ![An XIZ archive open in Xipper: entries, inspector, verification and PAR2 recovery data](docs/screenshots/archivio.png) |
+| **Per-folder access (XIZ 1.3)** | **Signed history** |
+| ![The Access sheet: reserved folders and who can open them](docs/screenshots/accesso.png) | ![The inspector with the signature of every change](docs/screenshots/firme.png) |
 
 It needs no third-party software at run time: the open-source codecs are compiled into the app (see [Vendor/README.md](Vendor/README.md)). The project documents are written in Italian.
 
@@ -33,12 +35,13 @@ It needs no third-party software at run time: the open-source codecs are compile
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
 - **Edit archives without unpacking them.** Delete, rename and add entries; ZIP, 7z and XIZ keep untouched entries as they are (no recompression; in a solid 7z only the touched blocks).
 - **PAR2 recovery data.** Written from the specification, compatible with par2cmdline and MultiPar; damaged archives are repaired from the window or the CLI, also when data was shifted by an insertion or a deletion.
-- **XIZ for sensitive data** (XIZ 1.3, command line for now), features no common archive format has:
+- **XIZ for sensitive data** (XIZ 1.3, in the app and on the command line), features no common archive format has:
   - **per-folder access:** several recipients (password or X25519 public key), each sees and extracts only its folders; the others do not even appear;
   - **k-of-n unlock:** a folder opens only when, say, 2 of 3 custodians unlock together (Shamir secret sharing);
   - **signed history:** every change is signed (Ed25519), chained to the previous one and optionally time-stamped (RFC 3161); `xipper history` checks it without the password;
   - **proof of one file:** prove that a file belongs to the signed archive without handing over the rest (Merkle tree, RFC 6962); anyone can verify it with the file alone;
-  - **erasure:** in archives created as erasable each file has its own key; erasing it makes the content unreadable in every version of the archive (copies made earlier keep it).
+  - **erasure:** in archives created as erasable each file has its own key; erasing it makes the content unreadable in every version of the archive (copies made earlier keep it);
+  - **keys in the Keychain:** identities and signing keys stay in the macOS Keychain and are used with Touch ID (Settings › Keys); the `xipper` command uses them as `keychain:NAME`.
 - **Genomics.** CRAM 3.1 read and write (htscodecs), `.bai`/`.csi`/`.crai`/`.fai`/tabix indexes, BGZF compatible with `bgzip`, checks of VCF/BCF/BAM/CRAM. XIG, a native genomic profile of XIZ, is being designed ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)).
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**

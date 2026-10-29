@@ -4,9 +4,10 @@ import Foundation
 import XipperKit
 
 let xizUsage = """
-  keygen  [--signing] -o FILE     new XIZ identity (X25519, to receive archives) or signing key
-                                  (Ed25519, --signing); writes the secret to FILE (mode 600) and
-                                  prints the public key
+  keygen  [--signing] -o FILE | --keychain NAME
+                                  new XIZ identity (X25519, to receive archives) or signing key
+                                  (Ed25519, --signing): the secret goes to FILE (mode 600) or to the
+                                  login Keychain under NAME (shared with the app); prints the public key
   history <archive.xiz>           signed changes of an XIZ archive: signer, time, checks, time-stamp
   erase   [options] <archive.xiz> <path>...
                                   erase files of an archive created with "erasable": their keys are
@@ -19,8 +20,10 @@ let xizUsage = """
 
 XIZ access and signatures (create, edit, and everything that opens an archive):
       --access POLICY.json   create: access groups, recipients, custodians (docs/XIZ_SPEC.md §13)
-      --identity FILE        an XIZ identity to open archives with (repeatable)
+      --identity FILE        an XIZ identity to open archives with (repeatable); keychain:NAME takes
+                             it from the Keychain, keychain:* takes all of them
       --sign FILE            sign the archive (create) or the change (edit) with this signing key
+                             (keychain:NAME: from the Keychain)
       --signer NAME          the signer's name shown in the history (default: the user's name)
       --timestamp URL        RFC 3161 time-stamp authority for the signature (network: opt-in)
       --password-stdin       the first line is the password; further lines are more passwords
@@ -40,6 +43,15 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 /// Loads the `--identity` files into the credentials XIZ tries.
 @MainActor func loadXizIdentities() {
     for path in allValues("--identity") {
+        if path.hasPrefix("keychain:") {
+            let name = String(path.dropFirst("keychain:".count))
+            let names = name == "*" ? XizKeychain.list(.identity).map(\.name) : [name]
+            for n in names {
+                guard let text = XizKeychain.secret(.identity, name: n) else { fail("no identity \"\(n)\" in the Keychain") }
+                do { XizCredentials.shared.add(identity: try XizIdentity(secretText: text)) } catch { fail("\(n): \(error)") }
+            }
+            continue
+        }
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { fail("cannot read identity \(path)") }
         do { XizCredentials.shared.add(identity: try XizIdentity(secretText: text)) } catch { fail("\(path): \(error)") }
     }
@@ -50,7 +62,14 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
         if value("--timestamp") != nil { fail("--timestamp needs --sign", code: 2) }
         return nil
     }
-    guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { fail("cannot read signing key \(path)") }
+    let text: String
+    if path.hasPrefix("keychain:") {
+        guard let t = XizKeychain.secret(.signing, name: String(path.dropFirst("keychain:".count))) else { fail("no signing key \"\(path.dropFirst(9))\" in the Keychain") }
+        text = t
+    } else {
+        guard let t = try? String(contentsOfFile: path, encoding: .utf8) else { fail("cannot read signing key \(path)") }
+        text = t
+    }
     let key: XizSigningKey
     do { key = try XizSigningKey(secretText: text) } catch { fail("\(path): \(error)") }
     var url: URL?
@@ -111,7 +130,15 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 }
 
 @MainActor func runKeygen() -> Never {
-    guard let out = value("-o", "--output") else { fail("keygen needs -o FILE", code: 2) }
+    if let name = value("--keychain") {
+        do {
+            print(try XizKeychain.generate(flag("--signing") ? .signing : .identity, name: name))
+            exit(0)
+        } catch {
+            fail("\(error)")
+        }
+    }
+    guard let out = value("-o", "--output") else { fail("keygen needs -o FILE or --keychain NAME", code: 2) }
     if FileManager.default.fileExists(atPath: out) { fail("\(out) already exists") }
     let signing = flag("--signing")
     let (text, publicText) = signing ? { let k = XizSigningKey(); return (k.fileText, k.publicText) }()

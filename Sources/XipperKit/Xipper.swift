@@ -441,6 +441,28 @@ public enum Xipper {
         try XizSignature.history(archive.standardizedFileURL.path)
     }
 
+    /// What an XIZ archive is, from its public parts only: who can open it (labels and kinds of
+    /// its recipients and custodians), whether it is erasable, provable, signed. No password needed.
+    public static func xizInfo(_ archive: URL) throws -> XizArchiveInfo {
+        let path = archive.standardizedFileURL.path
+        let r = try FileReader(path: path)
+        let sbBytes = try r.read(at: 0, count: Xiz.superblockSize)
+        let sb = try Xiz.Superblock.decode(sbBytes)
+        guard sb.required.contains(.directory) else {
+            return XizArchiveInfo(hasDirectory: false, encrypted: sb.required.contains(.encrypted),
+                                  recipients: sb.required.contains(.encrypted) ? [XizRecipientInfo(label: "", kind: .password)] : [],
+                                  erasable: false, provable: false, signed: false)
+        }
+        let recipients = sb.keysLength > 0 ? try XizAccessKeys.describe(try r.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength))) : []
+        let (start, footer) = try XizArchive.lastFooter(r, dataStart: Int64(Xiz.superblockSize) + Int64(sb.keysLength))
+        _ = start
+        let dir = try XizDirectory.decode(try r.read(at: footer.catalogOffset, count: Int(footer.catalogCSize)))
+        let history = (try? XizSignature.history(path)) ?? []
+        return XizArchiveInfo(hasDirectory: true, encrypted: sb.required.contains(.encrypted), recipients: recipients,
+                              erasable: dir.flags & XizDirectory.erasableFlag != 0, provable: dir.version >= 2 && dir.leafCount > 0,
+                              signed: history.contains(where: \.signed))
+    }
+
     /// XIZ 1.3: which access groups the credentials open (names; "" is the main group) and how
     /// many stay hidden.
     public static func xizAccess(_ archive: URL, password: String? = nil) throws -> (groups: [String], hidden: Int) {

@@ -20,12 +20,18 @@ struct ExtractRequest: @unchecked Sendable {
     var capBytes: Int64?
 }
 
+/// XIZ 1.3 choices of a creation: access policy and signer.
+struct XizExtras: @unchecked Sendable {
+    var access: XizAccess?
+    var signer: XizSigner?
+}
+
 /// One background operation shown in the jobs HUD.
 @MainActor
 @Observable
 final class Job: Identifiable {
     enum Kind {
-        case create(sources: [URL], destination: URL, format: ArchiveFormat, preset: LevelPreset, password: String?)
+        case create(sources: [URL], destination: URL, format: ArchiveFormat, preset: LevelPreset, password: String?, xiz: XizExtras? = nil)
         case extract(ExtractRequest)
         case test(archive: URL, password: String?)
     }
@@ -74,7 +80,7 @@ final class Job: Identifiable {
     /// The archive the job reads, or the one it creates.
     var archive: URL? {
         switch kind {
-        case let .create(_, dest, _, _, _): output ?? dest
+        case let .create(_, dest, _, _, _, _): output ?? dest
         case let .extract(r): r.archive
         case let .test(a, _): a
         }
@@ -82,7 +88,7 @@ final class Job: Identifiable {
 
     var password: String? {
         switch kind {
-        case let .create(_, _, _, _, p): p
+        case let .create(_, _, _, _, p, _): p
         case let .extract(r): r.password
         case let .test(_, p): p
         }
@@ -99,7 +105,7 @@ final class Job: Identifiable {
     /// Where the job writes (for free-space checks and "Salva altrove").
     var destinationFolder: URL? {
         switch kind {
-        case let .create(_, dest, _, _, _): dest.deletingLastPathComponent()
+        case let .create(_, dest, _, _, _, _): dest.deletingLastPathComponent()
         case let .extract(r): r.destination ?? r.archive.deletingLastPathComponent()
         case .test: nil
         }
@@ -136,7 +142,7 @@ final class Job: Identifiable {
     init(kind: Kind) {
         self.kind = kind
         switch kind {
-        case let .create(_, dest, _, _, _): title = dest.lastPathComponent; symbol = "arrow.down.right.and.arrow.up.left"
+        case let .create(_, dest, _, _, _, _): title = dest.lastPathComponent; symbol = "arrow.down.right.and.arrow.up.left"
         case let .extract(r): title = r.archive.lastPathComponent; symbol = "arrow.down.to.line"
         case let .test(archive, _): title = archive.lastPathComponent; symbol = "checkmark.shield"
         }
@@ -197,12 +203,12 @@ final class JobCenter {
 
     /// "Salva altrove…": runs the same creation into another folder.
     func relocate(_ job: Job, to folder: URL) {
-        guard case let .create(sources, dest, format, preset, password) = job.kind else { return }
+        guard case let .create(sources, dest, format, preset, password, xiz) = job.kind else { return }
         remove(job)
         // The panel closes: the new job is followed in the HUD.
         focused.remove(job.id)
         let new = start(.create(sources: sources, destination: uniqueURL(folder.appendingPathComponent(dest.lastPathComponent)),
-                                format: format, preset: preset, password: password), legacyZipCrypto: job.legacyZipCrypto)
+                                format: format, preset: preset, password: password, xiz: xiz), legacyZipCrypto: job.legacyZipCrypto)
         new.rememberPassword = job.rememberPassword
     }
 
@@ -265,8 +271,10 @@ final class JobCenter {
                                             pause: @escaping @Sendable (Bool) -> Void,
                                             cancel: CancellationToken) throws -> Outcome {
         switch kind {
-        case let .create(sources, dest, format, preset, password):
+        case let .create(sources, dest, format, preset, password, xiz):
             var options = Preferences.createOptions(format: format, preset: preset, password: password)
+            options.xizAccess = xiz?.access
+            options.xizSigner = xiz?.signer
             options.legacyZipCrypto = legacyZipCrypto
             let r = try Xipper.create(from: sources, to: dest, options: options, progress: progress, cancel: cancel)
             if Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate) {

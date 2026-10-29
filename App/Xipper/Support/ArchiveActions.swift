@@ -11,10 +11,93 @@ enum ArchiveActions {
         return format.canCreate && !format.isSingleFile
     }
 
-    static func edit(_ archive: URL, _ changes: [ArchiveChange], password: String?, done: @escaping () -> Void) {
+    static func edit(_ archive: URL, _ changes: [ArchiveChange], password: String?, signer: XizSigner? = nil, done: @escaping () -> Void) {
+        var options = CreateOptions()
+        options.xizSigner = signer
+        let o = options
         run(String(localized: "Impossibile modificare “\(archive.lastPathComponent)”"), done: done) {
-            try Xipper.edit(archive, changes: changes, password: password)
+            try Xipper.edit(archive, changes: changes, password: password, options: o)
         }
+    }
+
+    // MARK: XIZ 1.3
+
+    /// The signer for a change to `archive`: the default signing key, when the archive is signed
+    /// and Settings ask to sign changes (Touch ID). nil: unsigned change.
+    @MainActor
+    static func signerForChange(_ info: XizArchiveInfo?) async -> XizSigner? {
+        guard let info, info.hasDirectory, info.signed, Preferences.defaults.object(forKey: PrefKey.xizSignEdits) as? Bool ?? true else { return nil }
+        return await KeyVault.defaultSigner()
+    }
+
+    /// "Crea prova di appartenenza…": a JSON proof saved where the user chooses.
+    static func saveProof(_ archive: URL, path: String, password: String?) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (path as NSString).lastPathComponent + ".prova.json"
+        panel.message = String(localized: "La prova dimostra che questo file fa parte dell'archivio firmato, senza consegnare il resto.")
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        run(String(localized: "Impossibile creare la prova"), done: {}) {
+            try Xipper.xizProof(archive, path: path, password: password).write(to: dest, options: .atomic)
+        }
+    }
+
+    /// "Cancella definitivamente…": confirm, then erase (signed when appropriate).
+    @MainActor
+    static func erase(_ archive: URL, paths: [String], password: String?, info: XizArchiveInfo?, done: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = paths.count == 1
+            ? String(localized: "Cancellare definitivamente “\((paths[0] as NSString).lastPathComponent)”?")
+            : String(localized: "Cancellare definitivamente \(paths.count) elementi?")
+        alert.informativeText = String(localized: "La chiave dei file viene distrutta: il contenuto diventa illeggibile in questo archivio e in tutte le sue versioni, e nelle copie fatte da adesso in poi. Le copie dell'archivio fatte prima conservano i file. Non si può annullare.")
+        alert.addButton(withTitle: String(localized: "Cancella definitivamente"))
+        alert.addButton(withTitle: String(localized: "Annulla"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            var options = CreateOptions()
+            options.xizSigner = await signerForChange(info)
+            let o = options
+            run(String(localized: "Impossibile cancellare"), done: done) {
+                try Xipper.xizErase(archive, paths: paths, password: password, options: o)
+            }
+        }
+    }
+
+    /// "Verifica prova di appartenenza…": the proof, then the file it is about.
+    @MainActor
+    static func verifyProof() {
+        let p = NSOpenPanel()
+        p.allowedContentTypes = [.json]
+        p.message = String(localized: "Scegli la prova di appartenenza (.json).")
+        guard p.runModal() == .OK, let proofURL = p.url, let proof = try? Data(contentsOf: proofURL) else { return }
+        let f = NSOpenPanel()
+        f.message = String(localized: "Scegli il file a cui si riferisce la prova.")
+        guard f.runModal() == .OK, let file = f.url else { return }
+        let alert = NSAlert()
+        do {
+            let r = try Xipper.xizVerifyProof(proof, file: file)
+            alert.alertStyle = r.valid ? .informational : .warning
+            alert.messageText = r.valid ? String(localized: "Prova valida") : String(localized: "Prova non valida")
+            var lines: [String] = [String(localized: "File nell'archivio: \(r.path)")]
+            lines.append(r.contentMatches ? String(localized: "Il contenuto coincide.") : String(localized: "Il contenuto è DIVERSO da quello dell'archivio."))
+            lines.append(r.inTree ? String(localized: "Fa parte dell'archivio.") : String(localized: "NON risulta nell'archivio."))
+            if r.signed {
+                lines.append(String(localized: "Firmato da \(r.signerLabel) il \(r.signedAt?.formatted(date: .long, time: .shortened) ?? "?")."))
+                lines.append(r.signerKey)
+            } else {
+                lines.append(String(localized: "L'archivio non è firmato: nessuno garantisce per questa prova."))
+            }
+            if let ts = r.timestamp {
+                lines.append(ts.valid ? String(localized: "Marca temporale: \(ts.time.formatted(date: .long, time: .shortened)), \(ts.authority)\(ts.trusted ? "" : String(localized: " (autorità non riconosciuta da questo Mac)"))")
+                                      : String(localized: "Marca temporale NON valida."))
+            }
+            alert.informativeText = lines.joined(separator: "\n")
+        } catch {
+            alert.alertStyle = .warning
+            alert.messageText = String(localized: "Impossibile verificare la prova")
+            alert.informativeText = (error as? XipperError).map(Job.localized) ?? error.localizedDescription
+        }
+        alert.runModal()
     }
 
     static func createRecovery(for archive: URL, done: @escaping () -> Void) {

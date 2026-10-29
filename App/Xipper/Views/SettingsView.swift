@@ -8,6 +8,7 @@ struct SettingsView: View {
             Tab("Generali", systemImage: "gearshape") { GeneralSettings() }
             Tab("Formati", systemImage: "archivebox") { FormatSettings() }
             Tab("Sicurezza", systemImage: "lock") { SecuritySettings() }
+            Tab("Chiavi", systemImage: "key") { KeysSettings() }
             Tab("Integrazioni", systemImage: "square.stack.3d.up") { IntegrationSettings() }
             Tab("Genomica", systemImage: "testtube.2") { GenomicsSettings() }
             Tab("Prestazioni", systemImage: "cpu") { PerformanceSettings() }

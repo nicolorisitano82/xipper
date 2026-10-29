@@ -56,6 +56,8 @@ struct XipperCommands: Commands {
             .keyboardShortcut("o")
             Button("Nuovo archivio") { openWindow(id: "home") }
                 .keyboardShortcut("n")
+            Divider()
+            Button("Verifica prova di appartenenza…") { ArchiveActions.verifyProof() }
         }
         CommandGroup(after: .appInfo) {
             Button("Cerca aggiornamenti…") { UpdateController.shared.checkForUpdates() }

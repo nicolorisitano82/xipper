@@ -11,6 +11,16 @@
         }
       }
     },
+    " (autorità non riconosciuta da questo Mac)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (authority not trusted by this Mac)"
+          }
+        }
+      }
+    },
     " e salva le modifiche" : {
       "localizations" : {
         "en" : {
@@ -133,6 +143,42 @@
         }
       }
     },
+    "%@ · %lld custodi su %lld insieme" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld of %3$lld custodians together"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld custodi su %3$lld insieme"
+          }
+        }
+      }
+    },
+    "%@ · chiave pubblica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · public key"
+          }
+        }
+      }
+    },
+    "%@ · password" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · password"
+          }
+        }
+      }
+    },
     "%@ · verificato senza scrivere su disco · %@ s · %@/s" : {
       "localizations" : {
         "en" : {
@@ -209,6 +255,22 @@
         }
       }
     },
+    "%@, custode %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, custodian %2$lld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, custode %2$lld"
+          }
+        }
+      }
+    },
     "%@, in %@" : {
       "localizations" : {
         "en" : {
@@ -265,6 +327,62 @@
         }
       }
     },
+    "%@: il numero richiesto deve stare tra 2 e %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: the required number must be between 2 and %2$lld."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: il numero richiesto deve stare tra 2 e %2$lld."
+          }
+        }
+      }
+    },
+    "%@: la chiave pubblica non è valida (xizpk1…)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the public key is not valid (xizpk1…)."
+          }
+        }
+      }
+    },
+    "%@: le password non coincidono." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the passwords do not match."
+          }
+        }
+      }
+    },
+    "%@: manca la password." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: the password is missing."
+          }
+        }
+      }
+    },
+    "%@: servono almeno 2 custodi." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: at least 2 custodians are needed."
+          }
+        }
+      }
+    },
     "%@: usa questo preset per un nuovo archivio" : {
       "localizations" : {
         "en" : {
@@ -291,6 +409,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld MB/s"
+          }
+        }
+      }
+    },
+    "%lld cartelle" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld folder"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld folders"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartella"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartelle"
+                }
+              }
+            }
           }
         }
       }
@@ -647,6 +805,46 @@
         }
       }
     },
+    "%lld modifiche non firmate" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unsigned change"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unsigned changes"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld modifica non firmata"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld modifiche non firmate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld problemi trovati" : {
       "localizations" : {
         "en" : {
@@ -683,6 +881,22 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld su %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld su %2$lld"
           }
         }
       }
@@ -840,6 +1054,16 @@
         }
       }
     },
+    "Accesso" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access"
+          }
+        }
+      }
+    },
     "Aggiornamenti" : {
       "localizations" : {
         "en" : {
@@ -880,6 +1104,36 @@
         }
       }
     },
+    "Aggiungi cartella riservata" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Reserved Folder"
+          }
+        }
+      }
+    },
+    "Aggiungi custode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custodian"
+          }
+        }
+      }
+    },
+    "Aggiungi destinatario" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Recipient"
+          }
+        }
+      }
+    },
     "Aggiungi file" : {
       "localizations" : {
         "en" : {
@@ -896,6 +1150,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Add Files…"
+          }
+        }
+      }
+    },
+    "Aggiungi gruppo di custodi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custodian Group"
+          }
+        }
+      }
+    },
+    "Aggiungi la password di un altro custode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Another Custodian's Password"
           }
         }
       }
@@ -1151,6 +1425,16 @@
         }
       }
     },
+    "Archivio non firmato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive not signed"
+          }
+        }
+      }
+    },
     "Archivio protetto da password" : {
       "localizations" : {
         "en" : {
@@ -1187,6 +1471,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invalid AES authentication: data was altered"
+          }
+        }
+      }
+    },
+    "Autorità di marca temporale (URL)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time-stamp authority (URL)"
           }
         }
       }
@@ -1328,12 +1622,72 @@
         }
       }
     },
+    "Cancella definitivamente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase Permanently"
+          }
+        }
+      }
+    },
+    "Cancella definitivamente…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase Permanently…"
+          }
+        }
+      }
+    },
+    "Cancellare definitivamente %lld elementi?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase %lld items permanently?"
+          }
+        }
+      }
+    },
+    "Cancellare definitivamente “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erase “%@” permanently?"
+          }
+        }
+      }
+    },
+    "Cancellazione…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erasing…"
+          }
+        }
+      }
+    },
     "Cartella" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Folder"
+          }
+        }
+      }
+    },
+    "Cartella principale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main folder"
           }
         }
       }
@@ -1398,6 +1752,56 @@
         }
       }
     },
+    "Cartelle aperte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open folders"
+          }
+        }
+      }
+    },
+    "Cartelle chiuse" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed folders"
+          }
+        }
+      }
+    },
+    "Cartelle riservate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reserved folders"
+          }
+        }
+      }
+    },
+    "Cartelle riservate, destinatari, custodi, file cancellabili e firma (XIZ)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reserved folders, recipients, custodians, erasable files and signature (XIZ)"
+          }
+        }
+      }
+    },
+    "Catena interrotta: una versione precedente è stata alterata" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chain broken: an earlier version was altered"
+          }
+        }
+      }
+    },
     "Cerca aggiornamenti ogni giorno" : {
       "localizations" : {
         "en" : {
@@ -1428,12 +1832,112 @@
         }
       }
     },
+    "Chi ha questo file può aprire gli archivi destinati a te o firmare al posto tuo. Tienilo in un posto sicuro e non mandarlo per email." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has this file can open archives meant for you or sign in your name. Keep it somewhere safe and do not email it."
+          }
+        }
+      }
+    },
     "Chi possiede anche uno solo dei file in chiaro (per esempio un PDF già inviato per email) può ricavare la chiave e aprire tutto l'archivio in pochi minuti." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anyone who has even one of the files unencrypted (for example a PDF already sent by email) can recover the key and open the whole archive in minutes."
+          }
+        }
+      }
+    },
+    "Chi può aprire" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who can open"
+          }
+        }
+      }
+    },
+    "Chi può aprirlo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who can open it"
+          }
+        }
+      }
+    },
+    "Chi vuole mandarti un archivio XIZ usa la tua chiave pubblica (xizpk1…): solo tu potrai aprire le cartelle destinate a te." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To send you an XIZ archive, people use your public key (xizpk1…): only you can open the folders meant for you."
+          }
+        }
+      }
+    },
+    "Chiave di firma «%@» importata." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing key “%@” imported."
+          }
+        }
+      }
+    },
+    "Chiave esportata in %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key exported to %@."
+          }
+        }
+      }
+    },
+    "Chiave pubblica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public key"
+          }
+        }
+      }
+    },
+    "Chiave pubblica di «%@» copiata." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public key of “%@” copied."
+          }
+        }
+      }
+    },
+    "Chiavi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys"
+          }
+        }
+      }
+    },
+    "Chiavi di firma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing keys"
           }
         }
       }
@@ -1748,6 +2252,16 @@
         }
       }
     },
+    "Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With a signing key, every XIZ archive and every change carries your signature: anyone can check who changed what and when. The time-stamp (RFC 3161) is optional and is the only time Xipper contacts a server to sign."
+          }
+        }
+      }
+    },
     "Condivisione" : {
       "localizations" : {
         "en" : {
@@ -1844,6 +2358,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Convert to CRAM…"
+          }
+        }
+      }
+    },
+    "Copia chiave pubblica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Public Key"
           }
         }
       }
@@ -1968,6 +2492,16 @@
         }
       }
     },
+    "Crea prova di appartenenza…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Proof of Inclusion…"
+          }
+        }
+      }
+    },
     "Crea un altro archivio" : {
       "localizations" : {
         "en" : {
@@ -1988,6 +2522,16 @@
         }
       }
     },
+    "Crea una chiave di firma nelle Impostazioni…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create a signing key in Settings…"
+          }
+        }
+      }
+    },
     "Creazione dei dati di recupero…" : {
       "localizations" : {
         "en" : {
@@ -2004,6 +2548,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Creating the index…"
+          }
+        }
+      }
+    },
+    "Custodi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custodians"
+          }
+        }
+      }
+    },
+    "Custodi %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custodians %lld"
+          }
+        }
+      }
+    },
+    "Dai un nome a ogni cartella riservata." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give every reserved folder a name."
           }
         }
       }
@@ -2100,6 +2674,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deflate (works everywhere)"
+          }
+        }
+      }
+    },
+    "Destinatario %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipient %lld"
           }
         }
       }
@@ -2241,6 +2825,16 @@
         }
       }
     },
+    "Due cartelle riservate hanno lo stesso nome." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two reserved folders have the same name."
+          }
+        }
+      }
+    },
     "Elementi" : {
       "localizations" : {
         "en" : {
@@ -2313,6 +2907,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete the item from “%@”?"
+          }
+        }
+      }
+    },
+    "Eliminare «%@» dal Portachiavi?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete “%@” from the Keychain?"
+          }
+        }
+      }
+    },
+    "Elimina…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete…"
           }
         }
       }
@@ -2409,6 +3023,16 @@
         }
       }
     },
+    "Esporta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        }
+      }
+    },
     "Esporta SHA256SUMS…" : {
       "localizations" : {
         "en" : {
@@ -2425,6 +3049,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export Report…"
+          }
+        }
+      }
+    },
+    "Esportare la chiave segreta «%@»?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export the secret key “%@”?"
+          }
+        }
+      }
+    },
+    "Esporta…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export…"
           }
         }
       }
@@ -2709,6 +3353,16 @@
         }
       }
     },
+    "Fa parte dell'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is part of the archive."
+          }
+        }
+      }
+    },
     "Fatto" : {
       "localizations" : {
         "en" : {
@@ -2779,12 +3433,32 @@
         }
       }
     },
+    "File cancellabili" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erasable files"
+          }
+        }
+      }
+    },
     "File corrente" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Current file"
+          }
+        }
+      }
+    },
+    "File nell'archivio: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File in the archive: %@"
           }
         }
       }
@@ -2815,6 +3489,82 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Done"
+          }
+        }
+      }
+    },
+    "Firma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature"
+          }
+        }
+      }
+    },
+    "Firma anche le modifiche agli archivi firmati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also sign changes to signed archives"
+          }
+        }
+      }
+    },
+    "Firma di %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature of %@"
+          }
+        }
+      }
+    },
+    "Firma i nuovi archivi XIZ con" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign new XIZ archives with"
+          }
+        }
+      }
+    },
+    "Firma non valida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid signature"
+          }
+        }
+      }
+    },
+    "Firmato da %@ il %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed by %1$@ on %2$@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Firmato da %1$@ il %2$@."
+          }
+        }
+      }
+    },
+    "Firme" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatures"
           }
         }
       }
@@ -3001,12 +3751,52 @@
         }
       }
     },
+    "Identità «%@» importata." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identity “%@” imported."
+          }
+        }
+      }
+    },
+    "Il contenuto coincide." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The content matches."
+          }
+        }
+      }
+    },
+    "Il contenuto è DIVERSO da quello dell'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The content is DIFFERENT from the archive's."
+          }
+        }
+      }
+    },
     "Il download non è riuscito." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The download failed."
+          }
+        }
+      }
+    },
+    "Il file non contiene una chiave XIZ." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file does not contain an XIZ key."
           }
         }
       }
@@ -3062,6 +3852,26 @@
         }
       }
     },
+    "Importa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        }
+      }
+    },
+    "Importa…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import…"
+          }
+        }
+      }
+    },
     "Impossibile aprire l'archivio" : {
       "localizations" : {
         "en" : {
@@ -3078,6 +3888,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cannot compute the checksums"
+          }
+        }
+      }
+    },
+    "Impossibile cancellare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot erase"
           }
         }
       }
@@ -3108,6 +3928,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not create the index of “%@”"
+          }
+        }
+      }
+    },
+    "Impossibile creare la prova" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot create the proof"
           }
         }
       }
@@ -3148,6 +3978,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn’t repair “%@”"
+          }
+        }
+      }
+    },
+    "Impossibile scrivere il file." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot write the file."
+          }
+        }
+      }
+    },
+    "Impossibile verificare la prova" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot verify the proof"
           }
         }
       }
@@ -3332,6 +4182,16 @@
         }
       }
     },
+    "L'archivio non è firmato: nessuno garantisce per questa prova." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is not signed: nobody vouches for this proof."
+          }
+        }
+      }
+    },
     "L'archivio viene da Internet: i file estratti restano in quarantena e Gatekeeper li controllerà alla prima apertura." : {
       "localizations" : {
         "en" : {
@@ -3402,12 +4262,42 @@
         }
       }
     },
+    "La cartella riservata «%@» non esiste più: aggiorna chi può aprirla." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reserved folder “%@” no longer exists: update who can open it."
+          }
+        }
+      }
+    },
+    "La chiave dei file viene distrutta: il contenuto diventa illeggibile in questo archivio e in tutte le sue versioni, e nelle copie fatte da adesso in poi. Le copie dell'archivio fatte prima conservano i file. Non si può annullare." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The files' key is destroyed: their content becomes unreadable in this archive and all its versions, and in copies made from now on. Copies of the archive made earlier keep the files. This cannot be undone."
+          }
+        }
+      }
+    },
     "La compressione si è fermata al %lld%%." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compression stopped at %lld%%."
+          }
+        }
+      }
+    },
+    "La password scelta con il pulsante Password apre tutto l'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The password set with the Password button opens the whole archive."
           }
         }
       }
@@ -3440,6 +4330,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Passwords are available for ZIP and 7z only"
+          }
+        }
+      }
+    },
+    "La prova dimostra che questo file fa parte dell'archivio firmato, senza consegnare il resto." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The proof shows that this file is part of the signed archive, without handing over the rest."
           }
         }
       }
@@ -3500,6 +4400,26 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Le cartelle di un gruppo di custodi si aprono solo quando il numero richiesto di custodi sblocca insieme; nessuno può farlo da solo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folders of a custodian group open only when the required number of custodians unlock together; nobody can do it alone."
+          }
+        }
+      }
+    },
+    "Le mie identità" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My identities"
           }
         }
       }
@@ -3600,6 +4520,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep folders"
+          }
+        }
+      }
+    },
+    "Marca temporale %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time-stamp %@"
+          }
+        }
+      }
+    },
+    "Marca temporale NON valida." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time-stamp NOT valid."
+          }
+        }
+      }
+    },
+    "Marca temporale non valida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid time-stamp"
+          }
+        }
+      }
+    },
+    "Marca temporale: %@, %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time-stamp: %1$@, %2$@%3$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Marca temporale: %1$@, %2$@%3$@"
           }
         }
       }
@@ -3804,6 +4770,16 @@
         }
       }
     },
+    "NON risulta nell'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is NOT in the archive."
+          }
+        }
+      }
+    },
     "Nascondi" : {
       "localizations" : {
         "en" : {
@@ -3864,12 +4840,42 @@
         }
       }
     },
+    "Nessuna chiave" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No key"
+          }
+        }
+      }
+    },
+    "Nessuna chiave di firma." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No signing keys."
+          }
+        }
+      }
+    },
     "Nessuna compressione" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No compression"
+          }
+        }
+      }
+    },
+    "Nessuna identità." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No identities."
           }
         }
       }
@@ -3900,6 +4906,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Name"
+          }
+        }
+      }
+    },
+    "Nome del gruppo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group name"
+          }
+        }
+      }
+    },
+    "Nome della chiave" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key name"
+          }
+        }
+      }
+    },
+    "Nome nelle firme" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name in signatures"
           }
         }
       }
@@ -3954,12 +4990,32 @@
         }
       }
     },
+    "Non firmare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not sign"
+          }
+        }
+      }
+    },
     "Non ora" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not Now"
+          }
+        }
+      }
+    },
+    "Non potrai più firmare con questa chiave; le firme già fatte restano valide." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You will no longer be able to sign with this key; signatures already made stay valid."
           }
         }
       }
@@ -4044,12 +5100,102 @@
         }
       }
     },
+    "Nuova chiave di firma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Signing Key"
+          }
+        }
+      }
+    },
+    "Nuova chiave di firma…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Signing Key…"
+          }
+        }
+      }
+    },
+    "Nuova identità" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Identity"
+          }
+        }
+      }
+    },
+    "Nuova identità…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Identity…"
+          }
+        }
+      }
+    },
     "Nuovo archivio" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "New Archive"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Ogni cartella riservata è cifrata con una chiave propria. Tutto il resto forma la cartella principale." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each reserved folder is encrypted with its own key. Everything else is the main folder."
+          }
+        }
+      }
+    },
+    "Ogni file ha una chiave propria: «Cancella definitivamente» lo rende illeggibile in tutte le versioni dell'archivio. Le copie fatte prima della cancellazione lo conservano." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each file has its own key: “Erase Permanently” makes it unreadable in every version of the archive. Copies made before the erasure keep it."
+          }
+        }
+      }
+    },
+    "Ognuno vede ed estrae solo le cartelle che può aprire; le altre non compaiono nemmeno." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone sees and extracts only the folders they can open; the others do not even appear."
+          }
+        }
+      }
+    },
+    "Opzioni" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Options"
           }
         }
       }
@@ -4134,6 +5280,16 @@
         }
       }
     },
+    "Password di un altro custode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another custodian's password"
+          }
+        }
+      }
+    },
     "Password errata" : {
       "localizations" : {
         "en" : {
@@ -4180,6 +5336,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pause"
+          }
+        }
+      }
+    },
+    "Per le cartelle custodite, ogni custode inserisce la propria password su questo Mac." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For folders held by custodians, each custodian types their own password on this Mac."
           }
         }
       }
@@ -4304,6 +5470,16 @@
         }
       }
     },
+    "Principale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main"
+          }
+        }
+      }
+    },
     "Problema" : {
       "localizations" : {
         "en" : {
@@ -4354,6 +5530,36 @@
         }
       }
     },
+    "Prova non valida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proof not valid"
+          }
+        }
+      }
+    },
+    "Prova valida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid proof"
+          }
+        }
+      }
+    },
+    "Può aprirlo:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can open it:"
+          }
+        }
+      }
+    },
     "Quarantena" : {
       "localizations" : {
         "en" : {
@@ -4390,6 +5596,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This archive also hides its file names. Enter the password to see its contents."
+          }
+        }
+      }
+    },
+    "Questo archivio si apre con una password, una chiave o più custodi insieme." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive opens with a password, a key or several custodians together."
           }
         }
       }
@@ -4534,6 +5750,16 @@
         }
       }
     },
+    "Rimuovi tutto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove All"
+          }
+        }
+      }
+    },
     "Rinomina" : {
       "localizations" : {
         "en" : {
@@ -4590,6 +5816,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Repair not available: the archive contains no PAR2 recovery data."
+          }
+        }
+      }
+    },
+    "Ripeti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repeat"
           }
         }
       }
@@ -4734,6 +5970,26 @@
         }
       }
     },
+    "Sblocca %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock %@"
+          }
+        }
+      }
+    },
+    "Sblocca…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock…"
+          }
+        }
+      }
+    },
     "Scarica" : {
       "localizations" : {
         "en" : {
@@ -4750,6 +6006,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Download it from the release page."
+          }
+        }
+      }
+    },
+    "Scegli almeno una cartella per ogni cartella riservata." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose at least one folder for each reserved folder."
+          }
+        }
+      }
+    },
+    "Scegli cartella" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Folder"
           }
         }
       }
@@ -4784,6 +6060,16 @@
         }
       }
     },
+    "Scegli il file a cui si riferisce la prova." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the file the proof is about."
+          }
+        }
+      }
+    },
     "Scegli il riferimento FASTA su cui sono state allineate le letture" : {
       "localizations" : {
         "en" : {
@@ -4804,12 +6090,32 @@
         }
       }
     },
+    "Scegli la prova di appartenenza (.json)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the proof of inclusion (.json)."
+          }
+        }
+      }
+    },
     "Scegli un archivio da aprire" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose an archive to open"
+          }
+        }
+      }
+    },
+    "Scegli un file di chiave XIZ (creato da «xipper keygen» o esportato da Xipper)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an XIZ key file (made by “xipper keygen” or exported from Xipper)."
           }
         }
       }
@@ -4864,12 +6170,32 @@
         }
       }
     },
+    "Senza questa chiave non potrai più aprire le cartelle degli archivi destinati a te, a meno di averne una copia." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without this key you will no longer be able to open the folders of archives meant for you, unless you have a copy of it."
+          }
+        }
+      }
+    },
     "Sequenze di riferimento" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reference sequences"
+          }
+        }
+      }
+    },
+    "Serve almeno un destinatario, un gruppo di custodi o una password." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At least one recipient, custodian group or password is needed."
           }
         }
       }
@@ -5242,6 +6568,16 @@
         }
       }
     },
+    "Tutto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everything"
+          }
+        }
+      }
+    },
     "Unix, initramfs" : {
       "localizations" : {
         "en" : {
@@ -5272,6 +6608,16 @@
         }
       }
     },
+    "Usa le mie chiavi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use My Keys"
+          }
+        }
+      }
+    },
     "Usa password" : {
       "localizations" : {
         "en" : {
@@ -5288,6 +6634,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use reference"
+          }
+        }
+      }
+    },
+    "Usa una delle tue identità" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use one of your identities"
           }
         }
       }
@@ -5398,6 +6754,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verify integrity without extracting"
+          }
+        }
+      }
+    },
+    "Verifica prova di appartenenza…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify Proof of Inclusion…"
           }
         }
       }
@@ -5742,6 +7108,16 @@
         }
       }
     },
+    "creazione · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "created · %@"
+          }
+        }
+      }
+    },
     "da %@ · %@%lld%%" : {
       "localizations" : {
         "en" : {
@@ -5778,12 +7154,62 @@
         }
       }
     },
+    "es. Dati grezzi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Raw data"
+          }
+        }
+      }
+    },
+    "es. Laboratorio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Laboratory"
+          }
+        }
+      }
+    },
+    "es. Referti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Reports"
+          }
+        }
+      }
+    },
+    "esportare la chiave «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "export the key “%@”"
+          }
+        }
+      }
+    },
     "fino a %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "up to %@"
+          }
+        }
+      }
+    },
+    "firmare con la chiave «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sign with the key “%@”"
           }
         }
       }
@@ -5848,6 +7274,32 @@
         }
       }
     },
+    "modifica %lld · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "change %1$lld · %2$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "modifica %1$lld · %2$@"
+          }
+        }
+      }
+    },
+    "nessuna" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "none"
+          }
+        }
+      }
+    },
     "per creare un archivio. Rilascia un archivio per aprirlo." : {
       "localizations" : {
         "en" : {
@@ -5884,6 +7336,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "no compression"
+          }
+        }
+      }
+    },
+    "senza nome" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unnamed"
           }
         }
       }
@@ -5978,12 +7440,42 @@
         }
       }
     },
+    "usare le tue chiavi per aprire %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "use your keys to open %@"
+          }
+        }
+      }
+    },
+    "xizpk1…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "xizpk1…"
+          }
+        }
+      }
+    },
     "xz (più piccolo, 7-Zip/WinZip)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "xz (smaller, 7-Zip/WinZip)"
+          }
+        }
+      }
+    },
+    "«%@» creata nel Portachiavi." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” created in the Keychain."
           }
         }
       }

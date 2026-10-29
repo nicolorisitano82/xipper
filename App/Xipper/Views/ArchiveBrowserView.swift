@@ -26,6 +26,8 @@ struct ArchiveBrowserView: View {
     @State private var working: String?
     /// Bumped when recovery files appear, so the inspector looks again.
     @State private var recoveryRevision = 0
+    /// XIZ 1.3: unlocking with several credentials (custodians, identities).
+    @State private var showXizUnlock = false
 
     struct PasswordPrompt: Identifiable {
         let id = UUID()
@@ -97,6 +99,16 @@ struct ArchiveBrowserView: View {
                     } else {
                         passwordPrompt = PasswordPrompt(wrong: true, then: prompt.then)
                     }
+                }
+            }
+        }
+        .sheet(isPresented: $showXizUnlock) {
+            XizUnlockSheet(model: model) { passwords in
+                model.password = passwords.first
+                for extra in passwords.dropFirst() { XizCredentials.shared.add(password: extra) }
+                Task {
+                    await model.load()
+                    if model.namesLocked { showXizUnlock = true }
                 }
             }
         }
@@ -187,11 +199,14 @@ struct ArchiveBrowserView: View {
 
     private func applyEdit(_ changes: [ArchiveChange]) {
         withPassword(for: Set(model.entries.map(\.path))) {
-            working = String(localized: "Modifica dell'archivio…")
-            ArchiveActions.edit(url, changes, password: model.password) {
-                working = nil
-                selection.removeAll()
-                Task { await model.load() }
+            Task {
+                let signer = await ArchiveActions.signerForChange(model.xizInfo)
+                working = String(localized: "Modifica dell'archivio…")
+                ArchiveActions.edit(url, changes, password: model.password, signer: signer) {
+                    working = nil
+                    selection.removeAll()
+                    Task { await model.load() }
+                }
             }
         }
     }
@@ -231,7 +246,7 @@ struct ArchiveBrowserView: View {
     /// from the Keychain (Touch ID) or asked to the user.
     private func withPassword(for ids: Set<String>, _ action: @escaping () -> Void) {
         let encrypted = model.entries.contains { e in e.isEncrypted && (ids.contains(e.path) || ids.contains { e.path.hasPrefix($0 + "/") }) }
-        guard encrypted, model.password == nil else { return action() }
+        guard encrypted, model.password == nil, !model.openedWithCredentials else { return action() }
         Task {
             if let pw = await PasswordVault.password(for: url), await model.check(password: pw) {
                 model.password = pw
@@ -248,6 +263,8 @@ struct ArchiveBrowserView: View {
             if let pw = await PasswordVault.password(for: url), await model.check(password: pw) {
                 model.password = pw
                 await model.load()
+            } else if model.xizInfo?.hasDirectory == true {
+                showXizUnlock = true
             } else {
                 passwordPrompt = PasswordPrompt(wrong: false) { Task { await model.load() } }
             }
@@ -304,9 +321,14 @@ struct ArchiveBrowserView: View {
             ContentUnavailableView {
                 Label("Nomi dei file cifrati", systemImage: "lock.fill")
             } description: {
-                Text("Questo archivio nasconde anche i nomi dei file. Inserisci la password per vederne il contenuto.")
+                if model.xizInfo?.hasDirectory == true {
+                    Text(model.unlockMessage ?? String(localized: "Questo archivio si apre con una password, una chiave o più custodi insieme."))
+                } else {
+                    Text("Questo archivio nasconde anche i nomi dei file. Inserisci la password per vederne il contenuto.")
+                }
             } actions: {
-                Button("Password…") { unlockNames() }.buttonStyle(.glassProminent)
+                Button(model.xizInfo?.hasDirectory == true ? String(localized: "Sblocca…") : String(localized: "Password…")) { unlockNames() }
+                    .buttonStyle(.glassProminent)
             }
         } else if let error = model.error {
             ContentUnavailableView("Impossibile aprire l'archivio", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -384,6 +406,20 @@ struct ArchiveBrowserView: View {
                             if ArchiveActions.confirmDelete(ids.count, archive: url) { applyEdit(ids.sorted().map { .delete($0) }) }
                         }
                     }
+                    if model.xizInfo?.erasable == true, !ids.isEmpty {
+                        Button("Cancella definitivamente…", role: .destructive) {
+                            working = String(localized: "Cancellazione…")
+                            ArchiveActions.erase(url, paths: ids.sorted(), password: model.password, info: model.xizInfo) {
+                                working = nil
+                                selection.removeAll()
+                                Task { await model.load() }
+                            }
+                        }
+                    }
+                }
+                if model.xizInfo?.provable == true, ids.count == 1, let id = ids.first, !model.folders.contains(id) {
+                    Divider()
+                    Button("Crea prova di appartenenza…") { ArchiveActions.saveProof(url, path: id, password: model.password) }
                 }
             } primaryAction: { ids in
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
@@ -637,6 +673,50 @@ private struct ArchiveInspector: View {
                     Section {
                         Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
                             .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                    }
+                }
+                if let info = model.xizInfo, info.hasDirectory {
+                    Section("Firme") {
+                        if model.history.allSatisfy({ !$0.signed }) {
+                            Text("Archivio non firmato").foregroundStyle(.secondary)
+                        }
+                        ForEach(model.history.filter(\.signed), id: \.segment) { s in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(s.label.isEmpty ? String(localized: "senza nome") : s.label,
+                                      systemImage: s.valid && s.chained ? "checkmark.seal.fill" : "xmark.seal.fill")
+                                    .foregroundStyle(s.valid && s.chained ? Color.green : Color.red)
+                                Text(s.segment == 0 ? String(localized: "creazione · \(s.time?.formatted(date: .abbreviated, time: .shortened) ?? "")")
+                                                    : String(localized: "modifica \(s.segment) · \(s.time?.formatted(date: .abbreviated, time: .shortened) ?? "")"))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if !s.valid { Text("Firma non valida").font(.caption).foregroundStyle(.red) }
+                                else if !s.chained { Text("Catena interrotta: una versione precedente è stata alterata").font(.caption).foregroundStyle(.red) }
+                                if let ts = s.timestamp {
+                                    Text(ts.valid ? String(localized: "Marca temporale \(ts.time.formatted(date: .abbreviated, time: .shortened))") : String(localized: "Marca temporale non valida"))
+                                        .font(.caption).foregroundStyle(ts.valid ? Color.secondary : Color.red)
+                                }
+                            }
+                            .help(s.publicKeyText)
+                        }
+                        let unsigned = model.history.filter { !$0.signed }.count
+                        if unsigned > 0 && model.history.contains(where: \.signed) {
+                            Text("\(unsigned) modifiche non firmate").font(.caption).foregroundStyle(.orange)
+                        }
+                    }
+                    if info.encrypted {
+                        Section("Accesso") {
+                            if let access = model.xizAccess {
+                                LabeledContent("Cartelle aperte", value: access.groups.map { $0.isEmpty ? String(localized: "Principale") : $0 }.joined(separator: ", "))
+                                if access.hidden > 0 { LabeledContent("Cartelle chiuse", value: "\(access.hidden)") }
+                            }
+                            LabeledContent("File cancellabili", value: info.erasable ? String(localized: "Sì") : "No")
+                            if !info.recipients.isEmpty {
+                                DisclosureGroup("Chi può aprirlo") {
+                                    ForEach(Array(info.recipients.enumerated()), id: \.offset) { _, r in
+                                        Text(r.label.isEmpty ? String(localized: "senza nome") : r.label).font(.callout)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 Section("Dati di recupero") {

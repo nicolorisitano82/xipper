@@ -29,6 +29,10 @@ enum PrefKey {
     static let favoriteArchives = "favoriteArchives"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
+    static let xizSigningKey = "xizSigningKey"
+    static let xizSignerName = "xizSignerName"
+    static let xizTimestampURL = "xizTimestampURL"
+    static let xizSignEdits = "xizSignEdits"
 }
 
 /// Speed/size trade-off shown in the UI instead of raw per-codec levels.

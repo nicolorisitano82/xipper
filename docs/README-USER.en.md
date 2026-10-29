@@ -1,4 +1,4 @@
-# Xipper 2.2
+# Xipper 2.3
 
 *[Italiano](LEGGIMI.md) · English*
 
@@ -24,7 +24,7 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP, 7z and XIZ keep what does not change as it is, without recompressing it (in a solid 7z, only the blocks you touch are compressed again).
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
 - **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion.
-- **XIZ for sensitive data** (command line for now): give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, sign every change so `xipper history` shows who changed what and when, prove that one file belongs to the archive without handing over the rest (`prove`, `verify-proof`), and erase a file for good (`erase`, in archives created as erasable; copies made before keep it). `xipper help` lists the options.
+- **XIZ for sensitive data:** with the XIZ format, the **Access** button sets reserved folders, who opens what (password or public key), groups of custodians (for example 2 of 3 must unlock together), erasable files and your signature. Your keys live in the Keychain (**Settings › Keys**, Touch ID). In an archive, the inspector shows the signed history; right-click a file for **Create Proof of Inclusion…** or **Erase Permanently…**; **File › Verify Proof of Inclusion…** checks a proof. The same from the command line: give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, sign every change so `xipper history` shows who changed what and when, prove that one file belongs to the archive without handing over the rest (`prove`, `verify-proof`), and erase a file for good (`erase`, in archives created as erasable; copies made before keep it). `xipper help` lists the options.
 - **Genomics:**
   - BGZF compatible with `bgzip`;
   - **CRAM 3.1**: open a `.cram` or `.bam` and use **Convert to BAM…** / **Convert to CRAM…** with the reference FASTA (CRAM is usually 30–50% smaller than BAM, and samtools reads it);

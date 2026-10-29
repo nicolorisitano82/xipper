@@ -16,15 +16,18 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 | Comprimi | Sfoglia, verifica, ripara |
 |---|---|
 | ![La finestra principale di Xipper: trascina file da comprimere, con formato, livello e password](docs/screenshots/comprimi.png) | ![Un archivio XIZ aperto in Xipper: voci, inspector, verifica e dati di recupero PAR2](docs/screenshots/archivio.png) |
+| **Accesso per cartella (XIZ 1.3)** | **Cronologia firmata** |
+| ![La scheda Accesso: cartelle riservate e chi può aprirle](docs/screenshots/accesso.png) | ![L'inspector con le firme di ogni modifica](docs/screenshots/firme.png) |
 
 ## In breve
 
-- **XIZ per dati sensibili** (XIZ 1.3, per ora da riga di comando), funzioni che nessun formato d'archivio comune ha:
+- **XIZ per dati sensibili** (XIZ 1.3, nell'app e da riga di comando), funzioni che nessun formato d'archivio comune ha:
   - **accesso per cartella:** più destinatari (password o chiave pubblica X25519), ciascuno vede ed estrae solo le sue cartelle; le altre non compaiono nemmeno;
   - **sblocco k-di-n:** una cartella si apre solo se, per esempio, 2 custodi su 3 sbloccano insieme (Shamir);
   - **cronologia firmata:** ogni modifica è firmata (Ed25519), concatenata alla precedente e, a richiesta, marcata temporalmente (RFC 3161); `xipper history` la verifica senza password;
   - **prova di un file:** si dimostra che un file appartiene all'archivio firmato senza consegnare il resto (albero di Merkle, RFC 6962), e chiunque la verifica con il solo file;
-  - **cancellazione:** negli archivi creati come cancellabili ogni file ha la sua chiave; cancellarla rende il contenuto illeggibile in tutte le versioni dell'archivio (le copie fatte prima lo conservano).
+  - **cancellazione:** negli archivi creati come cancellabili ogni file ha la sua chiave; cancellarla rende il contenuto illeggibile in tutte le versioni dell'archivio (le copie fatte prima lo conservano);
+  - **chiavi nel Portachiavi:** identità e chiavi di firma restano nel Portachiavi di macOS e si usano con Touch ID (Impostazioni › Chiavi); il comando `xipper` le usa con `keychain:NOME`.
 - **Genomica:** CRAM 3.1 in lettura e scrittura, indici `.bai`/`.csi`/`.crai`/`.fai`/tabix, BGZF compatibile con `bgzip`; XIG, profilo genomico nativo di XIZ, è in fase di disegno.
 - **Modifica senza estrarre** (ZIP, 7z e XIZ senza ricomprimere quello che non cambia), **dati di recupero PAR2** (anche con dati spostati), **montaggio come volume** in lettura e scrittura.
 
