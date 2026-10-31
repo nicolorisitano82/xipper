@@ -102,6 +102,26 @@ private struct JobCapsule: View {
                 ProgressView(value: job.progress?.fraction ?? 0)
                     .progressViewStyle(.linear)
             }
+            if case .failed = job.state, !job.remedies.isEmpty {
+                HStack {
+                    Spacer()
+                    ForEach(job.remedies, id: \.self) { remedy in
+                        switch remedy {
+                        case let .locate(missing):
+                            Button("Individua…") { center.locate(job, missing: missing) }
+                                .help("Scegli dove si trova “\((missing as NSString).lastPathComponent)”")
+                        case .repair:
+                            Button("Ripara") { center.repairAndRetry(job) }
+                                .help("Ripara l'archivio con i dati di recupero PAR2 e riprova")
+                        case .extractElsewhere:
+                            Button("Estrai altrove…") { center.extractElsewhere(job) }
+                        case .retry:
+                            Button("Riprova") { center.retry(job) }
+                        }
+                    }
+                }
+                .buttonStyle(.glass).controlSize(.small)
+            }
         }
         .padding(12)
         .frame(width: 364)

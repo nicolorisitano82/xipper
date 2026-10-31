@@ -26,6 +26,7 @@ enum PrefKey {
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
     static let zipAppleDouble = "zipAppleDouble"
+    static let windowsNames = "windowsCompatibleNames"
     static let favoriteArchives = "favoriteArchives"
     static let updatesLastCheck = "updatesLastCheck"
     static let updatesAnnounced = "updatesAnnounced"
@@ -78,6 +79,7 @@ enum Preferences {
             PrefKey.levelPreset: LevelPreset.balanced.rawValue,
             PrefKey.storeCompressed: true,
             PrefKey.keepMacFiles: false,
+            PrefKey.windowsNames: true,
             PrefKey.revealAfter: true,
             PrefKey.propagateQuarantine: true,
             PrefKey.symlinkPolicy: "inside",
@@ -115,6 +117,7 @@ enum Preferences {
         o.genomicsUsesBGZF = defaults.bool(forKey: PrefKey.genomicsBGZF)
         o.writeBGZFIndex = defaults.bool(forKey: PrefKey.bgzfIndex)
         o.zipAppleDouble = defaults.bool(forKey: PrefKey.zipAppleDouble)
+        o.windowsCompatibleNames = defaults.bool(forKey: PrefKey.windowsNames)
         o.encryptFileNames = defaults.bool(forKey: PrefKey.sevenZipEncryptNames)
         // nil = automatic solid blocks; 0 = one block per file.
         o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0

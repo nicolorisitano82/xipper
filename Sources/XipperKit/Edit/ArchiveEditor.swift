@@ -62,6 +62,9 @@ extension Xipper {
         if format == .sevenZip, let r = try SevenZipEditor.apply(tree, to: path, options: o, work: work, progress: progress, cancel: cancel) {
             return r
         }
+        if format == .appleArchive && o.xizSigner == nil && AppleArchiveReader.isAEA(path) && !AppleArchiveReader.isEncrypted(path) {
+            throw XipperError.unsupported("editing this signed Apple Archive would drop its signature: sign the change with a key")
+        }
         return try rebuild(tree, archive: archive, options: o, work: work, progress: progress, cancel: cancel)
     }
 

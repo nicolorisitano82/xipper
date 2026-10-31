@@ -29,10 +29,11 @@ It needs no third-party software at run time: the open-source codecs are compile
 - **Encryption.**
   - ZIP: AES-256 by default; ZipCrypto only on request, after a warning.
   - 7z: AES-256 with encrypted file names.
-  - Apple Archive: AEA encryption.
+  - Apple Archive: AEA encryption, or an AEA signature (ECDSA P-256, from your XIZ signing key) that macOS's `aea` checks.
   - XIZ: Argon2id and AES-256-GCM over data, names and metadata.
   - Passwords can be saved in the Keychain and unlocked with Touch ID.
 - **Mac metadata.** Finder tags, resource forks and extended attributes are stored in tar and Apple Archive, and in ZIP on request (`__MACOSX`, like the Finder).
+- **Zips for Windows.** No `.DS_Store` or `__MACOSX`, names in NFC and, on request (on by default in the app), names Windows can extract: no `: ? * " < > | \`, trailing dots or spaces, `CON`/`AUX`/`NUL`…, or names differing only in case (`xipper create --windows-names`).
 - **Edit archives without unpacking them.** Delete, rename and add entries; ZIP, 7z and XIZ keep untouched entries as they are (no recompression; in a solid 7z only the touched blocks).
 - **PAR2 recovery data.** Written from the specification, compatible with par2cmdline and MultiPar; damaged archives are repaired from the window or the CLI, also when data was shifted by an insertion or a deletion.
 - **XIZ for sensitive data** (XIZ 1.3, in the app and on the command line), features no common archive format has:

@@ -18,9 +18,15 @@ final class AppleArchiveReader: EntryStreamReader {
                             || head.starts(with: Array("YAA1".utf8)) || head.starts(with: Array("AEA1".utf8)))
     }
 
-    static func isEncrypted(_ path: String) -> Bool {
+    /// AEA: "AEA1" and a 24-bit profile; profile 0 is signed, not encrypted.
+    static func isAEA(_ path: String) -> Bool {
         guard let r = try? FileReader(path: path), let head = try? r.read(at: 0, count: Int(min(r.size, 4))) else { return false }
         return head.starts(with: Array("AEA1".utf8))
+    }
+
+    static func isEncrypted(_ path: String) -> Bool {
+        guard let r = try? FileReader(path: path), let head = try? r.read(at: 0, count: Int(min(r.size, 7))), head.count == 7 else { return false }
+        return head.starts(with: Array("AEA1".utf8)) && head[4..<7] != [0, 0, 0]
     }
 
     static func isAppleArchive(_ path: String) -> Bool {
@@ -35,7 +41,21 @@ final class AppleArchiveReader: EntryStreamReader {
         }
         let name = (path as NSString).lastPathComponent
         var middle: ArchiveByteStream?
-        if Self.isEncrypted(path) {
+        if Self.isAEA(path) && !Self.isEncrypted(path) {
+            // Signed AEA: the header's signature is checked against the key Xipper stored in it,
+            // each block's HMAC while reading.
+            guard let context = ArchiveEncryptionContext(from: f) else { try? f.close(); throw XipperError.corrupt("invalid AEA header") }
+            guard let signer = AEASignature.signer(context) else {
+                try? f.close()
+                throw XipperError.unsupported("Apple Archive signed by a key not stored in it; check it with `aea decrypt -sign-pub`")
+            }
+            guard signer.bound, (try? context.setSigningPublicKey(signer.p256)) != nil,
+                  let d = ArchiveByteStream.decryptionStream(readingFrom: f, encryptionContext: context) else {
+                try? f.close()
+                throw XipperError.integrity(entry: name, detail: "the Apple Archive signature does not match")
+            }
+            middle = d
+        } else if Self.isEncrypted(path) {
             // AEA: scrypt password profile; the decryption stream also decompresses.
             guard let password else { try? f.close(); throw XipperError.passwordRequired(entry: name) }
             guard let context = ArchiveEncryptionContext(from: f) else { try? f.close(); throw XipperError.corrupt("invalid AEA header") }

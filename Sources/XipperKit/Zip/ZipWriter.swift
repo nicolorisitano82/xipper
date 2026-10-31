@@ -77,6 +77,8 @@ public struct WriteReport: Sendable {
     public var inputBytes: Int64
     public var outputBytes: Int64
     public var elapsed: Double
+    /// Entries renamed by `CreateOptions.windowsCompatibleNames`.
+    public var renamedForWindows = 0
 }
 
 /// Parallel ZIP writer.

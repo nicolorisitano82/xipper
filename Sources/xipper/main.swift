@@ -22,6 +22,7 @@ usage: xipper <command> [options]
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
+          --windows-names  zip, 7z: rename entries Windows cannot extract (a:b, why?, CON.txt, trailing dots, case clashes)
           --overwrite      replace an existing archive
   extract [options] <archive> [entry...]
       -d, --dest DIR       destination folder (default: next to the archive)
@@ -85,14 +86,14 @@ let commonFlags: Set<String> = ["--background", "-q", "--quiet", "-h", "--help"]
 let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
-    : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--overwrite", "--into",
+    : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
-       "--access", "--identity", "--sign", "--signer", "--timestamp", "-o", "--output", "--keychain"]
+       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain"]
 do {
     var i = 0
     while i < args.count {
@@ -245,13 +246,16 @@ case "create", "c":
     o.xizDictionary = !flag("--no-dictionary")
     o.overwrite = flag("--overwrite")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
+    o.windowsCompatibleNames = flag("--windows-names")
+    if o.windowsCompatibleNames && o.format != .zip && o.format != .sevenZip { fail("--windows-names needs the zip or 7z format", code: 2) }
     o.workload = workload
     if let p = value("--access") {
         guard o.format == .xiz else { fail("--access needs the xiz format", code: 2) }
         o.xizAccess = loadAccessPolicy(p)
     }
     o.xizSigner = xizSigner()
-    if o.xizSigner != nil && o.format != .xiz { fail("--sign needs the xiz format", code: 2) }
+    if o.xizSigner != nil && o.format != .xiz && o.format != .appleArchive { fail("--sign needs the xiz or aar format", code: 2) }
+    if o.xizSigner?.timestampURL != nil && o.format == .appleArchive { fail("--timestamp is for xiz only (AEA has no place for it)", code: 2) }
     o.password = o.xizAccess != nil && !flag("-p", "--password", "--password-stdin") ? nil : readPassword(confirm: true)
     if o.format == .zip, let pw = o.password, pw.utf8.contains(where: { $0 >= 0x80 }) {
         fputs("xipper: warning: non-ASCII passwords cannot be entered in 7-Zip\n", stderr)
@@ -264,6 +268,7 @@ case "create", "c":
         print(String(format: "%@: %d entries, %@ → %@ (%.1f%%) in %.2fs, %.0f MB/s", archive.lastPathComponent, r.entries,
                      r.inputBytes.bytesText, r.outputBytes.bytesText, ratio, r.elapsed,
                      r.elapsed > 0 ? Double(r.inputBytes) / r.elapsed / 1e6 : 0))
+        if r.renamedForWindows > 0 { print("\(r.renamedForWindows) names changed for Windows") }
     }
 
 case "extract", "x":

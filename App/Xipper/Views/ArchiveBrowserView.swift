@@ -675,6 +675,16 @@ private struct ArchiveInspector: View {
                             .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
                     }
                 }
+                if model.format == .appleArchive, let s = model.history.first {
+                    Section("Firma") {
+                        Label(s.label.isEmpty ? String(localized: "senza nome") : s.label,
+                              systemImage: s.valid ? "checkmark.seal.fill" : "xmark.seal.fill")
+                            .foregroundStyle(s.valid ? Color.green : Color.red)
+                            .help(s.publicKeyText)
+                        Text(s.valid ? String(localized: "Apple Archive firmato (AEA, ECDSA P-256), non cifrato") : String(localized: "Firma non valida o di una chiave sconosciuta"))
+                            .font(.caption).foregroundStyle(s.valid ? Color.secondary : Color.red)
+                    }
+                }
                 if let info = model.xizInfo, info.hasDirectory {
                     Section("Firme") {
                         if model.history.allSatisfy({ !$0.signed }) {

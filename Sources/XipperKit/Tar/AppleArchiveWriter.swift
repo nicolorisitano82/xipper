@@ -15,9 +15,12 @@ public enum AppleArchiveWriter {
         level <= 2 ? .lz4 : level <= 6 ? .lzfse : .lzma
     }
 
-    static func write(items: [ArchiveItem], to path: String, level: Int, password: String?, extendedAttributes: Bool,
-                      overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
+    static func write(items: [ArchiveItem], to path: String, level: Int, password: String?, signer: XizSigner? = nil,
+                      extendedAttributes: Bool, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         if !overwrite && FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
+        if signer != nil && password != nil {
+            throw XipperError.invalidArgument("an Apple Archive can be signed or protected by a password, not both (AEA has no such profile); use XIZ for both")
+        }
         let tracker = ProgressTracker(totalBytes: items.reduce(0) { $0 + $1.size }, totalEntries: items.count, handler: progress)
         let tmp = (path as NSString).deletingLastPathComponent + "/.\((path as NSString).lastPathComponent).xiptmp-\(UInt32.random(in: 0...UInt32.max))"
         var committed = false
@@ -36,6 +39,15 @@ public enum AppleArchiveWriter {
             }
             let context = ArchiveEncryptionContext(profile: .hkdf_sha256_aesctr_hmac__scrypt__none, compressionAlgorithm: algorithm)
             do { try context.setPassword(password) } catch { try? file.close(); throw XipperError.codec("AEA password") }
+            middle = ArchiveByteStream.encryptionStream(writingTo: file, encryptionContext: context)
+        } else if let signer {
+            // AEA profile 0: signed, not encrypted (see AEASignature).
+            let context = ArchiveEncryptionContext(profile: .hkdf_sha256_hmac__none__ecdsa_p256, compressionAlgorithm: algorithm)
+            context.paddingSize = 0  // padding hides the size of encrypted data; this is not encrypted
+            do {
+                context.authData = try AEASignature.authData(for: signer)
+                try context.setSigningPrivateKey(AEASignature.p256(for: signer.key))
+            } catch { try? file.close(); throw XipperError.codec("AEA signing key") }
             middle = ArchiveByteStream.encryptionStream(writingTo: file, encryptionContext: context)
         } else {
             middle = ArchiveByteStream.compressionStream(using: algorithm, writingTo: file)

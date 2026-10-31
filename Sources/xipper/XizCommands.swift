@@ -8,7 +8,8 @@ let xizUsage = """
                                   new XIZ identity (X25519, to receive archives) or signing key
                                   (Ed25519, --signing): the secret goes to FILE (mode 600) or to the
                                   login Keychain under NAME (shared with the app); prints the public key
-  history <archive.xiz>           signed changes of an XIZ archive: signer, time, checks, time-stamp
+  history <archive.xiz|.aar>      signed changes of an XIZ archive: signer, time, checks, time-stamp;
+                                  for a signed Apple Archive, --aea-pem FILE writes the key for `aea -sign-pub`
   erase   [options] <archive.xiz> <path>...
                                   erase files of an archive created with "erasable": their keys are
                                   destroyed in place, so their content is unreadable in every segment
@@ -23,7 +24,8 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
       --identity FILE        an XIZ identity to open archives with (repeatable); keychain:NAME takes
                              it from the Keychain, keychain:* takes all of them
       --sign FILE            sign the archive (create) or the change (edit) with this signing key
-                             (keychain:NAME: from the Keychain)
+                             (keychain:NAME: from the Keychain); also for aar: a signed, not encrypted
+                             Apple Archive (AEA, ECDSA P-256 key derived from this one)
       --signer NAME          the signer's name shown in the history (default: the user's name)
       --timestamp URL        RFC 3161 time-stamp authority for the signature (network: opt-in)
       --password-stdin       the first line is the password; further lines are more passwords
@@ -204,10 +206,13 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 }
 
 @MainActor func runHistory() -> Never {
-    guard positional.count == 1 else { fail("history needs one XIZ archive", code: 2) }
+    guard positional.count == 1 else { fail("history needs one XIZ archive or Apple Archive", code: 2) }
     do {
         let h = try Xipper.xizHistory(URL(fileURLWithPath: positional[0]))
-        if h.isEmpty { print("not a signed XIZ archive (XIZ 1.3)"); exit(0) }
+        if h.isEmpty { print("not a signed archive (XIZ 1.3 or Apple Archive)"); exit(0) }
+        if let pem = h.first?.aeaPublicKeyPEM, let out = value("--aea-pem") {
+            do { try pem.write(toFile: out, atomically: true, encoding: .utf8) } catch { fail("cannot write \(out)") }
+        }
         let df = ISO8601DateFormatter()
         var bad = false
         for s in h {

@@ -62,6 +62,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.keepMacFiles) private var keepMac = false
     @AppStorage(PrefKey.sevenZipEncryptNames) private var encryptNames = true
     @AppStorage(PrefKey.zipAppleDouble) private var appleDouble = false
+    @AppStorage(PrefKey.windowsNames) private var windowsNames = true
     @AppStorage(PrefKey.sevenZipSolid) private var solid = true
 
     var body: some View {
@@ -77,7 +78,11 @@ private struct FormatSettings: View {
                 }
                 Toggle("Non ricomprimere file già compressi (foto, video, archivi)", isOn: $store)
                 Toggle("Includi file nascosti del Mac (.DS_Store, ._*)", isOn: $keepMac)
-            Toggle("Salva tag e attributi del Mac (cartella __MACOSX, come il Finder)", isOn: $appleDouble)
+                Toggle("Salva tag e attributi del Mac (cartella __MACOSX, come il Finder)", isOn: $appleDouble)
+                Toggle(isOn: $windowsNames) {
+                    Text("Nomi compatibili con Windows")
+                    Text("ZIP e 7z: sostituisce i caratteri che Windows non accetta (: ? * \" < > | \\), toglie punti e spazi finali e distingue i nomi uguali a meno delle maiuscole.")
+                }
             }
             Section("7z") {
                 Toggle("Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)", isOn: $solid)

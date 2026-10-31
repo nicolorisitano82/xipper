@@ -88,7 +88,11 @@ struct ZipCryptoWriteTests {
         #expect(entries.filter { $0.kind == .file }.allSatisfy { if case .zipCrypto = $0.encryption { true } else { false } })
         #expect(try Xipper.test(t.url("z.zip"), password: "segreto").isOK)
         let wrong = try Xipper.test(t.url("z.zip"), password: "sbagliata")
-        #expect(!wrong.isOK && wrong.failures.allSatisfy { $0.problem == .wrongPassword })
+        // ZipCrypto checks the password with one byte: about 1 entry in 256 passes it and then
+        // fails its CRC or decompression instead.
+        #expect(!wrong.isOK && wrong.failures.allSatisfy {
+            switch $0.problem { case .wrongPassword, .checksumMismatch, .damaged, .truncated: true; default: false }
+        })
         t.mkdir("ours")
         var x = ExtractOptions()
         x.password = "segreto"

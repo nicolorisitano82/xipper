@@ -94,6 +94,23 @@ final class Job: Identifiable {
         }
     }
 
+    /// What the user can do about a failed extraction or verification, offered as buttons next
+    /// to the error instead of a message alone.
+    enum Remedy: Hashable {
+        /// A part of a split archive is missing: pick it, wherever it is.
+        case locate(missing: String)
+        /// The archive is damaged and PAR2 recovery data sits next to it.
+        case repair
+        /// The destination cannot take the files: choose another folder.
+        case extractElsewhere
+        /// The volume went away: try again once it is back.
+        case retry
+    }
+
+    var remedies: [Remedy] = []
+    /// Links standing in for a part the user located elsewhere, removed when the job ends.
+    var temporaryLinks: [String] = []
+
     enum Failure: Equatable {
         case diskFull(available: Int64?)
         case permission
@@ -219,11 +236,14 @@ final class JobCenter {
     func clearFinished() { jobs.removeAll { !$0.isRunning } }
 
     /// Re-runs a job that stopped for a password or a safety override.
-    func retry(_ job: Job, password: String? = nil, ratioOverride: Double? = nil, remember: Bool = false, fromVault: Bool = false) {
+    @discardableResult
+    func retry(_ job: Job, password: String? = nil, ratioOverride: Double? = nil, remember: Bool = false, fromVault: Bool = false,
+               destination: URL? = nil) -> Job {
         let kind: Job.Kind
         switch job.kind {
         case var .extract(r):
             if let password { r.password = password }
+            if let destination { r.destination = destination }
             if let ratioOverride { r.ratioOverride = ratioOverride }
             kind = .extract(r)
         case let .test(a, p): kind = .test(archive: a, password: password ?? p)
@@ -233,6 +253,52 @@ final class JobCenter {
         let new = start(kind, legacyZipCrypto: job.legacyZipCrypto)
         new.rememberPassword = remember || job.rememberPassword
         new.passwordFromVault = fromVault
+        return new
+    }
+
+    /// "Individua…": the user picks the missing part; a link with the expected name stands in for
+    /// it while the job runs again.
+    func locate(_ job: Job, missing: String) {
+        let name = (missing as NSString).lastPathComponent
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.message = String(localized: "Dov'è “\(name)”? Scegli la parte mancante dell'archivio.")
+        panel.prompt = String(localized: "Usa questa parte")
+        panel.directoryURL = URL(fileURLWithPath: (missing as NSString).deletingLastPathComponent)
+        guard panel.runModal() == .OK, let picked = panel.url?.standardizedFileURL else { return }
+        var link: String?
+        if picked.path != missing {
+            do {
+                try FileManager.default.createSymbolicLink(atPath: missing, withDestinationPath: picked.path)
+                link = missing
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Impossibile usare “\(picked.lastPathComponent)”")
+                alert.informativeText = String(localized: "Copia la parte nella cartella dell'archivio con il nome “\(name)” e riprova.")
+                alert.runModal()
+                return
+            }
+        }
+        let new = retry(job)
+        if let link { new.temporaryLinks = [link] }
+    }
+
+    /// "Ripara": PAR2 repair next to the archive, then the same job again.
+    func repairAndRetry(_ job: Job) {
+        guard let archive = job.archive else { return }
+        ArchiveActions.repair(archive) { [weak self] in self?.retry(job) }
+    }
+
+    /// "Estrai altrove…": the same extraction into another folder.
+    func extractElsewhere(_ job: Job) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = String(localized: "Estrai qui")
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        retry(job, destination: folder)
     }
 
     private func run(_ job: Job, _ kind: Job.Kind) {
@@ -332,6 +398,8 @@ extension Job {
     fileprivate func apply(_ outcome: JobCenter.Outcome) {
         defer {
             if rememberPassword, case .finished = state, let pw = password, let archive { PasswordVault.save(pw, for: archive) }
+            for link in temporaryLinks where (try? FileManager.default.destinationOfSymbolicLink(atPath: link)) != nil { unlink(link) }
+            temporaryLinks = []
         }
         switch outcome {
         case let .created(r, url):
@@ -397,6 +465,35 @@ extension Job {
                 state = .failed(Self.localized(x))
             case nil: state = .failed(e.localizedDescription)
             }
+            if let x = e as? XipperError { suggestRemedies(for: x) }
+        }
+    }
+
+    /// Remedies for an extraction or verification that failed (creation has its own panel).
+    private func suggestRemedies(for e: XipperError) {
+        guard let archive else { return }
+        var isExtract = false
+        switch kind {
+        case .create: return
+        case .extract: isExtract = true
+        case .test: break
+        }
+        switch e {
+        case .corrupt, .truncated, .integrity, .checksumMismatch:
+            if let missing = Xipper.missingVolume(of: archive), !FileManager.default.fileExists(atPath: missing) {
+                remedies = [.locate(missing: missing)]
+                state = .failed(String(localized: "Manca la parte “\((missing as NSString).lastPathComponent)” dell'archivio"))
+            } else if PAR2.indexFile(for: archive) != nil {
+                remedies = [.repair]
+            }
+        case .insufficientSpace where isExtract:
+            remedies = [.extractElsewhere]
+        case let .io(_, _, err) where isExtract && [EACCES, EPERM, EROFS, ENOSPC, EDQUOT].contains(err):
+            remedies = [.extractElsewhere]
+        case let .io(_, _, err) where [ENXIO, ENODEV, EIO].contains(err):
+            remedies = [.retry]
+        default:
+            break
         }
     }
 

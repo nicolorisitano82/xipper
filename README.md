@@ -29,6 +29,8 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
   - **cancellazione:** negli archivi creati come cancellabili ogni file ha la sua chiave; cancellarla rende il contenuto illeggibile in tutte le versioni dell'archivio (le copie fatte prima lo conservano);
   - **chiavi nel Portachiavi:** identità e chiavi di firma restano nel Portachiavi di macOS e si usano con Touch ID (Impostazioni › Chiavi); il comando `xipper` le usa con `keychain:NOME`.
 - **Genomica:** CRAM 3.1 in lettura e scrittura, indici `.bai`/`.csi`/`.crai`/`.fai`/tabix, BGZF compatibile con `bgzip`; XIG, profilo genomico nativo di XIZ, è in fase di disegno.
+- **Apple Archive firmati:** firma AEA (ECDSA P-256, ricavata dalla chiave di firma XIZ) che anche `aea` di macOS verifica; `xipper create -f aar --sign keychain:NOME`.
+- **Zip per Windows:** niente `.DS_Store` né `__MACOSX`, nomi in NFC e, a richiesta (nell'app è attivo di default), nomi che Windows sa estrarre: niente `: ? * " < > | \`, punti o spazi finali, `CON`/`AUX`/`NUL`…, nomi uguali a meno delle maiuscole (`xipper create --windows-names`).
 - **Modifica senza estrarre** (ZIP, 7z e XIZ senza ricomprimere quello che non cambia), **dati di recupero PAR2** (anche con dati spostati), **montaggio come volume** in lettura e scrittura.
 
 ## Struttura

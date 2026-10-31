@@ -139,7 +139,11 @@ Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in 
 - ✅ **link in estrazione** (31/10/2026): i symlink che escono dalla destinazione passando per altri link vengono rimossi; i link fisici non attraversano symlink già presenti nella destinazione;
 - ✅ **suite di stabilità e sicurezza** (31/10/2026): uso concorrente, alberi insoliti, annullamento e troncamento in ogni punto, descrittori, link, permessi, quarantena, cifratura, WebDAV, MCP (204 test);
 - ✅ generatore di password nel pannello di compressione, etichette VoiceOver sui pulsanti a icona;
-- seguito dall'analisi UI/UX ([reports/Analisi UI UX concorrenti macOS.md](../reports/Analisi%20UI%20UX%20concorrenti%20macOS.md)): errori con azione ("Individua…" per le parti mancanti), zip compatibili con Windows, annunci VoiceOver, altre lingue.
+- ✅ **nomi compatibili con Windows** (31/10/2026, non ancora pubblicato): ZIP e 7z, opzione nell'app (attiva di default), `--windows-names` nella CLI, `windows_names` nell'MCP; i nomi già validi hanno la precedenza in caso di collisione;
+- ✅ **errori con azione** (31/10/2026, non ancora pubblicato): quando un'estrazione o una verifica fallisce, il lavoro propone **Individua…** (parte mancante di un archivio a volumi, `Xipper.missingVolume`), **Ripara** (dati PAR2 accanto all'archivio), **Estrai altrove…** (destinazione piena, in sola lettura o senza permessi) o **Riprova** (volume scollegato);
+- ✅ **Apple Archive firmati** (31/10/2026, non ancora pubblicato): profilo AEA 0 (ECDSA P-256, non cifrato) con una chiave derivata dalla chiave di firma XIZ e legata a essa da una firma Ed25519 nei dati autenticati; `xipper create -f aar --sign`, `xipper history --aea-pem` per verificare con `aea decrypt -sign-pub`; pulsante **Firma** nell'app e sezione Firma nell'inspector. AEA non ha un profilo con password e firma insieme;
+- studio sulla firma elettronica qualificata ([reports/Studio firma elettronica qualificata.md](../reports/Studio%20firma%20elettronica%20qualificata.md)): eIDAS, CAdES/PAdES/ASiC, CSC API, roadmap;
+- seguito dall'analisi UI/UX ([reports/Analisi UI UX concorrenti macOS.md](../reports/Analisi%20UI%20UX%20concorrenti%20macOS.md)): annunci VoiceOver, altre lingue.
 
 ---
 

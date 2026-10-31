@@ -90,6 +90,9 @@ struct JobPanel: View {
             if encrypted {
                 Label("Cifrato con AES-256", systemImage: "lock").font(.callout).foregroundStyle(.secondary)
             }
+            if let n = job.writeReport?.renamedForWindows, n > 0 {
+                Label("\(n) nomi adattati per Windows", systemImage: "character.cursor.ibeam").font(.callout).foregroundStyle(.secondary)
+            }
             HStack {
                 Button("Verifica", systemImage: "checkmark.shield") {
                     if let out = job.output { center.start(.test(archive: out, password: nil)) }

@@ -172,6 +172,8 @@ public struct XizSegmentSignature: Sendable {
     /// The chain to the previous segment's signature holds (true for the first segment).
     public var chained: Bool
     public var timestamp: XizTimestamp?
+    /// Signed Apple Archive: the P-256 key that signed it, PEM, for `aea decrypt -sign-pub`.
+    public var aeaPublicKeyPEM: String?
     public var publicKeyText: String { publicKey.isEmpty ? "" : XizSigningKey.publicText(publicKey) }
 }
 

@@ -112,6 +112,9 @@ final class ArchiveModel {
                 }.value
                 xizAccess = access
                 self.history = history
+            } else if f == .appleArchive {
+                // Signed AEA: one signature, checked in the header (Xipper.test reads the rest).
+                self.history = await Task.detached { (try? Xipper.xizHistory(url)) ?? [] }.value
             }
         case let .failure(err):
             switch err as? XipperError {

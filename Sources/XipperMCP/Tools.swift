@@ -275,6 +275,7 @@ enum XipperTools {
                              "level": int("Compression level (format default if omitted).", min: 0, max: 22),
                              "password_ref": str(passwordRefDoc + " Encrypts a zip or 7z with AES-256."),
                              "solid": bool("7z only: one solid block (default, smaller) or false for one block per file (faster partial extraction)."),
+                             "windows_names": bool("zip or 7z: rename entries Windows cannot extract (a:b, why?, CON.txt, trailing dots, names differing only in case). Use when the archive goes to Windows users."),
                              "overwrite": bool("Replace an existing archive. Requires the user's confirmation.")],
                             required: ["sources", "output"]),
         readOnly: false, destructive: false, idempotent: false
@@ -293,6 +294,7 @@ enum XipperTools {
         }
         o.level = args["level"]?.int
         if let solid = args["solid"]?.bool, !solid { o.solidBlockSize = 0 }
+        o.windowsCompatibleNames = args.optionalBool("windows_names")
         o.password = try password(args, ctx)
         o.workload = ctx.config.workload
         if FileManager.default.fileExists(atPath: output) {
@@ -303,9 +305,11 @@ enum XipperTools {
             o.overwrite = true
         }
         let r = try Xipper.create(from: sources, to: URL(fileURLWithPath: output), options: o, progress: ctx.progress, cancel: ctx.cancel)
-        return ToolResult(text: "Created \(output): \(r.entries) entries, \(bytes(r.inputBytes)) → \(bytes(r.outputBytes)) in \(String(format: "%.2f", r.elapsed)) s",
+        let renamed = r.renamedForWindows > 0 ? ", \(r.renamedForWindows) names changed for Windows" : ""
+        return ToolResult(text: "Created \(output): \(r.entries) entries, \(bytes(r.inputBytes)) → \(bytes(r.outputBytes)) in \(String(format: "%.2f", r.elapsed)) s\(renamed)",
                           structured: ["output": .string(output), "format": .string(o.format.rawValue), "entries": .int(Int64(r.entries)),
-                                       "inputBytes": .int(r.inputBytes), "outputBytes": .int(r.outputBytes), "seconds": .double(r.elapsed)])
+                                       "inputBytes": .int(r.inputBytes), "outputBytes": .int(r.outputBytes), "seconds": .double(r.elapsed),
+                                       "renamedForWindows": .int(Int64(r.renamedForWindows))])
     }
 
     static let bgzfCompress = Tool(

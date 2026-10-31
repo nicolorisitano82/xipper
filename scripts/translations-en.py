@@ -155,6 +155,25 @@ EN = {
     "Formato predefinito": "Default format",
     "Generali": "General",
     "Genomica": "Genomics",
+    "Nomi compatibili con Windows": "Windows-compatible names",
+    "Apple Archive firmato (AEA, ECDSA P-256), non cifrato": "Signed Apple Archive (AEA, ECDSA P-256), not encrypted",
+    "Copia la parte nella cartella dell'archivio con il nome “%@” e riprova.": "Copy the part into the archive's folder, named “%@”, and try again.",
+    "Dov'è “%@”? Scegli la parte mancante dell'archivio.": "Where is “%@”? Choose the archive's missing part.",
+    "Estrai altrove…": "Extract Elsewhere…",
+    "Firma l'archivio con la chiave «%@» (non cifrato; macOS lo verifica con aea)": "Sign the archive with the key “%@” (not encrypted; macOS checks it with aea)",
+    "Firma non valida o di una chiave sconosciuta": "Invalid signature, or signed by an unknown key",
+    "Impossibile usare “%@”": "Cannot use “%@”",
+    "Individua…": "Locate…",
+    "Manca la parte “%@” dell'archivio": "The archive's part “%@” is missing",
+    "Ripara l'archivio con i dati di recupero PAR2 e riprova": "Repair the archive with its PAR2 recovery data and try again",
+    "Scegli dove si trova “%@”": "Choose where “%@” is",
+    "Scegli una chiave di firma predefinita in Impostazioni › Chiavi": "Choose a default signing key in Settings › Keys",
+    "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose": "An Apple Archive can be signed or password-protected, not both",
+    "Usa questa parte": "Use This Part",
+    "attiva": "on",
+    "non attiva": "off",
+    "ZIP e 7z: sostituisce i caratteri che Windows non accetta (: ? * \" < > | \\), toglie punti e spazi finali e distingue i nomi uguali a meno delle maiuscole.":
+        "ZIP and 7z: replaces characters Windows does not accept (: ? * \" < > | \\), removes trailing dots and spaces, and tells apart names that differ only in case.",
     "Gli archivi tar.zst sono i più veloci e compatti per backup e scambio tra Mac e Linux; ZIP resta il più compatibile con Windows.":
         "tar.zst archives are the fastest and most compact for backups and exchange between Mac and Linux; ZIP remains the most compatible with Windows.",
     "Gli assistenti possono usare solo le cartelle elencate. Le password non passano mai dalla chat: restano nel Portachiavi. Ogni operazione è registrata in ~/Library/Logs/Xipper/mcp-audit.jsonl.":
@@ -639,6 +658,8 @@ EN = {
 
 # Plural keys: (Italian one, Italian other, English one, English other). The count is the %lld argument.
 PLURAL = {
+    "%lld nomi adattati per Windows": ("%lld nome adattato per Windows", "%lld nomi adattati per Windows",
+                                       "%lld name adapted for Windows", "%lld names adapted for Windows"),
     "%lld elementi": ("%lld elemento", "%lld elementi", "%lld item", "%lld items"),
     "%lld elementi bloccati per sicurezza": ("%lld elemento bloccato per sicurezza", "%lld elementi bloccati per sicurezza",
                                              "%lld item blocked for safety", "%lld items blocked for safety"),

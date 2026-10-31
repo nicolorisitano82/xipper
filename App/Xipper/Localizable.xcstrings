@@ -845,6 +845,46 @@
         }
       }
     },
+    "%lld nomi adattati per Windows" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld name adapted for Windows"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld names adapted for Windows"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld nome adattato per Windows"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld nomi adattati per Windows"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld problemi trovati" : {
       "localizations" : {
         "en" : {
@@ -1250,6 +1290,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preview not available"
+          }
+        }
+      }
+    },
+    "Apple Archive firmato (AEA, ECDSA P-256), non cifrato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed Apple Archive (AEA, ECDSA P-256), not encrypted"
           }
         }
       }
@@ -2432,6 +2482,16 @@
         }
       }
     },
+    "Copia la parte nella cartella dell'archivio con il nome “%@” e riprova." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the part into the archive's folder, named “%@”, and try again."
+          }
+        }
+      }
+    },
     "Copia rapporto" : {
       "localizations" : {
         "en" : {
@@ -2835,6 +2895,16 @@
         }
       }
     },
+    "Dov'è “%@”? Scegli la parte mancante dell'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where is “%@”? Choose the archive's missing part."
+          }
+        }
+      }
+    },
     "Dove avrebbe scritto" : {
       "localizations" : {
         "en" : {
@@ -3213,6 +3283,16 @@
         }
       }
     },
+    "Estrai altrove…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Elsewhere…"
+          }
+        }
+      }
+    },
     "Estrai comunque…" : {
       "localizations" : {
         "en" : {
@@ -3583,12 +3663,32 @@
         }
       }
     },
+    "Firma l'archivio con la chiave «%@» (non cifrato; macOS lo verifica con aea)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign the archive with the key “%@” (not encrypted; macOS checks it with aea)"
+          }
+        }
+      }
+    },
     "Firma non valida" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invalid signature"
+          }
+        }
+      }
+    },
+    "Firma non valida o di una chiave sconosciuta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid signature, or signed by an unknown key"
           }
         }
       }
@@ -4052,6 +4152,16 @@
         }
       }
     },
+    "Impossibile usare “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot use “%@”"
+          }
+        }
+      }
+    },
     "Impossibile verificare la prova" : {
       "localizations" : {
         "en" : {
@@ -4118,6 +4228,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Back"
+          }
+        }
+      }
+    },
+    "Individua…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locate…"
           }
         }
       }
@@ -4550,6 +4670,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MB/s"
+          }
+        }
+      }
+    },
+    "Manca la parte “%@” dell'archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive's part “%@” is missing"
           }
         }
       }
@@ -5006,6 +5136,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invalid name"
+          }
+        }
+      }
+    },
+    "Nomi compatibili con Windows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows-compatible names"
           }
         }
       }
@@ -5860,6 +6000,16 @@
         }
       }
     },
+    "Ripara l'archivio con i dati di recupero PAR2 e riprova" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repair the archive with its PAR2 recovery data and try again"
+          }
+        }
+      }
+    },
     "Riparazione in corso…" : {
       "localizations" : {
         "en" : {
@@ -6110,6 +6260,16 @@
         }
       }
     },
+    "Scegli dove si trova “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose where “%@” is"
+          }
+        }
+      }
+    },
     "Scegli i file da comprimere, oppure trascinali qui" : {
       "localizations" : {
         "en" : {
@@ -6176,6 +6336,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose an XIZ key file (made by “xipper keygen” or exported from Xipper)."
+          }
+        }
+      }
+    },
+    "Scegli una chiave di firma predefinita in Impostazioni › Chiavi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a default signing key in Settings › Keys"
           }
         }
       }
@@ -6648,6 +6818,16 @@
         }
       }
     },
+    "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An Apple Archive can be signed or password-protected, not both"
+          }
+        }
+      }
+    },
     "Unix, initramfs" : {
       "localizations" : {
         "en" : {
@@ -6694,6 +6874,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Use Password"
+          }
+        }
+      }
+    },
+    "Usa questa parte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use This Part"
           }
         }
       }
@@ -6998,6 +7188,16 @@
         }
       }
     },
+    "ZIP e 7z: sostituisce i caratteri che Windows non accetta (: ? * \" < > | \\), toglie punti e spazi finali e distingue i nomi uguali a meno delle maiuscole." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP and 7z: replaces characters Windows does not accept (: ? * \" < > | \\), removes trailing dots and spaces, and tells apart names that differ only in case."
+          }
+        }
+      }
+    },
     "ZIP · %@" : {
       "localizations" : {
         "en" : {
@@ -7054,6 +7254,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zstandard (faster, 7-Zip/WinZip)"
+          }
+        }
+      }
+    },
+    "attiva" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "on"
           }
         }
       }
@@ -7366,6 +7576,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "none"
+          }
+        }
+      }
+    },
+    "non attiva" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "off"
           }
         }
       }

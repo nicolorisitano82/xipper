@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var askPassword = false
     @State private var xizDraft = XizAccessDraft()
     @State private var askAccess = false
+    @State private var signAppleArchive = false
     @State private var accessFolders: [String] = []
     @State private var preparing = false
     @State private var job: Job?
@@ -297,8 +298,22 @@ struct HomeView: View {
                     Label("Password", systemImage: password == nil ? "lock" : "lock.fill")
                 }
                 .buttonStyle(.borderless)
-                .disabled(!format.supportsPassword)
+                .disabled(!format.supportsPassword || (format == .appleArchive && signAppleArchive))
                 .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive"))
+                if format == .appleArchive {
+                    Divider().frame(height: 18)
+                    Button {
+                        signAppleArchive.toggle()
+                    } label: {
+                        Label("Firma", systemImage: signAppleArchive ? "signature" : "pencil.slash")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(password != nil || KeyVault.defaultSigningKey.isEmpty)
+                    .accessibilityValue(signAppleArchive ? String(localized: "attiva") : String(localized: "non attiva"))
+                    .help(KeyVault.defaultSigningKey.isEmpty ? String(localized: "Scegli una chiave di firma predefinita in Impostazioni › Chiavi")
+                          : password != nil ? String(localized: "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose")
+                          : String(localized: "Firma l'archivio con la chiave «\(KeyVault.defaultSigningKey)» (non cifrato; macOS lo verifica con aea)"))
+                }
                 if format == .xiz {
                     Divider().frame(height: 18)
                     Button {
@@ -443,6 +458,18 @@ struct HomeView: View {
 
     private func compress() {
         guard !items.isEmpty else { return }
+        if format == .appleArchive && signAppleArchive && password == nil {
+            preparing = true
+            Task {
+                defer { preparing = false }
+                // Touch ID for the signing key; cancelling it cancels the compression.
+                guard let signer = await KeyVault.defaultSigner() else { return }
+                var extras = XizExtras()
+                extras.signer = signer
+                start(xiz: extras)
+            }
+            return
+        }
         guard format == .xiz, xizDraft.isConfigured else { return start(xiz: nil) }
         if !xizDraft.problems(hasPassword: password != nil).isEmpty {
             accessFolders = archiveFolders(of: items)

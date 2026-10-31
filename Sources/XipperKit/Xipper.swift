@@ -128,11 +128,15 @@ public struct CreateOptions: Sendable {
     /// XIZ 1.3: access groups, recipients and threshold custodians (the password, if any, is one
     /// more recipient opening everything).
     public var xizAccess: XizAccess?
-    /// XIZ 1.3: signs the archive (and, in `Xipper.edit`, each change appended to it).
+    /// XIZ 1.3: signs the archive (and, in `Xipper.edit`, each change appended to it). Apple Archive:
+    /// signs it with a P-256 key derived from this one (AEA profile 0, not encrypted; no time-stamp).
     public var xizSigner: XizSigner?
     /// ZIP: also store them as AppleDouble files in `__MACOSX/`, like the Finder's "Compress"
     /// (off by default: Windows users see that folder).
     public var zipAppleDouble = false
+    /// ZIP and 7z: rename entries Windows cannot extract (`a:b`, `why?`, `CON.txt`, trailing dots,
+    /// names differing only in case). `WriteReport.renamedForWindows` counts them.
+    public var windowsCompatibleNames = false
     /// ZIP: traditional ZipCrypto instead of AES-256 (weak; only for receivers without AES).
     public var legacyZipCrypto = false
     public var forceZip64 = false
@@ -224,6 +228,10 @@ public enum Xipper {
             throw XipperError.invalidArgument("only 7z and ZIP archives can be split into volumes")
         }
         var items = try SourceScanner.scan(sources, options: options.scan)
+        var renamed = 0
+        if options.windowsCompatibleNames && (options.format == .zip || options.format == .sevenZip) {
+            (items, renamed) = WindowsNames.apply(items)
+        }
         var sidecars: URL?
         defer { if let sidecars { try? FileManager.default.removeItem(at: sidecars) } }
         if options.format == .zip && options.zipAppleDouble {
@@ -245,7 +253,9 @@ public enum Xipper {
             z.workload = options.workload
             z.volumeSize = options.volumeSize
             z.volumeStyle = options.zipVolumeStyle
-            return try ZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            var report = try ZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            report.renamedForWindows = renamed
+            return report
         case .tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli:
             return try TarWriter.write(items: items, to: path, compression: options.format.compression, level: level,
                                        workload: options.workload, overwrite: options.overwrite,
@@ -260,9 +270,11 @@ public enum Xipper {
             z.storeAlreadyCompressed = options.storeAlreadyCompressed
             z.volumeSize = options.volumeSize
             z.workload = options.workload
-            return try SevenZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            var report = try SevenZipWriter.write(items: items, to: path, options: z, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            report.renamedForWindows = renamed
+            return report
         case .appleArchive:
-            return try AppleArchiveWriter.write(items: items, to: path, level: level, password: options.password,
+            return try AppleArchiveWriter.write(items: items, to: path, level: level, password: options.password, signer: options.xizSigner,
                                                 extendedAttributes: options.storeExtendedAttributes, overwrite: options.overwrite,
                                                 progress: progress, cancel: cancel)
         case .cpio:
@@ -436,9 +448,12 @@ public enum Xipper {
 
     /// `password` is needed only for 7z archives with encrypted names.
     /// XIZ 1.3: every segment's signature, oldest first: signer, time, whether it checks, whether
-    /// the chain to the previous change holds, the time-stamp. Needs no password.
+    /// the chain to the previous change holds, the time-stamp. Needs no password. A signed Apple
+    /// Archive gives one entry (its content is checked by `test`).
     public static func xizHistory(_ archive: URL) throws -> [XizSegmentSignature] {
-        try XizSignature.history(archive.standardizedFileURL.path)
+        let path = archive.standardizedFileURL.path
+        if AppleArchiveReader.isAEA(path) { return try AEASignature.history(path) }
+        return try XizSignature.history(path)
     }
 
     /// What an XIZ archive is, from its public parts only: who can open it (labels and kinds of
