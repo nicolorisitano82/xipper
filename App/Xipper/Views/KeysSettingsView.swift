@@ -82,6 +82,7 @@ struct KeysSettings: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Azioni per \(item.name)")
                 .menuStyle(.borderlessButton).fixedSize()
             }
         }

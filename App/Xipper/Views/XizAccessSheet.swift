@@ -150,6 +150,7 @@ struct XizAccessSheet: View {
                                 Image(systemName: "folder").foregroundStyle(.secondary)
                                 Text(p).lineLimit(1).truncationMode(.middle)
                                 Button { f.paths.removeAll { $0 == p } } label: { Image(systemName: "xmark.circle.fill") }
+                                    .accessibilityLabel("Togli \(p)")
                                     .buttonStyle(.borderless).foregroundStyle(.secondary)
                             }
                         }
@@ -163,6 +164,7 @@ struct XizAccessSheet: View {
                     }
                     Spacer()
                     Button { draft.folders.removeAll { $0.id == f.id } } label: { Image(systemName: "minus.circle") }
+                        .accessibilityLabel("Elimina la cartella riservata")
                         .buttonStyle(.borderless)
                 }
             }
@@ -203,6 +205,7 @@ struct XizAccessSheet: View {
                         foldersMenu($c.folders)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                         Button { draft.custodians.removeAll { $0.id == c.id } } label: { Image(systemName: "minus.circle") }
+                            .accessibilityLabel("Elimina il gruppo di custodi")
                             .buttonStyle(.borderless)
                     }
                     ForEach($c.people) { $p in
@@ -267,6 +270,7 @@ struct XizAccessSheet: View {
                             Menu {
                                 ForEach(identities) { i in Button(i.name) { p.publicKey.wrappedValue = i.publicKey } }
                             } label: { Image(systemName: "person.crop.circle") }
+                            .accessibilityLabel("Usa una delle tue identità")
                             .menuStyle(.borderlessButton).fixedSize().help("Usa una delle tue identità")
                         }
                     }
@@ -275,6 +279,7 @@ struct XizAccessSheet: View {
             .textFieldStyle(.roundedBorder)
             if folders { foldersMenu(p.folders) }
             Button(action: remove) { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                .accessibilityLabel("Elimina")
         }
     }
 

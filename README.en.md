@@ -103,6 +103,12 @@ swift test
 
 The interoperability tests use the system's `unzip`, `ditto`, `tar`, `cpio`, `aa` and `python3`. They also use `7zz`, `lz4` and `brotli` when Homebrew has them; these are needed only by the tests, never by the app.
 
+Stability and security only (concurrent use, unusual trees, cancellation and truncation at any point, open descriptors, link chains, hard links, permissions, encryption, WebDAV and MCP), with a longer fuzzing run:
+
+```bash
+XIPPER_FUZZ_ITERATIONS=1000 swift test --filter "Stability|Security|Fuzz|Robustness"
+```
+
 Benchmark against the tools on your Mac:
 
 ```bash

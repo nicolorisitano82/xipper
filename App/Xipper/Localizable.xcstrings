@@ -1495,6 +1495,16 @@
         }
       }
     },
+    "Azioni per %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions for %@"
+          }
+        }
+      }
+    },
     "BAM con il riferimento FASTA usato per scrivere il CRAM" : {
       "localizations" : {
         "en" : {
@@ -2282,6 +2292,16 @@
         }
       }
     },
+    "Conservala o salvala nel Portachiavi: senza di lei l'archivio non si apre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep it safe or save it in the Keychain: without it the archive cannot be opened."
+          }
+        }
+      }
+    },
     "Container" : {
       "localizations" : {
         "en" : {
@@ -2358,6 +2378,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Convert to CRAM…"
+          }
+        }
+      }
+    },
+    "Copia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
           }
         }
       }
@@ -2881,6 +2911,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete"
+          }
+        }
+      }
+    },
+    "Elimina il gruppo di custodi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the custodian group"
+          }
+        }
+      }
+    },
+    "Elimina la cartella riservata" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the reserved folder"
           }
         }
       }
@@ -3627,6 +3677,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Experimental features"
+          }
+        }
+      }
+    },
+    "Genera password sicura" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generate a strong password"
           }
         }
       }
@@ -6453,6 +6513,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kind"
+          }
+        }
+      }
+    },
+    "Togli %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove %@"
           }
         }
       }

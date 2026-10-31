@@ -628,6 +628,13 @@ EN = {
     'xizpk1…': 'xizpk1…',
     '«%@» creata nel Portachiavi.': '“%@” created in the Keychain.',
     'La cartella riservata «%@» non esiste più: aggiorna chi può aprirla.': 'The reserved folder “%@” no longer exists: update who can open it.',
+    'Genera password sicura': 'Generate a strong password',
+    'Copia': 'Copy',
+    "Conservala o salvala nel Portachiavi: senza di lei l'archivio non si apre.": 'Keep it safe or save it in the Keychain: without it the archive cannot be opened.',
+    'Togli %@': 'Remove %@',
+    'Elimina la cartella riservata': 'Delete the reserved folder',
+    'Elimina il gruppo di custodi': 'Delete the custodian group',
+    'Azioni per %@': 'Actions for %@',
 }
 
 # Plural keys: (Italian one, Italian other, English one, English other). The count is the %lld argument.

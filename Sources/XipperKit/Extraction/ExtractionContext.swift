@@ -455,7 +455,12 @@ final class ExtractionContext: @unchecked Sendable {
     /// Moves `tmp` to `name` according to `decision` (nil: from the policy, `.ask` meaning keep both).
     /// Returns false if skipped.
     private func place(dirFD: Int32, tmp: String, name: String, entry: String, decision: ConflictDecision? = nil) throws -> Bool {
-        if renameatx_np(dirFD, tmp, dirFD, name, UInt32(RENAME_EXCL)) == 0 { return true }
+        try placed(dirFD: dirFD, tmp: tmp, name: name, entry: entry, decision: decision) != nil
+    }
+
+    /// Like `place`, returning the name the item got (nil if skipped).
+    private func placed(dirFD: Int32, tmp: String, name: String, entry: String, decision: ConflictDecision? = nil) throws -> String? {
+        if renameatx_np(dirFD, tmp, dirFD, name, UInt32(RENAME_EXCL)) == 0 { return name }
         guard errno == EEXIST else { throw XipperError.posix("rename", entry) }
         let d: ConflictDecision
         if let decision {
@@ -472,7 +477,7 @@ final class ExtractionContext: @unchecked Sendable {
         case .skip:
             skip(entry, "already exists", .alreadyExists)
             unlinkat(dirFD, tmp, 0)
-            return false
+            return nil
         case .replace:
             var st = stat()
             if fstatat(dirFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 && st.st_mode & S_IFMT == S_IFDIR {
@@ -483,12 +488,12 @@ final class ExtractionContext: @unchecked Sendable {
                 try? FileManager.default.trashItem(at: URL(fileURLWithPath: rootPath + "/" + entry), resultingItemURL: nil)
             }
             if renameat(dirFD, tmp, dirFD, name) != 0 { throw XipperError.posix("rename", entry) }
-            return true
+            return name
         case .keepBoth:
             let (stem, ext) = Self.split(name)
             for n in 2...10_000 {
                 let candidate = "\(stem) \(n)\(ext)"
-                if renameatx_np(dirFD, tmp, dirFD, candidate, UInt32(RENAME_EXCL)) == 0 { return true }
+                if renameatx_np(dirFD, tmp, dirFD, candidate, UInt32(RENAME_EXCL)) == 0 { return candidate }
                 if errno != EEXIST { throw XipperError.posix("rename", entry) }
             }
             throw XipperError.alreadyExists(path: entry)
@@ -543,6 +548,7 @@ final class ExtractionContext: @unchecked Sendable {
         mergeAppleDoubles()
         // Hard links first: their targets must not be resolved through symlinks created here.
         let links = deferredLinks.withLock { $0 }.enumerated().sorted { ($0.element.hard ? 0 : 1, $0.offset) < ($1.element.hard ? 0 : 1, $1.offset) }.map(\.element)
+        var created: [(path: [String], entry: String)] = []
         for l in links {
             let entry = l.path.joined(separator: "/")
             let dirFD: Int32
@@ -553,7 +559,14 @@ final class ExtractionContext: @unchecked Sendable {
             let tmp = ".xip-\(UInt32.random(in: 0...UInt32.max)).link"
             let r: Int32
             if l.hard {
-                r = linkat(rootFD, l.target, dirFD, tmp, 0)  // target was sanitized by the caller
+                // The target was sanitized by the caller; its folders are opened without following
+                // links, so a symlink already in the destination cannot lead the link outside.
+                let target = l.target.split(separator: "/").map(String.init)
+                guard let targetDir = openExistingDirectory(target.dropLast()) else {
+                    skip(entry, "hard link target is missing or behind a symlink", .escapesDestination); continue
+                }
+                r = linkat(targetDir, target.last!, dirFD, tmp, 0)
+                close(targetDir)
             } else {
                 r = symlinkat(l.target, dirFD, tmp)
             }
@@ -563,12 +576,16 @@ final class ExtractionContext: @unchecked Sendable {
                 if let m = l.mtime { var ts = Self.timespecs(m); utimensat(dirFD, tmp, &ts, AT_SYMLINK_NOFOLLOW) }
             }
             do {
-                if try place(dirFD: dirFD, tmp: tmp, name: l.path.last!, entry: entry) { counts.withLock { $0.links += 1 } }
+                if let name = try placed(dirFD: dirFD, tmp: tmp, name: l.path.last!, entry: entry) {
+                    counts.withLock { $0.links += 1 }
+                    if !l.hard { created.append((l.path.dropLast() + [name], entry)) }
+                }
             } catch {
                 unlinkat(dirFD, tmp, 0)
                 throw error
             }
         }
+        if options.symlinks == .insideDestinationOnly { removeEscapingLinks(created) }
         let dirs = deferredDirs.withLock { $0 }.sorted { $0.key.count > $1.key.count }
         for (rel, meta) in dirs {
             if options.preservePermissions, let p = meta.perm {
@@ -577,6 +594,72 @@ final class ExtractionContext: @unchecked Sendable {
             }
             if let m = meta.mtime { var ts = Self.timespecs(m); utimensat(rootFD, rel, &ts, AT_SYMLINK_NOFOLLOW) }
         }
+    }
+
+    /// Each target was checked lexically, but links can lead through each other ("a/b" → "..",
+    /// then "c" → "a/b/../.." climbs above the root) in any order. Follows every created link on
+    /// disk and removes those that leave the root, until none does.
+    private func removeEscapingLinks(_ created: [(path: [String], entry: String)]) {
+        var remaining = created
+        var changed = true
+        while changed {
+            changed = false
+            remaining.removeAll { link in
+                guard !physicallyInside(link.path) else { return false }
+                unlinkat(rootFD, link.path.joined(separator: "/"), 0)
+                counts.withLock { $0.links -= 1 }
+                skip(link.entry, "symlink leads outside the destination through other links", .escapesDestination)
+                changed = true
+                return true
+            }
+        }
+    }
+
+    /// Resolves the link at `path` through every symlink below the root; false if it climbs above
+    /// the root, leaves it with an absolute target, or loops.
+    func physicallyInside(_ path: [String]) -> Bool {
+        guard let first = readLink(path) else { return true }
+        var stack = Array(path.dropLast())
+        if first.hasPrefix("/") { return false }
+        var pending = Array(first.split(separator: "/").reversed())
+        var hops = 0
+        while let c = pending.popLast() {
+            if c == "." { continue }
+            if c == ".." {
+                if stack.isEmpty { return false }
+                stack.removeLast()
+                continue
+            }
+            stack.append(String(c))
+            if let next = readLink(stack) {
+                hops += 1
+                if hops > 40 || next.hasPrefix("/") { return false }
+                stack.removeLast()
+                pending.append(contentsOf: next.split(separator: "/").reversed())
+            }
+        }
+        return true
+    }
+
+    /// The target of the symlink at `path` (relative to the root), nil if it is not a symlink.
+    /// Every folder in `path` is a real folder: `physicallyInside` replaces links as it meets them.
+    private func readLink(_ path: [String]) -> String? {
+        var buf = [CChar](repeating: 0, count: Int(PATH_MAX) + 1)
+        let n = readlinkat(rootFD, path.joined(separator: "/"), &buf, Int(PATH_MAX))
+        guard n >= 0 else { return nil }
+        return String(decoding: buf[0..<n].map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+
+    /// Opens an existing folder below the root without following symlinks or creating anything.
+    private func openExistingDirectory(_ comps: ArraySlice<String>) -> Int32? {
+        var fd = dup(rootFD)
+        for c in comps {
+            let next = openat(fd, c, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            close(fd)
+            guard next >= 0 else { return nil }
+            fd = next
+        }
+        return fd
     }
 
     private func fsetxattrNoFollow(_ dirFD: Int32, _ name: String, _ value: UnsafeRawBufferPointer) {

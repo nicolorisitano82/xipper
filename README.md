@@ -80,6 +80,12 @@ swift test
 
 I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema. Se è installato, usano anche `7zz` (Homebrew): servono solo ai test, non all'app.
 
+Solo stabilità e sicurezza (uso concorrente, alberi insoliti, annullamento e troncamento in ogni punto, descrittori aperti, catene di link, link fisici, permessi, cifratura, WebDAV e MCP), con un fuzzing più lungo:
+
+```bash
+XIPPER_FUZZ_ITERATIONS=1000 swift test --filter "Stability|Security|Fuzz|Robustness"
+```
+
 ## CLI
 
 ```bash

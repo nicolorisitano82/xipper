@@ -15,6 +15,8 @@ struct PasswordSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirm = ""
+    /// Shown while the fields still hold it: a generated password must be seen to be kept.
+    @State private var generated: String?
     @AppStorage("rememberArchivePasswords") private var remember = false
 
     private var isCreate: Bool { if case .create = mode { true } else { false } }
@@ -45,6 +47,32 @@ struct PasswordSheet: View {
                 }
             }
             .textFieldStyle(.roundedBorder)
+            if isCreate {
+                if let generated, generated == password, generated == confirm {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(generated).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                            Spacer()
+                            Button("Copia") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(generated, forType: .string)
+                            }
+                        }
+                        Text("Conservala o salvala nel Portachiavi: senza di lei l'archivio non si apre.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
+                } else {
+                    Button("Genera password sicura", systemImage: "wand.and.stars") {
+                        let g = Self.generatePassword()
+                        password = g
+                        confirm = g
+                        generated = g
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
             if isCreate, let legacyZipCrypto {
                 Picker("Cifratura", selection: legacyZipCrypto) {
                     Text("AES-256 (consigliata)").tag(false)
@@ -98,6 +126,14 @@ struct PasswordSheet: View {
         }
         .padding(24)
         .frame(width: 440)
+    }
+
+    /// Four groups of six characters (about 138 bits) from an alphabet without look-alikes
+    /// (0/O, 1/l/I), ASCII only so that 7-Zip and Windows tools accept it.
+    static func generatePassword() -> String {
+        let alphabet = Array("abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        var rng = SystemRandomNumberGenerator()
+        return (0..<4).map { _ in String((0..<6).map { _ in alphabet.randomElement(using: &rng)! }) }.joined(separator: "-")
     }
 }
 
