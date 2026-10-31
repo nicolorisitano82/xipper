@@ -9,6 +9,8 @@ struct ArchiveBrowserView: View {
     @Environment(JobCenter.self) private var jobs
     @State private var model: ArchiveModel
     @State private var selection = Set<BrowserItem.ID>()
+    /// Checkboxes on the rows: several entries selected without ⌘ or ⇧ (touch screens).
+    @State private var selecting = false
     @State private var showInspector = true
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
     @State private var extractSheet: ExtractSheetRequest?
@@ -353,10 +355,29 @@ struct ArchiveBrowserView: View {
         } else {
             Table(of: BrowserItem.self, selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("Nome", value: \.name) { item in
-                    Label {
-                        Text(item.name).lineLimit(1).truncationMode(.middle)
-                    } icon: {
-                        Image(nsImage: icon(for: item)).resizable().frame(width: 16, height: 16)
+                    HStack(spacing: 6) {
+                        if selecting {
+                            Toggle(isOn: Binding(get: { selection.contains(item.id) },
+                                                 set: { on in if on { selection.insert(item.id) } else { selection.remove(item.id) } })) {
+                                Text("Seleziona \(item.name)")
+                            }
+                            .toggleStyle(.checkbox).labelsHidden()
+                        }
+                        Label {
+                            Text(item.name).lineLimit(1).truncationMode(.middle)
+                        } icon: {
+                            Image(nsImage: icon(for: item)).resizable().frame(width: 16, height: 16)
+                        }
+                        if item.isFolder {
+                            Spacer(minLength: 4)
+                            // One tap opens the folder; a double click still works.
+                            Button("Apri \(item.name)", systemImage: "chevron.right") {
+                                model.search = ""
+                                model.currentFolder = item.id
+                                selection.removeAll()
+                            }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .width(min: 220, ideal: 360)
@@ -387,40 +408,7 @@ struct ArchiveBrowserView: View {
                 return .handled
             }
             .contextMenu(forSelectionType: BrowserItem.ID.self) { ids in
-                if ids.contains(where: { !model.folders.contains($0) }) {
-                    Button("Anteprima") { selection = ids; previewSelection() }
-                    Divider()
-                }
-                Button("Estrai…") { extractSheet = ExtractSheetRequest(selection: ids.isEmpty ? nil : ids) }
-                if ids.count == 1, let id = ids.first, model.folders.contains(id) {
-                    Button("Apri cartella") { model.currentFolder = id }
-                }
-                if editable {
-                    Divider()
-                    if ids.count == 1, let id = ids.first {
-                        Button("Rinomina…") { if let new = ArchiveActions.askNewName(for: id) { applyEdit([.rename(id, to: new)]) } }
-                    }
-                    Button("Aggiungi file…") { addFiles() }
-                    if !ids.isEmpty {
-                        Button("Elimina", role: .destructive) {
-                            if ArchiveActions.confirmDelete(ids.count, archive: url) { applyEdit(ids.sorted().map { .delete($0) }) }
-                        }
-                    }
-                    if model.xizInfo?.erasable == true, !ids.isEmpty {
-                        Button("Cancella definitivamente…", role: .destructive) {
-                            working = String(localized: "Cancellazione…")
-                            ArchiveActions.erase(url, paths: ids.sorted(), password: model.password, info: model.xizInfo) {
-                                working = nil
-                                selection.removeAll()
-                                Task { await model.load() }
-                            }
-                        }
-                    }
-                }
-                if model.xizInfo?.provable == true, ids.count == 1, let id = ids.first, !model.folders.contains(id) {
-                    Divider()
-                    Button("Crea prova di appartenenza…") { ArchiveActions.saveProof(url, path: id, password: model.password) }
-                }
+                selectionActions(ids)
             } primaryAction: { ids in
                 if ids.count == 1, let id = ids.first, model.folders.contains(id) {
                     model.search = ""
@@ -466,12 +454,19 @@ struct ArchiveBrowserView: View {
             }
         }
         ToolbarItem(placement: .primaryAction) {
-            Button {
-                extract(selection: selection.isEmpty ? nil : selection)
+            // A menu as well as ⌥: choosing the folder must not need a modifier key (touch screens).
+            Menu {
+                Button(selection.isEmpty ? String(localized: "Estrai accanto all'archivio") : String(localized: "Estrai selezione…")) {
+                    extract(selection: selection.isEmpty ? nil : selection)
+                }
+                Button("Estrai in…") { extractSheet = ExtractSheetRequest(selection: selection.isEmpty ? nil : selection) }
             } label: {
                 Label(selection.isEmpty ? String(localized: "Estrai") : String(localized: "Estrai selezione"), systemImage: "arrow.down.to.line")
                     .labelStyle(.titleAndIcon)
+            } primaryAction: {
+                extract(selection: selection.isEmpty ? nil : selection)
             }
+            .menuStyle(.button)
             .buttonStyle(.glassProminent)
             .help("Estrai accanto all'archivio (⌥ per scegliere la cartella)")
             .disabled(model.loading || model.error != nil || model.namesLocked)
@@ -497,8 +492,58 @@ struct ArchiveBrowserView: View {
                 toggleFavorite()
             }
             .help(isFavorite ? "Togli dai Preferiti" : "Aggiungi ai Preferiti")
+            Menu("Azioni", systemImage: "ellipsis.circle") {
+                Toggle("Selezione multipla", isOn: $selecting)
+                Button("Seleziona tutto") { selection = Set(model.items.map(\.id)) }
+                    .disabled(model.items.isEmpty)
+                Button("Deseleziona") { selection.removeAll() }
+                    .disabled(selection.isEmpty)
+                Divider()
+                selectionActions(selection)
+            }
+            .help("Azioni sugli elementi selezionati")
+            .disabled(model.loading || model.error != nil || model.namesLocked)
             Button("Info", systemImage: "info.circle") { showInspector.toggle() }
                 .help("Mostra o nasconde l'inspector")
+        }
+    }
+
+    /// Actions on the selected entries: the context menu and the toolbar's Azioni menu (on a touch
+    /// screen a long press may not open the context menu, and the toolbar is always in reach).
+    @ViewBuilder private func selectionActions(_ ids: Set<BrowserItem.ID>) -> some View {
+        if ids.contains(where: { !model.folders.contains($0) }) {
+            Button("Anteprima") { selection = ids; previewSelection() }
+            Divider()
+        }
+        Button("Estrai…") { extractSheet = ExtractSheetRequest(selection: ids.isEmpty ? nil : ids) }
+        if ids.count == 1, let id = ids.first, model.folders.contains(id) {
+            Button("Apri cartella") { model.currentFolder = id }
+        }
+        if editable {
+            Divider()
+            if ids.count == 1, let id = ids.first {
+                Button("Rinomina…") { if let new = ArchiveActions.askNewName(for: id) { applyEdit([.rename(id, to: new)]) } }
+            }
+            Button("Aggiungi file…") { addFiles() }
+            if !ids.isEmpty {
+                Button("Elimina", role: .destructive) {
+                    if ArchiveActions.confirmDelete(ids.count, archive: url) { applyEdit(ids.sorted().map { .delete($0) }) }
+                }
+            }
+            if model.xizInfo?.erasable == true, !ids.isEmpty {
+                Button("Cancella definitivamente…", role: .destructive) {
+                    working = String(localized: "Cancellazione…")
+                    ArchiveActions.erase(url, paths: ids.sorted(), password: model.password, info: model.xizInfo) {
+                        working = nil
+                        selection.removeAll()
+                        Task { await model.load() }
+                    }
+                }
+            }
+        }
+        if model.xizInfo?.provable == true, ids.count == 1, let id = ids.first, !model.folders.contains(id) {
+            Divider()
+            Button("Crea prova di appartenenza…") { ArchiveActions.saveProof(url, path: id, password: model.password) }
         }
     }
 
@@ -672,7 +717,7 @@ private struct ArchiveInspector: View {
                 if model.alignment?.isCRAM != true {
                     Section {
                         Button("Verifica archivio", systemImage: "checkmark.shield", action: verify)
-                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
                     }
                 }
                 if model.format == .appleArchive, let s = model.history.first {
@@ -680,7 +725,7 @@ private struct ArchiveInspector: View {
                         Label(s.label.isEmpty ? String(localized: "senza nome") : s.label,
                               systemImage: s.valid ? "checkmark.seal.fill" : "xmark.seal.fill")
                             .foregroundStyle(s.valid ? Color.green : Color.red)
-                            .help(s.publicKeyText)
+                        SignerKey(text: s.publicKeyText)
                         Text(s.valid ? String(localized: "Apple Archive firmato (AEA, ECDSA P-256), non cifrato") : String(localized: "Firma non valida o di una chiave sconosciuta"))
                             .font(.caption).foregroundStyle(s.valid ? Color.secondary : Color.red)
                     }
@@ -704,8 +749,8 @@ private struct ArchiveInspector: View {
                                     Text(ts.valid ? String(localized: "Marca temporale \(ts.time.formatted(date: .abbreviated, time: .shortened))") : String(localized: "Marca temporale non valida"))
                                         .font(.caption).foregroundStyle(ts.valid ? Color.secondary : Color.red)
                                 }
+                                SignerKey(text: s.publicKeyText)
                             }
-                            .help(s.publicKeyText)
                         }
                         let unsigned = model.history.filter { !$0.signed }.count
                         if unsigned > 0 && model.history.contains(where: \.signed) {
@@ -734,7 +779,7 @@ private struct ArchiveInspector: View {
                     LabeledContent("PAR2", value: index == nil ? String(localized: "Assenti") : String(localized: "Presenti"))
                     if index == nil {
                         Button("Crea dati di recupero", systemImage: "cross.case", action: createRecovery)
-                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
                             .help("File .par2 accanto all'archivio: servono a ripararlo se si danneggia")
                     }
                 }
@@ -746,11 +791,11 @@ private struct ArchiveInspector: View {
                         if let r = a.records { LabeledContent("Letture", value: r.formatted()) }
                         if let c = a.containers { LabeledContent("Container", value: "\(c)") }
                         Button(a.isCRAM ? "Converti in BAM…" : "Converti in CRAM…", systemImage: "arrow.left.arrow.right") { convert(!a.isCRAM) }
-                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
                             .help(a.isCRAM ? "BAM con il riferimento FASTA usato per scrivere il CRAM"
                                            : "CRAM 3.1 con il riferimento FASTA su cui sono allineate le letture: di solito il 30–50% più piccolo")
                         Button(a.isCRAM ? "Crea indice (.crai)" : "Crea indice (.bai)", systemImage: "list.number", action: buildIndex)
-                            .buttonStyle(.glass).controlSize(.small).frame(maxWidth: .infinity)
+                            .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
                     }
                 }
                 if let b = model.bgzf {
@@ -819,6 +864,25 @@ private struct ArchiveInspector: View {
             preview = .text(s + (c.truncated ? "\n…" : ""))
         } else {
             preview = .none(String(localized: "File binario"))
+        }
+    }
+}
+
+/// The signer's public key, readable and copyable without hovering (touch screens have no hover).
+private struct SignerKey: View {
+    let text: String
+
+    var body: some View {
+        if !text.isEmpty {
+            HStack(spacing: 4) {
+                Text(text).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                Button("Copia chiave pubblica", systemImage: "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
+                .buttonStyle(.touchIcon).foregroundStyle(.secondary)
+            }
         }
     }
 }

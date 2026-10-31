@@ -31,7 +31,7 @@ struct MenuBarJobsView: View {
                             Spacer()
                             if job.isRunning {
                                 Button("Annulla", systemImage: "xmark.circle.fill") { job.cancelJob() }
-                                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                                    .buttonStyle(.touchIcon).foregroundStyle(.secondary)
                                     .help("Annulla")
                             }
                         }

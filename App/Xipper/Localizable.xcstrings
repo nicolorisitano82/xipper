@@ -1364,6 +1364,16 @@
         }
       }
     },
+    "Apri %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %@"
+          }
+        }
+      }
+    },
     "Apri Xipper" : {
       "localizations" : {
         "en" : {
@@ -1545,12 +1555,32 @@
         }
       }
     },
+    "Azioni" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions"
+          }
+        }
+      }
+    },
     "Azioni per %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actions for %@"
+          }
+        }
+      }
+    },
+    "Azioni sugli elementi selezionati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions on the selected items"
           }
         }
       }
@@ -2768,6 +2798,16 @@
         }
       }
     },
+    "Deseleziona" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        }
+      }
+    },
     "Destinatario %lld" : {
       "localizations" : {
         "en" : {
@@ -3273,6 +3313,16 @@
         }
       }
     },
+    "Estrai accanto all'archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Next to the Archive"
+          }
+        }
+      }
+    },
     "Estrai accanto all'archivio (⌥ per scegliere la cartella)" : {
       "localizations" : {
         "en" : {
@@ -3333,6 +3383,16 @@
         }
       }
     },
+    "Estrai in…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract To…"
+          }
+        }
+      }
+    },
     "Estrai qui" : {
       "localizations" : {
         "en" : {
@@ -3349,6 +3409,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Extract Selection"
+          }
+        }
+      }
+    },
+    "Estrai selezione…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Selection…"
           }
         }
       }
@@ -6380,12 +6450,42 @@
         }
       }
     },
+    "Seleziona %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select %@"
+          }
+        }
+      }
+    },
+    "Seleziona tutto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        }
+      }
+    },
     "Selezione" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Selection"
+          }
+        }
+      }
+    },
+    "Selezione multipla" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multiple Selection"
           }
         }
       }

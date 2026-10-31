@@ -22,7 +22,7 @@ struct JobsHUD: View {
                 } else {
                     if shown.count >= 3 {
                         Button("Comprimi l'elenco", systemImage: "chevron.down") { expanded = false }
-                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Comprimi l'elenco")
+                            .buttonStyle(.touchIcon).help("Comprimi l'elenco")
                     }
                     ForEach(shown) { job in
                         JobCapsule(job: job)
@@ -120,7 +120,7 @@ private struct JobCapsule: View {
                         }
                     }
                 }
-                .buttonStyle(.glass).controlSize(.small)
+                .buttonStyle(.glass)
             }
         }
         .padding(12)
@@ -175,21 +175,21 @@ private struct JobCapsule: View {
         switch job.state {
         case .running:
             Button(job.userPaused ? "Riprendi" : "Pausa", systemImage: job.userPaused ? "play.fill" : "pause.fill") { job.togglePause() }
-                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .buttonStyle(.touchIcon)
                 .help(job.userPaused ? "Riprendi" : "Pausa")
             Button("Annulla", systemImage: "xmark") { job.cancelJob() }
-                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .buttonStyle(.touchIcon)
                 .help("Annulla")
         case .finished, .failed:
             if !job.report.isEmpty || job.verifyOK != nil {
                 Button("Dettagli", systemImage: "list.bullet.rectangle") { showDetails() }
                     .help("Dettagli")
-                    .labelStyle(.iconOnly).buttonStyle(.borderless)
+                    .buttonStyle(.touchIcon)
             }
             if let out = job.output {
                 Button("Mostra nel Finder", systemImage: "arrow.up.forward") { NSWorkspace.shared.activateFileViewerSelecting([out]) }
                     .help("Mostra nel Finder")
-                    .labelStyle(.iconOnly).buttonStyle(.borderless)
+                    .buttonStyle(.touchIcon)
             }
             dismiss
         case .cancelled:
@@ -220,6 +220,6 @@ private struct JobCapsule: View {
 
     private var dismiss: some View {
         Button("Chiudi", systemImage: "xmark") { center.remove(job) }
-            .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+            .buttonStyle(.touchIcon).foregroundStyle(.secondary)
     }
 }

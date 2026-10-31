@@ -27,6 +27,8 @@ struct HomeView: View {
     @State private var xizDraft = XizAccessDraft()
     @State private var askAccess = false
     @State private var signAppleArchive = false
+    @State private var signReason = false
+    @State private var passwordReason = false
     @State private var accessFolders: [String] = []
     @State private var preparing = false
     @State private var job: Job?
@@ -293,22 +295,25 @@ struct HomeView: View {
                 .fixedSize()
                 Divider().frame(height: 18)
                 Button {
-                    if password == nil { askPassword = true } else { password = nil }
+                    if passwordUnavailable != nil { passwordReason = true }
+                    else if password == nil { askPassword = true } else { password = nil }
                 } label: {
                     Label("Password", systemImage: password == nil ? "lock" : "lock.fill")
                 }
                 .buttonStyle(.borderless)
-                .disabled(!format.supportsPassword || (format == .appleArchive && signAppleArchive))
+                .opacity(passwordUnavailable == nil ? 1 : 0.45)
+                .reasonPopover(isPresented: $passwordReason, passwordUnavailable ?? "")
                 .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive"))
                 if format == .appleArchive {
                     Divider().frame(height: 18)
                     Button {
-                        signAppleArchive.toggle()
+                        if signUnavailable != nil { signReason = true } else { signAppleArchive.toggle() }
                     } label: {
                         Label("Firma", systemImage: signAppleArchive ? "signature" : "pencil.slash")
                     }
                     .buttonStyle(.borderless)
-                    .disabled(password != nil || KeyVault.defaultSigningKey.isEmpty)
+                    .opacity(signUnavailable == nil ? 1 : 0.45)
+                    .reasonPopover(isPresented: $signReason, signUnavailable ?? "")
                     .accessibilityValue(signAppleArchive ? String(localized: "attiva") : String(localized: "non attiva"))
                     .help(KeyVault.defaultSigningKey.isEmpty ? String(localized: "Scegli una chiave di firma predefinita in Impostazioni › Chiavi")
                           : password != nil ? String(localized: "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose")
@@ -454,6 +459,20 @@ struct HomeView: View {
         panel.canCreateDirectories = true
         panel.prompt = String(localized: "Salva qui")
         if panel.runModal() == .OK { saveFolder = panel.url }
+    }
+
+    /// Why the password cannot be set, shown on click or tap (no hover on touch screens).
+    private var passwordUnavailable: String? {
+        if !format.supportsPassword { return String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive") }
+        if format == .appleArchive && signAppleArchive { return String(localized: "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose") }
+        return nil
+    }
+
+    /// Why an Apple Archive cannot be signed now.
+    private var signUnavailable: String? {
+        if KeyVault.defaultSigningKey.isEmpty { return String(localized: "Scegli una chiave di firma predefinita in Impostazioni › Chiavi") }
+        if password != nil { return String(localized: "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose") }
+        return nil
     }
 
     private func compress() {

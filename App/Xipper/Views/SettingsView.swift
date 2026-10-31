@@ -176,7 +176,7 @@ private struct IntegrationSettings: View {
                         Button("Rimuovi", systemImage: "minus.circle") {
                             foldersRaw = folders.filter { $0 != f }.joined(separator: "\n")
                         }
-                        .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        .buttonStyle(.touchIcon)
                     }
                 }
                 Button("Aggiungi cartella consentita…", systemImage: "plus") { addFolder() }

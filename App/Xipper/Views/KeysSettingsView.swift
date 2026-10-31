@@ -74,7 +74,7 @@ struct KeysSettings: View {
                     NSPasteboard.general.setString(item.publicKey, forType: .string)
                     message = String(localized: "Chiave pubblica di «\(item.name)» copiata.")
                 }
-                .labelStyle(.iconOnly).buttonStyle(.borderless).help("Copia chiave pubblica")
+                .buttonStyle(.touchIcon).help("Copia chiave pubblica")
                 Menu {
                     Button("Esporta…") { export(kind, item.name) }
                     Divider()
