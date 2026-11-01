@@ -89,7 +89,7 @@ let package = Package(
             ],
             linkerSettings: [.linkedLibrary("bz2")]
         ),
-        // libarchive 3.8.10 (BSD-2-Clause), only its RAR 4.x and RAR5 readers (read-only, STUDIO.md §4.2).
+        // libarchive 3.8.11 (BSD-2-Clause), only its RAR 4.x and RAR5 readers (read-only, STUDIO.md §4.2).
         .target(
             name: "CArchive",
             path: "Vendor/libarchive",

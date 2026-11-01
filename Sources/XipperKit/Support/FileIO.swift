@@ -152,9 +152,13 @@ final class OutputFile: @unchecked Sendable {
         if buffered > 0 { try rawWrite(buffer, buffered); buffered = 0 }
     }
 
-    /// Flushes, closes and atomically moves the file to its final path.
+    /// Flushes, closes and atomically moves the file to its final path. The data reaches the disk
+    /// (F_FULLFSYNC, not just the drive's cache) before the rename, and the rename before this
+    /// returns: otherwise a power loss could leave the final name on a file whose blocks were never
+    /// written, which is how an edit that replaces an archive would lose the original.
     func commit(overwrite: Bool) throws {
         try flush()
+        if !Self.fullSync(fd) { let e = errno; close(fd); fd = -1; errno = e; throw XipperError.posix("fsync", tempPath) }
         if close(fd) != 0 { fd = -1; throw XipperError.posix("close", tempPath) }
         fd = -1
         let flags: UInt32 = overwrite ? 0 : UInt32(RENAME_EXCL)
@@ -163,7 +167,13 @@ final class OutputFile: @unchecked Sendable {
             throw XipperError.posix("rename", finalPath)
         }
         committed = true
+        // The new directory entry: best effort, the file is already complete under one name or the other.
+        let dir = open((finalPath as NSString).deletingLastPathComponent, O_RDONLY)
+        if dir >= 0 { _ = Self.fullSync(dir); close(dir) }
     }
+
+    /// F_FULLFSYNC, falling back to fsync on file systems that do not support it (SMB, exFAT…).
+    static func fullSync(_ fd: Int32) -> Bool { fcntl(fd, F_FULLFSYNC) == 0 || fsync(fd) == 0 }
 
     private func rawWrite(_ p: UnsafeRawPointer, _ count: Int) throws {
         var done = 0

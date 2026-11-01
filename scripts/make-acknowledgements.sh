@@ -22,9 +22,9 @@ section() {  # title, source, license file
     section "Xipper" "https://github.com/nicolorisitano82/xipper" LICENSE
     section "zstd 1.5.7" "https://github.com/facebook/zstd" Vendor/zstd/LICENSE
     section "libdeflate 1.24" "https://github.com/ebiggers/libdeflate" Vendor/libdeflate/COPYING
-    section "XZ Utils / liblzma 5.8.1" "https://github.com/tukaani-project/xz" Vendor/xz/COPYING.0BSD
+    section "XZ Utils / liblzma 5.8.4" "https://github.com/tukaani-project/xz" Vendor/xz/COPYING.0BSD
     section "htscodecs 1.6.7 (Genome Research Ltd; rANS by Fabian Giesen, range coder by Eugene Shelwien)" "https://github.com/samtools/htscodecs" Vendor/htscodecs/LICENSE.md
-    section "libarchive 3.8.10 (RAR and RAR5 readers)" "https://github.com/libarchive/libarchive" Vendor/libarchive/COPYING
+    section "libarchive 3.8.11 (RAR and RAR5 readers)" "https://github.com/libarchive/libarchive" Vendor/libarchive/COPYING
     section "LZ4 1.10.0 (Yann Collet)" "https://github.com/lz4/lz4" Vendor/lz4/LICENSE
     section "Brotli 1.2.1 (encoder)" "https://github.com/google/brotli" Vendor/brotli/LICENSE
     section "Argon2 (reference implementation, used under CC0 1.0)" "https://github.com/P-H-C/phc-winner-argon2" Vendor/argon2/LICENSE

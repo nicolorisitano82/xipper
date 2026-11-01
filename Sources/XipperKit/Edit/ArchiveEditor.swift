@@ -630,7 +630,7 @@ final class AppendFile: XizOutput {
 
     func write(_ bytes: [UInt8]) throws { try bytes.withUnsafeBytes { try write($0) } }
 
-    func sync() throws { if fcntl(fd, F_FULLFSYNC) != 0 && fsync(fd) != 0 { throw XipperError.posix("fsync", nil) } }
+    func sync() throws { if !OutputFile.fullSync(fd) { throw XipperError.posix("fsync", nil) } }
 
     func close() {
         if fd >= 0 { Darwin.close(fd); fd = -1 }
