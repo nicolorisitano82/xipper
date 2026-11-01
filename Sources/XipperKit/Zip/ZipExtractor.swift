@@ -117,6 +117,13 @@ enum ZipExtractor {
             }
             tracker.add(bytes: 0, entries: 1, current: r.entry.path)
         }
+        do {
+            if let at = try archive.concealedEntries() {
+                failures.withLock { $0.append(SkippedEntry(path: "", error: .corrupt("ambiguous ZIP: a local header at offset \(at) belongs to no entry (hidden file)"))) }
+            }
+        } catch let e as XipperError {
+            failures.withLock { $0.append(SkippedEntry(path: "", error: e)) }
+        }
         return failures.withLock { $0 }.sorted { $0.path < $1.path }
     }
 }

@@ -177,14 +177,16 @@ Serve a B e D, e resta per le release successive.
 - **Trovato:** Xipper non legge gli ZIP con metodo 98 (PPMd variante I, scritto da 7-Zip con `-mm=PPMd`); il 7z PPMd (variante H) sì. Il test lo segnala e fallirà quando funzionerà → aggiunto in E. L'`unzip` di macOS non ha bzip2: non è un problema di Xipper.
 - Mancano archivi scritti da WinRAR ed Esplora risorse (servono le macchine Windows).
 
-#### B. Lettura ZIP rigorosa
-Oggi c'è già il controllo delle voci sovrapposte (`ZipReader.checkOverlaps`). Si aggiunge:
-- central directory autorevole, e header locale confrontato con lui: nome, metodo, dimensioni, CRC (se non c'è data descriptor), flag di cifratura; differenze → errore «archivio ambiguo»;
-- un solo EOCD valido, coerente con il locator ZIP64; niente dati prima del primo header, se non un prefisso dichiarato (SFX);
-- nomi duplicati, con NUL, o uguali dopo la normalizzazione NFC/NFD o a meno delle maiuscole → errore o rinomina esplicita, mai la sovrascrittura silenziosa;
-- la firma di un archivio copre i byte che vengono davvero estratti;
-- corpus ostile nei test, costruito sui 14 tipi di ambiguità di ZipDiff (USENIX Security 2025), più le bombe di Fifield.
-- **Fatto quando:** tutti i casi del corpus sono rifiutati o letti in un solo modo, e nessun ZIP legittimo del corpus A diventa illeggibile.
+#### B. Lettura ZIP rigorosa — ✅ fatto (01/11/2026)
+Un ZIP che lettori diversi interpretano in modi diversi viene rifiutato con «ambiguous ZIP», invece di sceglierne un'interpretazione. C'era già il controllo delle voci sovrapposte (`ZipReader.checkOverlaps`). Ora in più:
+- ✅ un solo record di fine archivio che arriva esattamente alla fine del file: un secondo nascosto nel commento → rifiutato; i byte aggiunti dopo l'archivio restano tollerati;
+- ✅ il numero di voci del record di fine deve coincidere con quelle del central directory, e dopo l'ultima voce non può esserci altro (solo la firma digitale facoltativa); tollerato il contatore a 16 bit che riparte da 0 oltre le 65535 voci, nei vecchi ZIP senza ZIP64;
+- ✅ record ZIP64 coerente con quello classico: un campo che il classico non segna come «vedi ZIP64» deve avere lo stesso valore;
+- ✅ header locale uguale al central directory: nome, metodo, cifratura e, senza data descriptor, CRC e dimensioni;
+- ✅ nomi: NUL rifiutato; due voci con lo stesso percorso (anche NFC e NFD) rifiutate; flag UTF-8 più un nome Unicode Info-ZIP diverso rifiutato. I nomi che differiscono solo per le maiuscole restano validi: in estrazione su un volume che non distingue le maiuscole si tengono entrambi («A 2.txt»);
+- ✅ nella verifica (`xipper test`, Verifica nell'app): header locali nascosti negli spazi tra le voci, che solo i lettori in streaming vedono;
+- ✅ test: `ZipAmbiguityTests` con un ZIP costruito byte per byte per ogni caso, più le varianti legittime (commento, byte in coda, ZIP64 coerente); nessun falso positivo sul corpus di interop né su 122 ZIP, documenti Office, EPUB e JAR veri presenti sul Mac.
+- Non fatto: il confronto con l'elenco completo dei 14 tipi di ZipDiff (serve il testo integrale dell'articolo). La firma «sui byte estratti» non riguarda ZIP: Xipper firma solo XIZ e Apple Archive.
 
 #### C. Quarantena e nomi ingannevoli
 La propagazione di `com.apple.quarantine` c'è già (`ExtractionContext`).

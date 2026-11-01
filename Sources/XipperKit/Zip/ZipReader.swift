@@ -49,31 +49,40 @@ final class ZipArchive: @unchecked Sendable {
         let tailLen = Int(min(size, 22 + 0xFFFF + 20))
         let tailStart = size - Int64(tailLen)
         let tail = try reader.read(at: tailStart, count: tailLen)
-        var eocd = -1
+        // The record whose comment reaches exactly the end of the file. Two such records (one hidden
+        // in the other's comment) make the archive mean different things to different readers:
+        // refused. Without an exact one (bytes appended after the archive), the last plausible one.
+        var exact: [Int] = [], loose = -1
         tail.withUnsafeBytes { t in
             var i = tailLen - 22
             while i >= 0 {
                 if t.loadUnaligned(fromByteOffset: i, as: UInt32.self).littleEndian == Zip.endSignature {
                     let commentLen = Int(t.loadUnaligned(fromByteOffset: i + 20, as: UInt16.self).littleEndian)
-                    if i + 22 + commentLen <= tailLen { eocd = i; return }
+                    if i + 22 + commentLen == tailLen { exact.append(i) }
+                    if i + 22 + commentLen <= tailLen && loose < 0 { loose = i }
                 }
                 i -= 1
             }
         }
+        if exact.count > 1 { throw XipperError.corrupt("ambiguous ZIP: several end of central directory records") }
+        let eocd = exact.first ?? loose
         if eocd < 0 { throw XipperError.corrupt("end of central directory not found (not a ZIP, or truncated)") }
 
         var entryCount: Int64 = 0, cdSize: Int64 = 0, cdOffset: Int64 = 0
         var eocdAbs = tailStart + Int64(eocd)
+        var raw = (count: UInt16(0), size: UInt32(0), offset: UInt32(0))
         try tail.withUnsafeBytes { t in
             var r = ByteReader(t, at: eocd + 4)
             _ = try r.u16()  // this disk
             let cdDisk = try r.u16()
             _ = try r.u16()
-            entryCount = Int64(try r.u16())
-            cdSize = Int64(try r.u32())
-            cdOffset = Int64(try r.u32())
+            raw = (try r.u16(), try r.u32(), try r.u32())
+            entryCount = Int64(raw.count)
+            cdSize = Int64(raw.size)
+            cdOffset = Int64(raw.offset)
             if cdDisk != 0xFFFF { cdOffset += try Self.partStart(Int(cdDisk), starts) }
         }
+        var zip64 = false
 
         // 2. ZIP64 locator right before the EOCD.
         if eocdAbs >= 20 {
@@ -94,11 +103,18 @@ final class ZipArchive: @unchecked Sendable {
                     try r.skip(8 + 2 + 2 + 4)
                     let cdDisk = Int(try r.u32())
                     try r.skip(8)
-                    entryCount = Int64(try r.u64())
-                    cdSize = Int64(try r.u64())
-                    cdOffset = Int64(try r.u64()) + (try Self.partStart(cdDisk, starts))
+                    let count = try r.u64(), size = try r.u64(), offset = try r.u64()
+                    // A field the classic record does not mark as "see ZIP64" must agree with it.
+                    if (raw.count != 0xFFFF && UInt64(raw.count) != count) || (raw.size != 0xFFFF_FFFF && UInt64(raw.size) != size)
+                        || (raw.offset != 0xFFFF_FFFF && UInt64(raw.offset) != offset) {
+                        throw XipperError.corrupt("ambiguous ZIP: the ZIP64 end record disagrees with the classic one")
+                    }
+                    entryCount = Int64(bitPattern: count)
+                    cdSize = Int64(bitPattern: size)
+                    cdOffset = Int64(bitPattern: offset) + (try Self.partStart(cdDisk, starts))
                 }
                 eocdAbs = min(eocdAbs, at)
+                zip64 = true
             }
         }
         if cdSize < 0 || cdSize > size || cdOffset < 0 || entryCount < 0 {
@@ -117,17 +133,28 @@ final class ZipArchive: @unchecked Sendable {
         let cd = try reader.read(at: actualStart, count: Int(cdSize))
         var records: [ZipEntryRecord] = []
         records.reserveCapacity(Int(min(entryCount, 1 << 20)))
+        var trailing = 0
         try cd.withUnsafeBytes { buf in
             var r = ByteReader(buf)
             while r.remaining >= 46 {
-                let sig = try r.u32()
-                if sig != Zip.centralSignature { break }
+                if buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian != Zip.centralSignature { break }
+                try r.skip(4)
                 records.append(try Self.parseCentral(&r, bias: shift, partStarts: starts))
             }
+            // Only the optional digital signature record may follow the last entry.
+            if r.remaining >= 4, buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian == 0x0505_4B50 { trailing = 0 }
+            else { trailing = r.remaining }
         }
         if records.isEmpty && entryCount > 0 { throw XipperError.corrupt("central directory has no entries") }
+        // Entries a reader would see only by trusting the count, or by scanning past it, differ
+        // between readers. Old writers wrap the 16-bit count past 65535 entries without ZIP64.
+        let countOK = Int64(records.count) == entryCount || (!zip64 && Int64(records.count & 0xFFFF) == entryCount)
+        if !countOK || trailing != 0 {
+            throw XipperError.corrupt("ambiguous ZIP: the central directory holds \(records.count) entries, the end record says \(entryCount)")
+        }
         self.records = records
         try checkOverlaps()
+        try checkNames()
     }
 
     /// Start of disk `n` in the joined stream; a plain archive has only disk 0.
@@ -190,7 +217,14 @@ final class ZipArchive: @unchecked Sendable {
         }
         if flags & Zip.Flag.strongEncryption != 0 { encryption = .zipCrypto }  // reported as unsupported on read
 
-        var name = unicodeName ?? decodeName(rawName, utf8Flag: flags & Zip.Flag.utf8 != 0)
+        if rawName.contains(0) { throw XipperError.corrupt("ambiguous ZIP: a name contains a NUL byte") }
+        let plainName = decodeName(rawName, utf8Flag: flags & Zip.Flag.utf8 != 0)
+        // With the UTF-8 flag the name is already Unicode: a different Info-ZIP Unicode name would
+        // give the entry two names, depending on the reader.
+        if flags & Zip.Flag.utf8 != 0, let unicodeName, unicodeName != plainName {
+            throw XipperError.corrupt("ambiguous ZIP: \(plainName) also has a different Unicode name")
+        }
+        var name = unicodeName ?? plainName
         let host = UInt8(madeBy >> 8)
         let unixMode = (host == Zip.Host.unix.rawValue || host == Zip.Host.osx.rawValue) ? UInt16(external >> 16) : 0
         var kind: ArchiveEntry.Kind = .file
@@ -245,18 +279,63 @@ final class ZipArchive: @unchecked Sendable {
         }
     }
 
-    /// Absolute offset of an entry's data, read from its local header.
+    /// Two entries with the same path (NFC, as APFS sees it): readers keep the first, the last or
+    /// both, so what is extracted depends on the tool. A folder entry repeated is harmless.
+    private func checkNames() throws {
+        var seen: [String: ArchiveEntry.Kind] = [:]
+        for r in records {
+            let key = r.entry.path.precomposedStringWithCanonicalMapping
+            if let k = seen[key], k != .directory || r.entry.kind != .directory {
+                throw XipperError.corrupt("ambiguous ZIP: two entries named \(r.entry.path)")
+            }
+            seen[key] = r.entry.kind
+        }
+    }
+
+    /// Absolute offset of an entry's data, read from its local header. The local header must
+    /// describe the same entry as the central directory (name, method, encryption and, without a
+    /// data descriptor, CRC and sizes): streaming readers use only the local one.
     func dataOffset(_ rec: ZipEntryRecord) throws -> Int64 {
-        let h = try reader.read(at: rec.localHeaderOffset, count: 30)
-        let (sig, n, e) = h.withUnsafeBytes {
-            ($0.loadUnaligned(as: UInt32.self).littleEndian,
+        let h = try reader.read(at: rec.localHeaderOffset, count: 30 + rec.rawName.count)
+        let (sig, flags, method, crc, csize, usize, n, e) = h.withUnsafeBytes {
+            ($0.loadUnaligned(as: UInt32.self).littleEndian, $0.loadUnaligned(fromByteOffset: 6, as: UInt16.self).littleEndian,
+             $0.loadUnaligned(fromByteOffset: 8, as: UInt16.self).littleEndian, $0.loadUnaligned(fromByteOffset: 14, as: UInt32.self).littleEndian,
+             $0.loadUnaligned(fromByteOffset: 18, as: UInt32.self).littleEndian, $0.loadUnaligned(fromByteOffset: 22, as: UInt32.self).littleEndian,
              Int64($0.loadUnaligned(fromByteOffset: 26, as: UInt16.self).littleEndian),
              Int64($0.loadUnaligned(fromByteOffset: 28, as: UInt16.self).littleEndian))
         }
-        if sig != Zip.localSignature { throw XipperError.corrupt("bad local header for \(rec.entry.path)") }
+        let path = rec.entry.path
+        if sig != Zip.localSignature { throw XipperError.corrupt("bad local header for \(path)") }
+        func differs(_ what: String) -> XipperError { .corrupt("ambiguous ZIP: local header and central directory disagree on the \(what) of \(path)") }
+        if n != Int64(rec.rawName.count) || !h[30...].elementsEqual(rec.rawName) { throw differs("name") }
+        if method != rec.method { throw differs("method") }
+        if (flags ^ rec.flags) & Zip.Flag.encrypted != 0 { throw differs("encryption") }
+        if flags & Zip.Flag.dataDescriptor == 0 {
+            if crc != rec.crc { throw differs("CRC") }
+            if csize != 0xFFFF_FFFF && Int64(csize) != rec.compressedSize { throw differs("compressed size") }
+            if usize != 0xFFFF_FFFF && Int64(usize) != rec.uncompressedSize { throw differs("size") }
+        }
         let start = rec.localHeaderOffset + 30 + n + e
-        if start + rec.compressedSize > centralStart { throw XipperError.corrupt("entry \(rec.entry.path) is truncated") }
+        if start + rec.compressedSize > centralStart { throw XipperError.corrupt("entry \(path) is truncated") }
         return start
+    }
+
+    /// Local headers no central directory entry points to, in the gaps between entries: a
+    /// streaming reader (or a scanner) sees files that Xipper does not. Reads every local header,
+    /// so it runs when testing, not when opening.
+    func concealedEntries() throws -> Int64? {
+        let sorted = records.sorted { $0.localHeaderOffset < $1.localHeaderOffset }
+        for (i, r) in sorted.enumerated() {
+            let gapStart = try dataOffset(r) + r.compressedSize
+            let gapEnd = i + 1 < sorted.count ? sorted[i + 1].localHeaderOffset : centralStart
+            guard gapEnd - gapStart >= 30 else { continue }  // room for a data descriptor only
+            let gap = try reader.read(at: gapStart, count: Int(min(gapEnd - gapStart, 1 << 20)))
+            let found = gap.withUnsafeBytes { b in
+                (0...(b.count - 4)).first { b.loadUnaligned(fromByteOffset: $0, as: UInt32.self).littleEndian == Zip.localSignature }
+            }
+            if let found { return gapStart + Int64(found) }
+        }
+        return nil
     }
 }
 
