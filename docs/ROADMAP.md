@@ -149,7 +149,7 @@ Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in 
 - ✅ **pronto per il touch** (31/10/2026, v2.4.1; MacBook Pro con schermo touch, macOS 27): pulsanti a icona con area di tocco di 36 punti, pulsanti più grandi nell'inspector; le ragioni per cui Password o Firma non sono disponibili compaiono al tocco invece che solo al passaggio del mouse; chiave pubblica di chi ha firmato visibile e copiabile; menu **Azioni** nella barra del browser (le stesse voci del menu contestuale, più Seleziona tutto e **Selezione multipla** con caselle), **Estrai** con menu (Estrai in… senza ⌥), cartelle che si aprono con un tocco sulla freccia. Da provare sul dispositivo;
 - seguito dall'analisi UI/UX ([reports/Analisi UI UX concorrenti macOS.md](../reports/Analisi%20UI%20UX%20concorrenti%20macOS.md)): annunci VoiceOver, altre lingue.
 
-## 2.5 — in corso: sicurezza e «Cambia formato»
+## 2.5 — pubblicata il 02/11/2026 (v2.5.0): sicurezza e «Cambia formato»
 
 Dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md). Tema della release: **nessun archivio dell'utente si perde, nessun archivio ostile passa, e si cambia formato senza ricomprimere.** I codec nuovi, la ricompressione dei JPEG e la modalità a poco spazio restano fuori (vedi in fondo).
 
@@ -213,10 +213,10 @@ Converte un archivio in un altro formato copiando i dati compressi così come so
 - ✅ **manifest dei codec** (`Vendor/MANIFEST.json`, `scripts/make-vendor-manifest.py`): versione, sorgente e SHA-256 di ognuno dei 511 file vendorizzati, con i file nostri segnati; `VendorManifestTests` fallisce se un file cambia, manca o si aggiunge senza rigenerare il manifest;
 - ✅ **filtro ARM64 nei binari universali: misurato, nessun cambiamento.** Su 8 binari universali di app installate (123 MB), con 7z -mx=9 e rispetto a nessun filtro: ARM64 su tutto il file (quello che fa Xipper) −6,1%; filtri per architettura compressi separatamente −1,8% (si perde la ridondanza tra le due parti); ARM64 solo sulla parte arm64 +4,2%. Il comportamento attuale è il migliore. Per XIZ 1.4 il filtro per architettura va valutato solo dentro un unico flusso compresso.
 
-#### F. Rilascio
-- 218 test e oltre, interop, crash test di D;
-- prova a mano: conversione grande nell'app, archivio ostile, nome RTLO;
-- testi italiani e inglesi, note di versione, DMG 2.5.0.
+#### F. Rilascio — ✅ (02/11/2026)
+- ✅ 250 test automatici e i 61 controlli di `scripts/interop.sh`;
+- ✅ testi italiani e inglesi, note di versione, DMG 2.5.0;
+- da provare a mano dopo l'uscita: il foglio «Cambia formato…», il menu «Codifica dei nomi», il banner dei nomi ingannevoli su un archivio vero, un'app aperta da un volume montato (Gatekeeper deve chiedere conferma).
 
 ### Fuori dalla 2.5
 - «Cambia formato» v1.5 (coppie che cambiano solo l'intestazione: LZMA tra ZIP e 7z, LZMA2 → ZIP xz, ZIP → tar a più membri) e v2 (poco spazio libero con hole punching e registro delle operazioni): servono prima i test di interop e di interruzione di corrente su APFS;
