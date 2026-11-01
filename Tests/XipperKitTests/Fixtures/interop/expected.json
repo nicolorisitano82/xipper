@@ -1,0 +1,14 @@
+{
+ "password": "interop-pw",
+ "entries": {
+  "città": "dir",
+  "città/è unicode ✓.txt": "file:f682a5ef26796a5f98678d3a028d07c8853e6c5fc01005b55bd95852d00fc917",
+  "data": "dir",
+  "data/sample.bin": "file:a71fc88192e4699c56f06a2fbf2db7b711c0579e7dc72ea35f215e8a1e082e5d",
+  "empty.txt": "file:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "emptydir": "dir",
+  "link-to-readme": "link:readme.txt",
+  "readme.txt": "file:169484dd4172a1f383b9de2f6eb7faaecc951e8e74083e3e4011290e707d0670",
+  "script.sh": "file:299001868fb8c02fd431c336c6d058f5558c5dff5b5af5e6fe04b870a6a9cbba:x"
+ }
+}

@@ -149,10 +149,80 @@ Funzioni che nessun formato d'archivio comune ha (scelte il 25/10/2026; spec in 
 - ✅ **pronto per il touch** (31/10/2026, v2.4.1; MacBook Pro con schermo touch, macOS 27): pulsanti a icona con area di tocco di 36 punti, pulsanti più grandi nell'inspector; le ragioni per cui Password o Firma non sono disponibili compaiono al tocco invece che solo al passaggio del mouse; chiave pubblica di chi ha firmato visibile e copiabile; menu **Azioni** nella barra del browser (le stesse voci del menu contestuale, più Seleziona tutto e **Selezione multipla** con caselle), **Estrai** con menu (Estrai in… senza ⌥), cartelle che si aprono con un tocco sulla freccia. Da provare sul dispositivo;
 - seguito dall'analisi UI/UX ([reports/Analisi UI UX concorrenti macOS.md](../reports/Analisi%20UI%20UX%20concorrenti%20macOS.md)): annunci VoiceOver, altre lingue.
 
-## 2.5 — in corso (dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md))
+## 2.5 — in corso: sicurezza e «Cambia formato»
+
+Dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md). Tema della release: **nessun archivio dell'utente si perde, nessun archivio ostile passa, e si cambia formato senza ricomprimere.** I codec nuovi, la ricompressione dei JPEG e la modalità a poco spazio restano fuori (vedi in fondo).
+
+### Fatto
 - ✅ **codec aggiornati** (01/11/2026): liblzma 5.8.4 (corregge CVE-2026-34743 e GHSA-5qpq-xqfv-j9pg), libarchive 3.8.11;
-- ✅ **salvataggio durevole** (01/11/2026): ogni archivio scritto va su disco con `F_FULLFSYNC` prima di prendere il nome definitivo, così un'interruzione di corrente non lascia un archivio vuoto al posto dell'originale;
-- da fare: lettura ZIP rigorosa (ambiguità di USENIX Security 2025), «Cambia formato» v1 senza ricomprimere, filtro ARM64 per slice nei binari universali, codifica dei nomi ZIP riconosciuta da sola, manifest dei sorgenti vendorizzati.
+- ✅ **salvataggio durevole** (01/11/2026): ogni archivio scritto va su disco con `F_FULLFSYNC` prima di prendere il nome definitivo, così un'interruzione di corrente non lascia un archivio vuoto al posto dell'originale.
+
+### Ordine di lavoro
+
+| Fase | Contenuto | Dipende da | Costo |
+|---|---|---|---|
+| **A. Banco di prova** | corpus di interop e script di verifica con i lettori esterni | — | basso |
+| **B. Lettura ZIP rigorosa** | ambiguità tra parser, corpus ostile | A | basso-medio |
+| **C. Quarantena e nomi ingannevoli** | test di regressione, avviso RTLO e doppia estensione | — | basso |
+| **D. «Cambia formato» v1** | motore, CLI, app | A, B (e il salvataggio durevole, fatto) | medio |
+| **E. Piccole cose** | codifica dei nomi ZIP, manifest dei codec, filtro ARM64 misurato | — | basso |
+| **F. Rilascio** | test completi, note, DMG | tutte | basso |
+
+C ed E si possono fare in parallelo ad A–D.
+
+#### A. Banco di prova — ✅ fatto (01/11/2026)
+Serve a B e D, e resta per le release successive.
+- ✅ **corpus** in `Tests/XipperKitTests/Fixtures/interop/` (46 archivi, 788 KB, solo contenuto sintetico), prodotto da `scripts/make-interop-corpus.sh`. Contiene archivi di Info-ZIP (anche ZipCrypto, ZIP64, data descriptor), Finder/ditto con `__MACOSX`, 7-Zip (ZIP Deflate/Deflate64/BZip2/LZMA/PPMd/AES; 7z LZMA/LZMA2 solido e non, PPMd, BZip2, Deflate, Copy, filtro ARM64, AES con e senza nomi cifrati, volumi), bsdtar (pax, ustar, gnutar, newc, odc, zip, 7z, tar.gz/bz2/xz), zstd con finestra lunga e più frame, xz multiblocco e multistream, gzip multimembro, bzip2 multistream, lz4, brotli, Apple Archive (lzfse, lzma, zlib, raw), un nome CP437 senza flag UTF-8. `InteropCorpusTests` verifica ed estrae ognuno e confronta albero, contenuti, link e bit di esecuzione.
+- ✅ **`scripts/interop.sh`**: crea con Xipper ogni tipo di archivio che scrive (ZIP in 7 metodi, AES, ZIP64, volumi; 7z solido, non solido, AES, nomi in chiaro, volumi; tar e varianti, cpio, aar, file singoli) e lo fa verificare ed estrarre da `7zz`, `unzip`, `ditto`, `bsdtar`, `gzip`, `bzip2`, `xz`, `zstd` e `aa`, confrontando l'albero estratto: 61 controlli, 0 errori.
+- **Trovato:** Xipper non legge gli ZIP con metodo 98 (PPMd variante I, scritto da 7-Zip con `-mm=PPMd`); il 7z PPMd (variante H) sì. Il test lo segnala e fallirà quando funzionerà → aggiunto in E. L'`unzip` di macOS non ha bzip2: non è un problema di Xipper.
+- Mancano archivi scritti da WinRAR ed Esplora risorse (servono le macchine Windows).
+
+#### B. Lettura ZIP rigorosa
+Oggi c'è già il controllo delle voci sovrapposte (`ZipReader.checkOverlaps`). Si aggiunge:
+- central directory autorevole, e header locale confrontato con lui: nome, metodo, dimensioni, CRC (se non c'è data descriptor), flag di cifratura; differenze → errore «archivio ambiguo»;
+- un solo EOCD valido, coerente con il locator ZIP64; niente dati prima del primo header, se non un prefisso dichiarato (SFX);
+- nomi duplicati, con NUL, o uguali dopo la normalizzazione NFC/NFD o a meno delle maiuscole → errore o rinomina esplicita, mai la sovrascrittura silenziosa;
+- la firma di un archivio copre i byte che vengono davvero estratti;
+- corpus ostile nei test, costruito sui 14 tipi di ambiguità di ZipDiff (USENIX Security 2025), più le bombe di Fifield.
+- **Fatto quando:** tutti i casi del corpus sono rifiutati o letti in un solo modo, e nessun ZIP legittimo del corpus A diventa illeggibile.
+
+#### C. Quarantena e nomi ingannevoli
+La propagazione di `com.apple.quarantine` c'è già (`ExtractionContext`).
+- Test di regressione per i trigger dei CVE di Archive Utility e 7-Zip: archivi annidati aperti in anteprima, file estratti tramite il volume montato, link simbolici, AppleDouble e resource fork; mai un valore di quarantena preso dall'archivio stesso.
+- Avviso prima di estrarre nomi con caratteri di controllo bidirezionali (U+202E «RTLO» e simili) o doppia estensione ingannevole (`fattura.pdf.app`); nell'inspector il nome viene mostrato con i caratteri resi visibili.
+- **Fatto quando:** i test coprono ogni trigger noto e l'avviso compare in app e CLI.
+
+#### D. «Cambia formato» v1
+Converte copiando i dati compressi così come sono dove i due formati condividono il codec, e ricomprime solo le voci che non si possono copiare. Richiede spazio libero quanto il nuovo archivio; l'originale si tocca solo alla fine, con uno scambio senza passaggi a metà.
+
+1. **Piano** (`Sources/XipperKit/Convert/ConversionPlan.swift`): per ogni voce dice cosa succede: *copiata* (stesso codec), *solo checksum* (si decodifica per calcolare il CRC mancante, i dati restano quelli), *ricompressa*. Spazio stimato, voci cifrate, firme e accessi XIZ che andranno persi.
+2. **Coppie della v1:**
+   - ZIP ↔ 7z non solido per store, Deflate, Deflate64, bzip2 (con `SevenZipCarriedFolder`);
+   - 7z → ZIP solo per le cartelle con CRC (stessa regola dell'editor);
+   - ZIP zstd → XIZ (un frame zstd per frame XIZ, se rientra nei 64 MiB);
+   - tutto il resto ricompresso in streaming, senza cartella temporanea estratta: tar.X ↔ formati per file, 7z solidi, RAR, Apple Archive.
+3. **Cifratura:** si decifra e si cifra di nuovo senza ricomprimere; serve la password di origine e quella di arrivo.
+4. **Firme e PAR2:** le firme XIZ e AEA non si possono conservare: si avvisa e, se c'è una chiave predefinita, si propone di firmare di nuovo. I gruppi di accesso XIZ diventano una password sola: si avvisa. PAR2 dell'originale verificato prima, e proposta di crearlo per il nuovo archivio.
+5. **Sicurezza:** il nuovo archivio viene verificato rileggendolo dal disco prima di sostituire l'originale (`RENAME_SWAP`); l'originale si sposta nel Cestino, non viene cancellato.
+6. **CLI:** `xipper convert ARCHIVIO --to 7z|zip|xiz|tar.zst … [--dry-run] [--json] [--keep-original]`; MCP `convert_archive`.
+7. **App:** comando «Cambia formato…» nel browser e nel Finder; foglio con il piano (quante voci copiate, quante ricompresse, spazio necessario, cosa si perde) prima di partire; avanzamento nel pannello dei lavori.
+8. **Test:** per ogni coppia, conversione andata e ritorno con payload identici (hash), interop con lo script di A, crash simulato (processo ucciso) in ogni fase: l'originale resta sempre intatto.
+- **Fatto quando:** le coppie della v1 passano interop e crash test, e un ZIP Deflate da qualche GB diventa 7z alla velocità del disco, senza ricomprimere.
+
+#### E. Piccole cose
+- **ZIP PPMd (metodo 98):** decoder PPMd variante I (`Ppmd8.c`, `Ppmd8Dec.c` dell'LZMA SDK, pubblico dominio, già vendorizzato per la variante H), trovato dal corpus di interop.
+- **Codifica dei nomi ZIP:** oggi i nomi senza flag UTF-8 si leggono solo come CP437. Riconoscimento automatico (UTF-8 valido, Shift-JIS, GBK, CP866, CP1252…) con scelta manuale nel browser e `--names-encoding` nella CLI.
+- **Manifest dei codec:** `Vendor/MANIFEST.json` con versione, tag, commit e hash SHA-256 di ogni file vendorizzato; un test confronta gli hash, così una modifica non voluta ai sorgenti non passa.
+- **Filtro ARM64 nei binari universali:** oggi il filtro si applica al file intero se c'è una slice arm64, quindi anche alla slice x86_64. Nel 7z il filtro vale per tutto il flusso, quindi niente filtro per slice. Prima misurare su app reali; poi scegliere tra ARM64 su tutto, nessun filtro, o filtro sulla slice più grande. Il filtro per slice vero va in XIZ 1.4.
+
+#### F. Rilascio
+- 218 test e oltre, interop, crash test di D;
+- prova a mano: conversione grande nell'app, archivio ostile, nome RTLO;
+- testi italiani e inglesi, note di versione, DMG 2.5.0.
+
+### Fuori dalla 2.5
+- «Cambia formato» v1.5 (coppie che cambiano solo l'intestazione: LZMA tra ZIP e 7z, LZMA2 → ZIP xz, ZIP → tar a più membri) e v2 (poco spazio libero con hole punching e registro delle operazioni): servono prima i test di interop e di interruzione di corrente su APFS;
+- XIZ 1.4 (filtri per chunk, codec veloce, LZMA2), benchmark su M-series, ricompressione JPEG, recovery record dentro XIZ, riparazione ZIP senza PAR2, decoder esterni in un servizio XPC: medio termine (2.6–3.0).
 
 ---
 

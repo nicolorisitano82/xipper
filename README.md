@@ -80,7 +80,13 @@ swift build -c release
 swift test
 ```
 
-I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema. Se è installato, usano anche `7zz` (Homebrew): servono solo ai test, non all'app.
+I test di interoperabilità usano `unzip`, `ditto`, `tar` e `python3` di sistema. Se è installato, usano anche `7zz` (Homebrew): servono solo ai test, non all'app. Il corpus di archivi scritti da altri programmi (`Tests/XipperKitTests/Fixtures/interop`) non richiede nessuno strumento; lo rigenera `scripts/make-interop-corpus.sh`.
+
+Interop nell'altro verso: ogni tipo di archivio che Xipper scrive, verificato ed estratto da `7zz`, `unzip`, `ditto`, `bsdtar`, `xz`, `zstd`, `aa` (quelli mancanti vengono saltati):
+
+```bash
+scripts/interop.sh
+```
 
 Solo stabilità e sicurezza (uso concorrente, alberi insoliti, annullamento e troncamento in ogni punto, descrittori aperti, catene di link, link fisici, permessi, cifratura, WebDAV e MCP), con un fuzzing più lungo:
 
