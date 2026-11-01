@@ -885,6 +885,16 @@
         }
       }
     },
+    "%lld nomi ingannevoli: sembrano documenti ma potrebbero essere programmi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld deceptive names: they look like documents but may be programs"
+          }
+        }
+      }
+    },
     "%lld problemi trovati" : {
       "localizations" : {
         "en" : {
@@ -2398,6 +2408,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Content"
+          }
+        }
+      }
+    },
+    "Contiene caratteri che invertono la fine del nome: l'estensione che vedi non è quella vera." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contains characters that reverse the end of the name: the extension you see is not the real one."
           }
         }
       }
@@ -3941,6 +3961,16 @@
         }
       }
     },
+    "Gli spazi nascondono la vera estensione, .%@, che si apre come programma." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spaces hide the real extension, .%@, which opens as a program."
+          }
+        }
+      }
+    },
     "Hai la %@." : {
       "localizations" : {
         "en" : {
@@ -5206,6 +5236,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invalid name"
+          }
+        }
+      }
+    },
+    "Nome reale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Real name"
           }
         }
       }
@@ -6486,6 +6526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Multiple Selection"
+          }
+        }
+      }
+    },
+    "Sembra un file .%@ ma è un .%@, che si apre come programma." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks like a .%@ file but is a .%@, which opens as a program."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sembra un file .%1$@ ma è un .%2$@, che si apre come programma."
           }
         }
       }
@@ -7929,6 +7985,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“Keep Both” saves the copy as “%@”. Replace moves the file on disk to the Trash."
+          }
+        }
+      }
+    },
+    "⚠️ %lld nomi ingannevoli" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⚠️ %lld deceptive names"
           }
         }
       }

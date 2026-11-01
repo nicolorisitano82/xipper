@@ -26,6 +26,8 @@ final class ArchiveModel {
     let url: URL
     private(set) var format: ArchiveFormat?
     private(set) var entries: [ArchiveEntry] = []
+    /// Items whose name pretends to be something else (DeceptiveName), up to the deceptive component.
+    private(set) var deceptive: [String] = []
     private(set) var bgzf: BGZFInfo?
     /// BAM or CRAM: header summary (a CRAM has no entries to list).
     private(set) var alignment: AlignmentSummary?
@@ -102,6 +104,11 @@ final class ArchiveModel {
         case let .success((f, e, b)):
             format = f
             entries = e
+            deceptive = Array(Set(e.compactMap { entry -> String? in
+                let comps = entry.path.split(separator: "/").map(String.init)
+                guard let i = comps.firstIndex(where: { DeceptiveName.check($0) != nil }) else { return nil }
+                return comps[...i].joined(separator: "/")
+            })).sorted()
             bgzf = b
             folders = Self.folderSet(e).sorted()
             unlockMessage = nil

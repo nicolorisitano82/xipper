@@ -167,6 +167,9 @@ public struct ExtractReport: Sendable {
     public var bytes: Int64
     public var skipped: [SkippedEntry]
     public var elapsed: Double
+    /// Extracted items whose name pretends to be something else (DeceptiveName): the path up to
+    /// the deceptive component, once each.
+    public var deceptive: [String] = []
 }
 
 /// Safe writer for extracted entries, shared by every archive format.
@@ -189,6 +192,7 @@ final class ExtractionContext: @unchecked Sendable {
     private let written = Atomic<Int64>(0)
     private let counts = Mutex<(files: Int, dirs: Int, links: Int)>((0, 0, 0))
     private let skippedList = Mutex<[SkippedEntry]>([])
+    private let deceptiveList = Mutex<Set<String>>([])
     private let deferredLinks = Mutex<[(path: [String], target: String, hard: Bool, mtime: Date?)]>([])
     private let deferredDirs = Mutex<[String: (perm: UInt16?, mtime: Date?)]>([:])
     private let appleDoubles = Mutex<[(target: String, data: [UInt8])]>([])
@@ -270,6 +274,7 @@ final class ExtractionContext: @unchecked Sendable {
 
     var bytesWritten: Int64 { written.load(ordering: .relaxed) }
     var skipped: [SkippedEntry] { skippedList.withLock { $0 } }
+    var deceptive: [String] { deceptiveList.withLock { $0 }.sorted() }
     var stats: (files: Int, dirs: Int, links: Int) { counts.withLock { $0 } }
 
     func overLimit(needed: Int64) -> XipperError {
@@ -330,6 +335,9 @@ final class ExtractionContext: @unchecked Sendable {
             comps.append(String(c))
         }
         if comps.isEmpty { skip(raw, "empty path", .invalidName); return nil }
+        if let i = comps.firstIndex(where: { DeceptiveName.check($0) != nil }) {
+            _ = deceptiveList.withLock { $0.insert(comps[...i].joined(separator: "/")) }
+        }
         return comps
     }
 

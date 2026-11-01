@@ -174,6 +174,26 @@ struct ArchiveBrowserView: View {
         .background(.bar)
     }
 
+    /// Names disguised as documents ("fattura.pdf.app", right-to-left override): shown before
+    /// anything is opened or extracted, with the name as it really is.
+    private var deceptiveBanner: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(model.deceptive.count) nomi ingannevoli: sembrano documenti ma potrebbero essere programmi")
+                    .fontWeight(.semibold)
+                Text(model.deceptive.prefix(3).map { DeceptiveName.visible($0) }.joined(separator: " · "))
+                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+            }
+            Spacer()
+        }
+        .font(.callout)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.12))
+        .accessibilityElement(children: .combine)
+    }
+
     /// "1 di 1.206 selezionati · 1,21 GB in Documenti".
     private var statusBar: some View {
         let items = model.items
@@ -426,7 +446,12 @@ struct ArchiveBrowserView: View {
                 add(files)
                 return true
             }
-            .safeAreaInset(edge: .top, spacing: 0) { pathBar }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    if !model.deceptive.isEmpty { deceptiveBanner }
+                    pathBar
+                }
+            }
             .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
             .scrollEdgeEffectStyle(.hard, for: .top)
         }
@@ -669,6 +694,11 @@ private struct ArchiveInspector: View {
             if let item = selection.first, selection.count == 1 {
                 Section(item.isFolder ? String(localized: "Cartella") : String(localized: "File")) {
                     LabeledContent("Nome", value: item.name)
+                    if let d = DeceptiveName.check(item.name) {
+                        LabeledContent("Nome reale", value: DeceptiveName.visible(item.name))
+                        Label(d.explanation, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.callout)
+                    }
                     LabeledContent("Dimensione", value: item.size >= 0 ? item.size.byteText : "—")
                     if item.compressed > 0 { LabeledContent("Compresso", value: item.compressed.byteText) }
                     if let e = item.entry {

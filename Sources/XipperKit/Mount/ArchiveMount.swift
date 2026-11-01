@@ -11,8 +11,9 @@ public final class ArchiveMount: @unchecked Sendable {
     public private(set) var mountPoint: URL?
 
     /// `writable: false` mounts read-only even when the format could be written back.
-    public init(archive: URL, password: String? = nil, writable: Bool = true) throws {
-        tree = try MountedArchive(archive: archive, password: password, writable: writable)
+    /// `propagateQuarantine`: the volume's items carry the archive's quarantine, as extracted files do.
+    public init(archive: URL, password: String? = nil, writable: Bool = true, propagateQuarantine: Bool = true) throws {
+        tree = try MountedArchive(archive: archive, password: password, writable: writable, propagateQuarantine: propagateQuarantine)
         let name = archive.deletingPathExtension().lastPathComponent
         server = DAVServer(tree: tree, volumeName: archive.pathExtension == "tar" || !name.hasSuffix(".tar") ? name
                                                     : (name as NSString).deletingPathExtension)

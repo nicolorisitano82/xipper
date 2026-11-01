@@ -339,7 +339,7 @@ public enum Xipper {
             tracker.finish()
             let s = ctx.stats
             return ExtractReport(destination: destination, files: s.files, directories: s.dirs, symlinks: s.links,
-                                 bytes: ctx.bytesWritten, skipped: ctx.skipped, elapsed: tracker.elapsed)
+                                 bytes: ctx.bytesWritten, skipped: ctx.skipped, elapsed: tracker.elapsed, deceptive: ctx.deceptive)
         } catch {
             if mode == .smart { try? FileManager.default.removeItem(atPath: root) }
             throw error

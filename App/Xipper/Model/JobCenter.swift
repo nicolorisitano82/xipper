@@ -414,6 +414,7 @@ extension Job {
             extractReport = r
             var s = "\(r.files) file · \(r.bytes.byteText)"
             if !r.skipped.isEmpty { s += " · \(r.skipped.count) saltati" }
+            if !r.deceptive.isEmpty { s += " · " + String(localized: "⚠️ \(r.deceptive.count) nomi ingannevoli") }
             state = .finished(s)
             revealIfWanted()
         case let .tested(r):

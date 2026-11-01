@@ -45,7 +45,8 @@ final class MountCenter {
         Task {
             let result = await Task.detached { () -> Result<(ArchiveMount, URL), Error> in
                 Result {
-                    let m = try ArchiveMount(archive: archive, password: password)
+                    let m = try ArchiveMount(archive: archive, password: password,
+                                             propagateQuarantine: UserDefaults.standard.bool(forKey: PrefKey.propagateQuarantine))
                     return (m, try m.mount())
                 }
             }.value

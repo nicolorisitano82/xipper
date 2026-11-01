@@ -48,6 +48,7 @@ usage: xipper <command> [options]
           --read-only      do not allow changes
           --discard        drop the changes instead of saving them into the archive
           --at DIR         mount on DIR instead of /Volumes
+          --no-quarantine  do not show the archive's quarantine attribute on the volume's items
       -p, --password / --password-stdin
   mcp     [options]               MCP server on stdio for AI agents (see `xipper mcp --help`)
   bgzip   [options] <file>...     BGZF (blocked gzip) for genomics, bgzip-compatible
@@ -294,6 +295,9 @@ case "extract", "x":
         endProgress()
         print("\(r.destination.path): \(r.files) files, \(r.directories) folders, \(r.symlinks) links, \(r.bytes.bytesText) in \(String(format: "%.2f", r.elapsed))s")
         for s in r.skipped { fputs("skipped \(s.path): \(s.reason)\n", stderr) }
+        for d in r.deceptive {
+            fputs("warning: deceptive name \(DeceptiveName.visible(d)): \(describe(DeceptiveName.check(path: d)!.reason))\n", stderr)
+        }
         if !r.skipped.isEmpty { exit(3) }
     }
 
@@ -411,7 +415,8 @@ case "mount":
     let pw = readPassword(confirm: false)
     run {
         let archive = URL(fileURLWithPath: positional[0])
-        let m = try ArchiveMount(archive: archive, password: pw, writable: !flag("--read-only"))
+        let m = try ArchiveMount(archive: archive, password: pw, writable: !flag("--read-only"),
+                                 propagateQuarantine: !flag("--no-quarantine"))
         let point = try m.mount(at: value("--at").map { URL(fileURLWithPath: $0, isDirectory: true) })
         print("mounted \(archive.lastPathComponent) on \(point.path)\(m.tree.writable ? "" : " (read-only)")")
         print("eject it from the Finder, or press Ctrl-C, to unmount\(m.tree.writable && !flag("--discard") ? " and save the changes" : "")")
@@ -666,4 +671,12 @@ func buildBundle(executable: String, output: String) throws {
     o.overwrite = true
     try Xipper.create(from: [URL(fileURLWithPath: stage + "/manifest.json"), URL(fileURLWithPath: stage + "/server")],
                       to: URL(fileURLWithPath: output), options: o)
+}
+
+func describe(_ r: DeceptiveName.Reason) -> String {
+    switch r {
+    case .bidiControl: return "contains right-to-left control characters that disguise its end"
+    case let .doubleExtension(shown, real): return "looks like .\(shown) but is .\(real)"
+    case let .paddedExtension(real): return "spaces hide its real extension .\(real)"
+    }
 }

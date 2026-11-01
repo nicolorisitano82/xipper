@@ -35,8 +35,13 @@ public final class MountedArchive: @unchecked Sendable {
     private var dirty = false
     private let mountedAt = Date()
     private var overlay: URL { workDirectory.appendingPathComponent("overlay", isDirectory: true) }
+    /// The archive's quarantine as an AppleDouble file, served as "._name" next to every item:
+    /// that is where macOS's WebDAV client looks for extended attributes. Without it an app
+    /// opened from the volume would skip Gatekeeper, the bug class of CVE-2022-42821.
+    private let quarantineAppleDouble: Data?
 
-    public init(archive: URL, password: String? = nil, writable: Bool = true, workDirectory: URL? = nil) throws {
+    public init(archive: URL, password: String? = nil, writable: Bool = true, workDirectory: URL? = nil,
+                propagateQuarantine: Bool = true) throws {
         self.archive = archive.standardizedFileURL
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         self.format = format
@@ -44,7 +49,9 @@ public final class MountedArchive: @unchecked Sendable {
         self.writable = writable && format.canCreate && !format.isSingleFile
         self.workDirectory = workDirectory ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("Xipper-mount-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: overlay, withIntermediateDirectories: true)
+        let work = self.workDirectory
+        try FileManager.default.createDirectory(at: work.appendingPathComponent("overlay", isDirectory: true), withIntermediateDirectories: true)
+        quarantineAppleDouble = propagateQuarantine ? Self.appleDouble(quarantineOf: self.archive, in: work) : nil
         for e in try Xipper.list(archive, password: password) {
             // Same names the safe extraction accepts; symlinks and hard links stay in the archive
             // (and in a saved copy) but WebDAV cannot show them.
@@ -81,6 +88,34 @@ public final class MountedArchive: @unchecked Sendable {
 
     public var hasChanges: Bool { lock.withLock { dirty } }
 
+    /// copyfile's own AppleDouble encoding of a file carrying only `archive`'s quarantine. copyfile
+    /// rewrites a real quarantine attribute in its internal form ("q/…"), which is not what the
+    /// archive has: it packs a stand-in name of the same length, swapped for the real one after.
+    static func appleDouble(quarantineOf archive: URL, in dir: URL) -> Data? {
+        guard let q = ExtractionContext.readXattr(archive.path, "com.apple.quarantine") else { return nil }
+        let real = Array("com.apple.quarantine".utf8), standIn = Array("app.xipper.quaranti9".utf8)
+        let src = dir.appendingPathComponent("quarantine-src").path, packed = dir.appendingPathComponent("quarantine-ad").path
+        defer { unlink(src); unlink(packed) }
+        guard FileManager.default.createFile(atPath: src, contents: nil),
+              q.withUnsafeBytes({ setxattr(src, "app.xipper.quaranti9", $0.baseAddress, $0.count, 0, 0) }) == 0,
+              copyfile(src, packed, nil, copyfile_flags_t(COPYFILE_PACK | COPYFILE_XATTR)) == 0,
+              var bytes = FileManager.default.contents(atPath: packed).map(Array.init),
+              let at = (0...(bytes.count - standIn.count)).first(where: { bytes[$0..<$0 + standIn.count].elementsEqual(standIn) })
+        else { return nil }
+        bytes.replaceSubrange(at..<at + real.count, with: real)
+        return Data(bytes)
+    }
+
+    /// "a/._b" → "a/b" when the path names a quarantine sidecar of an item of the archive.
+    private func sidecarTarget(_ path: String) -> String? {
+        guard quarantineAppleDouble != nil else { return nil }
+        let name = (path as NSString).lastPathComponent
+        guard name.hasPrefix("._"), name.count > 2 else { return nil }
+        let parent = (path as NSString).deletingLastPathComponent
+        let target = parent.isEmpty ? String(name.dropFirst(2)) : parent + "/" + name.dropFirst(2)
+        return baseFiles[target] != nil || baseDirs.contains(target) ? target : nil
+    }
+
     // MARK: reading the tree
 
     private func hidden(_ path: String) -> Bool {
@@ -102,6 +137,9 @@ public final class MountedArchive: @unchecked Sendable {
         if path.isEmpty { return Info(name: "", isDirectory: true, size: 0, modified: mountedAt, etag: "root") }
         if let o = overlayInfo(path) { return o }
         guard !hidden(path) else { return nil }
+        if let target = sidecarTarget(path), !hidden(target), let ad = quarantineAppleDouble {
+            return Info(name: (path as NSString).lastPathComponent, isDirectory: false, size: Int64(ad.count), modified: mountedAt, etag: "q")
+        }
         if let e = baseFiles[path] {
             let date = e.modified ?? mountedAt
             return Info(name: (path as NSString).lastPathComponent, isDirectory: false, size: max(0, e.uncompressedSize),
@@ -134,9 +172,14 @@ public final class MountedArchive: @unchecked Sendable {
     /// Streams a file's content from `offset` on.
     public func read(_ path: String, from offset: Int64 = 0, cancel: CancellationToken? = nil,
                      _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
-        let (inOverlay, entry): (Bool, ArchiveEntry?) = lock.withLock {
-            if overlayInfo(path) != nil { return (true, nil) }
-            return (false, hidden(path) ? nil : baseFiles[path])
+        let (inOverlay, entry, sidecar): (Bool, ArchiveEntry?, Data?) = lock.withLock {
+            if overlayInfo(path) != nil { return (true, nil, nil) }
+            if !hidden(path), let target = sidecarTarget(path), !hidden(target) { return (false, nil, quarantineAppleDouble) }
+            return (false, hidden(path) ? nil : baseFiles[path], nil)
+        }
+        if let sidecar {
+            if offset < sidecar.count { try sidecar[Int(max(0, offset))...].withUnsafeBytes { try body($0) } }
+            return
         }
         if inOverlay {
             let r = try FileReader(path: overlayURL(path).path)

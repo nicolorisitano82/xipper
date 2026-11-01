@@ -188,11 +188,11 @@ Un ZIP che lettori diversi interpretano in modi diversi viene rifiutato con «am
 - ✅ test: `ZipAmbiguityTests` con un ZIP costruito byte per byte per ogni caso, più le varianti legittime (commento, byte in coda, ZIP64 coerente); nessun falso positivo sul corpus di interop né su 122 ZIP, documenti Office, EPUB e JAR veri presenti sul Mac.
 - Non fatto: il confronto con l'elenco completo dei 14 tipi di ZipDiff (serve il testo integrale dell'articolo). La firma «sui byte estratti» non riguarda ZIP: Xipper firma solo XIZ e Apple Archive.
 
-#### C. Quarantena e nomi ingannevoli
-La propagazione di `com.apple.quarantine` c'è già (`ExtractionContext`).
-- Test di regressione per i trigger dei CVE di Archive Utility e 7-Zip: archivi annidati aperti in anteprima, file estratti tramite il volume montato, link simbolici, AppleDouble e resource fork; mai un valore di quarantena preso dall'archivio stesso.
-- Avviso prima di estrarre nomi con caratteri di controllo bidirezionali (U+202E «RTLO» e simili) o doppia estensione ingannevole (`fattura.pdf.app`); nell'inspector il nome viene mostrato con i caratteri resi visibili.
-- **Fatto quando:** i test coprono ogni trigger noto e l'avviso compare in app e CLI.
+#### C. Quarantena e nomi ingannevoli — ✅ fatto (01/11/2026)
+- ✅ **buco chiuso: volume montato.** I file di un archivio montato non avevano la quarantena: un'app scaricata, aperta dal volume, saltava Gatekeeper (la classe di CVE-2022-42821 di Archive Utility). Ora il server WebDAV presenta accanto a ogni file e cartella un «._nome» AppleDouble con la quarantena dell'archivio, che il client WebDAV di macOS legge come attributo esteso. Il valore è identico a quello dell'archivio: copyfile lo riscriverebbe nella forma interna «q/…», quindi viene impacchettato con un nome sostitutivo poi scambiato. Rispetta la preferenza dell'app; in CLI `xipper mount --no-quarantine`;
+- ✅ **test di regressione** (`QuarantineTests`): estrazione in ZIP, 7z, tar.zst, Apple Archive, XIZ e cpio con quarantena su file, cartelle e link; archivio senza quarantena o con la propagazione spenta; archivi annidati, anche al secondo livello (CVE-2025-0411 di 7-Zip); elementi preparati per Quick Look e trascinamento; quarantena salvata *dentro* un Apple Archive (anche con il flag «approvato dall'utente») mai ripristinata; volume montato, sia nel server sia con un montaggio reale;
+- ✅ **nomi ingannevoli** (`DeceptiveName`): caratteri di controllo bidirezionali (RTLO e simili), estensione di documento davanti a una eseguibile (`fattura.pdf.app`, `foto.jpg.command`, `invoice.docx.exe`), spazi che nascondono l'estensione vera. Non blocca l'estrazione, avvisa: un banner nel browser con i nomi reali (`⟨U+202E⟩` visibile), il «Nome reale» nell'inspector con la spiegazione, il riepilogo del lavoro dopo l'estrazione e un `warning:` della CLI;
+- verificato: le altre vie che fanno uscire file dall'archivio (anteprima, trascinamento, archivi annidati, MCP) usano già la propagazione; l'anteprima Quick Look dell'estensione legge i dati in memoria e non crea file.
 
 #### D. «Cambia formato» v1
 Converte copiando i dati compressi così come sono dove i due formati condividono il codec, e ricomprime solo le voci che non si possono copiare. Richiede spazio libero quanto il nuovo archivio; l'originale si tocca solo alla fine, con uno scambio senza passaggi a metà.
