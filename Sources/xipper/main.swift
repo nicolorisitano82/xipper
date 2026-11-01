@@ -31,6 +31,9 @@ usage: xipper <command> [options]
           --allow-external-symlinks
           --no-quarantine  do not copy the archive's quarantine attribute
       -p, --password / --password-stdin
+  --names-encoding ENC   (extract, test, list, convert, mount) code page of ZIP names written
+                         without the UTF-8 flag, instead of the automatic guess: cp437, cp850,
+                         cp866, windows1252, windows1251, shiftjis, gbk, big5, euckr
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
@@ -108,7 +111,8 @@ let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
-       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to"]
+       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
+       "--names-encoding"]
 do {
     var i = 0
     while i < args.count {
@@ -136,6 +140,15 @@ do {
 }
 
 @MainActor func value(_ names: String...) -> String? { names.lazy.compactMap { values[$0] }.first }
+
+// ZIP names without the UTF-8 flag: the code page, instead of the automatic guess.
+if let e = values["--names-encoding"], command != "bgzip" {
+    guard let enc = ZipNameEncoding(rawValue: e.lowercased()) else {
+        fputs("xipper: unknown --names-encoding \(e) (\(ZipNameEncoding.allCases.map(\.rawValue).joined(separator: ", ")))\n", stderr)
+        exit(2)
+    }
+    for p in positional.prefix(1) { Xipper.setZipNameEncoding(enc, for: URL(fileURLWithPath: p)) }
+}
 @MainActor func flag(_ names: String...) -> Bool { names.contains { flags.contains($0) } }
 
 /// "512k", "64m", "2g", "1000" → bytes.

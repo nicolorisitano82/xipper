@@ -10,7 +10,7 @@ enum Zip {
     static let dataDescriptorSignature: UInt32 = 0x0807_4b50
 
     enum Method: UInt16 {
-        case store = 0, deflate = 8, deflate64 = 9, bzip2 = 12, lzma = 14, zstd = 93, xz = 95, aes = 99
+        case store = 0, deflate = 8, deflate64 = 9, bzip2 = 12, lzma = 14, zstd = 93, xz = 95, ppmd = 98, aes = 99
     }
 
     enum Flag {
@@ -130,6 +130,7 @@ func zipMethodName(_ m: UInt16) -> String {
     case .lzma: return "lzma"
     case .zstd: return "zstd"
     case .xz: return "xz"
+    case .ppmd: return "ppmd"
     case .aes: return "aes"
     case nil: return "method \(m)"
     }

@@ -19,6 +19,13 @@ void xs_ppmd7_dec_free(xs_ppmd7_dec *d);
 /// -2 when the input ended before `count` bytes were decoded.
 int xs_ppmd7_dec_read(xs_ppmd7_dec *d, uint8_t *out, size_t count);
 
+// PPMd variant I rev. 1 (ZIP method 98): `order` 2...16, `restore` 0 (restart) or 1 (cut off).
+typedef struct xs_ppmd8_dec xs_ppmd8_dec;
+xs_ppmd8_dec *xs_ppmd8_dec_new(unsigned order, uint32_t memSize, unsigned restore, xs_ppmd_fill fill, void *ctx);
+void xs_ppmd8_dec_free(xs_ppmd8_dec *d);
+/// Same contract as xs_ppmd7_dec_read.
+int xs_ppmd8_dec_read(xs_ppmd8_dec *d, uint8_t *out, size_t count);
+
 // LZMA / LZMA2 decoder of the LZMA SDK, with 7-Zip's ARM64 assembly main loop
 // (Asm/arm64/LzmaDecOpt.S). liblzma remains the portable path in XipperKit.
 

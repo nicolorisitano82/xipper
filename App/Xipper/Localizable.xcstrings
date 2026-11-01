@@ -1593,6 +1593,26 @@
         }
       }
     },
+    "Automatica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic"
+          }
+        }
+      }
+    },
+    "Automatica (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic (%@)"
+          }
+        }
+      }
+    },
     "Autorità di marca temporale (URL)" : {
       "localizations" : {
         "en" : {
@@ -2220,6 +2240,56 @@
         }
       }
     },
+    "Cinese semplificato (GBK)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese, Simplified (GBK)"
+          }
+        }
+      }
+    },
+    "Cinese tradizionale (Big5)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese, Traditional (Big5)"
+          }
+        }
+      }
+    },
+    "Cirillico (DOS, CP866)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyrillic (DOS, CP866)"
+          }
+        }
+      }
+    },
+    "Cirillico (Windows-1251)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyrillic (Windows-1251)"
+          }
+        }
+      }
+    },
+    "Codifica dei nomi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name Encoding"
+          }
+        }
+      }
+    },
     "Collegamenti simbolici" : {
       "localizations" : {
         "en" : {
@@ -2656,6 +2726,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Performance cores"
+          }
+        }
+      }
+    },
+    "Coreano (EUC-KR)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korean (EUC-KR)"
           }
         }
       }
@@ -3661,6 +3741,16 @@
         }
       }
     },
+    "Europa occidentale (DOS, CP850)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Western European (DOS, CP850)"
+          }
+        }
+      }
+    },
     "Fa parte dell'archivio." : {
       "localizations" : {
         "en" : {
@@ -3985,6 +4075,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Genomics"
+          }
+        }
+      }
+    },
+    "Giapponese (Shift-JIS)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Japanese (Shift-JIS)"
           }
         }
       }
@@ -5634,6 +5734,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Occidentale (DOS, CP437)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Western (DOS, CP437)"
+          }
+        }
+      }
+    },
+    "Occidentale (Windows-1252)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Western (Windows-1252)"
           }
         }
       }

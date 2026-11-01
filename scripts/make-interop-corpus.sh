@@ -96,11 +96,21 @@ head -c 20000 "$S" | xz -q -c > "$OUT/xz-multistream.bin.xz"; tail -c +20001 "$S
 head -c 20000 "$S" | zstd -q -c > "$OUT/zstd-multiframe.bin.zst"; tail -c +20001 "$S" | zstd -q -3 -c >> "$OUT/zstd-multiframe.bin.zst"
 # Apple Archive (aa)
 for a in lzfse lzma zlib raw; do aa archive -d . -o "$OUT/aa-$a.aar" -a $a; done
-# Python zipfile: a name stored in CP437 without the UTF-8 flag (what old Windows tools write)
-python3 -I - "$OUT/py-cp437-name.zip" <<'PY'
+# Names in a legacy code page without the UTF-8 flag, made on MS-DOS (what Windows tools write):
+# zipfile would store them as UTF-8 with the flag, so its name encoder is replaced.
+python3 -I - "$OUT" <<'PY'
 import sys, zipfile
-with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
-    z.writestr(zipfile.ZipInfo("Café ñ.txt", (2024, 1, 2, 3, 4, 6)), b"cp437 name\n")
+class Legacy(zipfile.ZipInfo):
+    __slots__ = ("page",)
+    def _encodeFilenameFlags(self): return self.filename.encode(self.page), self.flag_bits & ~0x800
+for name, page, names in [("py-cp437-name.zip", "cp437", ["Café ñ.txt"]),
+                          ("py-cp866-names.zip", "cp866", ["Документы/отчёт.txt", "Фото/отпуск.txt"])]:
+    with zipfile.ZipFile(sys.argv[1] + "/" + name, "w", zipfile.ZIP_DEFLATED) as z:
+        for n in names:
+            zi = Legacy(n, (2024, 1, 2, 3, 4, 6))
+            zi.page = page
+            zi.create_system = 0
+            z.writestr(zi, b"legacy name\n")
 PY
 
 # Expected content: SHA-256 of every file, folder and link target of the tree.

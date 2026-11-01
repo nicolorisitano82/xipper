@@ -44,9 +44,7 @@ struct InteropCorpusTests {
 
     /// Methods Xipper does not read yet: the test fails when one starts working, so the list
     /// stays true.
-    static let unsupported: [String: String] = [
-        "7zz-zip-ppmd.zip": "ZIP method 98, PPMd variant I (7z uses variant H, which Xipper reads)",
-    ]
+    static let unsupported: [String: String] = [:]
 
     static func password(_ name: String) -> String? {
         ["infozip-zipcrypto.zip", "7zz-zip-aes256.zip", "7zz-aes-encnames.7z", "7zz-aes-plainnames.7z"].contains(name) ? expected.password : nil
@@ -83,10 +81,35 @@ struct InteropCorpusTests {
                     "\(name): \(r.destination.lastPathComponent)")
             return
         }
+        if name == "py-cp866-names.zip" {
+            // Russian names in the DOS code page, no UTF-8 flag: recognised without being told.
+            #expect(got.keys.filter { got[$0] != "dir" }.sorted() == ["Документы/отчёт.txt", "Фото/отпуск.txt"], "\(got.keys.sorted())")
+            return
+        }
         // Every tool of the corpus keeps links, empty folders and the executable bit: all must match.
         let a = Self.expected.entries, b = got
         let diff = Set(a.keys).union(b.keys).sorted().filter { a[$0] != b[$0] }
             .map { "\($0): want \(a[$0] ?? "missing"), got \(b[$0] ?? "missing")" }
         #expect(diff.isEmpty, "\(name):\n\(diff.joined(separator: "\n"))")
+    }
+
+    /// ZIP method 98 (PPMd variant I) at several model orders, and under AES-256.
+    @Test(.enabled(if: sevenZip != nil))
+    func zipPPMdFrom7Zip() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 3 << 20)
+        for (name, args) in [("p1.zip", ["-mx=1"]), ("p5.zip", ["-mx=5"]), ("p9.zip", ["-mx=9"]), ("pa.zip", ["-mem=AES256", "-pPpmd-pw"])] {
+            run(sevenZip!, ["a", "-tzip", "-mm=PPMd", "-snl"] + args + [t.path + "/" + name, "src"], cwd: t.path)
+            let pw = name == "pa.zip" ? "Ppmd-pw" : nil
+            #expect(try Xipper.list(t.url(name)).contains { $0.method == "ppmd" }, "\(name)")
+            let test = try Xipper.test(t.url(name), password: pw)
+            #expect(test.isOK, "\(name): \(test.failures)")
+            var eo = ExtractOptions()
+            eo.password = pw
+            t.mkdir("o-" + name)
+            let r = try Xipper.extract(t.url(name), to: t.url("o-" + name), options: eo)
+            let (same, diff) = treesEqual(t.path + "/src", r.destination.path)
+            #expect(same, "\(name): \(diff)")
+        }
     }
 }

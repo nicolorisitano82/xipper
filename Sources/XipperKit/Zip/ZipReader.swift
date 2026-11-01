@@ -1,3 +1,4 @@
+import CLzmaSDK
 import CoreFoundation
 import Foundation
 
@@ -8,6 +9,9 @@ final class ZipArchive: @unchecked Sendable {
     /// Offset added to stored offsets when data was prepended to the archive (self-extractors).
     private let bias: Int64
     private let centralStart: Int64
+    /// Code page of the names written without the UTF-8 flag (forced or guessed); nil when every
+    /// name is Unicode (flag, Info-ZIP Unicode extra, or valid UTF-8).
+    let nameEncoding: ZipNameEncoding?
 
     /// The files of a split archive, in order, or just `path`.
     /// PKZIP/WinZip/Info-ZIP split: `name.z01`, `name.z02`, …, `name.zip` (offsets are per part).
@@ -134,16 +138,29 @@ final class ZipArchive: @unchecked Sendable {
         var records: [ZipEntryRecord] = []
         records.reserveCapacity(Int(min(entryCount, 1 << 20)))
         var trailing = 0
-        try cd.withUnsafeBytes { buf in
-            var r = ByteReader(buf)
-            while r.remaining >= 46 {
-                if buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian != Zip.centralSignature { break }
-                try r.skip(4)
-                records.append(try Self.parseCentral(&r, bias: shift, partStarts: starts))
+        func parseAll(_ legacy: ZipNameEncoding) throws {
+            records.removeAll(keepingCapacity: true)
+            try cd.withUnsafeBytes { buf in
+                var r = ByteReader(buf)
+                while r.remaining >= 46 {
+                    if buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian != Zip.centralSignature { break }
+                    try r.skip(4)
+                    records.append(try Self.parseCentral(&r, bias: shift, partStarts: starts, legacy: legacy))
+                }
+                // Only the optional digital signature record may follow the last entry.
+                if r.remaining >= 4, buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian == 0x0505_4B50 { trailing = 0 }
+                else { trailing = r.remaining }
             }
-            // Only the optional digital signature record may follow the last entry.
-            if r.remaining >= 4, buf.loadUnaligned(fromByteOffset: r.pos, as: UInt32.self).littleEndian == 0x0505_4B50 { trailing = 0 }
-            else { trailing = r.remaining }
+        }
+        try parseAll(.cp437)
+        // Names in a legacy code page: guessed from all of them together, unless forced.
+        let legacyNames = records.filter(Self.hasLegacyName).map(\.rawName)
+        if legacyNames.isEmpty {
+            nameEncoding = nil
+        } else {
+            let chosen = Xipper.zipNameEncodingOverride(path) ?? ZipNameEncoding.guess(legacyNames)
+            nameEncoding = chosen
+            if chosen != .cp437 { try parseAll(chosen) }
         }
         if records.isEmpty && entryCount > 0 { throw XipperError.corrupt("central directory has no entries") }
         // Entries a reader would see only by trusting the count, or by scanning past it, differ
@@ -164,7 +181,14 @@ final class ZipArchive: @unchecked Sendable {
         return starts[n]
     }
 
-    private static func parseCentral(_ r: inout ByteReader, bias: Int64, partStarts: [Int64]) throws -> ZipEntryRecord {
+    /// A name without the UTF-8 flag nor a Unicode extra, that is not valid UTF-8 either.
+    static func hasLegacyName(_ r: ZipEntryRecord) -> Bool {
+        r.flags & Zip.Flag.utf8 == 0 && r.rawName.contains { $0 >= 0x80 } && String(bytes: r.rawName, encoding: .utf8) == nil
+            && !ZipExtraFields.contains(r.central.extra, Zip.Extra.unicodePath)
+    }
+
+    private static func parseCentral(_ r: inout ByteReader, bias: Int64, partStarts: [Int64],
+                                     legacy: ZipNameEncoding = .cp437) throws -> ZipEntryRecord {
         let madeBy = try r.u16()
         let needed = try r.u16()
         let flags = try r.u16()
@@ -218,7 +242,7 @@ final class ZipArchive: @unchecked Sendable {
         if flags & Zip.Flag.strongEncryption != 0 { encryption = .zipCrypto }  // reported as unsupported on read
 
         if rawName.contains(0) { throw XipperError.corrupt("ambiguous ZIP: a name contains a NUL byte") }
-        let plainName = decodeName(rawName, utf8Flag: flags & Zip.Flag.utf8 != 0)
+        let plainName = decodeName(rawName, utf8Flag: flags & Zip.Flag.utf8 != 0, legacy: legacy)
         // With the UTF-8 flag the name is already Unicode: a different Info-ZIP Unicode name would
         // give the entry two names, depending on the reader.
         if flags & Zip.Flag.utf8 != 0, let unicodeName, unicodeName != plainName {
@@ -256,12 +280,12 @@ final class ZipArchive: @unchecked Sendable {
     }
 
     /// Names without the UTF-8 flag: valid non-ASCII UTF-8 is taken as UTF-8 (what macOS and Linux
-    /// tools write), anything else as IBM PC code page 437 (the ZIP default).
-    static func decodeName(_ raw: [UInt8], utf8Flag: Bool) -> String {
+    /// tools write), anything else in the archive's legacy code page (CP437, the ZIP default,
+    /// unless another one was guessed or forced: ZipNameEncoding).
+    static func decodeName(_ raw: [UInt8], utf8Flag: Bool, legacy: ZipNameEncoding = .cp437) -> String {
         if utf8Flag || raw.allSatisfy({ $0 < 0x80 }) { return String(decoding: raw, as: UTF8.self) }
         if let s = String(bytes: raw, encoding: .utf8) { return s }
-        let cp437 = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.dosLatinUS.rawValue))
-        return String(data: Data(raw), encoding: String.Encoding(rawValue: cp437)) ?? String(decoding: raw, as: UTF8.self)
+        return legacy.decode(raw) ?? ZipNameEncoding.cp437.decode(raw) ?? String(decoding: raw, as: UTF8.self)
     }
 
     /// Rejects entries whose data ranges overlap or exceed the archive: the "overlapping files"
@@ -401,8 +425,18 @@ enum ZipEntryDecoder {
             try sink(chunk)
         }
 
-        // Fast path: unencrypted deflate of moderate size.
-        if method == Zip.Method.deflate.rawValue && aes == nil && zipCrypto == nil && expected <= wholeBufferLimit {
+        if method == Zip.Method.ppmd.rawValue {
+            // PPMd decodes by pulling its input: a source over the entry's (decrypted) bytes.
+            let source = ZipEntrySource(reader: reader, from: start, to: end, aes: aes, zipCrypto: zipCrypto, cancel: cancel)
+            let ppmd = try ZipPPMdSource(source, size: expected, entry: name)
+            let piece = UnsafeMutableRawPointer.allocate(byteCount: pieceSize, alignment: 16)
+            defer { piece.deallocate() }
+            while true {
+                let n = try ppmd.read(into: piece, max: pieceSize)
+                if n == 0 { break }
+                try verifying(UnsafeRawBufferPointer(start: piece, count: n))
+            }
+        } else if method == Zip.Method.deflate.rawValue && aes == nil && zipCrypto == nil && expected <= wholeBufferLimit {
             let src = try reader.read(at: start, count: Int(end - start))
             let out = UnsafeMutableRawBufferPointer.allocate(byteCount: max(Int(expected), 1), alignment: 16)
             defer { out.deallocate() }
@@ -456,5 +490,96 @@ enum ZipEntryDecoder {
         if produced < expected { throw XipperError.truncated(entry: name, read: produced, expected: expected) }
         if produced != expected { throw XipperError.corrupt("\(name): expected \(expected) bytes, got \(produced)") }
         if checkCRC && crc != rec.crc { throw XipperError.checksumMismatch(entry: name, expected: rec.crc, actual: crc) }
+    }
+}
+
+/// An entry's stored bytes, decrypted, as a pull source (for PPMd).
+final class ZipEntrySource: ByteSource {
+    private let reader: FileReader
+    private var pos: Int64
+    private let end: Int64
+    private let aes: WinZipAESDecryptor?
+    private let zipCrypto: ZipCryptoDecryptor?
+    private let cancel: CancellationToken?
+
+    init(reader: FileReader, from: Int64, to: Int64, aes: WinZipAESDecryptor?, zipCrypto: ZipCryptoDecryptor?, cancel: CancellationToken?) {
+        self.reader = reader
+        pos = from
+        end = to
+        self.aes = aes
+        self.zipCrypto = zipCrypto
+        self.cancel = cancel
+    }
+
+    func read(into buf: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        try cancel?.check()
+        let n = Int(min(Int64(max), end - pos))
+        if n <= 0 { return 0 }
+        try reader.read(at: pos, into: buf, count: n)
+        let b = UnsafeMutableRawBufferPointer(start: buf, count: n)
+        aes?.decrypt(b)
+        zipCrypto?.decrypt(b)
+        pos += Int64(n)
+        return n
+    }
+}
+
+/// ZIP method 98: PPMd variant I rev. 1. The data starts with two property bytes (APPNOTE 5.10):
+/// model order − 1 (4 bits), memory in MiB − 1 (8 bits), restoration method (4 bits).
+final class ZipPPMdSource: ByteSource {
+    private let input: ByteSource
+    private var decoder: OpaquePointer?
+    private var left: Int64
+    private var inputError: Error?
+    private let entry: String
+
+    init(_ input: ByteSource, size: Int64, entry: String) throws {
+        self.input = input
+        self.entry = entry
+        left = size
+        var props = [UInt8](repeating: 0, count: 2)
+        guard try props.withUnsafeMutableBytes({ try input.read(into: $0.baseAddress!, max: 2) }) == 2 else {
+            throw XipperError.corrupt("PPMd properties missing (\(entry))")
+        }
+        let v = UInt16(props[0]) | UInt16(props[1]) << 8
+        let order = UInt32(v & 0x0F) + 1, mem = (UInt32(v >> 4) & 0xFF) + 1, restore = UInt32(v >> 12)
+        let fill: xs_ppmd_fill = { ctx, buf, cap in
+            let me = Unmanaged<ZipPPMdSource>.fromOpaque(ctx!).takeUnretainedValue()
+            do { return try me.input.read(into: buf!, max: cap) } catch {
+                me.inputError = error
+                return 0
+            }
+        }
+        guard size > 0 else { return }
+        guard let d = xs_ppmd8_dec_new(order, mem << 20, restore, fill, Unmanaged.passUnretained(self).toOpaque()) else {
+            throw XipperError.unsupported("PPMd order \(order), \(mem) MiB, restoration \(restore) (\(entry))")
+        }
+        decoder = d
+    }
+
+    deinit { xs_ppmd8_dec_free(decoder) }
+
+    func read(into buf: UnsafeMutableRawPointer, max: Int) throws -> Int {
+        let n = Int(min(Int64(max), left))
+        if n == 0 { return 0 }
+        let r = xs_ppmd8_dec_read(decoder, buf.assumingMemoryBound(to: UInt8.self), n)
+        if let e = inputError { throw e }
+        if r == -2 { throw XipperError.truncated(entry: entry, read: 0, expected: left) }
+        if r != 0 { throw XipperError.corrupt("invalid PPMd data (\(entry))") }
+        left -= Int64(n)
+        return n
+    }
+}
+
+enum ZipExtraFields {
+    static func contains(_ extra: [UInt8], _ id: UInt16) -> Bool {
+        var i = 0
+        while i + 4 <= extra.count {
+            let fid = UInt16(extra[i]) | UInt16(extra[i + 1]) << 8
+            let len = Int(UInt16(extra[i + 2]) | UInt16(extra[i + 3]) << 8)
+            if fid == id { return true }
+            i += 4 + len
+        }
+        return false
     }
 }

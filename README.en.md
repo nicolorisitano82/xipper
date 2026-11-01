@@ -44,6 +44,7 @@ It needs no third-party software at run time: the open-source codecs are compile
   - **erasure:** in archives created as erasable each file has its own key; erasing it makes the content unreadable in every version of the archive (copies made earlier keep it);
   - **keys in the Keychain:** identities and signing keys stay in the macOS Keychain and are used with Touch ID (Settings › Keys); the `xipper` command uses them as `keychain:NAME`.
 - **Genomics.** CRAM 3.1 read and write (htscodecs), `.bai`/`.csi`/`.crai`/`.fai`/tabix indexes, BGZF compatible with `bgzip`, checks of VCF/BCF/BAM/CRAM. XIG, a native genomic profile of XIZ, is being designed ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)).
+- **ZIPs from Windows and other systems.** Reads 7-Zip's PPMd method too; names written without UTF-8 in a DOS code page (Russian, Japanese, Chinese, Korean…) are recognised on their own, and the encoding can be picked by hand (Actions menu › Name Encoding, `--names-encoding`).
 - **Change format.** ZIP to 7z and back by copying the compressed bytes as they are (store, Deflate, Deflate64, bzip2), other formats by recompressing; the plan comes first, the new archive is verified before it gets its name and the original is never touched (`xipper convert`).
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**

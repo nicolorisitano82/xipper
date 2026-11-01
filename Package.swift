@@ -66,7 +66,7 @@ let package = Package(
         .target(
             name: "CLzmaSDK",
             path: "Vendor/lzma-sdk",
-            sources: ["C/Ppmd7.c", "C/Ppmd7Dec.c", "C/LzmaDec.c", "C/Lzma2Dec.c", "Asm/arm64/LzmaDecOpt.S",
+            sources: ["C/Ppmd7.c", "C/Ppmd7Dec.c", "C/Ppmd8.c", "C/Ppmd8Dec.c", "C/LzmaDec.c", "C/Lzma2Dec.c", "Asm/arm64/LzmaDecOpt.S",
                       "shim/xs_ppmd.c", "shim/xs_lzdec.c"],
             publicHeadersPath: "include",
             cSettings: [

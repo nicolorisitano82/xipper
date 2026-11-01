@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "../C/Precomp.h"
 #include "../C/Ppmd7.h"
+#include "../C/Ppmd8.h"
 #include "../include/CLzmaSDK.h"
 
 static void *xs_alloc(ISzAllocPtr p, size_t size) { (void)p; return malloc(size); }
@@ -61,6 +62,68 @@ int xs_ppmd7_dec_read(xs_ppmd7_dec *d, uint8_t *out, size_t count) {
     }
     for (size_t i = 0; i < count; i++) {
         int sym = Ppmd7z_DecodeSymbol(&d->ppmd);
+        if (d->eof) return -2;
+        if (sym < 0) return -1;
+        out[i] = (uint8_t)sym;
+    }
+    return 0;
+}
+
+// PPMd variant I, revision 1, with its own range coder: ZIP method 98 (APPNOTE 5.10).
+struct xs_ppmd8_dec {
+    IByteIn vt;  // first member, as above
+    xs_ppmd_fill fill;
+    void *ctx;
+    size_t pos, len;
+    int eof;
+    int started;
+    unsigned order, restore;
+    CPpmd8 ppmd;
+    uint8_t buf[1 << 16];
+};
+
+static Byte xs_read_byte8(IByteInPtr p) {
+    struct xs_ppmd8_dec *d = (struct xs_ppmd8_dec *)(void *)p;
+    if (d->pos == d->len) {
+        if (d->eof) return 0;
+        size_t n = d->fill(d->ctx, d->buf, sizeof d->buf);
+        if (n == 0) { d->eof = 1; return 0; }
+        d->pos = 0;
+        d->len = n;
+    }
+    return d->buf[d->pos++];
+}
+
+xs_ppmd8_dec *xs_ppmd8_dec_new(unsigned order, uint32_t memSize, unsigned restore, xs_ppmd_fill fill, void *ctx) {
+    if (order < PPMD8_MIN_ORDER || order > PPMD8_MAX_ORDER || restore > PPMD8_RESTORE_METHOD_CUT_OFF || memSize < (1u << 11))
+        return NULL;
+    struct xs_ppmd8_dec *d = calloc(1, sizeof *d);
+    if (!d) return NULL;
+    d->vt.Read = xs_read_byte8;
+    d->fill = fill;
+    d->ctx = ctx;
+    d->order = order;
+    d->restore = restore;
+    Ppmd8_Construct(&d->ppmd);
+    if (!Ppmd8_Alloc(&d->ppmd, memSize, &xs_allocator)) { free(d); return NULL; }
+    return d;
+}
+
+void xs_ppmd8_dec_free(xs_ppmd8_dec *d) {
+    if (!d) return;
+    Ppmd8_Free(&d->ppmd, &xs_allocator);
+    free(d);
+}
+
+int xs_ppmd8_dec_read(xs_ppmd8_dec *d, uint8_t *out, size_t count) {
+    if (!d->started) {
+        d->started = 1;
+        d->ppmd.Stream.In = &d->vt;
+        if (!Ppmd8_Init_RangeDec(&d->ppmd)) return d->eof ? -2 : -1;
+        Ppmd8_Init(&d->ppmd, d->order, d->restore);
+    }
+    for (size_t i = 0; i < count; i++) {
+        int sym = Ppmd8_DecodeSymbol(&d->ppmd);
         if (d->eof) return -2;
         if (sym < 0) return -1;
         out[i] = (uint8_t)sym;

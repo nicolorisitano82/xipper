@@ -28,6 +28,8 @@ final class ArchiveModel {
     private(set) var entries: [ArchiveEntry] = []
     /// Items whose name pretends to be something else (DeceptiveName), up to the deceptive component.
     private(set) var deceptive: [String] = []
+    /// ZIP with names written without the UTF-8 flag: the code page in use and whether it was guessed.
+    private(set) var nameEncoding: (encoding: ZipNameEncoding, guessed: Bool)?
     private(set) var bgzf: BGZFInfo?
     /// BAM or CRAM: header summary (a CRAM has no entries to list).
     private(set) var alignment: AlignmentSummary?
@@ -104,6 +106,8 @@ final class ArchiveModel {
         case let .success((f, e, b)):
             format = f
             entries = e
+            let archive = url
+            nameEncoding = f == .zip ? await Task.detached { try? Xipper.zipNameEncoding(of: archive) }.value ?? nil : nil
             deceptive = Array(Set(e.compactMap { entry -> String? in
                 let comps = entry.path.split(separator: "/").map(String.init)
                 guard let i = comps.firstIndex(where: { DeceptiveName.check($0) != nil }) else { return nil }

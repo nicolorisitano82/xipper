@@ -9,7 +9,7 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 | [zstd](https://github.com/facebook/zstd) | 1.5.7 | BSD-3-Clause (`zstd/LICENSE`) | `zstd/` (lib: common, compress, decompress, dictBuilder) | tar.zst, ZIP method 93, XIZ (and its dictionaries) |
 | [libdeflate](https://github.com/ebiggers/libdeflate) | 1.24 | MIT (`libdeflate/COPYING`) | `libdeflate/` (lib, x86/riscv code removed) | ZIP deflate, CRC-32 (PMULL), Adler-32 |
 | [XZ Utils / liblzma](https://github.com/tukaani-project/xz) | 5.8.4 (CVE-2026-34743, GHSA-5qpq-xqfv-j9pg fixed) | 0BSD (`xz/COPYING.0BSD`) | `xz/src/liblzma`, `xz/src/common/tuklib_*` | tar.xz, ZIP methods 14 (LZMA) and 95 (xz), 7z LZMA/LZMA2 and the ARM64/RISC-V filters |
-| [LZMA SDK](https://github.com/ip7z/7zip) (7-Zip `C/`) | 26.05 | public domain (stated in each file header) | `lzma-sdk/C` (PPMd variant H and LZMA/LZMA2 decoders), `lzma-sdk/Asm/arm64` (`LzmaDecOpt.S`), `lzma-sdk/shim` | 7z PPMd (030401); LZMA/LZMA2 decoding with 7-Zip's ARM64 assembly loop (liblzma stays the portable path) |
+| [LZMA SDK](https://github.com/ip7z/7zip) (7-Zip `C/`) | 26.05 | public domain (stated in each file header) | `lzma-sdk/C` (PPMd variants H and I, LZMA/LZMA2 decoders), `lzma-sdk/Asm/arm64` (`LzmaDecOpt.S`), `lzma-sdk/shim` | 7z PPMd (030401), ZIP PPMd (method 98); LZMA/LZMA2 decoding with 7-Zip's ARM64 assembly loop (liblzma stays the portable path) |
 | [htscodecs](https://github.com/samtools/htscodecs) | 1.6.7 (`b9fc194`) | BSD-3-Clause; rANS and range coder public domain (`htscodecs/LICENSE.md`) | `htscodecs/htscodecs` (C sources; x86 SSE4/AVX2/AVX512 files removed, NEON kept) | CRAM 3.0/3.1 codecs: rANS 4x8 and Nx16, adaptive arithmetic coder, fqzcomp_qual, name tokeniser |
 | [libarchive](https://github.com/libarchive/libarchive) | 3.8.11 (`03036ff`) | BSD-2-Clause (`libarchive/COPYING`; BLAKE2 files CC0/Apache-2.0) | `libarchive/libarchive`: 32 sources (read core, RAR and RAR5 formats, PPMd H, BLAKE2sp, entry/string utilities) and their headers | RAR 1.5–4.x and RAR5 reading (Xipper never writes RAR) |
 | [LZ4](https://github.com/lz4/lz4) | 1.10.0 | BSD-2-Clause (`lz4/LICENSE`) | `lz4/lib` (`lz4.c`, `lz4hc.c`, `lz4frame.c`, `xxhash.c` and headers) | creating tar.lz4 and .lz4 (decoding is Xipper's own) |
@@ -18,6 +18,10 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 
 From the system (part of macOS, not vendored): zlib (streaming inflate, chunked deflate,
 `crc32_combine`), bzip2, CommonCrypto (AES, HMAC-SHA1, PBKDF2).
+
+`MANIFEST.json` records the version, upstream and SHA-256 of every file here; `VendorManifestTests`
+fails when a file differs from it. After updating a library, check the diff and run
+`python3 -I scripts/make-vendor-manifest.py`.
 
 ## Local modifications
 - Only library sources are kept (no CLI tools, tests, build scripts, x86/RISC-V assembly).
@@ -36,7 +40,7 @@ From the system (part of macOS, not vendored): zlib (streaming inflate, chunked 
   also exposes `archive_blake2.h` (BLAKE2sp, for the checksums RAR tweaks with the password).
 - LZ4: library sources only, unmodified, built with `XXH_NAMESPACE=LZ4_`; `include/CLZ4.h` is ours.
 - Brotli: encoder and common sources only (no decoder, tools or tests), unmodified; `c/include/module.modulemap` is ours.
-- LZMA SDK: only `Ppmd7.c`, `Ppmd7Dec.c`, `LzmaDec.c`, `Lzma2Dec.c`, `Asm/arm64/LzmaDecOpt.S`, `Asm/arm64/7zAsm.S`
+- LZMA SDK: only `Ppmd7.c`, `Ppmd7Dec.c`, `Ppmd8.c`, `Ppmd8Dec.c`, `LzmaDec.c`, `Lzma2Dec.c`, `Asm/arm64/LzmaDecOpt.S`, `Asm/arm64/7zAsm.S`
   and the headers they need, unmodified, built with `Z7_LZMA_DEC_OPT`. `lzma-sdk/shim/*` and
   `lzma-sdk/include/CLzmaSDK.h` are ours (small wrappers, the only API visible to Swift).
 

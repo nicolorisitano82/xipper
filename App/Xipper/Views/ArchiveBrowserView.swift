@@ -529,6 +529,26 @@ struct ArchiveBrowserView: View {
                     .disabled(selection.isEmpty)
                 Divider()
                 selectionActions(selection)
+                if let current = model.nameEncoding {
+                    Menu("Codifica dei nomi", systemImage: "character.book.closed") {
+                        Button {
+                            Xipper.setZipNameEncoding(nil, for: url)
+                            Task { await model.load() }
+                        } label: {
+                            if current.guessed { Label("Automatica (\(current.encoding.title))", systemImage: "checkmark") }
+                            else { Text("Automatica") }
+                        }
+                        Divider()
+                        ForEach(ZipNameEncoding.allCases) { e in
+                            Button {
+                                Xipper.setZipNameEncoding(e, for: url)
+                                Task { await model.load() }
+                            } label: {
+                                if !current.guessed && current.encoding == e { Label(e.title, systemImage: "checkmark") } else { Text(e.title) }
+                            }
+                        }
+                    }
+                }
                 Divider()
                 Button("Cambia formato…", systemImage: "arrow.triangle.2.circlepath") {
                     withPassword(for: Set(model.entries.map(\.path))) { convertSheet = true }

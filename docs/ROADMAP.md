@@ -207,11 +207,11 @@ Converte un archivio in un altro formato copiando i dati compressi così come so
 - spostato alla v1.5: ZIP zstd → XIZ senza ricomprimere (XIZ calcola SHA-256 e deduplica sui dati in chiaro, quindi serve almeno la decodifica) e il ricomprimere in streaming senza cartella di lavoro;
 - da provare a mano: il foglio nell'app (compila, ma non l'ho aperto a schermo).
 
-#### E. Piccole cose
-- **ZIP PPMd (metodo 98):** decoder PPMd variante I (`Ppmd8.c`, `Ppmd8Dec.c` dell'LZMA SDK, pubblico dominio, già vendorizzato per la variante H), trovato dal corpus di interop.
-- **Codifica dei nomi ZIP:** oggi i nomi senza flag UTF-8 si leggono solo come CP437. Riconoscimento automatico (UTF-8 valido, Shift-JIS, GBK, CP866, CP1252…) con scelta manuale nel browser e `--names-encoding` nella CLI.
-- **Manifest dei codec:** `Vendor/MANIFEST.json` con versione, tag, commit e hash SHA-256 di ogni file vendorizzato; un test confronta gli hash, così una modifica non voluta ai sorgenti non passa.
-- **Filtro ARM64 nei binari universali:** oggi il filtro si applica al file intero se c'è una slice arm64, quindi anche alla slice x86_64. Nel 7z il filtro vale per tutto il flusso, quindi niente filtro per slice. Prima misurare su app reali; poi scegliere tra ARM64 su tutto, nessun filtro, o filtro sulla slice più grande. Il filtro per slice vero va in XIZ 1.4.
+#### E. Piccole cose — ✅ fatto (02/11/2026)
+- ✅ **ZIP PPMd (metodo 98):** decoder PPMd variante I dell'LZMA SDK 26.05 (`Ppmd8.c`, `Ppmd8Dec.c`, pubblico dominio) con una sorgente «a richiesta» sui byte della voce, anche cifrati AES o ZipCrypto. Provato su archivi di 7-Zip a -mx=1, 5, 9 e con AES-256; il caso del corpus di interop, prima segnato come non supportato, ora si legge;
+- ✅ **codifica dei nomi ZIP:** i nomi senza flag UTF-8 non sono più letti sempre come CP437. Xipper indovina la code page dall'insieme dei nomi, con un punteggio sulla struttura dei byte di ogni candidata (CP437, CP866, Shift-JIS, GBK, Big5, EUC-KR), e tiene CP437 se nessuna è chiaramente migliore. EUC-KR e GBK hanno la stessa struttura: a parità decide la lingua del Mac. Il riconoscimento di Foundation, provato prima, sbagliava russo e occidentale. Scelta a mano nell'app (menu Azioni › Codifica dei nomi, solo per gli ZIP che ne hanno bisogno) e da CLI con `--names-encoding`, anche con Windows-1252/1251 e CP850. Il corpus di interop ora ha nomi davvero senza flag: il vecchio «CP437» di Python aveva in realtà il flag UTF-8;
+- ✅ **manifest dei codec** (`Vendor/MANIFEST.json`, `scripts/make-vendor-manifest.py`): versione, sorgente e SHA-256 di ognuno dei 511 file vendorizzati, con i file nostri segnati; `VendorManifestTests` fallisce se un file cambia, manca o si aggiunge senza rigenerare il manifest;
+- ✅ **filtro ARM64 nei binari universali: misurato, nessun cambiamento.** Su 8 binari universali di app installate (123 MB), con 7z -mx=9 e rispetto a nessun filtro: ARM64 su tutto il file (quello che fa Xipper) −6,1%; filtri per architettura compressi separatamente −1,8% (si perde la ridondanza tra le due parti); ARM64 solo sulla parte arm64 +4,2%. Il comportamento attuale è il migliore. Per XIZ 1.4 il filtro per architettura va valutato solo dentro un unico flusso compresso.
 
 #### F. Rilascio
 - 218 test e oltre, interop, crash test di D;
