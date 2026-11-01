@@ -255,6 +255,22 @@
         }
       }
     },
+    "%@ — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
     "%@, custode %lld" : {
       "localizations" : {
         "en" : {
@@ -665,6 +681,38 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld file copiati senza ricomprimere (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld files copied without recompressing (%@)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld file copiati senza ricomprimere (%2$@)"
+          }
+        }
+      }
+    },
+    "%lld file ricompressi (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld files recompressed (%@)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld file ricompressi (%2$@)"
           }
         }
       }
@@ -1718,6 +1766,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Computes the SHA-256 of every file, in shasum -c format"
+          }
+        }
+      }
+    },
+    "Cambia formato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Format"
+          }
+        }
+      }
+    },
+    "Cambia formato di “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change the format of “%@”"
+          }
+        }
+      }
+    },
+    "Cambia formato…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Format…"
+          }
+        }
+      }
+    },
+    "Cambio di formato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format change"
           }
         }
       }
@@ -4001,6 +4089,36 @@
         }
       }
     },
+    "Ho capito cosa si perde" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I understand what will be lost"
+          }
+        }
+      }
+    },
+    "I dati di recupero %@ valgono solo per l'originale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recovery data %@ only protects the original"
+          }
+        }
+      }
+    },
+    "I gruppi di accesso XIZ non passano al nuovo archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XIZ access groups do not carry over to the new archive"
+          }
+        }
+      }
+    },
     "Icona nella barra dei menu" : {
       "localizations" : {
         "en" : {
@@ -4078,6 +4196,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xipper's own format: independent frames, index at the end, dedup of identical files and Mac metadata. It is a BETA: the format may change before version 1 and does not support passwords yet. Keep a copy in a standard format too."
+          }
+        }
+      }
+    },
+    "Il nuovo archivio non avrà la password" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new archive will have no password"
           }
         }
       }
@@ -4522,6 +4650,16 @@
         }
       }
     },
+    "L'originale non viene modificato: il nuovo archivio prende il suo nome solo dopo la verifica." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original is not changed: the new archive gets its name only after it is verified."
+          }
+        }
+      }
+    },
     "LZMA (più piccolo, 7-Zip/WinZip)" : {
       "localizations" : {
         "en" : {
@@ -4690,6 +4828,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The folders of a custodian group open only when the required number of custodians unlock together; nobody can do it alone."
+          }
+        }
+      }
+    },
+    "Le firme non passano al nuovo archivio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatures do not carry over to the new archive"
           }
         }
       }
@@ -5460,6 +5608,26 @@
         }
       }
     },
+    "Nuovo archivio: %@, accanto all'originale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New archive: %@, next to the original"
+          }
+        }
+      }
+    },
+    "Nuovo formato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New format"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "en" : {
@@ -5660,6 +5828,16 @@
         }
       }
     },
+    "Perché si ricomprimono" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why they are recompressed"
+          }
+        }
+      }
+    },
     "Percorso fuori dalla destinazione" : {
       "localizations" : {
         "en" : {
@@ -5736,6 +5914,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Favorites"
+          }
+        }
+      }
+    },
+    "Preparo il piano…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the plan…"
           }
         }
       }
@@ -6686,6 +6874,16 @@
         }
       }
     },
+    "Spazio libero necessario: fino a %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free space needed: up to %@"
+          }
+        }
+      }
+    },
     "Spazio su disco esaurito" : {
       "localizations" : {
         "en" : {
@@ -6708,6 +6906,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Spazio su disco insufficiente: servono %1$@, liberi %2$@"
+          }
+        }
+      }
+    },
+    "Sposta l'originale nel Cestino quando il nuovo archivio è verificato" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the original to the Trash once the new archive is verified"
           }
         }
       }
@@ -7544,6 +7752,16 @@
         }
       }
     },
+    "copiati" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copied"
+          }
+        }
+      }
+    },
     "creazione · %@" : {
       "localizations" : {
         "en" : {
@@ -7746,6 +7964,16 @@
         }
       }
     },
+    "originale nel Cestino" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "original in the Trash"
+          }
+        }
+      }
+    },
     "per creare un archivio. Rilascia un archivio per aprirlo." : {
       "localizations" : {
         "en" : {
@@ -7772,6 +8000,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "faster · 7-Zip, WinZip; not Archive Utility"
+          }
+        }
+      }
+    },
+    "ricompressi" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recompressed"
           }
         }
       }

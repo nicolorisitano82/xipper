@@ -14,6 +14,7 @@ struct ArchiveBrowserView: View {
     @State private var showInspector = true
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
     @State private var extractSheet: ExtractSheetRequest?
+    @State private var convertSheet = false
     @State private var quickLook = EntryPreviewController()
     /// The verification started here (or opened from the HUD): its result replaces the content (5.2).
     @State private var verifyJob: Job?
@@ -84,6 +85,9 @@ struct ArchiveBrowserView: View {
             appState.reportRequests[url] = nil
             verifyJob = job
             if job.verifyOK == false { showDamaged = true }
+        }
+        .sheet(isPresented: $convertSheet) {
+            ConvertSheet(archive: url, current: model.format, password: model.password).environment(jobs)
         }
         .sheet(item: $extractSheet) { req in
             ExtractSheet(archive: url, selection: req.selection, itemNames: names(for: req.selection),
@@ -525,6 +529,11 @@ struct ArchiveBrowserView: View {
                     .disabled(selection.isEmpty)
                 Divider()
                 selectionActions(selection)
+                Divider()
+                Button("Cambia formato…", systemImage: "arrow.triangle.2.circlepath") {
+                    withPassword(for: Set(model.entries.map(\.path))) { convertSheet = true }
+                }
+                .disabled(model.format == nil || model.format?.isSingleFile == true || model.format == .bgzf)
             }
             .help("Azioni sugli elementi selezionati")
             .disabled(model.loading || model.error != nil || model.namesLocked)

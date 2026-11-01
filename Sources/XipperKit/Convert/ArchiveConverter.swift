@@ -1,0 +1,414 @@
+import Foundation
+
+/// What converting an archive to another format will do, entry by entry (`Xipper.conversionPlan`).
+public struct ConversionPlan: Sendable {
+    public enum Action: String, Sendable, Codable {
+        /// Compressed bytes copied as they are into the new format (same codec on both sides).
+        case copied
+        /// Decompressed and compressed again with the target's settings.
+        case recompressed
+    }
+
+    /// Something the new archive will not have.
+    public enum Loss: Sendable, Equatable, Codable {
+        /// XIZ signed history or access groups, Apple Archive signature.
+        case signatures
+        case accessGroups
+        /// PAR2 files next to the source protect the old bytes only.
+        case recoveryData(String)
+        /// The target has no password, the source had one.
+        case encryption
+    }
+
+    public struct Item: Sendable, Codable {
+        public var path: String
+        public var action: Action
+        /// Uncompressed size; for copied entries also the compressed bytes moved.
+        public var size: Int64
+        public var compressedSize: Int64
+        /// Why an entry is recompressed (method not in the target, encrypted, solid block…).
+        public var reason: String?
+    }
+
+    public var source: URL
+    public var sourceFormat: ArchiveFormat
+    public var format: ArchiveFormat
+    /// Files with data, in archive order (folders, links and empty files are always rewritten).
+    public var items: [Item]
+    public var losses: [Loss]
+
+    public var copied: Int { items.filter { $0.action == .copied }.count }
+    public var recompressed: Int { items.filter { $0.action == .recompressed }.count }
+    public var bytesCopied: Int64 { items.filter { $0.action == .copied }.reduce(0) { $0 + $1.compressedSize } }
+    public var bytesRecompressed: Int64 { items.filter { $0.action == .recompressed }.reduce(0) { $0 + $1.size } }
+    /// Extra disk space the conversion needs next to the target: the recompressed entries
+    /// unpacked once, plus the new archive (estimated from the source's compressed sizes).
+    public var spaceNeeded: Int64 { bytesRecompressed + items.reduce(0) { $0 + $1.compressedSize } }
+}
+
+public struct FormatChangeReport: Sendable {
+    public var plan: ConversionPlan
+    public var output: URL
+    public var outputBytes: Int64
+    public var elapsed: Double
+    /// The original moved to the Trash after the new archive was verified.
+    public var originalTrashed: Bool
+}
+
+extension Xipper {
+    /// The plan for converting `source` to `format` with `options` (its password and method):
+    /// which entries keep their compressed bytes and which are recompressed, and what is lost.
+    public static func conversionPlan(_ source: URL, to format: ArchiveFormat, password: String? = nil,
+                                      options: CreateOptions = CreateOptions()) throws -> ConversionPlan {
+        try ArchiveConverter(source: source, format: format, password: password, options: options).plan
+    }
+
+    /// Converts `source` into a new archive at `target` in `options.format`. Entries whose codec
+    /// the target also has are copied without recompressing them (ZIP ↔ 7z: store, Deflate,
+    /// Deflate64, bzip2); the others are unpacked once in a work folder next to the target and
+    /// compressed again. The new archive is written under a temporary name, verified (test plus
+    /// the same entries, sizes and CRCs as the source) and only then given its name; with
+    /// `trashOriginal` the source then goes to the Trash. Nothing of the source is changed before.
+    @discardableResult
+    public static func convert(_ source: URL, to target: URL, password: String? = nil, options: CreateOptions,
+                               trashOriginal: Bool = false, progress: ProgressHandler? = nil,
+                               cancel: CancellationToken? = nil) throws -> FormatChangeReport {
+        try ArchiveConverter(source: source, format: options.format, password: password, options: options)
+            .run(to: target, trashOriginal: trashOriginal, progress: progress, cancel: cancel)
+    }
+}
+
+struct ArchiveConverter {
+    let source: URL
+    let format: ArchiveFormat
+    let password: String?
+    let options: CreateOptions
+    let sourceFormat: ArchiveFormat
+    let entries: [ArchiveEntry]
+    let plan: ConversionPlan
+    /// ZIP source: record per raw-copied path. 7z source: folder index per raw-copied path.
+    private var zipRaw: [String: ZipEntryRecord] = [:]
+    private var sevenZipRaw: [String: Int] = [:]
+    private var zip: ZipArchive?
+    private var sevenZip: SevenZipArchive?
+
+    /// ZIP method ↔ 7z coder for the codecs both formats share (7-Zip's Methods.txt).
+    static let shared: [(zip: UInt16, sevenZip: UInt64)] = [
+        (Zip.Method.store.rawValue, SevenZip.Method.copy), (Zip.Method.deflate.rawValue, SevenZip.Method.deflate),
+        (Zip.Method.deflate64.rawValue, SevenZip.Method.deflate64), (Zip.Method.bzip2.rawValue, SevenZip.Method.bzip2),
+    ]
+
+    init(source: URL, format: ArchiveFormat, password: String?, options: CreateOptions) throws {
+        self.source = source.standardizedFileURL
+        self.format = format
+        self.password = password
+        self.options = options
+        guard let sf = try ArchiveFormat.detect(source) else { throw XipperError.unsupported("not a recognized archive") }
+        sourceFormat = sf
+        guard format.canCreate, !format.isSingleFile else { throw XipperError.unsupported("Xipper cannot write \(format.rawValue) archives") }
+        if sf.isSingleFile || sf == .bgzf { throw XipperError.unsupported("\(sf.rawValue) holds a single file, not an archive: compress the file instead") }
+        if options.volumeSize != nil { throw XipperError.unsupported("converting into volumes: convert first, then split") }
+        let path = self.source.path
+        entries = try Xipper.list(source, password: password).filter { !$0.isAppleDoubleMetadata }
+        // Paths with AppleDouble companions: their metadata is merged on extraction, so they go
+        // through extraction too, or a copied entry would lose its resource fork and tags.
+        let all = try Xipper.list(source, password: password)
+        var sidecars = Set<String>()
+        for e in all where e.isAppleDoubleMetadata {
+            var p = e.path
+            if p.hasPrefix("__MACOSX/") { p.removeFirst(9) }
+            let dir = (p as NSString).deletingLastPathComponent, name = (p as NSString).lastPathComponent
+            if name.hasPrefix("._") { sidecars.insert(dir.isEmpty ? String(name.dropFirst(2)) : dir + "/" + name.dropFirst(2)) }
+        }
+
+        var reasons: [String: String] = [:]
+        let rawAllowed = options.password == nil
+        if sf == .zip && format == .sevenZip && ZipArchive.volumes(for: path).count == 1 {
+            let z = try ZipArchive(path: path)
+            zip = z
+            for r in z.records where r.entry.kind == .file && r.entry.uncompressedSize > 0 {
+                let method = r.entry.encryption == .none ? r.method : UInt16.max
+                if !rawAllowed { reasons[r.entry.path] = "the new archive is encrypted" }
+                else if r.entry.encryption != .none { reasons[r.entry.path] = "encrypted entry" }
+                else if !Self.shared.contains(where: { $0.zip == method }) { reasons[r.entry.path] = "\(r.entry.method) is not a 7z codec Xipper copies" }
+                else if r.entry.crc32 == nil { reasons[r.entry.path] = "no CRC" }
+                else if sidecars.contains(r.entry.path) { reasons[r.entry.path] = "has macOS metadata to merge" }
+                else { zipRaw[r.entry.path] = r }
+            }
+        } else if sf == .sevenZip && format == .zip {
+            let a = try SevenZipArchive(path: path, password: password)
+            sevenZip = a
+            if a.input.volumes.count == 1 {
+                for (fi, members) in a.folderRecords.enumerated() {
+                    let f = a.streams.folders[fi]
+                    for m in members {
+                        let r = a.records[m]
+                        guard r.entry.kind == .file, r.size > 0 else { continue }
+                        if !rawAllowed { reasons[r.entry.path] = "the new archive is encrypted" }
+                        else if f.isEncrypted { reasons[r.entry.path] = "encrypted folder" }
+                        else if members.count != 1 { reasons[r.entry.path] = "solid block of \(members.count) files" }
+                        else if f.coders.count != 1 || !Self.shared.contains(where: { $0.sevenZip == f.coders[0].method }) {
+                            reasons[r.entry.path] = "\(f.coders.map { SevenZip.Method.name($0.method) }.joined(separator: "+")) is not a ZIP method"
+                        } else if r.crc == nil { reasons[r.entry.path] = "no CRC" }
+                        else { sevenZipRaw[r.entry.path] = fi }
+                    }
+                }
+            }
+        }
+
+        var losses: [ConversionPlan.Loss] = []
+        if sf == .xiz, try XizArchive.hasDirectory(path) { losses += [.signatures, .accessGroups] }
+        if sf == .appleArchive && AppleArchiveReader.isAEA(path) && !AppleArchiveReader.isEncrypted(path) { losses.append(.signatures) }
+        if password != nil && options.password == nil { losses.append(.encryption) }
+        let dir = self.source.deletingLastPathComponent(), stem = self.source.deletingPathExtension().lastPathComponent
+        if let par2 = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?
+            .first(where: { $0.hasPrefix(stem) && $0.lowercased().hasSuffix(".par2") }) {
+            losses.append(.recoveryData(par2))
+        }
+        let copiedPaths = Set(zipRaw.keys).union(sevenZipRaw.keys)
+        let items = entries.filter { $0.kind == .file && $0.uncompressedSize > 0 }.map { e -> ConversionPlan.Item in
+            let copied = copiedPaths.contains(e.path)
+            return ConversionPlan.Item(path: e.path, action: copied ? .copied : .recompressed, size: e.uncompressedSize,
+                                       compressedSize: max(0, e.compressedSize),
+                                       reason: copied ? nil : reasons[e.path] ?? "\(sf.rawValue) → \(format.rawValue) has no shared codec")
+        }
+        plan = ConversionPlan(source: self.source, sourceFormat: sf, format: format, items: items, losses: losses)
+    }
+
+    // MARK: running
+
+    func run(to target: URL, trashOriginal: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> FormatChangeReport {
+        let start = Date()
+        let target = target.standardizedFileURL
+        if target.path == source.path { throw XipperError.invalidArgument("the new archive needs another name than the original") }
+        if !options.overwrite && FileManager.default.fileExists(atPath: target.path) { throw XipperError.alreadyExists(path: target.path) }
+        // Work folder next to the target: same volume, so the final rename is atomic and the
+        // space check counts the right disk.
+        let parent = target.deletingLastPathComponent()
+        Self.removeAbandonedWork(in: parent)
+        let work = parent.appendingPathComponent(".xipper-convert-\(getpid())-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: work) }
+        if let free = ExtractionContext.volumeSpace(work.path, fd: -1)?.free, free < plan.spaceNeeded + (64 << 20) {
+            throw XipperError.insufficientSpace(needed: plan.spaceNeeded, available: free)
+        }
+        let staged = work.appendingPathComponent("new." + format.fileExtension)
+        var o = options
+        o.overwrite = true
+
+        // 1. Everything not copied: unpacked once (files, links, folders, empty files).
+        let tree = work.appendingPathComponent("tree", isDirectory: true)
+        try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+        let copied = Set(zipRaw.keys).union(sevenZipRaw.keys)
+        let unpack = entries.filter { $0.kind != .directory && !copied.contains($0.path) }.map(\.path)
+        if !unpack.isEmpty {
+            var x = ExtractOptions()
+            x.password = password
+            x.selection = Set(unpack)
+            x.overwrite = .replace
+            x.propagateQuarantine = false
+            x.symlinks = .allowAll  // re-archived, never followed
+            _ = try Xipper.extract(source, to: tree, mode: .into, options: x, progress: progress, cancel: cancel)
+        }
+        // Folders as entries (empty ones included), with their dates and permissions.
+        for e in entries where e.kind == .directory {
+            guard let rel = MountedArchive.normalize(e.path), !rel.isEmpty else { continue }
+            let d = tree.appendingPathComponent(rel)
+            try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+            var attrs: [FileAttributeKey: Any] = [:]
+            if let p = e.permissions { attrs[.posixPermissions] = Int(p | 0o700) }
+            if let m = e.modified { attrs[.modificationDate] = m }
+            try? FileManager.default.setAttributes(attrs, ofItemAtPath: d.path)
+        }
+        var scan = o.scan
+        scan.excludeMacMetadata = false  // what the source holds, including .DS_Store
+        let top = try FileManager.default.contentsOfDirectory(at: tree, includingPropertiesForKeys: nil)
+        let items = top.isEmpty ? [] : try SourceScanner.scan(top, options: scan)
+
+        // 2. The new archive.
+        if !zipRaw.isEmpty, let zip {
+            try writeSevenZip(items: items, raw: zip, to: staged, options: o, progress: progress, cancel: cancel)
+        } else if !sevenZipRaw.isEmpty, let sevenZip {
+            try writeZip(items: items, raw: sevenZip, work: work, to: staged, options: o, progress: progress, cancel: cancel)
+        } else {
+            guard !top.isEmpty else { throw XipperError.invalidArgument("the archive is empty") }
+            try Xipper.create(from: top.sorted { $0.lastPathComponent < $1.lastPathComponent }, to: staged, options: o,
+                              progress: progress, cancel: cancel)
+        }
+
+        // 3. Verified before it gets its name.
+        try verify(staged)
+        let flags: UInt32 = options.overwrite ? 0 : UInt32(RENAME_EXCL)
+        if renamex_np(staged.path, target.path, flags) != 0 {
+            if errno == EEXIST { throw XipperError.alreadyExists(path: target.path) }
+            throw XipperError.posix("rename", target.path)
+        }
+        let dirFD = open(target.deletingLastPathComponent().path, O_RDONLY)
+        if dirFD >= 0 { _ = OutputFile.fullSync(dirFD); close(dirFD) }
+        var trashed = false
+        if trashOriginal {
+            try FileManager.default.trashItem(at: source, resultingItemURL: nil)
+            trashed = true
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: target.path)[.size] as? NSNumber)?.int64Value ?? 0
+        return FormatChangeReport(plan: plan, output: target, outputBytes: size, elapsed: Date().timeIntervalSince(start), originalTrashed: trashed)
+    }
+
+    /// Work folders of conversions whose process is gone (killed, crashed, power cut): the
+    /// source was never touched, the half-written archive never got its name, so they only hold
+    /// temporary files. A live process keeps its own.
+    static func removeAbandonedWork(in dir: URL) {
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [] where name.hasPrefix(".xipper-convert-") {
+            let pidText = name.dropFirst(".xipper-convert-".count).prefix { $0.isNumber }
+            guard let pid = pid_t(pidText), pid != getpid(), kill(pid, 0) != 0, errno == ESRCH else { continue }
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+        }
+    }
+
+    /// ZIP → 7z: each copied entry becomes a one-coder, non-solid folder holding its bytes.
+    private func writeSevenZip(items: [ArchiveItem], raw zip: ZipArchive, to staged: URL, options o: CreateOptions,
+                               progress: ProgressHandler?, cancel: CancellationToken?) throws {
+        var carried: [SevenZipCarriedFolder] = []
+        for e in entries {
+            guard let r = zipRaw[e.path], let coder = Self.shared.first(where: { $0.zip == r.method })?.sevenZip else { continue }
+            let offset = try zip.dataOffset(r)
+            var folder = SZFolder()
+            folder.coders = [SZCoder(method: coder)]
+            folder.packedStreams = [0]
+            folder.unpackSizes = [r.uncompressedSize]
+            let item = ArchiveItem(name: MountedArchive.normalize(e.path) ?? e.path, sourcePath: "", kind: .file(size: r.uncompressedSize),
+                                   permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid())
+            carried.append(SevenZipCarriedFolder(read: { try zip.reader.read(at: $0, count: $1) }, folder: folder,
+                                                 packs: [(offset, r.compressedSize)], subSizes: [r.uncompressedSize],
+                                                 subCRCs: [r.crc], files: [SevenZipWriter.fileRecord(item, hasStream: true)]))
+        }
+        var z = SevenZipOptions()
+        z.level = o.level ?? ArchiveFormat.sevenZip.defaultLevel
+        z.password = o.password
+        z.encryptHeader = o.password != nil && o.encryptFileNames
+        z.solidBlockSize = o.solidBlockSize
+        z.executableFilter = o.executableFilter
+        z.storeAlreadyCompressed = o.storeAlreadyCompressed
+        z.workload = o.workload
+        _ = try SevenZipWriter.write(items: items, to: staged.path, options: z, overwrite: true, carried: carried,
+                                     progress: progress, cancel: cancel)
+    }
+
+    /// 7z → ZIP: copied folders become entries with the same bytes; the rest is written by
+    /// ZipWriter into a side archive whose entries are then copied in.
+    private func writeZip(items: [ArchiveItem], raw a: SevenZipArchive, work: URL, to staged: URL, options o: CreateOptions,
+                          progress: ProgressHandler?, cancel: CancellationToken?) throws {
+        var side: ZipArchive?
+        if !items.isEmpty {
+            let path = work.appendingPathComponent("side.zip").path
+            var z = ZipOptions()
+            z.method = o.zipMethod
+            z.level = o.level ?? o.zipMethod.defaultLevel
+            z.storeAlreadyCompressed = o.storeAlreadyCompressed
+            z.workload = o.workload
+            _ = try ZipWriter.write(items: items, to: path, options: z, overwrite: true, progress: progress, cancel: cancel)
+            side = try ZipArchive(path: path)
+        }
+        let out = try OutputFile(path: staged.path)
+        var central = ByteWriter(capacity: 1 << 16)
+        var count = 0
+        for e in entries {
+            try cancel?.check()
+            guard let fi = sevenZipRaw[e.path], let rec = a.folderRecords[fi].first.map({ a.records[$0] }),
+                  let method = Self.shared.first(where: { $0.sevenZip == a.streams.folders[fi].coders[0].method })?.zip else { continue }
+            let f = a.streams.folders[fi]
+            let packIndex = f.firstPackStream
+            try ZipRawEntry(name: MountedArchive.normalize(e.path) ?? e.path, method: method, crc: rec.crc!,
+                            compressedSize: a.streams.packSizes[packIndex], size: rec.size, modified: e.modified ?? Date(),
+                            permissions: e.permissions ?? 0o644)
+                .write(to: out, central: &central, from: a.packOffsets[packIndex]) { try a.input.read(at: $0, count: $1) }
+            count += 1
+        }
+        for r in side?.records ?? [] {
+            try ZipEditor.copy(r, from: side!, name: String(decoding: r.rawName, as: UTF8.self), renamed: false, to: out, central: &central)
+            count += 1
+        }
+        try ZipEditor.finish(out, central: central.bytes, count: count, forceZip64: o.forceZip64)
+        try out.commit(overwrite: true)
+    }
+
+    /// The new archive tests clean and holds what the source holds: every path, kind and size,
+    /// and the same CRC where both formats keep one.
+    private func verify(_ staged: URL) throws {
+        let test = try Xipper.test(staged, password: options.password)
+        if let f = test.failures.first { throw XipperError.integrity(entry: f.path, detail: "the converted archive does not verify: \(f.reason)") }
+        func key(_ p: String) -> String { (MountedArchive.normalize(p) ?? p).precomposedStringWithCanonicalMapping }
+        var got: [String: ArchiveEntry] = [:]
+        for e in try Xipper.list(staged, password: options.password) where !e.isAppleDoubleMetadata { got[key(e.path)] = e }
+        for e in entries {
+            guard let g = got[key(e.path)] else {
+                if e.kind == .directory || key(e.path).isEmpty { continue }  // some formats keep folders implicit
+                throw XipperError.integrity(entry: e.path, detail: "missing from the converted archive")
+            }
+            if e.kind == .file && g.kind == .file {
+                if g.uncompressedSize != e.uncompressedSize {
+                    throw XipperError.integrity(entry: e.path, detail: "size \(g.uncompressedSize) instead of \(e.uncompressedSize)")
+                }
+                if let a = e.crc32, let b = g.crc32, a != b { throw XipperError.checksumMismatch(entry: e.path, expected: a, actual: b) }
+            }
+        }
+    }
+}
+
+/// A ZIP entry written from compressed bytes taken elsewhere (a 7z folder): local header, the
+/// bytes streamed, central record. ZIP64 fields where sizes or the offset overflow.
+struct ZipRawEntry {
+    var name: String
+    var method: UInt16
+    var crc: UInt32
+    var compressedSize: Int64
+    var size: Int64
+    var modified: Date
+    var permissions: UInt16
+
+    func write(to out: OutputFile, central: inout ByteWriter, from offset: Int64,
+               read: (Int64, Int) throws -> [UInt8]) throws {
+        let nameBytes = Array(name.utf8)
+        let flags: UInt16 = nameBytes.contains { $0 >= 0x80 } ? Zip.Flag.utf8 : 0
+        let (time, date) = DOSDateTime.encode(modified)
+        let big = UInt64(size) >= Zip.max32 || UInt64(compressedSize) >= Zip.max32
+        let needed: UInt16 = big ? 45 : (method == Zip.Method.bzip2.rawValue ? 46 : 20)
+        var ts = ByteWriter(capacity: 9)
+        ts.u16(Zip.Extra.extendedTimestamp); ts.u16(5); ts.u8(1); ts.u32(UInt32(clamping: Int64(modified.timeIntervalSince1970)))
+        let headerOffset = out.position
+        var local = ByteWriter(capacity: 64 + nameBytes.count)
+        var localExtra = ts.bytes
+        if big {
+            var e = ByteWriter(capacity: 20)
+            e.u16(Zip.Extra.zip64); e.u16(16); e.u64(UInt64(size)); e.u64(UInt64(compressedSize))
+            localExtra = e.bytes + localExtra
+        }
+        local.u32(Zip.localSignature); local.u16(needed); local.u16(flags); local.u16(method); local.u16(time); local.u16(date)
+        local.u32(crc); local.u32(big ? UInt32.max : UInt32(compressedSize)); local.u32(big ? UInt32.max : UInt32(size))
+        local.u16(UInt16(nameBytes.count)); local.u16(UInt16(localExtra.count)); local.append(nameBytes); local.append(localExtra)
+        try out.write(local.bytes)
+        var done: Int64 = 0
+        while done < compressedSize {
+            let n = Int(min(Int64(4 << 20), compressedSize - done))
+            try out.write(try read(offset + done, n))
+            done += Int64(n)
+        }
+        let bigO = UInt64(headerOffset) >= Zip.max32
+        var z64 = ByteWriter(capacity: 24)
+        if big { z64.u64(UInt64(size)); z64.u64(UInt64(compressedSize)) }
+        if bigO { z64.u64(UInt64(headerOffset)) }
+        var extra = ts.bytes
+        if !z64.bytes.isEmpty {
+            var e = ByteWriter(capacity: 4 + z64.bytes.count)
+            e.u16(Zip.Extra.zip64); e.u16(UInt16(z64.bytes.count)); e.append(z64.bytes)
+            extra = e.bytes + extra
+        }
+        central.u32(Zip.centralSignature); central.u16(Zip.versionMadeBy); central.u16(needed); central.u16(flags)
+        central.u16(method); central.u16(time); central.u16(date); central.u32(crc)
+        central.u32(big ? UInt32.max : UInt32(compressedSize)); central.u32(big ? UInt32.max : UInt32(size))
+        central.u16(UInt16(nameBytes.count)); central.u16(UInt16(extra.count)); central.u16(0); central.u16(0); central.u16(0)
+        central.u32(UInt32(0o100000 | UInt32(permissions & 0o7777)) << 16)
+        central.u32(bigO ? UInt32.max : UInt32(headerOffset))
+        central.append(nameBytes); central.append(extra)
+    }
+}

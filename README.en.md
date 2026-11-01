@@ -44,6 +44,7 @@ It needs no third-party software at run time: the open-source codecs are compile
   - **erasure:** in archives created as erasable each file has its own key; erasing it makes the content unreadable in every version of the archive (copies made earlier keep it);
   - **keys in the Keychain:** identities and signing keys stay in the macOS Keychain and are used with Touch ID (Settings › Keys); the `xipper` command uses them as `keychain:NAME`.
 - **Genomics.** CRAM 3.1 read and write (htscodecs), `.bai`/`.csi`/`.crai`/`.fai`/tabix indexes, BGZF compatible with `bgzip`, checks of VCF/BCF/BAM/CRAM. XIG, a native genomic profile of XIZ, is being designed ([docs/XIG_DESIGN.md](docs/XIG_DESIGN.md)).
+- **Change format.** ZIP to 7z and back by copying the compressed bytes as they are (store, Deflate, Deflate64, bzip2), other formats by recompressing; the plan comes first, the new archive is verified before it gets its name and the original is never touched (`xipper convert`).
 - **Mount archives as volumes, read-write.** Open and edit an archive in the Finder without extracting it; when you eject it, Xipper writes the changes back into the archive. It uses a local WebDAV server and macOS's own client, with no kernel extension and no special entitlement.
 - **macOS integration.**
   - Finder extension, Quick Actions, Quick Look previews and thumbnails.
@@ -157,6 +158,12 @@ Edit an archive, repair it with PAR2:
 
 ```bash
 .build/release/xipper edit photos.zip --delete old.jpg --rename draft:final --add new.jpg:final/new.jpg
+```
+
+Change the format (the plan first, then the conversion):
+
+```bash
+.build/release/xipper convert photos.zip --to 7z --dry-run
 ```
 
 ```bash

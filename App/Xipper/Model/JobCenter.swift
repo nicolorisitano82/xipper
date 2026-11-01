@@ -34,6 +34,8 @@ final class Job: Identifiable {
         case create(sources: [URL], destination: URL, format: ArchiveFormat, preset: LevelPreset, password: String?, xiz: XizExtras? = nil)
         case extract(ExtractRequest)
         case test(archive: URL, password: String?)
+        /// «Cambia formato»: `source` into a new archive at `target` in `format`.
+        case convert(source: URL, target: URL, format: ArchiveFormat, password: String?, trashOriginal: Bool)
     }
 
     enum State {
@@ -83,6 +85,7 @@ final class Job: Identifiable {
         case let .create(_, dest, _, _, _, _): output ?? dest
         case let .extract(r): r.archive
         case let .test(a, _): a
+        case let .convert(source, target, _, _, _): output ?? (isRunning ? source : target)
         }
     }
 
@@ -91,6 +94,7 @@ final class Job: Identifiable {
         case let .create(_, _, _, _, p, _): p
         case let .extract(r): r.password
         case let .test(_, p): p
+        case let .convert(_, _, _, p, _): p
         }
     }
 
@@ -125,6 +129,7 @@ final class Job: Identifiable {
         case let .create(_, dest, _, _, _, _): dest.deletingLastPathComponent()
         case let .extract(r): r.destination ?? r.archive.deletingLastPathComponent()
         case .test: nil
+        case let .convert(_, target, _, _, _): target.deletingLastPathComponent()
         }
     }
     let started = Date()
@@ -162,6 +167,7 @@ final class Job: Identifiable {
         case let .create(_, dest, _, _, _, _): title = dest.lastPathComponent; symbol = "arrow.down.right.and.arrow.up.left"
         case let .extract(r): title = r.archive.lastPathComponent; symbol = "arrow.down.to.line"
         case let .test(archive, _): title = archive.lastPathComponent; symbol = "checkmark.shield"
+        case let .convert(_, target, _, _, _): title = target.lastPathComponent; symbol = "arrow.triangle.2.circlepath"
         }
     }
 
@@ -172,6 +178,7 @@ final class Job: Identifiable {
         case .create: String(localized: "Compressione")
         case .extract: String(localized: "Estrazione")
         case .test: String(localized: "Verifica")
+        case .convert: String(localized: "Cambio di formato")
         }
     }
 
@@ -247,6 +254,7 @@ final class JobCenter {
             if let ratioOverride { r.ratioOverride = ratioOverride }
             kind = .extract(r)
         case let .test(a, p): kind = .test(archive: a, password: password ?? p)
+        case let .convert(s, t, f, p, trash): kind = .convert(source: s, target: t, format: f, password: password ?? p, trashOriginal: trash)
         case .create: kind = job.kind
         }
         remove(job)
@@ -330,6 +338,7 @@ final class JobCenter {
         case created(WriteReport, URL)
         case extracted(ExtractReport)
         case tested(TestReport)
+        case converted(FormatChangeReport)
         case error(any Error)
     }
 
@@ -376,6 +385,11 @@ final class JobCenter {
             return .extracted(try Xipper.extract(r.archive, to: r.destination, mode: r.mode, options: options, progress: progress, cancel: cancel))
         case let .test(archive, password):
             return .tested(try Xipper.test(archive, password: password, workload: Preferences.workload, progress: progress, cancel: cancel))
+        case let .convert(source, target, format, password, trash):
+            var options = Preferences.createOptions(format: format, preset: .balanced, password: nil)
+            options.overwrite = false
+            return .converted(try Xipper.convert(source, to: target, password: password, options: options, trashOriginal: trash,
+                                                 progress: progress, cancel: cancel))
         }
     }
 }
@@ -415,6 +429,12 @@ extension Job {
             var s = "\(r.files) file · \(r.bytes.byteText)"
             if !r.skipped.isEmpty { s += " · \(r.skipped.count) saltati" }
             if !r.deceptive.isEmpty { s += " · " + String(localized: "⚠️ \(r.deceptive.count) nomi ingannevoli") }
+            state = .finished(s)
+            revealIfWanted()
+        case let .converted(r):
+            output = r.output
+            var s = "\(r.plan.copied) " + String(localized: "copiati") + " · \(r.plan.recompressed) " + String(localized: "ricompressi") + " · \(r.outputBytes.byteText)"
+            if r.originalTrashed { s += " · " + String(localized: "originale nel Cestino") }
             state = .finished(s)
             revealIfWanted()
         case let .tested(r):
@@ -475,7 +495,7 @@ extension Job {
         guard let archive else { return }
         var isExtract = false
         switch kind {
-        case .create: return
+        case .create, .convert: return
         case .extract: isExtract = true
         case .test: break
         }

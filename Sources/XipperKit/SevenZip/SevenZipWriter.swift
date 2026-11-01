@@ -20,9 +20,10 @@ struct SevenZipOptions: Sendable {
 }
 
 /// A folder of an existing archive written again as it is (editing without recompression): its
-/// packed streams are copied byte for byte, with its coders, keys and CRCs.
+/// packed streams are copied byte for byte, with its coders, keys and CRCs. `read` gives bytes of
+/// the source file: a 7z being edited, or a ZIP whose entries become one-coder folders.
 struct SevenZipCarriedFolder {
-    var source: SevenZipArchive
+    var read: (_ offset: Int64, _ count: Int) throws -> [UInt8]
     var folder: SZFolder
     /// Absolute offsets and sizes of its packed streams in `source`.
     var packs: [(offset: Int64, size: Int64)]
@@ -122,7 +123,7 @@ enum SevenZipWriter {
                 while done < p.size {
                     try cancel?.check()
                     let n = Int(min(Int64(4 << 20), p.size - done))
-                    try out.write(try c.source.input.read(at: p.offset + done, count: n))
+                    try out.write(try c.read(p.offset + done, n))
                     done += Int64(n)
                 }
                 carriedPackSizes.append(p.size)

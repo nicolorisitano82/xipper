@@ -42,6 +42,19 @@ usage: xipper <command> [options]
           --mkdir PATH     add an empty folder
           --compact        XIZ: rewrite the archive, dropping deleted data
       -p, --password / --password-stdin
+  convert [options] <archive>   change the format; entries whose codec both formats have (ZIP ↔ 7z:
+                                store, Deflate, Deflate64, bzip2) keep their compressed bytes, the rest is
+                                recompressed. The new archive is verified before it gets its name.
+          --to FMT         zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio, xiz (required)
+      -o, --output FILE    the new archive (default: next to the original, with the new extension)
+      -m, -l               method and level for recompressed entries
+      -p, --password / --password-stdin   the original's password
+          --encrypt        protect the new archive with a password (prompted)
+          --dry-run        print the plan (what is copied, what is recompressed, space needed) and stop
+          --json           plan or result as JSON
+          --trash-original move the original to the Trash once the new archive is verified
+          --accept-losses  go on when signatures, access groups or the password would be lost
+          --overwrite      replace an existing file at the output path
   par2    create [--redundancy N] <file> | verify <file.par2> | repair <file.par2>
           PAR2 recovery data (compatible with par2cmdline): N percent, default 10
   mount   [options] <archive>   mount as a volume (/Volumes/<name>) until ejected or Ctrl-C
@@ -89,19 +102,20 @@ let knownFlags: Set<String> = command == "bgzip"
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
-                         "--read-only", "--discard", "--compact", "--numbered", "--signing"])
+                         "--read-only", "--discard", "--compact", "--numbered", "--signing",
+                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
-       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain"]
+       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to"]
 do {
     var i = 0
     while i < args.count {
         let a = args[i]
         if a == "--" { positional += args[(i + 1)...]; break }
         if a.hasPrefix("-") && a.count > 1 {
-            if a == "--overwrite" && command == "create" { flags.insert(a); i += 1; continue }
+            if a == "--overwrite" && (command == "create" || command == "convert") { flags.insert(a); i += 1; continue }
             if valueOptions.contains(a) {
                 guard i + 1 < args.count else { throw Usage(message: "\(a) needs a value") }
                 values[a] = args[i + 1]
@@ -376,6 +390,84 @@ case "edit":
         let r = try Xipper.edit(archive, changes: changes, password: pw, options: o, compact: flag("--compact"), progress: progress, cancel: cancel)
         endProgress()
         print("\(archive.lastPathComponent): \(r.entries) entries, \(r.copied) kept as they were, \(r.compressed) written\(r.rebuilt ? " (rebuilt)" : ""), \(r.outputBytes.bytesText)")
+    }
+
+case "convert":
+    guard positional.count == 1 else { fail("convert needs one archive", code: 2) }
+    guard let to = value("--to"), let fmt = ArchiveFormat(rawValue: to.lowercased()) else {
+        fail("convert needs --to FORMAT (zip, 7z, tar.zst, xiz, aar, …)", code: 2)
+    }
+    let source = URL(fileURLWithPath: positional[0])
+    var o = CreateOptions()
+    o.format = fmt
+    if let l = value("-l", "--level") { guard let n = Int(l) else { fail("invalid level \(l)", code: 2) }; o.level = n }
+    if let m = value("-m", "--method") {
+        guard let method = ZipMethod(name: m) else { fail("unknown method \(m)", code: 2) }
+        o.zipMethod = method
+    }
+    o.overwrite = flag("--overwrite")
+    o.workload = workload
+    let target: URL = value("-o", "--output").map { URL(fileURLWithPath: $0) } ?? {
+        var name = source.lastPathComponent
+        if let f = try? ArchiveFormat.detect(source), name.lowercased().hasSuffix("." + f.fileExtension) {
+            name.removeLast(f.fileExtension.count + 1)
+        } else {
+            name = (name as NSString).deletingPathExtension
+        }
+        return source.deletingLastPathComponent().appendingPathComponent(name + "." + fmt.fileExtension)
+    }()
+    let pw = readPassword(confirm: false)
+    if flag("--encrypt") {
+        guard fmt.supportsPassword else { fail("\(fmt.rawValue) has no password protection", code: 2) }
+        var buf = [CChar](repeating: 0, count: 1024), again = [CChar](repeating: 0, count: 1024)
+        guard readpassphrase("New password: ", &buf, buf.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil,
+              readpassphrase("Repeat new password: ", &again, again.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil else { fail("cannot read password") }
+        let a = String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        let b = String(decoding: again.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        memset_s(&buf, buf.count, 0, buf.count); memset_s(&again, again.count, 0, again.count)
+        guard !a.isEmpty, a == b else { fail("passwords empty or different") }
+        o.password = a
+    }
+    run {
+        let plan = try Xipper.conversionPlan(source, to: fmt, password: pw, options: o)
+        func lossText(_ l: ConversionPlan.Loss) -> String {
+            switch l {
+            case .signatures: return "signatures (the new archive is not signed)"
+            case .accessGroups: return "XIZ access groups (everything under one password, or none)"
+            case let .recoveryData(f): return "recovery data \(f) (protects the original only)"
+            case .encryption: return "the password (the new archive is not encrypted)"
+            }
+        }
+        if flag("--json") && flag("--dry-run") {
+            let json: [String: Any] = [
+                "source": source.path, "target": target.path, "from": plan.sourceFormat.rawValue, "to": fmt.rawValue,
+                "copied": plan.copied, "recompressed": plan.recompressed, "bytesCopied": plan.bytesCopied,
+                "bytesRecompressed": plan.bytesRecompressed, "spaceNeeded": plan.spaceNeeded, "losses": plan.losses.map(lossText),
+                "items": plan.items.map { ["path": $0.path, "action": $0.action.rawValue, "size": $0.size, "reason": ($0.reason as Any?) ?? NSNull()] as [String: Any] },
+            ]
+            print(String(decoding: try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]), as: UTF8.self))
+            return
+        }
+        print("\(source.lastPathComponent) → \(target.lastPathComponent): \(plan.copied) entries copied (\(plan.bytesCopied.bytesText)), "
+              + "\(plan.recompressed) recompressed (\(plan.bytesRecompressed.bytesText)), up to \(plan.spaceNeeded.bytesText) of free space needed")
+        for l in plan.losses { print("  lost: \(lossText(l))") }
+        if flag("--dry-run") {
+            for i in plan.items { print("  \(i.action == .copied ? "copy " : "recomp") \(i.path)\(i.reason.map { "  (\($0))" } ?? "")") }
+            return
+        }
+        let serious = plan.losses.filter { if case .recoveryData = $0 { false } else { true } }
+        if !serious.isEmpty && !flag("--accept-losses") { fail("the new archive would lose what is listed above: add --accept-losses to go on", code: 2) }
+        let r = try Xipper.convert(source, to: target, password: pw, options: o, trashOriginal: flag("--trash-original"),
+                                   progress: progress, cancel: cancel)
+        endProgress()
+        if flag("--json") {
+            let json: [String: Any] = ["output": r.output.path, "outputBytes": r.outputBytes, "copied": r.plan.copied,
+                                       "recompressed": r.plan.recompressed, "elapsed": r.elapsed, "originalTrashed": r.originalTrashed]
+            print(String(decoding: try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]), as: UTF8.self))
+        } else {
+            print(String(format: "%@: %@, verified, in %.2fs%@", r.output.lastPathComponent, r.outputBytes.bytesText, r.elapsed,
+                         r.originalTrashed ? "; original moved to the Trash" : ""))
+        }
     }
 
 case "par2":

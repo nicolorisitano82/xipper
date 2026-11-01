@@ -233,7 +233,7 @@ enum SevenZipEditor {
                     let kind: ArchiveItem.Kind = r.entry.kind == .symlink ? .symlink(target: r.entry.linkTarget ?? "") : .file(size: r.size)
                     return SevenZipWriter.fileRecord(item(r.entry, name: k!, source: "", kind: kind), hasStream: true)
                 }
-                carried.append(SevenZipCarriedFolder(source: a, folder: f, packs: packs, subSizes: recs.map(\.size),
+                carried.append(SevenZipCarriedFolder(read: { try a.input.read(at: $0, count: $1) }, folder: f, packs: packs, subSizes: recs.map(\.size),
                                                      subCRCs: recs.map(\.crc), files: files))
                 keys.forEach { placed.insert($0!) }
                 continue
@@ -361,7 +361,7 @@ enum ZipEditor {
     }
 
     /// Copies one entry: local header (with `name`), data, data descriptor; adds its central record.
-    private static func copy(_ rec: ZipEntryRecord, from zip: ZipArchive, name: String, renamed: Bool,
+    static func copy(_ rec: ZipEntryRecord, from zip: ZipArchive, name: String, renamed: Bool,
                              to out: OutputFile, central: inout ByteWriter) throws {
         let fixed = try zip.reader.read(at: rec.localHeaderOffset, count: 30)
         let (sig, nameLen, extraLen) = fixed.withUnsafeBytes {
@@ -443,7 +443,7 @@ enum ZipEditor {
         return fields(extra).filter { $0.id != id }.flatMap { Array($0.bytes) }
     }
 
-    private static func finish(_ out: OutputFile, central: [UInt8], count: Int, forceZip64: Bool) throws {
+    static func finish(_ out: OutputFile, central: [UInt8], count: Int, forceZip64: Bool) throws {
         let cdOffset = out.position
         try out.write(central)
         let cdSize = Int64(central.count)

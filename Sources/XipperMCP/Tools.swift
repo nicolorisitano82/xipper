@@ -109,7 +109,7 @@ enum XipperTools {
     }
 
     static func all(readOnly: Bool) -> [Tool] {
-        let tools = [info, list, test, readEntry, bgzfCheck, extract, create, bgzfCompress, bgzfConvert] + genomics
+        let tools = [info, list, test, readEntry, bgzfCheck, extract, create, convert, bgzfCompress, bgzfConvert] + genomics
         return readOnly ? tools.filter(\.readOnly) + [checksumManifestVerifyOnly] : tools
     }
 
@@ -310,6 +310,58 @@ enum XipperTools {
                           structured: ["output": .string(output), "format": .string(o.format.rawValue), "entries": .int(Int64(r.entries)),
                                        "inputBytes": .int(r.inputBytes), "outputBytes": .int(r.outputBytes), "seconds": .double(r.elapsed),
                                        "renamedForWindows": .int(Int64(r.renamedForWindows))])
+    }
+
+    static let convert = Tool(
+        name: "archive_convert", title: "Change archive format",
+        description: "Converts an archive into another format (zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio, xiz). Entries whose codec both formats have (ZIP ↔ 7z: store, Deflate, Deflate64, bzip2) keep their compressed bytes; the rest is recompressed. The new archive is verified before it gets its name; the original is never changed. Call with dry_run first: the plan says what is copied, what is recompressed, the free space needed and what would be lost (signatures, XIZ access groups, password).",
+        inputSchema: schema(["path": str(pathDoc), "format": ["type": "string", "enum": .array(ArchiveFormat.allCases.filter { $0.canCreate && !$0.isSingleFile }.map { .string($0.rawValue) })],
+                             "output": str("The new archive (default: next to the original, with the new extension)."),
+                             "dry_run": bool("Only return the plan."),
+                             "password_ref": str(passwordRefDoc + " The original's password."),
+                             "accept_losses": bool("Go on when signatures, access groups or the password would be lost. Ask the user first.")],
+                            required: ["path", "format"]),
+        readOnly: false, destructive: false, idempotent: false
+    ) { args, ctx in
+        let path = try ctx.policy.resolve(try args.requiredString("path"), mustExist: true)
+        guard let fmt = ArchiveFormat(rawValue: try args.requiredString("format")) else { throw ToolError("unknown format") }
+        let source = URL(fileURLWithPath: path)
+        var o = CreateOptions()
+        o.format = fmt
+        o.workload = ctx.config.workload
+        let pw = try password(args, ctx)
+        let defaultOut: String = {
+            var name = source.lastPathComponent
+            if let f = try? ArchiveFormat.detect(source), name.lowercased().hasSuffix("." + f.fileExtension) { name.removeLast(f.fileExtension.count + 1) }
+            return source.deletingLastPathComponent().appendingPathComponent(name + "." + fmt.fileExtension).path
+        }()
+        let output = try ctx.policy.resolve(args["output"]?.string ?? defaultOut, mustExist: false)
+        let plan = try Xipper.conversionPlan(source, to: fmt, password: pw, options: o)
+        let losses: [JSON] = plan.losses.map {
+            switch $0 {
+            case .signatures: .string("signatures")
+            case .accessGroups: .string("access groups")
+            case let .recoveryData(f): .string("recovery data \(f)")
+            case .encryption: .string("password")
+            }
+        }
+        let planJSON: JSON = ["output": .string(output), "copied": .int(Int64(plan.copied)), "recompressed": .int(Int64(plan.recompressed)),
+                              "bytesCopied": .int(plan.bytesCopied), "bytesRecompressed": .int(plan.bytesRecompressed),
+                              "spaceNeeded": .int(plan.spaceNeeded), "losses": .array(losses)]
+        let summary = "\(plan.copied) entries copied (\(bytes(plan.bytesCopied))), \(plan.recompressed) recompressed (\(bytes(plan.bytesRecompressed))), up to \(bytes(plan.spaceNeeded)) free space needed"
+        if args.optionalBool("dry_run") {
+            return ToolResult(text: "Plan for \(output): \(summary)" + (losses.isEmpty ? "" : "; lost: \(losses.compactMap(\.string).joined(separator: ", "))"),
+                              structured: planJSON)
+        }
+        let serious = plan.losses.filter { if case .recoveryData = $0 { false } else { true } }
+        if !serious.isEmpty && !args.optionalBool("accept_losses") {
+            throw ToolError("the new archive would lose: \(losses.compactMap(\.string).joined(separator: ", ")). Ask the user, then pass accept_losses: true")
+        }
+        if FileManager.default.fileExists(atPath: output) { throw ToolError("\(output) already exists") }
+        let r = try Xipper.convert(source, to: URL(fileURLWithPath: output), password: pw, options: o, progress: ctx.progress, cancel: ctx.cancel)
+        return ToolResult(text: "Converted to \(output) (\(bytes(r.outputBytes)), verified): \(summary)",
+                          structured: ["output": .string(output), "outputBytes": .int(r.outputBytes), "copied": .int(Int64(r.plan.copied)),
+                                       "recompressed": .int(Int64(r.plan.recompressed)), "seconds": .double(r.elapsed)])
     }
 
     static let bgzfCompress = Tool(

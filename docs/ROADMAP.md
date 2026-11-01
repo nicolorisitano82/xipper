@@ -194,22 +194,18 @@ Un ZIP che lettori diversi interpretano in modi diversi viene rifiutato con «am
 - ✅ **nomi ingannevoli** (`DeceptiveName`): caratteri di controllo bidirezionali (RTLO e simili), estensione di documento davanti a una eseguibile (`fattura.pdf.app`, `foto.jpg.command`, `invoice.docx.exe`), spazi che nascondono l'estensione vera. Non blocca l'estrazione, avvisa: un banner nel browser con i nomi reali (`⟨U+202E⟩` visibile), il «Nome reale» nell'inspector con la spiegazione, il riepilogo del lavoro dopo l'estrazione e un `warning:` della CLI;
 - verificato: le altre vie che fanno uscire file dall'archivio (anteprima, trascinamento, archivi annidati, MCP) usano già la propagazione; l'anteprima Quick Look dell'estensione legge i dati in memoria e non crea file.
 
-#### D. «Cambia formato» v1
-Converte copiando i dati compressi così come sono dove i due formati condividono il codec, e ricomprime solo le voci che non si possono copiare. Richiede spazio libero quanto il nuovo archivio; l'originale si tocca solo alla fine, con uno scambio senza passaggi a metà.
-
-1. **Piano** (`Sources/XipperKit/Convert/ConversionPlan.swift`): per ogni voce dice cosa succede: *copiata* (stesso codec), *solo checksum* (si decodifica per calcolare il CRC mancante, i dati restano quelli), *ricompressa*. Spazio stimato, voci cifrate, firme e accessi XIZ che andranno persi.
-2. **Coppie della v1:**
-   - ZIP ↔ 7z non solido per store, Deflate, Deflate64, bzip2 (con `SevenZipCarriedFolder`);
-   - 7z → ZIP solo per le cartelle con CRC (stessa regola dell'editor);
-   - ZIP zstd → XIZ (un frame zstd per frame XIZ, se rientra nei 64 MiB);
-   - tutto il resto ricompresso in streaming, senza cartella temporanea estratta: tar.X ↔ formati per file, 7z solidi, RAR, Apple Archive.
-3. **Cifratura:** si decifra e si cifra di nuovo senza ricomprimere; serve la password di origine e quella di arrivo.
-4. **Firme e PAR2:** le firme XIZ e AEA non si possono conservare: si avvisa e, se c'è una chiave predefinita, si propone di firmare di nuovo. I gruppi di accesso XIZ diventano una password sola: si avvisa. PAR2 dell'originale verificato prima, e proposta di crearlo per il nuovo archivio.
-5. **Sicurezza:** il nuovo archivio viene verificato rileggendolo dal disco prima di sostituire l'originale (`RENAME_SWAP`); l'originale si sposta nel Cestino, non viene cancellato.
-6. **CLI:** `xipper convert ARCHIVIO --to 7z|zip|xiz|tar.zst … [--dry-run] [--json] [--keep-original]`; MCP `convert_archive`.
-7. **App:** comando «Cambia formato…» nel browser e nel Finder; foglio con il piano (quante voci copiate, quante ricompresse, spazio necessario, cosa si perde) prima di partire; avanzamento nel pannello dei lavori.
-8. **Test:** per ogni coppia, conversione andata e ritorno con payload identici (hash), interop con lo script di A, crash simulato (processo ucciso) in ogni fase: l'originale resta sempre intatto.
-- **Fatto quando:** le coppie della v1 passano interop e crash test, e un ZIP Deflate da qualche GB diventa 7z alla velocità del disco, senza ricomprimere.
+#### D. «Cambia formato» v1 — ✅ fatto (02/11/2026)
+Converte un archivio in un altro formato copiando i dati compressi così come sono dove i due formati hanno lo stesso codec, e ricomprimendo il resto. Il nuovo archivio viene scritto con un nome temporaneo accanto alla destinazione, verificato e solo allora prende il suo nome; l'originale non viene mai modificato.
+- ✅ **piano** (`Xipper.conversionPlan`): per ogni file dice se è *copiato* o *ricompresso* e perché (metodo che il formato di arrivo non ha, blocco solido, voce cifrata, metadati macOS da unire…), lo spazio libero necessario e cosa si perde (firme XIZ e AEA, gruppi di accesso XIZ, password, dati PAR2 accanto all'originale);
+- ✅ **copia senza ricomprimere:** ZIP → 7z per store, Deflate, Deflate64 e bzip2 (ogni voce diventa una cartella 7z non solida con quel codec); 7z → ZIP per le cartelle non solide con un solo file in quei metodi. Andata e ritorno ZIP → 7z → ZIP: i byte compressi di ogni voce sono identici a quelli dello ZIP di partenza;
+- ✅ **tutto il resto ricompresso** con le impostazioni del formato di arrivo (tar.*, XIZ, Apple Archive, cpio, 7z solidi, RAR). Le voci da ricomprimere vengono estratte una volta in una cartella di lavoro accanto alla destinazione: la v1 non le ricomprime in streaming, e lo spazio necessario lo mette in conto;
+- ✅ **cifratura:** con la password dell'originale le voci vengono decifrate; un archivio di arrivo con password ricomprime tutto (i dati in chiaro non si copiano dentro un archivio cifrato);
+- ✅ **sicurezza:** verifica completa del nuovo archivio (test, più stessi percorsi, dimensioni e CRC dell'originale) prima del rename; `F_FULLFSYNC` su file e cartella; mai sovrascrivere una destinazione esistente senza `--overwrite`; un processo ucciso a metà (SIGKILL) lascia l'originale intatto e nessun file con il nome di destinazione, e la conversione successiva ripulisce la sua cartella di lavoro; a richiesta l'originale va nel Cestino, solo dopo la verifica;
+- ✅ **trovato e corretto durante i test:** il lettore 7z di Xipper non decodificava il Deflate64 (la verifica ha bloccato la conversione invece di produrre un archivio illeggibile): ora sì;
+- ✅ **CLI** `xipper convert ARCHIVIO --to FMT [-o FILE] [--dry-run] [--json] [--encrypt] [--trash-original] [--accept-losses]`; **MCP** `archive_convert` (con `dry_run`); **app**: «Cambia formato…» nel menu Azioni del browser, con un foglio che mostra il piano prima di partire e il lavoro nel pannello dei lavori;
+- ✅ **test** (`ConvertTests`): 4 metodi ZIP → 7z → ZIP con payload identici, `7zz t` e `unzip -t` sui risultati, 7z solido → ZIP, tar.xz verso 7 formati con l'albero identico, password in entrambi i versi, destinazione esistente, annullamento, processo ucciso in 4 momenti diversi;
+- spostato alla v1.5: ZIP zstd → XIZ senza ricomprimere (XIZ calcola SHA-256 e deduplica sui dati in chiaro, quindi serve almeno la decodifica) e il ricomprimere in streaming senza cartella di lavoro;
+- da provare a mano: il foglio nell'app (compila, ma non l'ho aperto a schermo).
 
 #### E. Piccole cose
 - **ZIP PPMd (metodo 98):** decoder PPMd variante I (`Ppmd8.c`, `Ppmd8Dec.c` dell'LZMA SDK, pubblico dominio, già vendorizzato per la variante H), trovato dal corpus di interop.
