@@ -1,6 +1,6 @@
 # Roadmap di Xipper
 
-Aggiornata al 21/10/2026. Le decisioni di fondo sono in [STUDIO.md](../STUDIO.md), lo stato dell'app in [FASE2.md](../FASE2.md).
+Aggiornata al 02/11/2026. Le decisioni di fondo sono in [STUDIO.md](../STUDIO.md), lo stato dell'app in [FASE2.md](../FASE2.md).
 
 **Distribuzione:** solo DMG su GitHub, firmato self-signed. Gli aggiornamenti si controllano a mano dall'app. Niente Developer ID né Mac App Store per ora.
 
@@ -219,8 +219,66 @@ Converte un archivio in un altro formato copiando i dati compressi così come so
 - da provare a mano dopo l'uscita: il foglio «Cambia formato…», il menu «Codifica dei nomi», il banner dei nomi ingannevoli su un archivio vero, un'app aperta da un volume montato (Gatekeeper deve chiedere conferma).
 
 ### Fuori dalla 2.5
-- «Cambia formato» v1.5 (coppie che cambiano solo l'intestazione: LZMA tra ZIP e 7z, LZMA2 → ZIP xz, ZIP → tar a più membri) e v2 (poco spazio libero con hole punching e registro delle operazioni): servono prima i test di interop e di interruzione di corrente su APFS;
-- XIZ 1.4 (filtri per chunk, codec veloce, LZMA2), benchmark su M-series, ricompressione JPEG, recovery record dentro XIZ, riparazione ZIP senza PAR2, decoder esterni in un servizio XPC: medio termine (2.6–3.0).
+Spostato nelle versioni qui sotto: «Cambia formato» v1.5 e v2, XIZ 1.4, banco di misura, ricompressione JPEG, recovery record in XIZ, riparazione ZIP, decoder isolati.
+
+---
+
+## Prossime versioni
+
+Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md) e da quello che la 2.5 ha lasciato aperto. Le versioni sono un ordine di lavoro, non date. Regola che viene dalla 2.5: **prima si misura, poi si sceglie.** Due idee dello studio non hanno retto alla prova: il filtro ARM64 per architettura e il riconoscimento delle code page di Foundation.
+
+### 2.5.1 — prove a mano e correzioni
+- da provare sul DMG 2.5.0: il foglio «Cambia formato…», il menu «Codifica dei nomi», il banner dei nomi ingannevoli su un archivio vero, un'app aperta da un volume montato (Gatekeeper deve chiedere conferma);
+- correggere quello che esce dalle prove, se serve, senza funzioni nuove;
+- archivi scritti da WinRAR ed Esplora risorse nel corpus di interop (serve un Mac con Windows in VM o un tester).
+
+### 2.6 — banco di misura, XIZ 1.4, «Cambia formato» v1.5
+1. **Banco di misura** (prerequisito di tutto il resto della 2.6):
+   - `scripts/benchmark` su M-series con un corpus Mac vero: bundle `.app`, sorgenti e progetti Xcode, documenti Office e iWork, PDF, foto JPEG/HEIC; solo file sintetici o pubblici nel repo, il resto in locale;
+   - candidati da misurare: zstd 1.5.7, LZ4, zxc, LZMA2, bsc/kanzi (solo se la licenza va bene), LZMESH e LZBITMAP di Apple su OS 27;
+   - esito: la tabella che decide i codec di XIZ 1.4, in `docs/BENCHMARK.md`.
+2. **XIZ 1.4:**
+   - modalità «estrazione veloce» con un codec veloce a versione congelata (LZ4 o zxc, secondo il banco);
+   - LZMA2 per la modalità «massima»;
+   - filtri per chunk: ARM64 e x86 dentro **un solo** flusso compresso. Separare le architetture fa perdere: misurato −1,8% contro −6,1%;
+   - compatibile all'indietro: un lettore 1.3 rifiuta in modo chiaro i chunk che non conosce.
+3. **«Cambia formato» v1.5:**
+   - coppie con sola intestazione nuova: ZIP LZMA ↔ 7z LZMA, 7z LZMA2 → ZIP xz (metodo 95), ZIP → tar.* a più membri;
+   - ZIP zstd → XIZ con sola decodifica per l'hash (i frame zstd passano così come sono);
+   - ricompressione in streaming senza cartella di lavoro;
+   - prima di tutto, interop: ogni coppia nuova deve passare `7zz t`, `unzip -t`, `xz -t`, `zstd -t` e Archive Utility.
+4. **Piccole funzioni attese da chi viene da Windows e Linux:**
+   - **riparazione ZIP senza PAR2:** ricostruire il central directory dagli header locali (troncati, rovinati in fondo);
+   - **estrazione ricorsiva:** archivi dentro archivi, con un limite di profondità e la quarantena propagata;
+   - **strumento di hash:** BLAKE3, XXH3, SHA-3, esportazione in formato GNU `sha256sum`;
+   - **«Copia come comando»:** un lavoro dell'app diventa il comando `xipper` equivalente.
+
+### 2.7 — recupero dentro l'archivio, decoder isolati
+- **recovery record dentro XIZ:**
+  - Reed–Solomon di Cauchy sui frame, metadati duplicati, un solo file che sopravvive alla copia;
+  - `xipper scrub` e una verifica periodica facoltativa nell'app;
+  - PAR2 resta per gli altri formati.
+- **decoder isolati:** RAR (libarchive), 7z e i formati futuri in un servizio XPC sandboxed, così un bug di memoria in un decoder esterno non tocca l'app;
+- **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
+- **accessibilità e lingue** (dall'analisi UI/UX): annunci VoiceOver per i lavori, altre lingue oltre italiano e inglese.
+
+### 3.0 — poco spazio, post-quantum
+- **«Cambia formato» v2, con poco spazio libero:**
+  - registro delle operazioni, `F_PUNCHHOLE` sull'originale, ripresa e ritorno all'originale prima del primo punching;
+  - riconoscimento di istantanee e cloni APFS, ripiego a file numerati;
+  - esce solo dopo i test di interruzione di corrente in una VM macOS su immagini APFS. Apple non documenta come `F_PUNCHHOLE` e `rename` si comportano in quel caso.
+- **ricompressione dei flussi Deflate** dentro Office, EPUB, PDF e PNG (preflate-rs), FLAC per WAV/AIFF: dopo il banco, con i parser in un processo isolato;
+- **LZMESH/LZBITMAP** come codec XIZ facoltativi su OS 27+, se il banco li conferma (illeggibili su macOS 26);
+- **snapshot XIZ montabili per versione**, sul modello di zpaq e restic: i pezzi ci sono già (segmenti firmati, montaggio);
+- **destinatario ibrido X25519 + ML-KEM-768**, compatibile con age (`age1pq1…`), se CryptoKit lo offre;
+- **OpenZL** per i frame strutturati (CSV, Parquet, tabelle genomiche), quando il formato si stabilizza.
+
+### Aperti, senza versione
+- confronto voce per voce con i 14 tipi di ambiguità di ZipDiff (serve il testo integrale dell'articolo);
+- licenze da verificare prima di qualsiasi uso: lzav, kanzi, libbsc, lzham, bzip3 (forse LGPL), packJPG (forse LGPL), libjxl, libFLAC, WavPack.
+
+### Da non fare
+Creare RAR, ZPAQ, ARC o PEA; autoestraenti (SFX); recupero password a forza bruta; cancellazione sicura su SSD; codec neurali, troppo lenti (pochi KB/s). Le ragioni sono nello studio.
 
 ---
 
@@ -230,7 +288,7 @@ Converte un archivio in un altro formato copiando i dati compressi così come so
 - X1 prototipo Swift e benchmark B3 (soglia: ≥5% meno di CRAM 3.1 normal); X2 spec XIZ 1.3; X3 Xipper completo; X4 libxiz in C con plugin htslib; X5 lettori Java e Python;
 - ✅ **decisioni** (23/10/2026, [XIG_DESIGN.md §11](XIG_DESIGN.md)): estensione `.xig` per gli archivi genomici e `.xiz` per gli altri; Java puro (codec di htsjdk), Python puro con binding nativo solo per i codec; FASTQ in backlog; slice 10k e span 10 provvisori; mate collegati se cadono nella stessa slice, come CRAM 3.0;
 - primo benchmark sul BAM reale (chr20, 6,6 M letture, senza riferimento): XIG 106,6 MB contro CRAM 3.1 normal 106,7 MB e archive 91,7 MB, con lo scrittore di prova in Java; mancano le misure con riferimento e i mate collegati;
-- lettore XIG per IGV, in una sessione separata (branch `xig` di un fork locale, non pubblicato).
+- lettore XIG per IGV, in una sessione separata (branch `xig` di un fork locale, non pubblicato): **fermo** su richiesta del proprietario.
 
 ---
 
