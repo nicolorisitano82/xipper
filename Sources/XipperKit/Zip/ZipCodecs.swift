@@ -111,16 +111,16 @@ enum ZipXzStream {
         return Block(bytes: out, unpadded: unpadded, uncompressed: lzma_vli(src.count))
     }
 
-    static func header() -> [UInt8] {
+    static func header(check: lzma_check = LZMA_CHECK_CRC64) -> [UInt8] {
         var flags = lzma_stream_flags()
-        flags.check = LZMA_CHECK_CRC64
+        flags.check = check
         var h = [UInt8](repeating: 0, count: 12)
         _ = lzma_stream_header_encode(&flags, &h)
         return h
     }
 
     /// Index and stream footer for the blocks written after `header()`.
-    static func trailer(_ blocks: [(unpadded: lzma_vli, uncompressed: lzma_vli)]) throws -> [UInt8] {
+    static func trailer(_ blocks: [(unpadded: lzma_vli, uncompressed: lzma_vli)], check: lzma_check = LZMA_CHECK_CRC64) throws -> [UInt8] {
         guard let idx = lzma_index_init(nil) else { throw XipperError.codec("xz index") }
         defer { lzma_index_end(idx, nil) }
         for b in blocks where lzma_index_append(idx, nil, b.unpadded, b.uncompressed) != LZMA_OK {
@@ -131,11 +131,44 @@ enum ZipXzStream {
         var pos = 0
         guard lzma_index_buffer_encode(idx, &out, &pos, size) == LZMA_OK else { throw XipperError.codec("xz index") }
         var flags = lzma_stream_flags()
-        flags.check = LZMA_CHECK_CRC64
+        flags.check = check
         flags.backward_size = lzma_vli(size)
         let ok = out.withUnsafeMutableBufferPointer { lzma_stream_footer_encode(&flags, $0.baseAddress! + size) == LZMA_OK }
         guard ok else { throw XipperError.codec("xz footer") }
         return out
+    }
+}
+
+/// An .xz stream built around LZMA2 data compressed elsewhere (a 7z folder), without
+/// recompressing it: stream header and block header before, block padding, CRC-32 check, index
+/// and footer after. The check is the CRC-32 of the uncompressed data, which 7z already stores.
+enum XzContainer {
+    static func wrapLZMA2(prop: UInt8, packedSize: Int64, size: Int64, crc: UInt32) throws -> (prefix: [UInt8], suffix: [UInt8]) {
+        var o = lzma_options_lzma()
+        _ = lzma_lzma_preset(&o, 6)
+        o.dict_size = UInt32(min(SZLZMA2.dictionarySize(prop), UInt64(UInt32.max)))
+        var header = [UInt8](repeating: 0, count: 1024)
+        let headerSize = try withUnsafeMutablePointer(to: &o) { op -> Int in
+            var filters = [lzma_filter(id: lzmaFilterLZMA2, options: op), lzma_filter(id: lzmaVLIUnknown, options: nil)]
+            return try filters.withUnsafeMutableBufferPointer { f -> Int in
+                var b = lzma_block()
+                b.version = 0
+                b.check = LZMA_CHECK_CRC32
+                b.compressed_size = lzma_vli(packedSize)
+                b.uncompressed_size = lzma_vli(size)
+                b.filters = f.baseAddress
+                guard lzma_block_header_size(&b) == LZMA_OK, lzma_block_header_encode(&b, &header) == LZMA_OK else {
+                    throw XipperError.codec("xz block header")
+                }
+                return Int(b.header_size)
+            }
+        }
+        let prefix = ZipXzStream.header(check: LZMA_CHECK_CRC32) + header[0..<headerSize]
+        let padding = Int((4 - (Int64(headerSize) + packedSize) % 4) % 4)
+        var suffix = [UInt8](repeating: 0, count: padding)
+        withUnsafeBytes(of: crc.littleEndian) { suffix.append(contentsOf: $0) }
+        suffix += try ZipXzStream.trailer([(lzma_vli(Int64(headerSize) + packedSize + 4), lzma_vli(size))], check: LZMA_CHECK_CRC32)
+        return (prefix, suffix)
     }
 }
 

@@ -46,8 +46,9 @@ usage: xipper <command> [options]
           --mkdir PATH     add an empty folder
           --compact        XIZ: rewrite the archive, dropping deleted data
       -p, --password / --password-stdin
-  convert [options] <archive>   change the format; entries whose codec both formats have (ZIP ↔ 7z:
-                                store, Deflate, Deflate64, bzip2) keep their compressed bytes, the rest is
+  convert [options] <archive>   change the format; entries whose codec both formats have keep their
+                                compressed bytes (ZIP ↔ 7z: store, Deflate, Deflate64, bzip2, LZMA; 7z LZMA2
+                                → ZIP xz; ZIP Deflate/bzip2/zstd/xz → tar.gz/.bz2/.zst/.xz), the rest is
                                 recompressed. The new archive is verified before it gets its name.
           --to FMT         zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst, aar, cpio, xiz (required)
       -o, --output FILE    the new archive (default: next to the original, with the new extension)

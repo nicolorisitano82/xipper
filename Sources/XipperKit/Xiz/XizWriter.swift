@@ -11,6 +11,16 @@ import Synchronization
 /// With a password, a random file key is wrapped by Argon2id and every frame, the catalog and the
 /// digests are keyed by it; the chunker's gear table is derived from it too, so chunk boundaries
 /// reveal nothing about the content.
+/// A file whose zstd frame comes from elsewhere («Cambia formato»: a ZIP zstd entry of at most
+/// 64 MiB) and becomes one XIZ frame as it is. Not encrypted, not deduplicated.
+struct XizCarriedFrame {
+    var item: ArchiveItem
+    /// One zstd frame that decompresses to exactly `item.size` bytes.
+    var payload: [UInt8]
+    /// SHA-256 of the content (the caller decoded it once).
+    var sha256: [UInt8]
+}
+
 enum XizWriter {
     /// Files from this size on are deduplicated chunk by chunk, not only as a whole.
     static let chunkedFrom: Int64 = 8 << 20
@@ -32,15 +42,18 @@ enum XizWriter {
 
     static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
-                      access: XizAccess? = nil, signer: XizSigner? = nil,
+                      access: XizAccess? = nil, signer: XizSigner? = nil, carried: [XizCarriedFrame] = [],
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
+        guard carried.isEmpty || (password == nil && access == nil && signer == nil) else {
+            throw XipperError.invalidArgument("copied zstd frames go only into plain XIZ archives")
+        }
         if access != nil || signer != nil {
             return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, password: password, kdf: kdf,
                                           extendedAttributes: extendedAttributes, access: access, signer: signer,
                                           workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
         }
-        let total = items.reduce(Int64(0)) { $0 + $1.size }
-        let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count, handler: progress)
+        let total = (items + carried.map(\.item)).reduce(Int64(0)) { $0 + $1.size }
+        let tracker = ProgressTracker(totalBytes: total, totalEntries: items.count + carried.count, handler: progress)
         var archiveID = [UInt8](repeating: 0, count: 16)
         arc4random_buf(&archiveID, 16)
 
@@ -75,14 +88,14 @@ enum XizWriter {
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
         let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2,
-                                              dictionary: dictionary.map { (XizDictionary.id, $0, true) },
+                                              dictionary: dictionary.map { (XizDictionary.id, $0, true) }, carried: carried,
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
         let size = out.position
         try out.commit(overwrite: overwrite)
-        tracker.add(bytes: total - tracker.completedBytes, entries: items.count)  // deduplicated bytes count as done
+        tracker.add(bytes: total - tracker.completedBytes, entries: items.count + carried.count)  // deduplicated bytes count as done
         tracker.finish()
-        return WriteReport(entries: items.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
+        return WriteReport(entries: items.count + carried.count, inputBytes: total, outputBytes: size, elapsed: tracker.elapsed)
     }
 
     /// A dictionary for the small files, when there are enough of them to pay for it: trained on
@@ -124,7 +137,7 @@ enum XizWriter {
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
                           group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false,
-                          dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
+                          dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil, carried: [XizCarriedFrame] = [],
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
         let gear = gear(keys)
@@ -371,6 +384,26 @@ enum XizWriter {
                 written.append(f)
             }
             start = end
+        }
+
+        // 4. Frames copied from elsewhere, one per file, after the others.
+        for (k, c) in carried.enumerated() {
+            try cancel?.check()
+            let index = UInt32(base + frames.count + k)
+            var f = Xiz.Frame(offset: out.position, csize: UInt32(c.payload.count), usize: UInt32(c.item.size),
+                              crc: Xiz.crc32c(c.payload), codec: .zstd, group: group)
+            if c.item.size == 0 || c.payload.count > Xiz.maxFrameData { throw XipperError.invalidArgument("copied XIZ frame size") }
+            f.offset = out.position
+            try out.write(Xiz.frameHeader(index: index, f))
+            try c.payload.withUnsafeBytes { try out.write($0) }
+            written.append(f)
+            let t = c.item.modified.timeIntervalSince1970
+            let sec = Int64(t.rounded(.down))
+            entries.append(Xiz.Entry(type: .file, path: c.item.name, mode: c.item.permissions, uid: c.item.uid, gid: c.item.gid,
+                                     mtimeSec: sec, mtimeNsec: UInt32(clamping: Int64((t - Double(sec)) * 1e9)), size: UInt64(c.item.size),
+                                     link: "", xattrs: [], extents: [Xiz.Extent(frame: index, offset: 0, length: UInt32(c.item.size))],
+                                     sha256: c.sha256))
+            tracker.add(bytes: c.item.size, entries: 1)
         }
 
         return (written, entries)

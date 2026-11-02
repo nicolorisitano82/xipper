@@ -249,10 +249,13 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
    - niente filtro x86: su Apple Silicon i binari sono arm64 o universali, e per gli universali il filtro ARM64 su tutto il file è risultato il migliore;
    - compatibile all'indietro: un lettore 1.3 rifiuta l'archivio con un messaggio chiaro (bit richiesto `lzma2`, spec §14).
 3. **«Cambia formato» v1.5:**
-   - coppie con sola intestazione nuova: ZIP LZMA ↔ 7z LZMA, 7z LZMA2 → ZIP xz (metodo 95), ZIP → tar.* a più membri;
-   - ZIP zstd → XIZ con sola decodifica per l'hash (i frame zstd passano così come sono);
-   - ricompressione in streaming senza cartella di lavoro;
-   - prima di tutto, interop: ogni coppia nuova deve passare `7zz t`, `unzip -t`, `xz -t`, `zstd -t` e Archive Utility.
+   - ✅ coppie con sola intestazione nuova, senza ricomprimere:
+     - ZIP LZMA ↔ 7z LZMA: le 5 proprietà passano dall'intestazione ZIP al coder 7z e viceversa. Verso ZIP, il flusso viene decodificato una volta per sapere se ha il marcatore di fine (bit 1), che 7-Zip controlla;
+     - 7z LZMA2 → ZIP xz (metodo 95): un contenitore xz costruito attorno ai dati LZMA2, con controllo CRC-32, che è quello del 7z;
+     - ZIP Deflate/bzip2/zstd/xz → tar.gz/.bz2/.zst/.xz: ogni file copiato diventa un membro del flusso compresso (un membro gzip con CRC e dimensione dello ZIP, un flusso bzip2, zstd o xz intero);
+   - ✅ ZIP zstd → XIZ: ogni voce fino a 64 MiB diventa un frame XIZ così com'è. La voce viene decodificata una volta, per lo SHA-256 e per il controllo con il CRC dello ZIP; una voce con più frame zstd viene ricompressa da quella copia;
+   - ✅ interop: `7zz t`, bsdtar, GNU/BSD tar, `gzip -t`, `bzip2 -t`, `zstd -t`, `xz -t` passano su tutte le coppie nuove, anche con file da 100 MB. Archive Utility va ancora provato a mano;
+   - da fare: ricompressione in streaming senza cartella di lavoro.
 4. **Piccole funzioni attese da chi viene da Windows e Linux:**
    - **riparazione ZIP senza PAR2:** ricostruire il central directory dagli header locali (troncati, rovinati in fondo);
    - **estrazione ricorsiva:** archivi dentro archivi, con un limite di profondità e la quarantena propagata;
@@ -278,6 +281,14 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
 - **snapshot XIZ montabili per versione**, sul modello di zpaq e restic: i pezzi ci sono già (segmenti firmati, montaggio);
 - **destinatario ibrido X25519 + ML-KEM-768**, compatibile con age (`age1pq1…`), se CryptoKit lo offre;
 - **OpenZL** per i frame strutturati (CSV, Parquet, tabelle genomiche), quando il formato si stabilizza.
+
+### 3.1 — XIZ forense
+Analisi e progetto in [FORENSE_3.1.md](FORENSE_3.1.md): acquisizione di dischi e volumi da `/dev/rdiskN` in un XIZ verificabile, firmato e datato, con catena di custodia come segmenti firmati in coda. Lacune principali da colmare:
+- metadati forensi: record del caso e del dispositivo, log di acquisizione, mappa dei settori illeggibili, hash della sorgente (MD5, SHA-1, SHA-256) firmati;
+- identità di chi firma: oggi Ed25519 con un'etichetta libera; servono certificati X.509 o smart card e una TSA qualificata;
+- verifica crittografica delle letture a offset casuali: tabella SHA-256 dei frame con radice Merkle.
+
+Gli aspetti legali vanno fatti verificare a un esperto prima di qualsiasi uso.
 
 ### Aperti, senza versione
 - confronto voce per voce con i 14 tipi di ambiguità di ZipDiff (serve il testo integrale dell'articolo);

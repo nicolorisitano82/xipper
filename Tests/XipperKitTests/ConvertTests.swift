@@ -45,7 +45,7 @@ struct ConvertTests {
         #expect(same, "\(url.lastPathComponent): \(diff)", sourceLocation: sourceLocation)
     }
 
-    @Test(arguments: [ZipMethod.deflate, .store, .bzip2, .deflate64])
+    @Test(arguments: [ZipMethod.deflate, .store, .bzip2, .deflate64, .lzma])
     func zipToSevenZipCopiesTheCompressedBytes(method: ZipMethod) throws {
         let t = TempDir()
         makeTree(t, bigSize: 3 << 20)
@@ -65,7 +65,65 @@ struct ConvertTests {
         #expect(back.plan.recompressed == 0)
         #expect(try payloads(t.url("back.zip")) == payloads(a))
         try extractsToSource(t, t.url("back.zip"))
-        if method != .deflate64 && method != .bzip2 { #expect(run("/usr/bin/unzip", ["-tq", t.path + "/back.zip"]).status == 0) }
+        if method == .deflate || method == .store { #expect(run("/usr/bin/unzip", ["-tq", t.path + "/back.zip"]).status == 0) }
+        if let sz = sevenZip { #expect(run(sz, ["t", t.path + "/back.zip"]).status == 0) }
+    }
+
+    /// bsdtar (libarchive) extracts `url` to the same tree as `src`.
+    func bsdtarExtractsToSource(_ t: TempDir, _ url: URL, sourceLocation: SourceLocation = #_sourceLocation) {
+        let out = "bsd-" + url.lastPathComponent
+        t.mkdir(out)
+        let r = run("/usr/bin/bsdtar", ["-xf", url.path, "-C", t.path + "/" + out])
+        #expect(r.status == 0, "\(r)", sourceLocation: sourceLocation)
+        let (same, diff) = treesEqual(t.path + "/src", t.path + "/" + out + "/src")
+        #expect(same, "\(url.lastPathComponent): \(diff)", sourceLocation: sourceLocation)
+    }
+
+    @Test func sevenZipLZMA2BecomesZipXzWithoutRecompressing() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 3 << 20)
+        var o = options(.sevenZip)
+        o.solidBlockSize = 0
+        try Xipper.create(from: [t.url("src")], to: t.url("a.7z"), options: o)
+        let plan = try Xipper.conversionPlan(t.url("a.7z"), to: .zip)
+        #expect(plan.recompressed == 0, "\(plan.items.filter { $0.action == .recompressed }.map { "\($0.path): \($0.reason ?? "")" })")
+        try Xipper.convert(t.url("a.7z"), to: t.url("a.zip"), options: options(.zip))
+        let z = try ZipArchive(path: t.path + "/a.zip")
+        #expect(z.records.filter { $0.method == Zip.Method.xz.rawValue }.count >= 3)
+        try extractsToSource(t, t.url("a.zip"))
+        bsdtarExtractsToSource(t, t.url("a.zip"))
+        if let sz = sevenZip { #expect(run(sz, ["t", t.path + "/a.zip"]).status == 0) }
+    }
+
+    /// Deflate, bzip2, zstd and xz ZIP entries become members of the tar's compressed stream.
+    @Test(arguments: [(ZipMethod.deflate, ArchiveFormat.tarGzip), (.bzip2, .tarBzip2), (.zstd, .tarZstd), (.xz, .tarXz)])
+    func zipToTarCopiesEntriesAsMembers(method: ZipMethod, format: ArchiveFormat) throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 3 << 20)
+        let a = try zip(t, method: method)
+        let plan = try Xipper.conversionPlan(a, to: format)
+        #expect(plan.copied >= 2)
+        // Only what the ZIP stored (tiny files, the JPEG-like one) is compressed again.
+        #expect(plan.items.filter { $0.action == .recompressed }.allSatisfy { $0.reason?.hasPrefix("store") == true })
+        let target = t.url("a." + format.fileExtension)
+        try Xipper.convert(a, to: target, options: options(format))
+        try extractsToSource(t, target)
+        if format != .tarZstd { bsdtarExtractsToSource(t, target) }  // macOS bsdtar runs an external zstd for .zst
+    }
+
+    @Test func zipZstdToXizCopiesFrames() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 3 << 20)
+        let a = try zip(t, method: .zstd)
+        let plan = try Xipper.conversionPlan(a, to: .xiz)
+        #expect(plan.copied >= 2)
+        try Xipper.convert(a, to: t.url("a.xiz"), options: options(.xiz))
+        #expect(try Xipper.test(t.url("a.xiz"), digests: true).isOK)
+        try extractsToSource(t, t.url("a.xiz"))
+        // With LZMA2 chosen nothing is copied.
+        var o = options(.xiz)
+        o.xizCodec = .lzma2
+        #expect(try Xipper.conversionPlan(a, to: .xiz, options: o).copied == 0)
     }
 
     @Test func solidSevenZipToZipIsRecompressed() throws {

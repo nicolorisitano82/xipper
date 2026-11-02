@@ -4,15 +4,33 @@ import Synchronization
 
 // MARK: - Writing
 
+/// File data already compressed as one complete member of the tar's stream (a gzip member, a
+/// bzip2, zstd or xz stream), copied between two members the writer compresses itself
+/// («Cambia formato»: ZIP entries into tar.gz, tar.bz2, tar.zst, tar.xz).
+struct TarCarriedMember {
+    var prefix: [UInt8] = []
+    var offset: Int64
+    var size: Int64
+    var suffix: [UInt8] = []
+    var read: (Int64, Int) throws -> [UInt8]
+
+    /// A raw Deflate stream as a gzip member (RFC 1952): its CRC-32 and size are the file's.
+    static func gzip(offset: Int64, size: Int64, crc: UInt32, length: Int64, read: @escaping (Int64, Int) throws -> [UInt8]) -> TarCarriedMember {
+        var tail = ByteWriter(capacity: 8)
+        tail.u32(crc); tail.u32(UInt32(truncatingIfNeeded: length))
+        return TarCarriedMember(prefix: [0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 0, 3], offset: offset, size: size, suffix: tail.bytes, read: read)
+    }
+}
+
 enum TarWriter {
     /// Writes a (compressed) tar. Compression runs in parallel inside the encoder:
     /// zstd and xz with their own worker threads, gzip/bzip2 with chunked parallel encoders.
     static func write(items: [ArchiveItem], to path: String, compression: StreamCompression, level: Int,
-                      workload: Workload, overwrite: Bool, extendedAttributes: Bool = true, progress: ProgressHandler?,
-                      cancel: CancellationToken?) throws -> WriteReport {
+                      workload: Workload, overwrite: Bool, extendedAttributes: Bool = true, carried: [Int: TarCarriedMember] = [:],
+                      progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let tracker = ProgressTracker(totalBytes: items.reduce(0) { $0 + $1.size }, totalEntries: items.count, handler: progress)
         let out = try OutputFile(path: path)
-        let encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
+        var encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
         // Progress follows what the encoder has compressed, not what it has buffered.
         var fed: Int64 = 0, reported: Int64 = 0
         var current: String?
@@ -31,9 +49,30 @@ enum TarWriter {
 
         let piece = UnsafeMutableRawPointer.allocate(byteCount: 4 << 20, alignment: 16384)
         defer { piece.deallocate() }
-        for item in items {
+        for (index, item) in items.enumerated() {
             try cancel?.check()
-            if case let .file(size) = item.kind {
+            if let m = carried[index], case let .file(size) = item.kind {
+                // Header closes the current member; the copied member follows; a new one starts.
+                try emit(Tar.headerBlocks(for: item))
+                try encoder.finish(sink)
+                encoder.onIdle(nil)
+                try out.write(m.prefix)
+                var off: Int64 = 0
+                while off < m.size {
+                    let n = Int(min(Int64(4 << 20), m.size - off))
+                    try out.write(try m.read(m.offset + off, n))
+                    off += Int64(n)
+                    try cancel?.check()
+                }
+                try out.write(m.suffix)
+                encoder = try compression.encoder(level: level, workload: workload, cancel: cancel)
+                encoder.onIdle { report() }
+                written += size
+                reported += size
+                fed += size
+                tracker.add(bytes: size, current: item.name)
+                try emit([UInt8](repeating: 0, count: Tar.padding(size)))
+            } else if case let .file(size) = item.kind {
                 // Re-check the size: a tar header promises an exact byte count.
                 let reader = try FileReader(path: item.sourcePath)
                 if reader.size != size {

@@ -1,3 +1,5 @@
+import CryptoKit
+import CZstd
 import Foundation
 
 /// What converting an archive to another format will do, entry by entry (`Xipper.conversionPlan`).
@@ -65,7 +67,8 @@ extension Xipper {
 
     /// Converts `source` into a new archive at `target` in `options.format`. Entries whose codec
     /// the target also has are copied without recompressing them (ZIP ↔ 7z: store, Deflate,
-    /// Deflate64, bzip2); the others are unpacked once in a work folder next to the target and
+    /// Deflate64, bzip2, LZMA; 7z LZMA2 → ZIP xz; ZIP Deflate/bzip2/zstd/xz → tar.gz/.bz2/.zst/.xz;
+    /// ZIP zstd → XIZ); the others are unpacked once in a work folder next to the target and
     /// compressed again. The new archive is written under a temporary name, verified (test plus
     /// the same entries, sizes and CRCs as the source) and only then given its name; with
     /// `trashOriginal` the source then goes to the Trash. Nothing of the source is changed before.
@@ -86,9 +89,28 @@ struct ArchiveConverter {
     let sourceFormat: ArchiveFormat
     let entries: [ArchiveEntry]
     let plan: ConversionPlan
-    /// ZIP source: record per raw-copied path. 7z source: folder index per raw-copied path.
-    private var zipRaw: [String: ZipEntryRecord] = [:]
-    private var sevenZipRaw: [String: Int] = [:]
+    /// ZIP source: what is carried per raw-copied path. 7z source: the same for folders.
+    private var zipRaw: [String: ZipCarry] = [:]
+    private var sevenZipRaw: [String: SevenZipCarry] = [:]
+
+    /// A ZIP entry whose compressed bytes go into the target as they are.
+    struct ZipCarry {
+        var record: ZipEntryRecord
+        /// Where the codec's own data starts and how long it is (ZIP LZMA: after its 9-byte header).
+        var offset: Int64
+        var size: Int64
+        /// 7z target: the coder (with its properties) that reads those bytes.
+        var coder = SZCoder(method: 0)
+    }
+
+    /// A one-file 7z folder whose packed stream becomes a ZIP entry, between `prefix` and `suffix`
+    /// (ZIP LZMA header; xz container around LZMA2).
+    struct SevenZipCarry {
+        var folder: Int
+        var method: UInt16
+        var prefix: [UInt8] = []
+        var suffix: [UInt8] = []
+    }
     private var zip: ZipArchive?
     private var sevenZip: SevenZipArchive?
 
@@ -96,7 +118,18 @@ struct ArchiveConverter {
     static let shared: [(zip: UInt16, sevenZip: UInt64)] = [
         (Zip.Method.store.rawValue, SevenZip.Method.copy), (Zip.Method.deflate.rawValue, SevenZip.Method.deflate),
         (Zip.Method.deflate64.rawValue, SevenZip.Method.deflate64), (Zip.Method.bzip2.rawValue, SevenZip.Method.bzip2),
+        (Zip.Method.lzma.rawValue, SevenZip.Method.lzma),
     ]
+
+    /// ZIP method whose data is a complete member of the compressed stream of these tar formats:
+    /// a raw Deflate stream inside a gzip member, a whole bzip2, zstd or xz stream.
+    static let tarMembers: [ArchiveFormat: UInt16] = [
+        .tarGzip: Zip.Method.deflate.rawValue, .tarBzip2: Zip.Method.bzip2.rawValue,
+        .tarZstd: Zip.Method.zstd.rawValue, .tarXz: Zip.Method.xz.rawValue,
+    ]
+
+    /// ZIP LZMA (method 14) header: LZMA SDK version 9.20, properties size 5, then the 5 properties.
+    static func zipLZMAHeader(_ props: [UInt8]) -> [UInt8] { [9, 20, 5, 0] + props }
 
     init(source: URL, format: ArchiveFormat, password: String?, options: CreateOptions) throws {
         self.source = source.standardizedFileURL
@@ -123,17 +156,35 @@ struct ArchiveConverter {
 
         var reasons: [String: String] = [:]
         let rawAllowed = options.password == nil
-        if sf == .zip && format == .sevenZip && ZipArchive.volumes(for: path).count == 1 {
+        // ZIP → XIZ: zstd entries up to a frame's limit become one frame each.
+        let tarMethod = format == .xiz ? (options.xizCodec == .zstd ? Zip.Method.zstd.rawValue : nil) : Self.tarMembers[format]
+        if sf == .zip && (format == .sevenZip || tarMethod != nil) && ZipArchive.volumes(for: path).count == 1 {
             let z = try ZipArchive(path: path)
             zip = z
+            let target = format == .sevenZip ? "7z" : format.rawValue
             for r in z.records where r.entry.kind == .file && r.entry.uncompressedSize > 0 {
                 let method = r.entry.encryption == .none ? r.method : UInt16.max
+                let coder = Self.shared.first(where: { $0.zip == method })?.sevenZip
                 if !rawAllowed { reasons[r.entry.path] = "the new archive is encrypted" }
                 else if r.entry.encryption != .none { reasons[r.entry.path] = "encrypted entry" }
-                else if !Self.shared.contains(where: { $0.zip == method }) { reasons[r.entry.path] = "\(r.entry.method) is not a 7z codec Xipper copies" }
+                else if tarMethod.map({ $0 != method }) ?? (coder == nil) { reasons[r.entry.path] = "\(r.entry.method) is not a \(target) codec Xipper copies" }
                 else if r.entry.crc32 == nil { reasons[r.entry.path] = "no CRC" }
                 else if sidecars.contains(r.entry.path) { reasons[r.entry.path] = "has macOS metadata to merge" }
-                else { zipRaw[r.entry.path] = r }
+                else if format == .xiz && (r.uncompressedSize > Xiz.maxFrameData || r.compressedSize > Xiz.maxFrameData) {
+                    reasons[r.entry.path] = "larger than a XIZ frame (64 MiB)"
+                } else {
+                    var c = ZipCarry(record: r, offset: try z.dataOffset(r), size: r.compressedSize)
+                    if let coder { c.coder = SZCoder(method: coder) }
+                    if tarMethod == nil && method == Zip.Method.lzma.rawValue {
+                        // 7z keeps the 5 LZMA properties in the coder, ZIP before the data.
+                        let h = r.compressedSize > 9 ? try z.reader.read(at: c.offset, count: 9) : []
+                        guard h.count == 9, h[2] == 5, h[3] == 0 else { reasons[r.entry.path] = "unusual LZMA header"; continue }
+                        c.coder.props = Array(h[4..<9])
+                        c.offset += 9
+                        c.size -= 9
+                    }
+                    zipRaw[r.entry.path] = c
+                }
             }
         } else if sf == .sevenZip && format == .zip {
             let a = try SevenZipArchive(path: path, password: password)
@@ -147,10 +198,11 @@ struct ArchiveConverter {
                         if !rawAllowed { reasons[r.entry.path] = "the new archive is encrypted" }
                         else if f.isEncrypted { reasons[r.entry.path] = "encrypted folder" }
                         else if members.count != 1 { reasons[r.entry.path] = "solid block of \(members.count) files" }
-                        else if f.coders.count != 1 || !Self.shared.contains(where: { $0.sevenZip == f.coders[0].method }) {
-                            reasons[r.entry.path] = "\(f.coders.map { SevenZip.Method.name($0.method) }.joined(separator: "+")) is not a ZIP method"
-                        } else if r.crc == nil { reasons[r.entry.path] = "no CRC" }
-                        else { sevenZipRaw[r.entry.path] = fi }
+                        else if r.crc == nil { reasons[r.entry.path] = "no CRC" }
+                        else if let c = try Self.zipCarry(a, folder: fi, crc: r.crc!, size: r.size) { sevenZipRaw[r.entry.path] = c }
+                        else {
+                            reasons[r.entry.path] = "\(f.coders.map { SevenZip.Method.name($0.method) }.joined(separator: "+")) is not a ZIP method Xipper copies"
+                        }
                     }
                 }
             }
@@ -173,6 +225,48 @@ struct ArchiveConverter {
                                        reason: copied ? nil : reasons[e.path] ?? "\(sf.rawValue) → \(format.rawValue) has no shared codec")
         }
         plan = ConversionPlan(source: self.source, sourceFormat: sf, format: format, items: items, losses: losses)
+    }
+
+    /// How a one-file 7z folder becomes a ZIP entry without recompressing it, if it can: shared
+    /// codecs as they are, LZMA behind the ZIP LZMA header, LZMA2 inside an xz container (method 95)
+    /// whose CRC-32 check is the file's CRC.
+    static func zipCarry(_ a: SevenZipArchive, folder fi: Int, crc: UInt32, size: Int64) throws -> SevenZipCarry? {
+        let f = a.streams.folders[fi]
+        guard f.coders.count == 1, f.packedStreams.count == 1 else { return nil }
+        let coder = f.coders[0]
+        if coder.method == SevenZip.Method.lzma {
+            guard coder.props.count == 5 else { return nil }
+            return SevenZipCarry(folder: fi, method: Zip.Method.lzma.rawValue, prefix: zipLZMAHeader(coder.props))
+        }
+        if coder.method == SevenZip.Method.lzma2 {
+            // xz needs the LZMA2 end marker as the last byte.
+            let pack = f.firstPackStream, packSize = a.streams.packSizes[pack]
+            guard coder.props.count == 1, coder.props[0] <= 40, packSize > 0,
+                  try a.input.read(at: a.packOffsets[pack] + packSize - 1, count: 1) == [0] else { return nil }
+            let (prefix, suffix) = try XzContainer.wrapLZMA2(prop: coder.props[0], packedSize: packSize, size: size, crc: crc)
+            return SevenZipCarry(folder: fi, method: Zip.Method.xz.rawValue, prefix: prefix, suffix: suffix)
+        }
+        guard let method = shared.first(where: { $0.sevenZip == coder.method })?.zip else { return nil }
+        return SevenZipCarry(folder: fi, method: method)
+    }
+
+    /// Whether an LZMA stream of known size ends with an end marker. Decoded as if one more byte
+    /// were due: with the marker the stream ends at `size`, without it the input runs out there.
+    static func lzmaHasEndMarker(props: [UInt8], size: Int64, packSize: Int64, read: (Int64, Int) throws -> [UInt8],
+                                 cancel: CancellationToken?) throws -> Bool {
+        let d = try SDKLZMADecoder(props: props, unpackSize: size + 1)
+        var produced: Int64 = 0
+        let sink: ByteSink = { produced += Int64($0.count) }
+        var off: Int64 = 0
+        while off < packSize {
+            try cancel?.check()
+            let n = Int(min(Int64(4 << 20), packSize - off))
+            try read(off, n).withUnsafeBytes { try d.process($0, sink) }
+            off += Int64(n)
+        }
+        let marked = (try? d.finish(sink)) != nil
+        guard produced == size else { throw XipperError.corrupt("7z LZMA stream size") }
+        return marked
     }
 
     // MARK: running
@@ -226,7 +320,11 @@ struct ArchiveConverter {
         let items = top.isEmpty ? [] : try SourceScanner.scan(top, options: scan)
 
         // 2. The new archive.
-        if !zipRaw.isEmpty, let zip {
+        if !zipRaw.isEmpty, let zip, format == .xiz {
+            try writeXiz(items: items, raw: zip, to: staged, options: o, progress: progress, cancel: cancel)
+        } else if !zipRaw.isEmpty, let zip, Self.tarMembers[format] != nil {
+            try writeTar(items: items, raw: zip, to: staged, options: o, progress: progress, cancel: cancel)
+        } else if !zipRaw.isEmpty, let zip {
             try writeSevenZip(items: items, raw: zip, to: staged, options: o, progress: progress, cancel: cancel)
         } else if !sevenZipRaw.isEmpty, let sevenZip {
             try writeZip(items: items, raw: sevenZip, work: work, to: staged, options: o, progress: progress, cancel: cancel)
@@ -270,16 +368,16 @@ struct ArchiveConverter {
                                progress: ProgressHandler?, cancel: CancellationToken?) throws {
         var carried: [SevenZipCarriedFolder] = []
         for e in entries {
-            guard let r = zipRaw[e.path], let coder = Self.shared.first(where: { $0.zip == r.method })?.sevenZip else { continue }
-            let offset = try zip.dataOffset(r)
+            guard let c = zipRaw[e.path] else { continue }
+            let r = c.record
             var folder = SZFolder()
-            folder.coders = [SZCoder(method: coder)]
+            folder.coders = [c.coder]
             folder.packedStreams = [0]
             folder.unpackSizes = [r.uncompressedSize]
             let item = ArchiveItem(name: MountedArchive.normalize(e.path) ?? e.path, sourcePath: "", kind: .file(size: r.uncompressedSize),
                                    permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid())
             carried.append(SevenZipCarriedFolder(read: { try zip.reader.read(at: $0, count: $1) }, folder: folder,
-                                                 packs: [(offset, r.compressedSize)], subSizes: [r.uncompressedSize],
+                                                 packs: [(c.offset, c.size)], subSizes: [r.uncompressedSize],
                                                  subCRCs: [r.crc], files: [SevenZipWriter.fileRecord(item, hasStream: true)]))
         }
         var z = SevenZipOptions()
@@ -292,6 +390,55 @@ struct ArchiveConverter {
         z.workload = o.workload
         _ = try SevenZipWriter.write(items: items, to: staged.path, options: z, overwrite: true, carried: carried,
                                      progress: progress, cancel: cancel)
+    }
+
+    /// ZIP zstd → XIZ: each copied entry's zstd frame becomes a XIZ frame as it is. The entry is
+    /// decoded once, for the SHA-256 XIZ keeps and to check it against the ZIP CRC; an entry made
+    /// of several zstd frames (XIZ wants one) is compressed again from that decoded copy.
+    private func writeXiz(items: [ArchiveItem], raw zip: ZipArchive, to staged: URL, options o: CreateOptions,
+                          progress: ProgressHandler?, cancel: CancellationToken?) throws {
+        var carried: [XizCarriedFrame] = []
+        for e in entries {
+            guard let c = zipRaw[e.path] else { continue }
+            try cancel?.check()
+            let r = c.record
+            var payload = try zip.reader.read(at: c.offset, count: Int(c.size))
+            let size = Int(r.uncompressedSize)
+            let data = try payload.withUnsafeBytes { try Xiz.zstdDecompress($0, size: size) }
+            guard data.withUnsafeBytes({ CRC32.checksum($0) }) == r.crc else {
+                throw XipperError.checksumMismatch(entry: e.path, expected: r.crc, actual: data.withUnsafeBytes { CRC32.checksum($0) })
+            }
+            if payload.withUnsafeBytes({ ZSTD_findFrameCompressedSize($0.baseAddress, $0.count) }) != payload.count {
+                payload = data.withUnsafeBytes { ZipWriter.zstdCompress($0, level: o.level ?? 3, allowExpansion: true) } ?? []
+            }
+            let item = ArchiveItem(name: MountedArchive.normalize(e.path) ?? e.path, sourcePath: "", kind: .file(size: r.uncompressedSize),
+                                   permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid())
+            carried.append(XizCarriedFrame(item: item, payload: payload, sha256: Array(SHA256.hash(data: data))))
+        }
+        _ = try XizWriter.write(items: items, to: staged.path, level: o.level ?? 3, lzma2: o.xizCodec == .lzma2, password: nil,
+                                extendedAttributes: o.storeExtendedAttributes, carried: carried, workload: o.workload,
+                                overwrite: true, progress: progress, cancel: cancel)
+    }
+
+    /// ZIP → tar.gz/.bz2/.zst/.xz: each copied entry's data becomes one member of the stream,
+    /// right after the member that ends with its tar header.
+    private func writeTar(items: [ArchiveItem], raw zip: ZipArchive, to staged: URL, options o: CreateOptions,
+                          progress: ProgressHandler?, cancel: CancellationToken?) throws {
+        var all = items
+        var carried: [Int: TarCarriedMember] = [:]
+        let read: (Int64, Int) throws -> [UInt8] = { try zip.reader.read(at: $0, count: $1) }
+        for e in entries {
+            guard let c = zipRaw[e.path] else { continue }
+            let r = c.record
+            carried[all.count] = format == .tarGzip
+                ? .gzip(offset: c.offset, size: c.size, crc: r.crc, length: r.uncompressedSize, read: read)
+                : TarCarriedMember(offset: c.offset, size: c.size, read: read)
+            all.append(ArchiveItem(name: MountedArchive.normalize(e.path) ?? e.path, sourcePath: "", kind: .file(size: r.uncompressedSize),
+                                   permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid()))
+        }
+        _ = try TarWriter.write(items: all, to: staged.path, compression: format.compression, level: o.level ?? format.defaultLevel,
+                                workload: o.workload, overwrite: true, extendedAttributes: o.storeExtendedAttributes, carried: carried,
+                                progress: progress, cancel: cancel)
     }
 
     /// 7z → ZIP: copied folders become entries with the same bytes; the rest is written by
@@ -314,13 +461,19 @@ struct ArchiveConverter {
         var count = 0
         for e in entries {
             try cancel?.check()
-            guard let fi = sevenZipRaw[e.path], let rec = a.folderRecords[fi].first.map({ a.records[$0] }),
-                  let method = Self.shared.first(where: { $0.sevenZip == a.streams.folders[fi].coders[0].method })?.zip else { continue }
-            let f = a.streams.folders[fi]
-            let packIndex = f.firstPackStream
-            try ZipRawEntry(name: MountedArchive.normalize(e.path) ?? e.path, method: method, crc: rec.crc!,
-                            compressedSize: a.streams.packSizes[packIndex], size: rec.size, modified: e.modified ?? Date(),
-                            permissions: e.permissions ?? 0o644)
+            guard let c = sevenZipRaw[e.path], let rec = a.folderRecords[c.folder].first.map({ a.records[$0] }) else { continue }
+            let packIndex = a.streams.folders[c.folder].firstPackStream
+            let packSize = a.streams.packSizes[packIndex], packOffset = a.packOffsets[packIndex]
+            // ZIP LZMA declares an end marker (flag bit 1); 7z does not say, so the stream is decoded once to see.
+            var flags: UInt16 = 0
+            if c.method == Zip.Method.lzma.rawValue,
+               try Self.lzmaHasEndMarker(props: a.streams.folders[c.folder].coders[0].props, size: rec.size, packSize: packSize,
+                                         read: { try a.input.read(at: packOffset + $0, count: $1) }, cancel: cancel) {
+                flags = Zip.Flag.lzmaEndMarker
+            }
+            try ZipRawEntry(name: MountedArchive.normalize(e.path) ?? e.path, method: c.method, crc: rec.crc!,
+                            compressedSize: packSize, size: rec.size, modified: e.modified ?? Date(),
+                            permissions: e.permissions ?? 0o644, prefix: c.prefix, suffix: c.suffix, flags: flags)
                 .write(to: out, central: &central, from: a.packOffsets[packIndex]) { try a.input.read(at: $0, count: $1) }
             count += 1
         }
@@ -365,14 +518,25 @@ struct ZipRawEntry {
     var size: Int64
     var modified: Date
     var permissions: UInt16
+    /// Written before and after the copied bytes, counted in the entry's compressed size.
+    var prefix: [UInt8] = []
+    var suffix: [UInt8] = []
+    /// Method-specific general purpose flags (ZIP LZMA: end marker).
+    var flags: UInt16 = 0
 
     func write(to out: OutputFile, central: inout ByteWriter, from offset: Int64,
                read: (Int64, Int) throws -> [UInt8]) throws {
         let nameBytes = Array(name.utf8)
-        let flags: UInt16 = nameBytes.contains { $0 >= 0x80 } ? Zip.Flag.utf8 : 0
+        let flags: UInt16 = (nameBytes.contains { $0 >= 0x80 } ? Zip.Flag.utf8 : 0) | self.flags
         let (time, date) = DOSDateTime.encode(modified)
+        let copied = compressedSize
+        let compressedSize = copied + Int64(prefix.count + suffix.count)
         let big = UInt64(size) >= Zip.max32 || UInt64(compressedSize) >= Zip.max32
-        let needed: UInt16 = big ? 45 : (method == Zip.Method.bzip2.rawValue ? 46 : 20)
+        let needed: UInt16 = switch method {
+        case Zip.Method.lzma.rawValue, Zip.Method.xz.rawValue: 63
+        case Zip.Method.bzip2.rawValue: 46
+        default: big ? 45 : 20
+        }
         var ts = ByteWriter(capacity: 9)
         ts.u16(Zip.Extra.extendedTimestamp); ts.u16(5); ts.u8(1); ts.u32(UInt32(clamping: Int64(modified.timeIntervalSince1970)))
         let headerOffset = out.position
@@ -387,12 +551,14 @@ struct ZipRawEntry {
         local.u32(crc); local.u32(big ? UInt32.max : UInt32(compressedSize)); local.u32(big ? UInt32.max : UInt32(size))
         local.u16(UInt16(nameBytes.count)); local.u16(UInt16(localExtra.count)); local.append(nameBytes); local.append(localExtra)
         try out.write(local.bytes)
+        if !prefix.isEmpty { try out.write(prefix) }
         var done: Int64 = 0
-        while done < compressedSize {
-            let n = Int(min(Int64(4 << 20), compressedSize - done))
+        while done < copied {
+            let n = Int(min(Int64(4 << 20), copied - done))
             try out.write(try read(offset + done, n))
             done += Int64(n)
         }
+        if !suffix.isEmpty { try out.write(suffix) }
         let bigO = UInt64(headerOffset) >= Zip.max32
         var z64 = ByteWriter(capacity: 24)
         if big { z64.u64(UInt64(size)); z64.u64(UInt64(compressedSize)) }
