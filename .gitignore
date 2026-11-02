@@ -13,3 +13,6 @@ spike/xipzip/.build/
 dist/
 spike/fskit/build/
 spike/webdav/.build/
+
+# libxiz: CMake build folders (README: cmake -B libxiz/build)
+libxiz/build*/
