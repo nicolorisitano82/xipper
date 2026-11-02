@@ -198,6 +198,9 @@ enum SevenZipEditor {
                       progress: ProgressHandler?, cancel: CancellationToken?) throws -> EditReport? {
         let a = try SevenZipArchive(path: path, password: options.password)
         guard a.input.volumes.count == 1 else { return nil }
+        if a.input.base > 0 {
+            throw XipperError.unsupported("editing a self-extracting 7z would drop its program: extract it, or change its format")
+        }
         if options.password == nil && a.streams.folders.contains(where: \.isEncrypted) {
             throw XipperError.passwordRequired(entry: (path as NSString).lastPathComponent)
         }

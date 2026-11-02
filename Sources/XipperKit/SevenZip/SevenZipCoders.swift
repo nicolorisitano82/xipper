@@ -11,6 +11,9 @@ final class SevenZipInput: @unchecked Sendable {
     private let starts: [Int64]
     let size: Int64
     let path: String
+    /// Where the archive starts: past the program of a self-extracting archive (.exe, ELF), 0
+    /// otherwise. Offsets given to `read` are relative to it, as inside the archive.
+    let base: Int64
 
     init(path: String) throws {
         self.path = path
@@ -20,7 +23,28 @@ final class SevenZipInput: @unchecked Sendable {
         var total: Int64 = 0
         for v in volumes { s.append(total); total += v.size }
         starts = s
-        size = total
+        base = volumes.count == 1 ? (Self.sfxOffset(volumes[0]) ?? 0) : 0
+        size = total - base
+    }
+
+    /// The 7z signature after a self-extractor's program: 7-Zip's own SFX modules put the
+    /// archive right after the executable, well within the first MiB. The start header's CRC
+    /// must match, so bytes that only look like the signature are skipped.
+    static func sfxOffset(_ r: FileReader) -> Int64? {
+        guard r.size > 64, let head = try? r.read(at: 0, count: 4) else { return nil }
+        let isProgram = head.starts(with: [0x4D, 0x5A]) || head.starts(with: [0x7F, 0x45, 0x4C, 0x46])
+            || head == [0xCF, 0xFA, 0xED, 0xFE] || head == [0xCA, 0xFE, 0xBA, 0xBE]
+        guard isProgram, let window = try? r.read(at: 0, count: Int(min(r.size, 4 << 20))) else { return nil }
+        let sig = SevenZip.signature
+        var i = 1
+        while i + 32 <= window.count {
+            if window[i] == sig[0], window[i..<(i + sig.count)].elementsEqual(sig) {
+                let crc = UInt32(window[i + 8]) | UInt32(window[i + 9]) << 8 | UInt32(window[i + 10]) << 16 | UInt32(window[i + 11]) << 24
+                if Array(window[(i + 12)..<(i + 32)]).withUnsafeBytes({ CRC32.checksum($0) }) == crc { return Int64(i) }
+            }
+            i += 1
+        }
+        return nil
     }
 
     /// "x.7z.001" (or any of its siblings) → every consecutive volume; anything else → itself.
@@ -46,7 +70,7 @@ final class SevenZipInput: @unchecked Sendable {
 
     func read(at offset: Int64, into dst: UnsafeMutableRawPointer, count: Int) throws {
         if offset < 0 || offset + Int64(count) > size { throw XipperError.corrupt("7z data beyond the end of the archive (truncated or missing volume)") }
-        var off = offset, done = 0
+        var off = offset + base, done = 0
         var v = (starts.lastIndex { $0 <= off }) ?? 0
         while done < count {
             while v < volumes.count - 1 && off >= starts[v] + volumes[v].size { v += 1 }
@@ -277,7 +301,7 @@ final class BufferedSource {
 /// ported from liblzma's simple filters). Bytes the converter cannot handle yet (an
 /// instruction split across chunks) wait for the next chunk; at the end they pass unchanged.
 final class BranchFilter: StreamTransform {
-    enum Kind { case x86, arm, armThumb, arm64, ppc, sparc, riscv }
+    enum Kind { case x86, arm, armThumb, arm64, ppc, sparc, riscv, ia64 }
 
     private let kind: Kind
     private let encoding: Bool
@@ -326,7 +350,42 @@ final class BranchFilter: StreamTransform {
         case .armThumb: return armThumb(b, size)
         case .ppc: return ppc(b, size)
         case .sparc: return sparc(b, size)
+        case .ia64: return ia64(b, size)
         }
+    }
+
+    /// Itanium: 16-byte bundles of three 41-bit slots (liblzma simple/ia64.c).
+    private func ia64(_ b: UnsafeMutablePointer<UInt8>, _ size: Int) -> Int {
+        let branchTable: [UInt32] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                     4, 4, 6, 6, 0, 0, 7, 7, 4, 4, 0, 0, 4, 4, 0, 0]
+        let limit = size & ~15
+        var i = 0
+        while i < limit {
+            let mask = branchTable[Int(b[i] & 0x1F)]
+            var bitPos = 5
+            for slot in 0..<3 {
+                defer { bitPos += 41 }
+                if (mask >> UInt32(slot)) & 1 == 0 { continue }
+                let bytePos = bitPos >> 3, bitRes = UInt64(bitPos & 7)
+                var instruction: UInt64 = 0
+                for j in 0..<6 { instruction |= UInt64(b[i + j + bytePos]) << (8 * UInt64(j)) }
+                var norm = instruction >> bitRes
+                guard (norm >> 37) & 0xF == 0x5, (norm >> 9) & 0x7 == 0 else { continue }
+                var src = UInt32((norm >> 13) & 0xFFFFF)
+                src |= UInt32((norm >> 36) & 1) << 20
+                src <<= 4
+                var dest = encoding ? position &+ UInt32(i) &+ src : src &- (position &+ UInt32(i))
+                dest >>= 4
+                norm &= ~(UInt64(0x8F_FFFF) << 13)
+                norm |= UInt64(dest & 0xFFFFF) << 13
+                norm |= UInt64(dest & 0x100000) << (36 - 20)
+                instruction &= (UInt64(1) << bitRes) - 1
+                instruction |= norm << bitRes
+                for j in 0..<6 { b[i + j + bytePos] = UInt8(truncatingIfNeeded: instruction >> (8 * UInt64(j))) }
+            }
+            i += 16
+        }
+        return i
     }
 
     @inline(__always) private static func test86MSByte(_ b: UInt8) -> Bool { b == 0 || b == 0xFF }
@@ -701,6 +760,7 @@ struct SZFolderDecoder {
         case M.riscv: return TransformSource(inputs[0], BranchFilter(.riscv, encoding: false, startOffset: start))
         case M.ppc: return TransformSource(inputs[0], BranchFilter(.ppc, encoding: false, startOffset: start))
         case M.sparc: return TransformSource(inputs[0], BranchFilter(.sparc, encoding: false, startOffset: start))
+        case M.ia64: return TransformSource(inputs[0], BranchFilter(.ia64, encoding: false, startOffset: start))
         case M.aes:
             guard let keys else { throw SZNeedsPassword() }
             let p = try SevenZipAES.parseProps(c.props)

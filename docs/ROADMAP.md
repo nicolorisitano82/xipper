@@ -228,9 +228,17 @@ Spostato nelle versioni qui sotto: «Cambia formato» v1.5 e v2, XIZ 1.4, banco 
 Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md) e da quello che la 2.5 ha lasciato aperto. Le versioni sono un ordine di lavoro, non date. Regola che viene dalla 2.5: **prima si misura, poi si sceglie.** Due idee dello studio non hanno retto alla prova: il filtro ARM64 per architettura e il riconoscimento delle code page di Foundation.
 
 ### 2.5.1 — prove a mano e correzioni
-- da provare sul DMG 2.5.0: il foglio «Cambia formato…», il menu «Codifica dei nomi», il banner dei nomi ingannevoli su un archivio vero, un'app aperta da un volume montato (Gatekeeper deve chiedere conferma);
-- correggere quello che esce dalle prove, se serve, senza funzioni nuove;
-- archivi scritti da WinRAR ed Esplora risorse nel corpus di interop (serve un Mac con Windows in VM o un tester).
+- **prove a mano**:
+  - ✅ codifica dei nomi, provata dal proprietario con gli ZIP di prova (02/11/2026);
+  - da fare con il kit in `dist/test-2.5.1/` (con istruzioni in `LEGGIMI.txt`, fuori dal repo): banner dei nomi ingannevoli, Gatekeeper su un'app aperta da un volume montato, foglio «Cambia formato…» su ZIP e 7z solido;
+- ✅ **147 archivi «veri» dai test di libarchive 3.8.11** (WinZip AES in 6 metodi, PKWARE, 7-Zip, jar, nomi CP866/CP932, SFX, casi malformati e di fuzzing) in `Fixtures/libarchive`, con `LibarchiveVectorTests`: quelli validi devono passare, quelli malformati vanno rifiutati senza crash, come in libarchive. Problemi trovati e corretti:
+  - un 7z **vuoto** era rifiutato come «scrittura interrotta»: ora si distinguono dal CRC;
+  - filtro **IA64** nei 7z, mancante;
+  - **7z autoestraenti** (.exe e ELF) non riconosciuti: ora si aprono, si verificano e si convertono; modificarli è rifiutato, perché si perderebbe il programma;
+  - il controllo «ambiguo» della 2.5 rifiutava un nome diverso tra header locale e central directory anche quando il nome Unicode (0x7075) dell'header locale è proprio quello del central directory: ora è accettato, gli altri casi restano rifiutati;
+  - messaggio più chiaro per un central directory cifrato (PKWARE strong encryption, non supportata);
+- ancora aperto: uno ZIP senza record di fine archivio (`extra_padding.zip`), che libarchive legge come flusso: lo coprirà la riparazione ZIP della 2.6;
+- archivi scritti da WinRAR ed Esplora risorse: servono ancora una VM Windows o un tester.
 
 ### 2.6 — banco di misura, XIZ 1.4, «Cambia formato» v1.5
 1. **Banco di misura** (prerequisito di tutto il resto della 2.6):

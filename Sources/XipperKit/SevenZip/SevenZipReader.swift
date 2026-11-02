@@ -42,7 +42,11 @@ final class SevenZipArchive: @unchecked Sendable {
             var r = ByteReader(b, at: 8)
             let startCRC = try r.u32()
             let start = UnsafeRawBufferPointer(rebasing: b[12..<32])
-            if start.allSatisfy({ $0 == 0 }) { throw XipperError.corrupt("incomplete 7z archive (the writer was interrupted)") }
+            // All zero with a matching CRC is an empty archive (7-Zip writes one); all zero with
+            // no CRC is the placeholder a writer leaves until it finishes.
+            if start.allSatisfy({ $0 == 0 }) && startCRC != CRC32.checksum(start) {
+                throw XipperError.corrupt("incomplete 7z archive (the writer was interrupted)")
+            }
             if CRC32.checksum(start) != startCRC { throw XipperError.corrupt("7z start header CRC mismatch") }
             nextOffset = Int64(bitPattern: try r.u64())
             nextSize = Int64(bitPattern: try r.u64())

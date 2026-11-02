@@ -104,8 +104,9 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         case .zstd: return byName == .zstd ? .zstd : .tarZstd
         case .none:
             if head.count == 512, head.withUnsafeBytes({ Tar.looksLikeHeader($0) }) { return .tar }
-            // Self-extracting or prefixed ZIPs have their signature at the end.
+            // Self-extracting or prefixed ZIPs have their signature at the end; 7z SFX after the program.
             if (try? ZipArchive(path: url.path)) != nil { return .zip }
+            if SevenZipInput.sfxOffset(r) != nil { return .sevenZip }
             return nil
         }
     }

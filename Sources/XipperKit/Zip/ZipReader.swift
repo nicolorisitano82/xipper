@@ -162,7 +162,9 @@ final class ZipArchive: @unchecked Sendable {
             nameEncoding = chosen
             if chosen != .cp437 { try parseAll(chosen) }
         }
-        if records.isEmpty && entryCount > 0 { throw XipperError.corrupt("central directory has no entries") }
+        if records.isEmpty && entryCount > 0 {
+            throw XipperError.corrupt("the central directory cannot be read: damaged, or encrypted (PKWARE strong encryption, not supported)")
+        }
         // Entries a reader would see only by trusting the count, or by scanning past it, differ
         // between readers. Old writers wrap the 16-bit count past 65535 entries without ZIP64.
         let countOK = Int64(records.count) == entryCount || (!zip64 && Int64(records.count & 0xFFFF) == entryCount)
@@ -331,7 +333,16 @@ final class ZipArchive: @unchecked Sendable {
         let path = rec.entry.path
         if sig != Zip.localSignature { throw XipperError.corrupt("bad local header for \(path)") }
         func differs(_ what: String) -> XipperError { .corrupt("ambiguous ZIP: local header and central directory disagree on the \(what) of \(path)") }
-        if n != Int64(rec.rawName.count) || !h[30...].elementsEqual(rec.rawName) { throw differs("name") }
+        if n != Int64(rec.rawName.count) || !h[30...].elementsEqual(rec.rawName) {
+            // Tolerated: a legacy name spelled differently, when the local header's own Unicode
+            // name (Info-ZIP 0x7075) is the central directory's name: every reader that knows
+            // the field sees the same file.
+            let extra = try reader.read(at: rec.localHeaderOffset + 30 + n, count: Int(e))
+            guard let unicode = Self.unicodePath(in: extra),
+                  unicode.precomposedStringWithCanonicalMapping == rec.entry.path.precomposedStringWithCanonicalMapping
+                  || unicode.precomposedStringWithCanonicalMapping == (rec.entry.path + "/").precomposedStringWithCanonicalMapping
+            else { throw differs("name") }
+        }
         if method != rec.method { throw differs("method") }
         if (flags ^ rec.flags) & Zip.Flag.encrypted != 0 { throw differs("encryption") }
         if flags & Zip.Flag.dataDescriptor == 0 {
@@ -342,6 +353,21 @@ final class ZipArchive: @unchecked Sendable {
         let start = rec.localHeaderOffset + 30 + n + e
         if start + rec.compressedSize > centralStart { throw XipperError.corrupt("entry \(path) is truncated") }
         return start
+    }
+
+    /// The UTF-8 name of an Info-ZIP Unicode Path field (0x7075), without checking its CRC.
+    static func unicodePath(in extra: [UInt8]) -> String? {
+        var i = 0
+        while i + 4 <= extra.count {
+            let id = UInt16(extra[i]) | UInt16(extra[i + 1]) << 8
+            let len = Int(UInt16(extra[i + 2]) | UInt16(extra[i + 3]) << 8)
+            guard i + 4 + len <= extra.count else { return nil }
+            if id == Zip.Extra.unicodePath, len > 5, extra[i + 4] == 1 {
+                return String(bytes: extra[(i + 9)..<(i + 4 + len)], encoding: .utf8)
+            }
+            i += 4 + len
+        }
+        return nil
     }
 
     /// Local headers no central directory entry points to, in the gaps between entries: a
