@@ -111,6 +111,39 @@ struct ConvertTests {
         if format != .tarZstd { bsdtarExtractsToSource(t, target) }  // macOS bsdtar runs an external zstd for .zst
     }
 
+    /// Tar targets: nothing is unpacked on disk, whatever the source.
+    @Test(arguments: [ArchiveFormat.zip, .sevenZip, .xiz, .tarXz, .appleArchive])
+    func tarTargetsAreWrittenInStreaming(source: ArchiveFormat) throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 3 << 20)
+        let a = t.url("a." + source.fileExtension)
+        try Xipper.create(from: [t.url("src")], to: a, options: options(source))
+        let plan = try Xipper.conversionPlan(a, to: .tarZstd)
+        #expect(plan.streamed)
+        #expect(plan.spaceNeeded < plan.bytesRecompressed + plan.sourceBytes)  // the unpacked copy is not counted
+        let target = t.url("a.tar.zst")
+        try Xipper.convert(a, to: target, options: options(.tarZstd))
+        try extractsToSource(t, target)
+        // No work folder is left, none of its content was ever written.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: t.path).allSatisfy { !$0.hasPrefix(".xipper-convert-") })
+    }
+
+    @Test func zipWithAppleDoubleIsNotStreamed() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 1 << 20)
+        let v = Array("Blu".utf8)
+        _ = v.withUnsafeBytes { setxattr(t.path + "/src/readme.txt", "com.example.tag", $0.baseAddress, v.count, 0, 0) }
+        var o = options(.zip)
+        o.zipAppleDouble = true
+        try Xipper.create(from: [t.url("src")], to: t.url("a.zip"), options: o)
+        let plan = try Xipper.conversionPlan(t.url("a.zip"), to: .tarGzip)
+        #expect(!plan.streamed)
+        try Xipper.convert(t.url("a.zip"), to: t.url("a.tar.gz"), options: options(.tarGzip))
+        t.mkdir("x")
+        try Xipper.extract(t.url("a.tar.gz"), to: t.url("x"), mode: .into, options: ExtractOptions())
+        #expect(ExtendedAttributes.read(t.path + "/x/src/readme.txt").contains { $0.name == "com.example.tag" })
+    }
+
     @Test func zipZstdToXizCopiesFrames() throws {
         let t = TempDir()
         makeTree(t, bigSize: 3 << 20)

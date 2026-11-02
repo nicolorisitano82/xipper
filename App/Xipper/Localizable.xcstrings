@@ -3581,6 +3581,16 @@
         }
       }
     },
+    "Estrai anche gli archivi contenuti" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also extract archives inside"
+          }
+        }
+      }
+    },
     "Estrai comunque…" : {
       "localizations" : {
         "en" : {
@@ -3941,6 +3951,16 @@
         }
       }
     },
+    "Fino a 3 livelli: ogni archivio trovato dentro viene estratto accanto a sé e poi tolto. Restano come sono i file genomici (.vcf.gz, .bam…), le parti di archivi divisi e i documenti come .docx." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to 3 levels: each archive found inside is extracted next to itself and then removed. Genomic files (.vcf.gz, .bam…), parts of split archives and documents such as .docx are left as they are."
+          }
+        }
+      }
+    },
     "Firma" : {
       "localizations" : {
         "en" : {
@@ -4255,6 +4275,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The recovery data %@ only protects the original"
+          }
+        }
+      }
+    },
+    "I file passano direttamente nel nuovo archivio, senza essere estratti su disco" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files go straight into the new archive, without being extracted to disk"
           }
         }
       }
@@ -6090,16 +6120,16 @@
     },
     "Persi %lld file, troncati o danneggiati: %@%@" : {
       "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Persi %1$lld file, troncati o danneggiati: %2$@%3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld files lost, truncated or damaged: %@%@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Persi %1$lld file, troncati o danneggiati: %2$@%3$@"
           }
         }
       }

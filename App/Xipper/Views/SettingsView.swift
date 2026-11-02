@@ -24,6 +24,7 @@ private struct GeneralSettings: View {
     @AppStorage(PrefKey.recoveryAfterCreate) private var recovery = false
     @AppStorage(PrefKey.recoveryPercent) private var recoveryPercent = 10.0
     @AppStorage(PrefKey.updatesAutomatic) private var updates = true
+    @AppStorage(PrefKey.extractNested) private var nested = false
 
     var body: some View {
         Form {
@@ -34,6 +35,10 @@ private struct GeneralSettings: View {
                 ForEach(LevelPreset.allCases) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Mostra il risultato nel Finder al termine", isOn: $reveal)
+            Toggle(isOn: $nested) {
+                Text("Estrai anche gli archivi contenuti")
+                Text("Fino a 3 livelli: ogni archivio trovato dentro viene estratto accanto a sé e poi tolto. Restano come sono i file genomici (.vcf.gz, .bam…), le parti di archivi divisi e i documenti come .docx.")
+            }
             Section("Dati di recupero") {
                 Toggle("Crea i dati di recupero PAR2 dopo ogni compressione", isOn: $recovery)
                 Picker("Ridondanza", selection: $recoveryPercent) {

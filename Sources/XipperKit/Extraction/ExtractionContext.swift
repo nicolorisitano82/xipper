@@ -89,6 +89,14 @@ public struct ExtractOptions: Sendable {
     /// Merge AppleDouble files (`._name`, `__MACOSX/`) into the files they describe instead of
     /// extracting them, as Archive Utility does.
     public var mergeAppleDouble = true
+    /// Archives found among the extracted files are extracted too, each next to itself as the
+    /// Finder would (a folder named after it, or its single item), down to this many levels
+    /// (0 = off). Left alone: BGZF and genomic `.gz` files, volumes of a split archive, and
+    /// documents that are ZIPs inside (docx, jar…), which are not named like archives.
+    public var nestedDepth = 0
+    /// Keep a nested archive after extracting it (by default it is removed when nothing of it
+    /// was skipped).
+    public var keepNestedArchives = false
     public var workload: Workload = .interactive
     public init() {}
 }
@@ -170,6 +178,8 @@ public struct ExtractReport: Sendable {
     /// Extracted items whose name pretends to be something else (DeceptiveName): the path up to
     /// the deceptive component, once each.
     public var deceptive: [String] = []
+    /// Nested archives extracted (`ExtractOptions.nestedDepth`), as paths on disk.
+    public var nested: [String] = []
 }
 
 /// Safe writer for extracted entries, shared by every archive format.
@@ -180,8 +190,21 @@ public struct ExtractReport: Sendable {
 /// - symlinks and hard links are created only after all regular files;
 /// - files are written to a temporary name and renamed into place;
 /// - the total amount written is capped (zip bombs, full disks).
+/// Where extracted entries go instead of the disk: «Cambia formato» in streaming writes them
+/// straight into the new archive. Paths are sanitized and laid out; symlinks have passed the
+/// symlink policy. Calls may come from several threads.
+protocol ExtractionRedirect: AnyObject, Sendable {
+    func file(_ path: String, permissions: UInt16?, modified: Date?, size: Int64?,
+              xattrs: [(name: String, value: [UInt8])], produce: (ByteSink) throws -> Void) throws
+    func directory(_ path: String, permissions: UInt16?, modified: Date?, xattrs: [(name: String, value: [UInt8])]) throws
+    func symlink(_ path: String, target: String, modified: Date?) throws
+}
+
 final class ExtractionContext: @unchecked Sendable {
     let rootPath: String
+    /// Entries go there instead of under `rootPath` (nothing is written on disk).
+    let redirect: ExtractionRedirect?
+    private let redirectedDirs = Mutex<[String: (perm: UInt16?, mtime: Date?, xattrs: [(name: String, value: [UInt8])])]>([:])
     let options: ExtractOptions
     private let rootFD: Int32
     private let quarantine: [UInt8]?
@@ -232,17 +255,20 @@ final class ExtractionContext: @unchecked Sendable {
         }
     }
 
-    init(root: String, archivePath: String, options: ExtractOptions) throws {
+    init(root: String, archivePath: String, options: ExtractOptions, redirect: ExtractionRedirect? = nil) throws {
         rootPath = root
+        self.redirect = redirect
         self.options = options
         rootFD = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         if rootFD < 0 { throw XipperError.posix("open destination", root) }
         quarantine = options.propagateQuarantine ? Self.readXattr(archivePath, "com.apple.quarantine") : nil
         let space = Self.volumeSpace(root, fd: rootFD)
         var cap: Int64
-        var fromFreeSpace = options.limits.maxTotalBytes <= 0
+        var fromFreeSpace = options.limits.maxTotalBytes <= 0 && redirect == nil
         if options.limits.maxTotalBytes > 0 {
             cap = options.limits.maxTotalBytes
+        } else if redirect != nil {
+            cap = .max  // nothing lands on this volume uncompressed
         } else {
             cap = space.map { max(0, $0.free - (1 << 30)) } ?? .max
         }
@@ -276,6 +302,9 @@ final class ExtractionContext: @unchecked Sendable {
     var skipped: [SkippedEntry] { skippedList.withLock { $0 } }
     var deceptive: [String] { deceptiveList.withLock { $0 }.sorted() }
     var stats: (files: Int, dirs: Int, links: Int) { counts.withLock { $0 } }
+    /// Regular files written, relative to the root (recorded only when nested archives are extracted).
+    var writtenFiles: [String] { filesList.withLock { $0 } }
+    private let filesList = Mutex<[String]>([])
 
     func overLimit(needed: Int64) -> XipperError {
         limitIsFreeSpace ? .insufficientSpace(needed: needed, available: maxBytes)
@@ -392,6 +421,10 @@ final class ExtractionContext: @unchecked Sendable {
 
     /// Extended attributes of a folder created by `makeDirectory` (applied by path, without following links).
     func setAttributes(_ xattrs: [(name: String, value: [UInt8])], onDirectory comps: [String]) {
+        if redirect != nil {
+            redirectedDirs.withLock { $0[comps.joined(separator: "/")]?.xattrs = xattrs }
+            return
+        }
         guard options.restoreExtendedAttributes, !xattrs.isEmpty, !comps.isEmpty,
               let fd = try? openDirectory(comps[...], entry: comps.joined(separator: "/")) else { return }
         defer { close(fd) }
@@ -399,6 +432,11 @@ final class ExtractionContext: @unchecked Sendable {
     }
 
     func makeDirectory(_ comps: [String], permissions: UInt16?, modified: Date?) throws {
+        if redirect != nil {
+            redirectedDirs.withLock { $0[comps.joined(separator: "/")] = (permissions, modified, []) }
+            counts.withLock { $0.dirs += 1 }
+            return
+        }
         let fd = try openDirectory(comps[...], entry: comps.joined(separator: "/"))
         close(fd)
         if let q = quarantine { _ = q.withUnsafeBytes { setxattr(rootPath + "/" + comps.joined(separator: "/"), "com.apple.quarantine", $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW) } }
@@ -416,6 +454,20 @@ final class ExtractionContext: @unchecked Sendable {
     func writeFile(_ comps: [String], permissions: UInt16?, modified: Date?, declaredSize: Int64? = nil,
                    xattrs: [(name: String, value: [UInt8])] = [], produce: (ByteSink) throws -> Void) throws {
         let entry = comps.joined(separator: "/")
+        if let redirect {
+            try redirect.file(entry, permissions: permissions, modified: modified, size: declaredSize,
+                              xattrs: options.restoreExtendedAttributes ? xattrs : []) { sink in
+                try withoutActuallyEscaping(sink) { sink in
+                    try produce { chunk in
+                        let total = self.written.add(Int64(chunk.count), ordering: .relaxed).newValue
+                        if total > self.maxBytes { throw self.overLimit(needed: total) }
+                        try sink(chunk)
+                    }
+                }
+            }
+            counts.withLock { $0.files += 1 }
+            return
+        }
         let dirFD = try openDirectory(comps.dropLast(), entry: entry)
         defer { close(dirFD) }
         let name = comps.last!
@@ -453,11 +505,14 @@ final class ExtractionContext: @unchecked Sendable {
             close(fd)
             throw error
         }
+        var final = name
         if let tmp {
-            guard try place(dirFD: dirFD, tmp: tmp, name: name, entry: entry, decision: decision) else { ok = true; return }
+            guard let placed = try placed(dirFD: dirFD, tmp: tmp, name: name, entry: entry, decision: decision) else { ok = true; return }
+            final = placed
         }
         ok = true
         counts.withLock { $0.files += 1 }
+        if options.nestedDepth > 0 { filesList.withLock { $0.append((comps.dropLast() + [final]).joined(separator: "/")) } }
     }
 
     /// Moves `tmp` to `name` according to `decision` (nil: from the policy, `.ask` meaning keep both).
@@ -553,6 +608,18 @@ final class ExtractionContext: @unchecked Sendable {
 
     /// Creates deferred links, then applies directory permissions/times deepest-first.
     func finalize() throws {
+        if let redirect {
+            for l in deferredLinks.withLock({ $0 }) {
+                let entry = l.path.joined(separator: "/")
+                if l.hard { skip(entry, "hard links are not carried over", .unsupported); continue }
+                try redirect.symlink(entry, target: l.target, modified: l.mtime)
+                counts.withLock { $0.links += 1 }
+            }
+            for (path, d) in redirectedDirs.withLock({ $0 }).sorted(by: { $0.key < $1.key }) {
+                try redirect.directory(path, permissions: d.perm, modified: d.mtime, xattrs: options.restoreExtendedAttributes ? d.xattrs : [])
+            }
+            return
+        }
         mergeAppleDoubles()
         // Hard links first: their targets must not be resolved through symlinks created here.
         let links = deferredLinks.withLock { $0 }.enumerated().sorted { ($0.element.hard ? 0 : 1, $0.offset) < ($1.element.hard ? 0 : 1, $1.offset) }.map(\.element)

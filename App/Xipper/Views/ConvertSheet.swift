@@ -43,6 +43,9 @@ struct ConvertSheet: View {
                         Label("\(plan.copied) file copiati senza ricomprimere (\(plan.bytesCopied.byteText))", systemImage: "bolt.fill")
                         Label("\(plan.recompressed) file ricompressi (\(plan.bytesRecompressed.byteText))", systemImage: "arrow.triangle.2.circlepath")
                         Label("Spazio libero necessario: fino a \(plan.spaceNeeded.byteText)", systemImage: "internaldrive")
+                        if plan.streamed && plan.recompressed > 0 {
+                            Label("I file passano direttamente nel nuovo archivio, senza essere estratti su disco", systemImage: "arrow.right.circle")
+                        }
                         ForEach(Array(plan.losses.enumerated()), id: \.offset) { _, loss in
                             Label(text(loss), systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                         }

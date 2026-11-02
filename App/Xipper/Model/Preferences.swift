@@ -26,6 +26,7 @@ enum PrefKey {
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
     static let xizLZMA2 = "xizLZMA2"
+    static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
     static let favoriteArchives = "favoriteArchives"
@@ -94,6 +95,7 @@ enum Preferences {
             PrefKey.sevenZipEncryptNames: true,
             PrefKey.sevenZipSolid: true,
             PrefKey.xizLZMA2: false,
+            PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,
         ])
@@ -139,6 +141,7 @@ enum Preferences {
         default: .insideDestinationOnly
         }
         o.limits.maxCompressionRatio = defaults.double(forKey: PrefKey.maxRatio)
+        if defaults.bool(forKey: PrefKey.extractNested) { o.nestedDepth = 3 }
         o.workload = workload
         return o
     }

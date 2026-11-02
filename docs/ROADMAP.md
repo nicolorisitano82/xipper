@@ -255,14 +255,15 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
      - ZIP Deflate/bzip2/zstd/xz → tar.gz/.bz2/.zst/.xz: ogni file copiato diventa un membro del flusso compresso (un membro gzip con CRC e dimensione dello ZIP, un flusso bzip2, zstd o xz intero);
    - ✅ ZIP zstd → XIZ: ogni voce fino a 64 MiB diventa un frame XIZ così com'è. La voce viene decodificata una volta, per lo SHA-256 e per il controllo con il CRC dello ZIP; una voce con più frame zstd viene ricompressa da quella copia;
    - ✅ interop: `7zz t`, bsdtar, GNU/BSD tar, `gzip -t`, `bzip2 -t`, `zstd -t`, `xz -t` passano su tutte le coppie nuove, anche con file da 100 MB. Archive Utility va ancora provato a mano;
-   - da fare: ricompressione in streaming senza cartella di lavoro.
+   - ✅ ricompressione in streaming verso tar, tar.gz/.bz2/.xz/.zst/.lz4/.br: l'estrattore del formato di partenza scrive ogni voce direttamente nel nuovo tar (`TarStream`, tramite un `ExtractionRedirect` di `ExtractionContext`), senza cartella di lavoro. Lo spazio necessario è solo quello del nuovo archivio. Restano con la cartella di lavoro: le destinazioni ZIP, 7z, XIZ e AAR (i loro writer rileggono i file) e le sorgenti con metadati AppleDouble o hard link;
+   - ✅ corretto: i metadati macOS (`__MACOSX/._file`) delle voci ricompresse non venivano estratti con i loro file, quindi tag e xattr si perdevano nel nuovo archivio (difetto della 2.5);
 4. **Piccole funzioni attese da chi viene da Windows e Linux:**
    - ✅ **riparazione ZIP senza PAR2** (`Xipper.repairZip`, `xipper repair`, pulsante «Ricostruisci» nell'app):
      - il central directory viene ricostruito dagli header locali, trovati scorrendo il file; con il data descriptor la fine dei dati si accetta solo dove la dimensione del descriptor coincide;
      - le voci si copiano senza ricomprimere; permessi, link e commenti si recuperano dai resti del central directory, quando ci sono;
      - il nuovo ZIP, «nome (riparato).zip», viene verificato prima di prendere il nome, e le voci che non passano il CRC sono scartate; l'originale non si tocca;
      - provato su ZIP troncati, central directory cancellato, dati rovinati, ZIP «stored» dentro uno ZIP, ZIP di ditto con data descriptor e `extra_padding.zip` di libarchive;
-   - **estrazione ricorsiva:** archivi dentro archivi, con un limite di profondità e la quarantena propagata;
+   - ✅ **estrazione ricorsiva** (`ExtractOptions.nestedDepth`, `xipper extract -r [N]`, Impostazioni › Generali): gli archivi trovati tra i file estratti vengono estratti accanto a sé, fino a 3 livelli, e tolti se l'estrazione è pulita. La quarantena passa da un livello all'altro. Restano come sono: BGZF e `.gz` genomici, parti di archivi divisi, documenti che sono ZIP (docx, jar). Un archivio interno danneggiato resta al suo posto ed è segnalato;
    - **strumento di hash:** BLAKE3, XXH3, SHA-3, esportazione in formato GNU `sha256sum`;
    - **«Copia come comando»:** un lavoro dell'app diventa il comando `xipper` equivalente.
 

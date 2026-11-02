@@ -38,14 +38,22 @@ public struct ConversionPlan: Sendable {
     /// Files with data, in archive order (folders, links and empty files are always rewritten).
     public var items: [Item]
     public var losses: [Loss]
+    /// Recompressed entries go straight from the source into the new archive, without being
+    /// unpacked on disk first (tar targets).
+    public var streamed = false
+    /// Size of the source archive: the estimate of the new one when entries have no compressed size of their own (tar, XIZ).
+    public var sourceBytes: Int64 = 0
 
     public var copied: Int { items.filter { $0.action == .copied }.count }
     public var recompressed: Int { items.filter { $0.action == .recompressed }.count }
     public var bytesCopied: Int64 { items.filter { $0.action == .copied }.reduce(0) { $0 + $1.compressedSize } }
     public var bytesRecompressed: Int64 { items.filter { $0.action == .recompressed }.reduce(0) { $0 + $1.size } }
     /// Extra disk space the conversion needs next to the target: the recompressed entries
-    /// unpacked once, plus the new archive (estimated from the source's compressed sizes).
-    public var spaceNeeded: Int64 { bytesRecompressed + items.reduce(0) { $0 + $1.compressedSize } }
+    /// unpacked once (not when streamed), plus the new archive (estimated from the source's
+    /// compressed sizes).
+    public var spaceNeeded: Int64 {
+        (streamed ? 0 : bytesRecompressed) + max(sourceBytes, items.reduce(0) { $0 + $1.compressedSize })
+    }
 }
 
 public struct FormatChangeReport: Sendable {
@@ -112,6 +120,8 @@ struct ArchiveConverter {
         var suffix: [UInt8] = []
     }
     private var zip: ZipArchive?
+    /// AppleDouble entries (`._name`, `__MACOSX/`): unpacked with their files so they merge into them.
+    private var appleDoublePaths: [String] = []
     private var sevenZip: SevenZipArchive?
 
     /// ZIP method ↔ 7z coder for the codecs both formats share (7-Zip's Methods.txt).
@@ -146,6 +156,7 @@ struct ArchiveConverter {
         // Paths with AppleDouble companions: their metadata is merged on extraction, so they go
         // through extraction too, or a copied entry would lose its resource fork and tags.
         let all = try Xipper.list(source, password: password)
+        appleDoublePaths = all.filter(\.isAppleDoubleMetadata).map(\.path)
         var sidecars = Set<String>()
         for e in all where e.isAppleDoubleMetadata {
             var p = e.path
@@ -224,8 +235,15 @@ struct ArchiveConverter {
                                        compressedSize: max(0, e.compressedSize),
                                        reason: copied ? nil : reasons[e.path] ?? "\(sf.rawValue) → \(format.rawValue) has no shared codec")
         }
-        plan = ConversionPlan(source: self.source, sourceFormat: sf, format: format, items: items, losses: losses)
+        var plan = ConversionPlan(source: self.source, sourceFormat: sf, format: format, items: items, losses: losses)
+        // Streaming needs a sequential target, and nothing that only exists once unpacked:
+        // AppleDouble companions merge on disk, hard links point at files on disk.
+        plan.streamed = Self.streamTargets.contains(format) && sidecars.isEmpty && !entries.contains { $0.kind == .hardlink }
+        plan.sourceBytes = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.int64Value ?? 0
+        self.plan = plan
     }
+
+    static let streamTargets: Set<ArchiveFormat> = [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli]
 
     /// How a one-file 7z folder becomes a ZIP entry without recompressing it, if it can: shared
     /// codecs as they are, LZMA behind the ZIP LZMA header, LZMA2 inside an xz container (method 95)
@@ -290,6 +308,78 @@ struct ArchiveConverter {
         var o = options
         o.overwrite = true
 
+        if plan.streamed {
+            try runStreamed(to: staged, options: o, progress: progress, cancel: cancel)
+        } else {
+            try runUnpacked(work: work, to: staged, options: o, progress: progress, cancel: cancel)
+        }
+
+        // 3. Verified before it gets its name.
+        try verify(staged)
+        let flags: UInt32 = options.overwrite ? 0 : UInt32(RENAME_EXCL)
+        if renamex_np(staged.path, target.path, flags) != 0 {
+            if errno == EEXIST { throw XipperError.alreadyExists(path: target.path) }
+            throw XipperError.posix("rename", target.path)
+        }
+        let dirFD = open(target.deletingLastPathComponent().path, O_RDONLY)
+        if dirFD >= 0 { _ = OutputFile.fullSync(dirFD); close(dirFD) }
+        var trashed = false
+        if trashOriginal {
+            try FileManager.default.trashItem(at: source, resultingItemURL: nil)
+            trashed = true
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: target.path)[.size] as? NSNumber)?.int64Value ?? 0
+        return FormatChangeReport(plan: plan, output: target, outputBytes: size, elapsed: Date().timeIntervalSince(start), originalTrashed: trashed)
+    }
+
+    /// Tar targets: the source's extractor writes each entry straight into the new tar
+    /// (TarStream), copied entries are added as members; nothing is unpacked on disk.
+    private func runStreamed(to staged: URL, options o: CreateOptions, progress: ProgressHandler?, cancel: CancellationToken?) throws {
+        let total = plan.items.reduce(Int64(0)) { $0 + $1.size }
+        let tracker = ProgressTracker(totalBytes: total, totalEntries: entries.count, handler: progress)
+        let stream = try TarStream(path: staged.path, compression: format.compression, level: o.level ?? format.defaultLevel,
+                                   workload: o.workload, tracker: tracker, cancel: cancel)
+        let copied = Set(zipRaw.keys)
+        // Only files and links are selected: selecting a folder selects everything in it.
+        let rest = entries.filter { $0.kind != .directory && !copied.contains($0.path) }
+        if !rest.isEmpty {
+            var x = ExtractOptions()
+            x.password = password
+            x.selection = Set(rest.map(\.path))
+            x.propagateQuarantine = false
+            x.symlinks = .allowAll  // re-archived, never followed
+            x.mergeAppleDouble = false
+            x.workload = o.workload
+            x.restoreExtendedAttributes = o.storeExtendedAttributes
+            let ctx = try ExtractionContext(root: staged.deletingLastPathComponent().path, archivePath: source.path, options: x, redirect: stream)
+            try Xipper.runExtractor(sourceFormat, source.path, ctx: ctx, tracker: ProgressTracker(totalBytes: 0, totalEntries: 0, handler: nil),
+                                    cancel: cancel)
+            if let s = ctx.skipped.first { throw XipperError.integrity(entry: s.path, detail: "not carried over: \(s.reason)") }
+        }
+        if let zip {
+            let read: (Int64, Int) throws -> [UInt8] = { try zip.reader.read(at: $0, count: $1) }
+            for e in entries {
+                guard let c = zipRaw[e.path] else { continue }
+                let r = c.record
+                let member = format == .tarGzip
+                    ? TarCarriedMember.gzip(offset: c.offset, size: c.size, crc: r.crc, length: r.uncompressedSize, read: read)
+                    : TarCarriedMember(offset: c.offset, size: c.size, read: read)
+                try stream.carried(ArchiveItem(name: MountedArchive.normalize(e.path) ?? e.path, sourcePath: "", kind: .file(size: r.uncompressedSize),
+                                               permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid()),
+                                   member)
+            }
+        }
+        // Folders as entries (empty ones included), with their dates and permissions.
+        for e in entries where e.kind == .directory {
+            guard let rel = MountedArchive.normalize(e.path), !rel.isEmpty else { continue }
+            try stream.directory(rel, permissions: e.permissions, modified: e.modified, xattrs: [])
+        }
+        try stream.finish()
+        tracker.finish()
+    }
+
+    /// Other targets: what is not copied is unpacked once in the work folder, then archived.
+    private func runUnpacked(work: URL, to staged: URL, options o: CreateOptions, progress: ProgressHandler?, cancel: CancellationToken?) throws {
         // 1. Everything not copied: unpacked once (files, links, folders, empty files).
         let tree = work.appendingPathComponent("tree", isDirectory: true)
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
@@ -298,7 +388,7 @@ struct ArchiveConverter {
         if !unpack.isEmpty {
             var x = ExtractOptions()
             x.password = password
-            x.selection = Set(unpack)
+            x.selection = Set(unpack + appleDoublePaths)
             x.overwrite = .replace
             x.propagateQuarantine = false
             x.symlinks = .allowAll  // re-archived, never followed
@@ -330,26 +420,9 @@ struct ArchiveConverter {
             try writeZip(items: items, raw: sevenZip, work: work, to: staged, options: o, progress: progress, cancel: cancel)
         } else {
             guard !top.isEmpty else { throw XipperError.invalidArgument("the archive is empty") }
-            try Xipper.create(from: top.sorted { $0.lastPathComponent < $1.lastPathComponent }, to: staged, options: o,
-                              progress: progress, cancel: cancel)
+            _ = try Xipper.create(from: top.sorted { $0.lastPathComponent < $1.lastPathComponent }, to: staged, options: o,
+                                  progress: progress, cancel: cancel)
         }
-
-        // 3. Verified before it gets its name.
-        try verify(staged)
-        let flags: UInt32 = options.overwrite ? 0 : UInt32(RENAME_EXCL)
-        if renamex_np(staged.path, target.path, flags) != 0 {
-            if errno == EEXIST { throw XipperError.alreadyExists(path: target.path) }
-            throw XipperError.posix("rename", target.path)
-        }
-        let dirFD = open(target.deletingLastPathComponent().path, O_RDONLY)
-        if dirFD >= 0 { _ = OutputFile.fullSync(dirFD); close(dirFD) }
-        var trashed = false
-        if trashOriginal {
-            try FileManager.default.trashItem(at: source, resultingItemURL: nil)
-            trashed = true
-        }
-        let size = (try? FileManager.default.attributesOfItem(atPath: target.path)[.size] as? NSNumber)?.int64Value ?? 0
-        return FormatChangeReport(plan: plan, output: target, outputBytes: size, elapsed: Date().timeIntervalSince(start), originalTrashed: trashed)
     }
 
     /// Work folders of conversions whose process is gone (killed, crashed, power cut): the
@@ -492,7 +565,12 @@ struct ArchiveConverter {
         if let f = test.failures.first { throw XipperError.integrity(entry: f.path, detail: "the converted archive does not verify: \(f.reason)") }
         func key(_ p: String) -> String { (MountedArchive.normalize(p) ?? p).precomposedStringWithCanonicalMapping }
         var got: [String: ArchiveEntry] = [:]
-        for e in try Xipper.list(staged, password: options.password) where !e.isAppleDoubleMetadata { got[key(e.path)] = e }
+        for e in try Xipper.list(staged, password: options.password) where !e.isAppleDoubleMetadata {
+            if got[key(e.path)] != nil && e.kind != .directory {
+                throw XipperError.integrity(entry: e.path, detail: "twice in the converted archive")
+            }
+            got[key(e.path)] = e
+        }
         for e in entries {
             guard let g = got[key(e.path)] else {
                 if e.kind == .directory || key(e.path).isEmpty { continue }  // some formats keep folders implicit

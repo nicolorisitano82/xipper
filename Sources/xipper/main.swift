@@ -31,6 +31,9 @@ usage: xipper <command> [options]
           --overwrite P    keep-both (default), replace, skip, fail
           --allow-external-symlinks
           --no-quarantine  do not copy the archive's quarantine attribute
+      -r, --recursive [N]  also extract archives found inside, N levels deep (default 3); each goes
+                           next to itself and is removed once extracted cleanly
+          --keep-nested    with --recursive: keep the nested archives
       -p, --password / --password-stdin
   --names-encoding ENC   (extract, test, list, convert, mount) code page of ZIP names written
                          without the UTF-8 flag, instead of the automatic guess: cp437, cp850,
@@ -110,7 +113,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -311,7 +314,6 @@ case "create", "c":
 
 case "extract", "x":
     guard positional.count >= 1 else { fail("extract needs an archive", code: 2) }
-    let archive = URL(fileURLWithPath: positional[0])
     var o = ExtractOptions()
     o.workload = workload
     o.propagateQuarantine = !flag("--no-quarantine")
@@ -323,6 +325,20 @@ case "extract", "x":
     case "fail": o.overwrite = .fail
     case let p?: fail("unknown overwrite policy \(p)", code: 2)
     }
+    if flag("-r") || flag("--recursive") {
+        // An optional depth after the flag arrives as a positional argument (a number that is not a file).
+        if let i = positional.firstIndex(where: { Int($0) != nil && !FileManager.default.fileExists(atPath: $0) }), i <= 1 {
+            let n = Int(positional[i])!
+            guard (1...16).contains(n) else { fail("--recursive depth must be 1-16", code: 2) }
+            o.nestedDepth = n
+            positional.remove(at: i)
+        } else {
+            o.nestedDepth = 3
+        }
+        o.keepNestedArchives = flag("--keep-nested")
+    }
+    guard !positional.isEmpty else { fail("extract needs an archive", code: 2) }
+    let archive = URL(fileURLWithPath: positional[0])
     if positional.count > 1 { o.selection = Set(positional.dropFirst()) }
     o.password = readPassword(confirm: false)
     let dest = value("-d", "--dest").map { URL(fileURLWithPath: $0) }
@@ -331,6 +347,7 @@ case "extract", "x":
                                    progress: progress, cancel: cancel)
         endProgress()
         print("\(r.destination.path): \(r.files) files, \(r.directories) folders, \(r.symlinks) links, \(r.bytes.bytesText) in \(String(format: "%.2f", r.elapsed))s")
+        if !r.nested.isEmpty { print("nested archives extracted: \(r.nested.count)") }
         for s in r.skipped { fputs("skipped \(s.path): \(s.reason)\n", stderr) }
         for d in r.deceptive {
             fputs("warning: deceptive name \(DeceptiveName.visible(d)): \(describe(DeceptiveName.check(path: d)!.reason))\n", stderr)

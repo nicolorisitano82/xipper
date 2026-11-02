@@ -337,22 +337,17 @@ public enum Xipper {
         }
         do {
             let ctx = try ExtractionContext(root: root, archivePath: archivePath, options: options)
-            if format == .zip {
-                let zip = try ZipArchive(path: archivePath)
-                try ZipExtractor.extract(zip, ctx: ctx, password: options.password.map(ZipWriter.passwordBytes), tracker: tracker, cancel: cancel)
-            } else if format == .sevenZip {
-                let a = try SevenZipArchive(path: archivePath, password: options.password)
-                try SevenZipExtractor.extract(a, ctx: ctx, tracker: tracker, cancel: cancel)
-            } else if format == .xiz {
-                try XizExtractor.extract(try XizArchive(path: archivePath, password: options.password), ctx: ctx, tracker: tracker, cancel: cancel)
-            } else {
-                try TarExtractor.extract(archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
-            }
+            try runExtractor(format, archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
             let destination = mode == .smart ? try promote(staging: root, parent: parent, archiveName: archive.lastPathComponent) : URL(fileURLWithPath: root)
             tracker.finish()
             let s = ctx.stats
-            return ExtractReport(destination: destination, files: s.files, directories: s.dirs, symlinks: s.links,
-                                 bytes: ctx.bytesWritten, skipped: ctx.skipped, elapsed: tracker.elapsed, deceptive: ctx.deceptive)
+            var report = ExtractReport(destination: destination, files: s.files, directories: s.dirs, symlinks: s.links,
+                                       bytes: ctx.bytesWritten, skipped: ctx.skipped, elapsed: tracker.elapsed, deceptive: ctx.deceptive)
+            if options.nestedDepth > 0 {
+                let files = mode == .smart ? regularFiles(under: destination.path) : ctx.writtenFiles.map { root + "/" + $0 }
+                try extractNested(files, options: options, into: &report, cancel: cancel)
+            }
+            return report
         } catch {
             if mode == .smart { try? FileManager.default.removeItem(atPath: root) }
             throw error
@@ -360,6 +355,78 @@ public enum Xipper {
     }
 
     /// Moves the staging folder's content into place (see `ExtractionMode.smart`).
+    /// The extractor of `format`, writing through `ctx`.
+    static func runExtractor(_ format: ArchiveFormat, _ archivePath: String, ctx: ExtractionContext, tracker: ProgressTracker,
+                             cancel: CancellationToken?) throws {
+        let options = ctx.options
+        if format == .zip {
+            let zip = try ZipArchive(path: archivePath)
+            try ZipExtractor.extract(zip, ctx: ctx, password: options.password.map(ZipWriter.passwordBytes), tracker: tracker, cancel: cancel)
+        } else if format == .sevenZip {
+            let a = try SevenZipArchive(path: archivePath, password: options.password)
+            try SevenZipExtractor.extract(a, ctx: ctx, tracker: tracker, cancel: cancel)
+        } else if format == .xiz {
+            try XizExtractor.extract(try XizArchive(path: archivePath, password: options.password), ctx: ctx, tracker: tracker, cancel: cancel)
+        } else {
+            try TarExtractor.extract(archivePath, ctx: ctx, tracker: tracker, cancel: cancel)
+        }
+    }
+
+    /// Regular files at `path` (itself, or everything under it), symlinks not followed.
+    private static func regularFiles(under path: String) -> [String] {
+        var st = stat()
+        guard lstat(path, &st) == 0 else { return [] }
+        if st.st_mode & S_IFMT == S_IFREG { return [path] }
+        guard st.st_mode & S_IFMT == S_IFDIR, let e = FileManager.default.enumerator(atPath: path) else { return [] }
+        var out: [String] = []
+        while let rel = e.nextObject() as? String {
+            let p = path + "/" + rel
+            if lstat(p, &st) == 0 && st.st_mode & S_IFMT == S_IFREG { out.append(p) }
+        }
+        return out
+    }
+
+    /// Whether an extracted file is extracted again as a nested archive.
+    static func isNestedArchive(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        let lower = name.lowercased()
+        guard let format = ArchiveFormat.inferred(fromFileName: name), format != .bgzf else { return false }
+        // Volumes of a split archive (name.7z.001, name.part2.rar): their set is not extracted piecemeal.
+        if lower.range(of: #"\.[0-9]{3}$|\.part[0-9]+\.rar$|\.z[0-9]{2}$|\.r[0-9]{2}$"#, options: .regularExpression) != nil { return false }
+        // Genomic text compressed for tabix/samtools (sample.vcf.gz): meant to stay compressed.
+        if format.isSingleFile, Genomics.prefersBGZF((name as NSString).deletingPathExtension) { return false }
+        return true
+    }
+
+    /// Extracts the nested archives among `files`, each next to itself, one level less deep.
+    private static func extractNested(_ files: [String], options: ExtractOptions, into report: inout ExtractReport,
+                                      cancel: CancellationToken?) throws {
+        let base = report.destination.deletingLastPathComponent().path + "/"
+        for path in files where isNestedArchive(path) {
+            try cancel?.check()
+            let url = URL(fileURLWithPath: path)
+            let shown = path.hasPrefix(base) ? String(path.dropFirst(base.count)) : path
+            var o = options
+            o.nestedDepth -= 1
+            o.selection = nil
+            o.flatten = false
+            do {
+                let r = try extract(url, to: url.deletingLastPathComponent(), mode: .smart, options: o, cancel: cancel)
+                report.files += r.files
+                report.directories += r.directories
+                report.symlinks += r.symlinks
+                report.bytes += r.bytes
+                report.skipped += r.skipped.map { SkippedEntry(path: shown + "/" + $0.path, reason: $0.reason, problem: $0.problem) }
+                report.deceptive += r.deceptive
+                report.nested += [path] + r.nested
+                if r.skipped.isEmpty && !options.keepNestedArchives && unlink(path) == 0 { report.files -= 1 }
+            } catch let e as XipperError {
+                if case .cancelled = e { throw e }
+                report.skipped.append(SkippedEntry(path: shown, reason: "nested archive not extracted: \(e.description)", problem: .init(e)))
+            }
+        }
+    }
+
     private static func promote(staging: String, parent: String, archiveName: String) throws -> URL {
         let top = try FileManager.default.contentsOfDirectory(atPath: staging)
         if top.count == 1 {
