@@ -269,7 +269,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
      - BLAKE3 scritto in C dalla specifica (`CXipShims/blake3.c`), con NEON a 4 chunk e sottoalberi da 1 MiB su tutti i core: 5,6 GB/s su M3 Max (SHA-256 2,5 GB/s). Controllato con i vettori ufficiali e con un'implementazione indipendente in Python fino a 48 MiB. XXH3 dallo `xxhash.h` di zstd, senza l'adattamento che lo spegne;
      - liste nel formato di `sha256sum`/`b3sum` (con l'escape dei nomi), righe BSD (`SHA256 (file) = …`) con più algoritmi, JSON DRS; la verifica capisce tutti e tre e prende l'algoritmo dal nome (`B3SUMS`, `.sha3-256`…);
      - checksum dei file dentro un archivio senza estrarlo (`--contents`), anche per i 7z;
-   - **«Copia come comando»:** un lavoro dell'app diventa il comando `xipper` equivalente.
+   - ✅ **«Copia come comando»** (menu contestuale dei lavori, pannello di fine compressione): il lavoro diventa il comando `xipper` equivalente, con le stesse impostazioni dell'app, gli argomenti tra apici per la shell e `-p` al posto della password, che non viene mai scritta. Quello che la riga di comando non sa esprimere (conflitti chiesti uno per uno, soglia anti-bomba diversa, gruppi d'accesso XIZ) finisce in commenti `#` sopra il comando. Per arrivarci la CLI ha nuove opzioni: `--flatten`, `--apple-double`, `--recompress-all`, `--no-bgzf`, `--bgzf-index`, `--zipcrypto`.
 
 ### 2.7 — recupero dentro l'archivio, decoder isolati
 - **recovery record dentro XIZ:**

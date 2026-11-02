@@ -398,6 +398,43 @@ final class JobCenter {
 
 extension Job.Kind: @unchecked Sendable {}
 
+extension Job {
+    /// «Copia come comando»: the `xipper` command doing what this job does, with the same
+    /// settings `JobCenter.perform` uses (passwords are asked by the command, never written).
+    var shellCommand: ShellCommand {
+        switch kind {
+        case let .create(sources, dest, format, preset, password, xiz):
+            var o = Preferences.createOptions(format: format, preset: preset, password: password)
+            o.xizAccess = xiz?.access
+            o.xizSigner = xiz?.signer
+            o.legacyZipCrypto = legacyZipCrypto
+            let recovery = Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate) ? Preferences.recoveryPercent : nil
+            return .create(sources, to: dest, options: o, recoveryPercent: recovery)
+        case let .extract(r):
+            var o = Preferences.extractOptions(password: r.password)
+            o.selection = r.selection
+            o.flatten = r.flatten
+            o.overwrite = r.overwrite
+            return .extract(r.archive, to: r.destination, mode: r.mode, options: o)
+        case let .test(archive, password):
+            return .test(archive, password: password != nil)
+        case let .convert(source, target, format, password, trash):
+            return .convert(source, to: target, options: Preferences.createOptions(format: format, preset: .balanced, password: nil),
+                            password: password != nil, trashOriginal: trash)
+        }
+    }
+
+    /// Copies the command; what it cannot express is shown first.
+    func copyShellCommand() {
+        let c = shellCommand
+        let tool = CommandLineTool.status.installed ? "xipper" : CommandLineTool.helper
+        var text = c.line(executable: tool)
+        if !c.notes.isEmpty { text = c.notes.map { "# " + $0 }.joined(separator: "\n") + "\n" + text }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
 /// Conflicts still expected after the current one ("Applica agli altri N conflitti").
 final class ConflictCounter: @unchecked Sendable {
     private var left: Int

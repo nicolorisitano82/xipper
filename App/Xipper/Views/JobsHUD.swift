@@ -128,6 +128,9 @@ private struct JobCapsule: View {
         }
         .padding(12)
         .frame(width: 364)
+        .contextMenu {
+            Button("Copia come comando", systemImage: "terminal") { job.copyShellCommand() }
+        }
         .sheet(isPresented: $askPassword) {
             if case let .needsPassword(wrong) = job.state {
                 PasswordSheet(mode: .open(wrong: wrong), archiveName: job.title) { pw, remember in

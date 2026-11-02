@@ -108,9 +108,14 @@ struct JobPanel: View {
                 }
                 .buttonStyle(.glassProminent)
             }
-            Button("Crea un altro archivio") { onClose() }
-                .buttonStyle(.link)
-                .frame(maxWidth: .infinity)
+            HStack {
+                Button("Crea un altro archivio") { onClose() }
+                    .buttonStyle(.link)
+                Spacer()
+                Button("Copia come comando", systemImage: "terminal") { job.copyShellCommand() }
+                    .buttonStyle(.link)
+                    .help("Copia il comando xipper che crea lo stesso archivio, per uno script o il Terminale")
+            }
         }
     }
 

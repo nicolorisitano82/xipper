@@ -24,10 +24,16 @@ usage: xipper <command> [options]
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
           --windows-names  zip, 7z: rename entries Windows cannot extract (a:b, why?, CON.txt, trailing dots, case clashes)
+          --apple-double   zip: also store tags and attributes in __MACOSX/ (like the Finder)
+          --recompress-all also compress files that are already compressed (photos, videos, archives)
+          --no-bgzf        gz of genomic text: plain gzip instead of BGZF
+          --bgzf-index     with BGZF output, also write the .gzi index
+          --zipcrypto      zip: weak ZipCrypto instead of AES-256 (only for receivers without AES)
           --overwrite      replace an existing archive
   extract [options] <archive> [entry...]
       -d, --dest DIR       destination folder (default: next to the archive)
           --into           extract directly into DIR instead of a new folder
+          --flatten        put every file directly in DIR, without the archive's folders
           --overwrite P    keep-both (default), replace, skip, fail
           --allow-external-symlinks
           --no-quarantine  do not copy the archive's quarantine attribute
@@ -119,7 +125,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -292,6 +298,11 @@ case "create", "c":
         o.xizCodec = .lzma2
     }
     o.overwrite = flag("--overwrite")
+    o.zipAppleDouble = flag("--apple-double")
+    o.storeAlreadyCompressed = !flag("--recompress-all")
+    o.genomicsUsesBGZF = !flag("--no-bgzf")
+    o.writeBGZFIndex = flag("--bgzf-index")
+    o.legacyZipCrypto = flag("--zipcrypto")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
     o.windowsCompatibleNames = flag("--windows-names")
     if o.windowsCompatibleNames && o.format != .zip && o.format != .sevenZip { fail("--windows-names needs the zip or 7z format", code: 2) }
@@ -323,6 +334,7 @@ case "extract", "x":
     var o = ExtractOptions()
     o.workload = workload
     o.propagateQuarantine = !flag("--no-quarantine")
+    o.flatten = flag("--flatten")
     if flag("--allow-external-symlinks") { o.symlinks = .allowAll }
     switch value("--overwrite") {
     case nil, "keep-both": o.overwrite = .keepBoth

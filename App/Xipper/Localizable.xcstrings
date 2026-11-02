@@ -79,16 +79,16 @@
     },
     "%@ letti in %@ s." : {
       "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ letti in %2$@ s."
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ read in %@ s."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ letti in %2$@ s."
           }
         }
       }
@@ -2767,12 +2767,32 @@
         }
       }
     },
+    "Copia come comando" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as Command"
+          }
+        }
+      }
+    },
     "Copia il comando da incollare nel Terminale (chiede la password di amministratore)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copy the command to paste in Terminal (asks for the administrator password)."
+          }
+        }
+      }
+    },
+    "Copia il comando xipper che crea lo stesso archivio, per uno script o il Terminale" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies the xipper command that creates the same archive, for a script or Terminal"
           }
         }
       }
@@ -3201,16 +3221,16 @@
     },
     "Diversi: %@%@" : {
       "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Diversi: %1$@%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Different: %@%@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Diversi: %1$@%2$@"
           }
         }
       }
@@ -5278,16 +5298,16 @@
     },
     "Mancanti: %@%@" : {
       "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Mancanti: %1$@%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Missing: %@%@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Mancanti: %1$@%2$@"
           }
         }
       }
