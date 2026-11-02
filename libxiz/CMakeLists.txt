@@ -149,6 +149,13 @@ if(XIZ_FUZZ)
 endif()
 
 if(XIZ_TESTS AND NOT WIN32)
+  add_executable(xiz_security tests/security.c)
+  target_link_libraries(xiz_security PRIVATE xiz xiz_crypto)
+  target_include_directories(xiz_security PRIVATE src)
+  target_compile_options(xiz_security PRIVATE ${XIZ_WARNINGS} ${XIZ_SAN_FLAGS})
+  target_compile_definitions(xiz_security PRIVATE _POSIX_C_SOURCE=200809L _DARWIN_C_SOURCE _DEFAULT_SOURCE)
+  add_test(NAME security COMMAND xiz_security "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+           "${CMAKE_CURRENT_BINARY_DIR}/scratch")
   add_executable(xiz_manifest tests/manifest.c)
   target_link_libraries(xiz_manifest PRIVATE xiz xiz_crypto)
   target_include_directories(xiz_manifest PRIVATE src)
