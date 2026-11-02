@@ -1,0 +1,21 @@
+{
+  "archive_id" : "f5b9830b203e7ac202985133ca1220ec",
+  "audit_path" : [
+    "d9d5577db32bf392cb7f6fa6c993c38b961587534c7111c47dcca6a635aed21b",
+    "cad0816e0cd6215bf752c372e8d547f3cfe33130f54e13cda99e69744b273ef7"
+  ],
+  "directory" : "WERJUgIAAAABAAAAAQAAAF2HAAAAAAAAMwYAAAAAAACqDwAAAAAAANB5DJFhWgrNOjWbND4h2wwa0qpT7gilOxmpkvrE6gZLAACQjQAAAAAAABkAAABQ\/KJmlD39tkbUH3WHX0JjttqObZdLUXZ\/BBW\/BkVJ2A==",
+  "entry" : {
+    "path" : "tree\/docs\/a.md",
+    "salt" : "55a040f6755c7a32c09b61021b65ba05",
+    "sha256" : "abb40c641678ee049510018832fd13c4f93c86587320ce1fc058e4332385c58a",
+    "size" : "10290",
+    "type" : 0
+  },
+  "format" : "xiz-proof-1",
+  "index" : 24,
+  "previous_footer" : "34513",
+  "segment" : 1,
+  "signature" : "ASY6gd+8WkOPhOmuqIsm4A\/j+kK8sd6T3yBwxlTMxiZABlNlY29uZMf86GoAAAAAKc1tD6wzLbA3lqXZH+exO6pE3Q4J5I\/otuOnOIZNBSDwTreWiipmZvYBvOsWKeJJm\/J83dmFqZFMQu5ahxKPjIDLKQJxJjpftQ3SWMxsJ8qzeK5hqjodDg63ZlpDljgAAAAAAA==",
+  "tree_size" : 25
+}
