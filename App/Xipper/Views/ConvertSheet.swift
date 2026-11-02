@@ -16,7 +16,8 @@ struct ConvertSheet: View {
     @State private var acceptLosses = false
     @State private var showDetails = false
 
-    static let targets: [ArchiveFormat] = [.zip, .sevenZip, .xiz, .tarZstd, .tarXz, .tarGzip, .appleArchive]
+    /// Every archive format the compression window offers (single-file streams hold no archive).
+    static let targets: [ArchiveFormat] = ArchiveFormat.multiItem
 
     private var target: URL {
         var name = archive.lastPathComponent
