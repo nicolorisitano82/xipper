@@ -158,7 +158,7 @@ typedef struct {
     const uint8_t *body;
 } raw_stanza;
 
-int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int directory,
+int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int has_dir,
               const xiz_open_options *opt, keys_opened *out, arena *ar, xiz_error *err) {
     memset(out, 0, sizeof *out);
     if (n < 10 || memcmp(block, "XKEY", 4) != 0) return FAIL(XIZ_E_CORRUPT, "keys block magic");
@@ -204,7 +204,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         si->label = "";
         free(kk.keks);
         kk.keks = NULL;
-        if (!directory && st[i].type == 1) {
+        if (!has_dir && st[i].type == 1) {
             out->any_known = 1;
             out->n_stanzas++;
             if (len != 104) { rc = FAIL(XIZ_E_CORRUPT, "password stanza of %zu bytes", len); break; }
@@ -237,7 +237,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             }
             continue;
         }
-        if (!directory || st[i].type < 2 || st[i].type > 5) continue;  /* unknown here: skipped (§6.2) */
+        if (!has_dir || st[i].type < 2 || st[i].type > 5) continue;  /* unknown here: skipped (§6.2) */
         out->any_known = 1;
         out->n_stanzas++;
         switch (st[i].type) {
@@ -245,7 +245,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         case 3: {
             rc = credential_keks(&c, st[i].type == 2 ? 1 : 2, b, len, 0, &kk, err);
             if (rc) break;
-            size_t end;
+            size_t end = 0;
             if ((rc = label_end(b, len, kk.header, &end, err))) break;
             si->label = label_dup(ar, b, kk.header);
             for (size_t k = 0; k < kk.n && !si->opened; k++) {
@@ -258,7 +258,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         }
         case 4: {
             if (len < 4) { rc = FAIL(XIZ_E_CORRUPT, "threshold stanza"); break; }
-            size_t end;
+            size_t end = 0;
             if ((rc = label_end(b, len, 3, &end, err))) break;
             si->tid = b[0];
             si->k = b[1];
@@ -270,7 +270,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             if (len < 4) { rc = FAIL(XIZ_E_CORRUPT, "share stanza"); break; }
             rc = credential_keks(&c, b[2], b, len, 3, &kk, err);
             if (rc) break;
-            size_t end;
+            size_t end = 0;
             if ((rc = label_end(b, len, 3 + kk.header, &end, err))) break;
             si->tid = b[0];
             si->x = b[1];
@@ -303,7 +303,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         /* Find the raw stanza again (same order, skipping unknown ones). */
         size_t seen = 0;
         for (uint16_t j = 0; j < count; j++) {
-            if (!(directory ? (st[j].type >= 2 && st[j].type <= 5) : st[j].type == 1)) continue;
+            if (!(has_dir ? (st[j].type >= 2 && st[j].type <= 5) : st[j].type == 1)) continue;
             if (seen++ != i) continue;
             uint8_t secret[32], kek[32];
             shamir_combine(share_x[t], (const uint8_t(*)[32])share_y[t], (size_t)si->k, secret);

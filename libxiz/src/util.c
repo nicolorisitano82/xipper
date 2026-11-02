@@ -161,22 +161,9 @@ uint32_t xiz_crc32c(uint32_t crc, const void *data, size_t n) {
     return ~crc;
 }
 #else
-static uint32_t crc_table[8][256];
-static int crc_ready;
-
-static void crc_init(void) {
-    for (uint32_t i = 0; i < 256; i++) {
-        uint32_t c = i;
-        for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0x82F63B78u & (0u - (c & 1)));
-        crc_table[0][i] = c;
-    }
-    for (uint32_t i = 0; i < 256; i++)
-        for (int t = 1; t < 8; t++) crc_table[t][i] = (crc_table[t - 1][i] >> 8) ^ crc_table[0][crc_table[t - 1][i] & 0xFF];
-    crc_ready = 1;
-}
+#include "crc32c_table.h"
 
 uint32_t xiz_crc32c(uint32_t crc, const void *data, size_t n) {
-    if (!crc_ready) crc_init();  /* idempotent: concurrent first calls compute the same table */
     const uint8_t *p = data;
     crc = ~crc;
     while (n >= 8) {

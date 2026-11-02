@@ -42,7 +42,9 @@ extern const uint8_t XIZ_SUPER_MAGIC[8];
 /* ------------------------------------------------------------------ errors */
 
 int xiz_fail(xiz_error *err, int code, const char *fmt, ...)
-#if defined(__GNUC__)
+#if defined(__MINGW32__)
+    __attribute__((format(gnu_printf, 3, 4)))  /* with __USE_MINGW_ANSI_STDIO */
+#elif defined(__GNUC__)
     __attribute__((format(printf, 3, 4)))
 #endif
     ;
@@ -260,7 +262,7 @@ typedef struct {
     int partial_threshold;       /* index+1 of a threshold with some but not enough shares */
 } keys_opened;
 
-int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int directory,
+int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int has_dir,
               const xiz_open_options *opt, keys_opened *out, arena *ar, xiz_error *err);
 
 /* ------------------------------------------------------------------ codecs */
@@ -377,6 +379,10 @@ void leaf_data(wbuf *w, const uint8_t salt[16], const char *path, size_t path_le
                const uint8_t sha[32]);
 int signature_message(wbuf *w, const uint8_t id[16], uint32_t segment, const uint8_t *dir_signed, size_t dir_len,
                       uint64_t previous_footer, const uint8_t *sig, size_t sig_len, const uint8_t **signature64);
+
+#if defined(_WIN32)
+wchar_t *xiz_utf8_to_wide(const char *s);  /* malloc'd, NULL on invalid UTF-8 */
+#endif
 
 /* Last valid footer (§11 recovery from an interrupted append). */
 int find_last_footer(const xiz_archive *a, uint64_t *at, footer *f, xiz_error *err);

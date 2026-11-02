@@ -104,7 +104,7 @@ expect_code create 0 "$XIZ" create --frame-size 1 "$W/mine.xiz" "$src/tree"
 expect_code create-test 0 "$XIZ" test "$W/mine.xiz"
 "$XIZ" info "$W/mine.xiz" | grep -Eq 'frames +1[0-9] ' && pass create-1MiB-frames || fail create-1MiB-frames
 size=$(wc -c < "$W/mine.xiz")
-[ "$size" -lt 700000 ] && pass create-dedup || fail "create-dedup ($size bytes)"
+[ "$size" -lt 450000 ] && pass create-dedup || fail "create-dedup ($size bytes)"
 rm -rf "$W/mout"; "$XIZ" extract -d "$W/mout" "$W/mine.xiz" > /dev/null 2>&1
 "$M" "$W/mout" | diff - "$W/src.manifest" > /dev/null && pass create-roundtrip || fail create-roundtrip
 expect_code create-exists 1 "$XIZ" create "$W/mine.xiz" "$src/tree"

@@ -9,7 +9,6 @@
 #  include <io.h>
 #  include <fcntl.h>
 #  include <sys/stat.h>
-wchar_t *xiz_utf8_to_wide(const char *s);
 #else
 #  include <dirent.h>
 #  include <errno.h>
@@ -319,7 +318,7 @@ static const wentry *find_same(const xiz_writer *w, const wentry *e) {
 static int reuse(wentry *e, const wentry *same, xiz_error *err) {
     e->ext = malloc(same->n_ext * sizeof(extent_rec) + 1);
     if (!e->ext) return FAIL(XIZ_E_NOMEM, "out of memory");
-    memcpy(e->ext, same->ext, same->n_ext * sizeof(extent_rec));
+    if (same->n_ext) memcpy(e->ext, same->ext, same->n_ext * sizeof(extent_rec));
     e->n_ext = same->n_ext;
     memcpy(e->digest, same->digest, 32);
     e->has_digest = same->has_digest;
@@ -430,7 +429,7 @@ int xiz_writer_add_file(xiz_writer *w, const char *path, const char *disk_path, 
     if (!rc && !e) rc = err ? err->code : XIZ_E_ARG;
     uint8_t mac[32];
     if (w->encrypted) hmac_final(&hc, mac);
-    if (!rc) {
+    if (!rc && e) {
         e->size = size;
         sha256_final(&sc, e->plain_sha);
         e->has_plain_sha = 1;
@@ -772,7 +771,7 @@ int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_optio
         e->path_len = s->path_len;
         memcpy(e->link, s->link, s->link_len + 1);
         e->link_len = s->link_len;
-        memcpy(e->ext, s->ext, s->n_ext * sizeof(extent_rec));
+        if (s->n_ext) memcpy(e->ext, s->ext, s->n_ext * sizeof(extent_rec));
         e->n_ext = s->n_ext;
         e->mode = s->mode;
         e->uid = s->uid;

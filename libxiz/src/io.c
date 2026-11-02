@@ -11,7 +11,6 @@
 #endif
 
 #if defined(_WIN32)
-wchar_t *xiz_utf8_to_wide(const char *s);  /* extract.c */
 
 static int file_read(void *ctx, uint64_t off, void *buf, size_t len) {
     HANDLE h = (HANDLE)ctx;

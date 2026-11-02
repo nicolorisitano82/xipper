@@ -177,8 +177,8 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
     memset(o, 0, sizeof *o);
     o->segment = segment;
     if (!a->has_dir) return XIZ_OK;
-    seg_dir *s;
-    uint32_t n;
+    seg_dir *s = NULL;
+    uint32_t n = 0;
     TRY(load_segments(a, &s, &n, err));
     uint8_t previous[32] = {0};
     for (uint32_t k = 0; k <= segment; k++) {
