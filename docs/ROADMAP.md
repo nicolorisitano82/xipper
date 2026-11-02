@@ -240,7 +240,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
 - ✅ uno ZIP senza record di fine archivio (`extra_padding.zip`), che libarchive legge come flusso: Xipper lo rifiuta ancora all'apertura, ma `xipper repair` lo ricostruisce (2.6);
 - archivi scritti da WinRAR ed Esplora risorse: servono ancora una VM Windows o un tester.
 
-### 2.6 — banco di misura, XIZ 1.4, «Cambia formato» v1.5
+### 2.6 — pubblicata il 02/11/2026 (v2.6.0): banco di misura, XIZ 1.4, «Cambia formato» v1.5
 1. ✅ **Banco di misura**: `swift run -c release xipper-bench` su un corpus Mac vero di 735 MB (binari delle app, sorgenti, documenti, testo strutturato, foto), solo in locale. Risultati in `docs/BENCHMARK.md` («Codec per XIZ 1.4»). zxc, bsc e kanzi non sono stati misurati (lzbench non compilato).
 2. ✅ **XIZ 1.4** (decisione del 02/11/2026: **solo LZMA2**, il formato resta aperto):
    - LZMA2 (codec 2) per la modalità «massima»: −10% sui binari e −3% sui sorgenti rispetto a zstd 19, ma decompressione circa 10 volte più lenta. Nell'app è un'opzione delle Impostazioni (XIZ › Livello «Massimo» con LZMA2), da riga di comando `--lzma2`;
