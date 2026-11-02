@@ -227,7 +227,7 @@ Spostato nelle versioni qui sotto: «Cambia formato» v1.5 e v2, XIZ 1.4, banco 
 
 Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports/Algoritmi%20e%20funzioni%20per%20Xipper.md) e da quello che la 2.5 ha lasciato aperto. Le versioni sono un ordine di lavoro, non date. Regola che viene dalla 2.5: **prima si misura, poi si sceglie.** Due idee dello studio non hanno retto alla prova: il filtro ARM64 per architettura e il riconoscimento delle code page di Foundation.
 
-### 2.5.1 — prove a mano e correzioni
+### 2.5.1 — pubblicata il 02/11/2026 (v2.5.1): prove a mano e correzioni
 - **prove a mano**:
   - ✅ codifica dei nomi, provata dal proprietario con gli ZIP di prova (02/11/2026);
   - da fare con il kit in `dist/test-2.5.1/` (con istruzioni in `LEGGIMI.txt`, fuori dal repo): banner dei nomi ingannevoli, Gatekeeper su un'app aperta da un volume montato, foglio «Cambia formato…» su ZIP e 7z solido;
