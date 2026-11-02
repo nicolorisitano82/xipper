@@ -264,7 +264,11 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
      - il nuovo ZIP, «nome (riparato).zip», viene verificato prima di prendere il nome, e le voci che non passano il CRC sono scartate; l'originale non si tocca;
      - provato su ZIP troncati, central directory cancellato, dati rovinati, ZIP «stored» dentro uno ZIP, ZIP di ditto con data descriptor e `extra_padding.zip` di libarchive;
    - ✅ **estrazione ricorsiva** (`ExtractOptions.nestedDepth`, `xipper extract -r [N]`, Impostazioni › Generali): gli archivi trovati tra i file estratti vengono estratti accanto a sé, fino a 3 livelli, e tolti se l'estrazione è pulita. La quarantena passa da un livello all'altro. Restano come sono: BGZF e `.gz` genomici, parti di archivi divisi, documenti che sono ZIP (docx, jar). Un archivio interno danneggiato resta al suo posto ed è segnalato;
-   - **strumento di hash:** BLAKE3, XXH3, SHA-3, esportazione in formato GNU `sha256sum`;
+   - ✅ **strumento di hash** (`xipper hash`, «Calcola/Verifica checksum…» nel menu File, «Esporta checksum…» dopo la verifica di un archivio):
+     - algoritmi: SHA-256, SHA-512, SHA3-256 (CryptoKit), BLAKE3, XXH3-64, XXH3-128, SHA-1, MD5, CRC-32, CRC-32C; più algoritmi in una sola lettura;
+     - BLAKE3 scritto in C dalla specifica (`CXipShims/blake3.c`), con NEON a 4 chunk e sottoalberi da 1 MiB su tutti i core: 5,6 GB/s su M3 Max (SHA-256 2,5 GB/s). Controllato con i vettori ufficiali e con un'implementazione indipendente in Python fino a 48 MiB. XXH3 dallo `xxhash.h` di zstd, senza l'adattamento che lo spegne;
+     - liste nel formato di `sha256sum`/`b3sum` (con l'escape dei nomi), righe BSD (`SHA256 (file) = …`) con più algoritmi, JSON DRS; la verifica capisce tutti e tre e prende l'algoritmo dal nome (`B3SUMS`, `.sha3-256`…);
+     - checksum dei file dentro un archivio senza estrarlo (`--contents`), anche per i 7z;
    - **«Copia come comando»:** un lavoro dell'app diventa il comando `xipper` equivalente.
 
 ### 2.7 — recupero dentro l'archivio, decoder isolati

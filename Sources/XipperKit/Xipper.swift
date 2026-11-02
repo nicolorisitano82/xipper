@@ -194,6 +194,8 @@ public struct TestReport: Sendable {
     public var elapsed: Double
     /// SHA-256 (lowercase hex) of each intact file, when requested: entry path → digest.
     public var digests: [String: String] = [:]
+    /// Every requested algorithm's digest, per path (`test(_:digestAlgorithms:)`).
+    public var allDigests: [String: [ChecksumAlgorithm: String]] = [:]
     public var isOK: Bool { failures.isEmpty }
 
     /// `shasum -a 256` / `sha256sum` format, sorted by path.
@@ -471,12 +473,18 @@ public enum Xipper {
     /// of each file's content (for a SHA256SUMS manifest) in the same pass.
     public static func test(_ archive: URL, password: String? = nil, workload: Workload = .interactive, digests: Bool = false,
                             progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> TestReport {
+        try test(archive, password: password, workload: workload, digestAlgorithms: digests ? [.sha256] : [], progress: progress, cancel: cancel)
+    }
+
+    /// The same, with the digests of any algorithms (`TestReport.allDigests`).
+    public static func test(_ archive: URL, password: String? = nil, workload: Workload = .interactive, digestAlgorithms: [ChecksumAlgorithm],
+                            progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> TestReport {
         guard let format = try ArchiveFormat.detect(archive) else { throw XipperError.unsupported("not a recognized archive") }
         let tracker = ProgressTracker(totalBytes: 0, totalEntries: 0, handler: progress)
         let path = archive.standardizedFileURL.path
         let failures: [SkippedEntry]
         var entries = 0
-        let sums: DigestCollector? = digests ? DigestCollector() : nil
+        let sums: DigestCollector? = digestAlgorithms.isEmpty ? nil : DigestCollector(digestAlgorithms)
         if format == .bgzf {
             (_, failures) = try BGZFVerifier.verify(path, workload: workload, tracker: tracker, cancel: cancel)
             entries = 1
@@ -504,7 +512,7 @@ public enum Xipper {
             do {
                 let a = try SevenZipArchive(path: path, password: password)
                 entries = a.entries.count
-                failures = try SevenZipExtractor.test(a, workload: workload, tracker: tracker, cancel: cancel)
+                failures = try SevenZipExtractor.test(a, workload: workload, tracker: tracker, digests: sums, cancel: cancel)
             } catch let e as XipperError {
                 // Headers that cannot be read (truncation, wrong header password) fail the whole archive.
                 switch e {
@@ -522,6 +530,7 @@ public enum Xipper {
         if let sums {
             let damaged = Set(failures.map(\.path))
             report.digests = sums.all.filter { !damaged.contains($0.key) }
+            report.allDigests = sums.everything.filter { !damaged.contains($0.key) }
         }
         return report
     }

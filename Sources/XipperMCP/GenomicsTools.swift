@@ -37,7 +37,7 @@ private func indexText(_ r: IndexCheckReport) -> String {
 private func algorithms(_ args: [String: JSON]) throws -> [ChecksumAlgorithm]? {
     guard let list = args["algorithms"]?.array?.compactMap(\.string), !list.isEmpty else { return nil }
     return try list.map { n in
-        guard let a = ChecksumAlgorithm(name: n) else { throw ToolError("unknown checksum algorithm \(n) (sha-256, md5, crc32c, sha-512, sha-1, sha512t24u)") }
+        guard let a = ChecksumAlgorithm(name: n) else { throw ToolError("unknown checksum algorithm \(n) (sha-256, sha-512, sha3-256, blake3, xxh128, xxh3-64, sha-1, md5, crc32, crc32c, sha512t24u)") }
         return a
     }
 }

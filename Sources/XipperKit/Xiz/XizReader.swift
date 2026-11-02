@@ -678,11 +678,11 @@ enum XizExtractor {
         for (pos, e) in fileEntries.enumerated() {
             try cancel?.check()
             do {
-                var h = SHA256()
+                let h = digests?.hasher()
                 try stream(e, from: a, cache: cache, window: window, evictable: { lastUse[$0].map { $0 <= pos } ?? true }) {
-                    h.update(bufferPointer: $0)
+                    h?.update($0)
                 }
-                digests?.add(e.path, h)
+                if let h { digests?.add(e.path, h) }
             } catch let err as XipperError where err != .cancelled {
                 failures.append(SkippedEntry(path: e.path, error: err))
             }

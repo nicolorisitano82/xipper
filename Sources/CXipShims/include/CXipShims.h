@@ -79,3 +79,32 @@ size_t xs_bzip2_compress(const uint8_t *in, size_t inLen, int level, uint8_t *ou
 
 /// Updates a CRC-32C with `len` bytes. Start with crc = 0; the value is pre/post-inverted inside.
 uint32_t xs_crc32c(uint32_t crc, const uint8_t *data, size_t len);
+
+// MARK: - Hash tool: BLAKE3 (blake3.c) and XXH3 (xxh3.c)
+
+/// BLAKE3 with a 32-byte output, portable C. The state is plain data (copyable).
+typedef struct {
+    uint32_t cv[8];
+    uint64_t chunk_counter;
+    uint8_t buf[64];
+    uint32_t buf_len;
+    uint32_t blocks_compressed;
+    uint32_t stack_len;
+    uint32_t stack[54][8];
+} xs_blake3;
+void xs_blake3_init(xs_blake3 *h);
+void xs_blake3_update(xs_blake3 *h, const void *data, size_t len);
+void xs_blake3_final(const xs_blake3 *h, uint8_t out32[32]);
+/// Parallel hashing of big inputs: the chaining value of a complete subtree of `chunks` chunks
+/// (a power of two ≥ 4, starting at chunk `counter`, a multiple of it, never the whole input),
+/// then pushed in order. Pushing needs the hasher at a boundary of that size (at_boundary).
+void xs_blake3_subtree(const uint8_t *in, uint64_t chunks, uint64_t counter, uint32_t out[8]);
+int xs_blake3_at_boundary(const xs_blake3 *h, uint64_t chunks);
+void xs_blake3_push_subtree(xs_blake3 *h, const uint32_t cv[8], uint64_t chunks);
+
+/// XXH3 (seed 0): one state gives both the 64-bit and the 128-bit digest.
+void *xs_xxh3_new(void);
+void xs_xxh3_update(void *s, const void *data, size_t len);
+uint64_t xs_xxh3_64(void *s);
+void xs_xxh3_128(void *s, uint64_t *high, uint64_t *low);
+void xs_xxh3_free(void *s);

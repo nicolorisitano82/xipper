@@ -44,6 +44,12 @@ usage: xipper <command> [options]
                          the directory is rebuilt from the local headers, entries are copied without
                          recompressing, those failing their CRC are left out. The original is untouched
                          (default output: "name (riparato).zip").
+  hash    [-a ALG[,ALG…]] [--contents] [--bsd] [-o LIST] <file|folder|archive>...
+                         digests of files (folders walked), or with --contents of the files inside
+                         archives. ALG: sha256 (default), sha512, sha3-256, blake3, xxh128, xxh3, sha1,
+                         md5, crc32, crc32c. One algorithm prints sha256sum/b3sum lines, several print
+                         BSD-tagged lines; -o writes a list (SHA256SUMS, B3SUMS, list.json for all).
+  hash -c LIST           verify a list (sha256sum -c, b3sum -c, BSD tags, JSON manifests)
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
   edit    [options] <archive>   change an archive in place (ZIP: untouched entries are not recompressed;
                                 XIZ: changes are appended; other formats are rebuilt). Repeatable, in order:
@@ -113,12 +119,12 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "-r", "--recursive", "--keep-nested",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
-    : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite",
+    : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
        "--names-encoding"]
@@ -374,6 +380,52 @@ case "test", "t":
         print(r.isOK ? "OK: \(r.entries) entries, \(r.bytes.bytesText) verified in \(String(format: "%.2f", r.elapsed))s"
                      : "\(r.failures.count) of \(r.entries) entries failed")
         if !r.isOK { exit(3) }
+    }
+
+case "hash":
+    run {
+        if let list = value("-c", "--check") {
+            let r = try Xipper.verifyManifest(URL(fileURLWithPath: list), algorithm: value("-a", "--algorithm").flatMap(ChecksumAlgorithm.init(name:)),
+                                              workload: workload, progress: progress, cancel: cancel)
+            endProgress()
+            for m in r.mismatches { print("\(m.path): FAILED (\(m.algorithm.title))") }
+            for m in r.missing { print("\(m): MISSING") }
+            for m in r.refused { print("\(m): REFUSED (absolute path or ..)") }
+            for m in r.sizeMismatches { print("\(m): SIZE DIFFERS") }
+            print(r.isOK ? "OK: \(r.checked) files, \(r.bytes.bytesText) verified" : "\(r.mismatches.count + r.missing.count) of \(r.checked + r.missing.count) files do not match")
+            if !r.isOK { exit(3) }
+            return
+        }
+        guard !positional.isEmpty else { fail("hash needs files, folders or archives", code: 2) }
+        var algorithms: [ChecksumAlgorithm] = []
+        for n in (value("-a", "--algorithm") ?? "sha256").split(separator: ",") {
+            guard let a = ChecksumAlgorithm(name: String(n)) else { fail("unknown algorithm \(n)", code: 2) }
+            algorithms.append(a)
+        }
+        let urls = positional.map { URL(fileURLWithPath: $0) }
+        var entries: [ManifestEntry] = []
+        if flag("--contents") {
+            let pw = readPassword(confirm: false)
+            for u in urls {
+                let inner = try Xipper.hashContents(u, algorithms: algorithms, password: pw, workload: workload, progress: progress, cancel: cancel)
+                entries += urls.count > 1 ? inner.map { var e = $0; e.path = u.lastPathComponent + "/" + e.path; return e } : inner
+            }
+        } else {
+            entries = try Xipper.hashFiles(urls, algorithms: algorithms, workload: workload, progress: progress, cancel: cancel)
+        }
+        endProgress()
+        if let out = value("-o", "--output") {
+            // A list file: written next to its files, paths relative to it (createManifest).
+            if flag("--contents") {
+                try Xipper.checksumLines(entries, algorithms: algorithms, bsd: flag("--bsd")).write(toFile: out, atomically: true, encoding: .utf8)
+            } else {
+                try Xipper.createManifest(of: urls, to: URL(fileURLWithPath: out), algorithms: algorithms, overwrite: true,
+                                          workload: workload, cancel: cancel)
+            }
+            print("\(out): \(entries.count) files")
+        } else {
+            print(Xipper.checksumLines(entries, algorithms: algorithms, bsd: flag("--bsd")), terminator: "")
+        }
     }
 
 case "repair":

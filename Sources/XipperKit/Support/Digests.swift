@@ -1,14 +1,21 @@
-import CryptoKit
 import Synchronization
 
-/// SHA-256 digests gathered by parallel workers during a test (SHA256SUMS manifests).
+/// Digests gathered by parallel workers during a test (SHA256SUMS manifests, hashes of an
+/// archive's content), several algorithms in one pass.
 final class DigestCollector: Sendable {
-    private let map = Mutex<[String: String]>([:])
+    let algorithms: [ChecksumAlgorithm]
+    private let map = Mutex<[String: [ChecksumAlgorithm: String]]>([:])
 
-    func add(_ path: String, _ hasher: SHA256) {
-        let hex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        map.withLock { $0[path] = hex }
+    init(_ algorithms: [ChecksumAlgorithm] = [.sha256]) { self.algorithms = algorithms }
+
+    func hasher() -> MultiHasher { MultiHasher(Set(algorithms)) }
+
+    func add(_ path: String, _ hasher: MultiHasher) {
+        let d = hasher.finalize()
+        map.withLock { $0[path] = d }
     }
 
-    var all: [String: String] { map.withLock { $0 } }
+    /// The first algorithm's digest, per path.
+    var all: [String: String] { map.withLock { $0 }.compactMapValues { $0[algorithms[0]] } }
+    var everything: [String: [ChecksumAlgorithm: String]] { map.withLock { $0 } }
 }

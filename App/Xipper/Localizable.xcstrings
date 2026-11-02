@@ -77,6 +77,22 @@
         }
       }
     },
+    "%@ letti in %@ s." : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ letti in %2$@ s."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ read in %@ s."
+          }
+        }
+      }
+    },
     "%@ letture su %lld sequenze di riferimento. Per leggerle, convertilo in BAM con il riferimento FASTA usato per scriverlo." : {
       "localizations" : {
         "en" : {
@@ -1292,6 +1308,26 @@
         }
       }
     },
+    "Alcuni file non corrispondono" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some files do not match"
+          }
+        }
+      }
+    },
+    "Algoritmo del checksum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checksum algorithm"
+          }
+        }
+      }
+    },
     "Allineamenti" : {
       "localizations" : {
         "en" : {
@@ -1810,7 +1846,28 @@
         }
       }
     },
+    "Calcola checksum…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compute Checksums…"
+          }
+        }
+      }
+    },
+    "Calcola il checksum di ogni file dell'archivio, nel formato di sha256sum -c e b3sum -c" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Computes the checksum of every file in the archive, in the format of sha256sum -c and b3sum -c"
+          }
+        }
+      }
+    },
     "Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3142,6 +3199,22 @@
         }
       }
     },
+    "Diversi: %@%@" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Diversi: %1$@%2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different: %@%@"
+          }
+        }
+      }
+    },
     "Documento" : {
       "localizations" : {
         "en" : {
@@ -3432,11 +3505,22 @@
       }
     },
     "Esporta SHA256SUMS…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export SHA256SUMS…"
+          }
+        }
+      }
+    },
+    "Esporta checksum…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Checksums…"
           }
         }
       }
@@ -4319,6 +4403,16 @@
         }
       }
     },
+    "Ignorati (percorsi assoluti o con ..): %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignored (absolute paths or with ..): %lld"
+          }
+        }
+      }
+    },
     "Il contenuto coincide." : {
       "localizations" : {
         "en" : {
@@ -4446,6 +4540,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cannot open the archive"
+          }
+        }
+      }
+    },
+    "Impossibile calcolare i checksum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not compute the checksums"
           }
         }
       }
@@ -4586,6 +4690,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cannot verify the proof"
+          }
+        }
+      }
+    },
+    "Impossibile verificare “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify “%@”"
           }
         }
       }
@@ -4910,6 +5024,16 @@
         }
       }
     },
+    "La lista va in una cartella che contiene tutti i file scelti." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The list goes in a folder that contains all the chosen files."
+          }
+        }
+      }
+    },
     "La password scelta con il pulsante Password apre tutto l'archivio." : {
       "localizations" : {
         "en" : {
@@ -5148,6 +5272,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Missing: truncated file?"
+          }
+        }
+      }
+    },
+    "Mancanti: %@%@" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Mancanti: %1$@%2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing: %@%@"
           }
         }
       }
@@ -6664,6 +6804,16 @@
         }
       }
     },
+    "SHA-256 è il più diffuso; BLAKE3 è il più veloce tra quelli sicuri; XXH128 è velocissimo ma rileva solo i danni accidentali." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 is the most widespread; BLAKE3 is the fastest of the secure ones; XXH128 is very fast but only detects accidental damage."
+          }
+        }
+      }
+    },
     "Salta" : {
       "localizations" : {
         "en" : {
@@ -6844,6 +6994,16 @@
         }
       }
     },
+    "Scegli i file e le cartelle di cui calcolare il checksum." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the files and folders to checksum."
+          }
+        }
+      }
+    },
     "Scegli il file a cui si riferisce la prova." : {
       "localizations" : {
         "en" : {
@@ -6870,6 +7030,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose the reference FASTA the CRAM was written with"
+          }
+        }
+      }
+    },
+    "Scegli la lista dei checksum (SHA256SUMS, B3SUMS, .sha256, .json…)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the checksum list (SHA256SUMS, B3SUMS, .sha256, .json…)."
           }
         }
       }
@@ -7448,6 +7618,16 @@
         }
       }
     },
+    "Tutti i %lld file corrispondono" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All %lld files match"
+          }
+        }
+      }
+    },
     "Tutto" : {
       "localizations" : {
         "en" : {
@@ -7604,6 +7784,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verify Archive"
+          }
+        }
+      }
+    },
+    "Verifica checksum…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify Checksums…"
           }
         }
       }

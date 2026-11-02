@@ -343,7 +343,8 @@ enum SevenZipExtractor {
     }
 
     /// Decodes everything and checks every CRC; returns the entries that failed.
-    static func test(_ a: SevenZipArchive, workload: Workload, tracker: ProgressTracker, cancel: CancellationToken?) throws -> [SkippedEntry] {
+    static func test(_ a: SevenZipArchive, workload: Workload, tracker: ProgressTracker, digests: DigestCollector? = nil,
+                     cancel: CancellationToken?) throws -> [SkippedEntry] {
         if a.keys == nil, let r = a.records.first(where: { $0.hasStream && a.streams.folders[$0.folder].isEncrypted }) {
             throw XipperError.passwordRequired(entry: r.entry.path)
         }
@@ -364,10 +365,13 @@ enum SevenZipExtractor {
                 for m in a.folderRecords[fi] {
                     let r = a.records[m]
                     current = r.entry.path
+                    let hasher = r.entry.kind == .file ? digests?.hasher() : nil
                     try copy(src, size: r.size, crc: r.crc, entry: r.entry.path, buf: buf, cancel: cancel) { chunk in
                         if folder.crc != nil { folderCRC = CRC32.update(folderCRC, chunk) }
+                        hasher?.update(chunk)
                         tracker.add(bytes: Int64(chunk.count))
                     }
+                    if let hasher { digests?.add(r.entry.path, hasher) }
                     tracker.add(bytes: 0, entries: 1, current: r.entry.path)
                 }
                 if let c = folder.crc, a.folderRecords[fi].count > 1, folderCRC != c {

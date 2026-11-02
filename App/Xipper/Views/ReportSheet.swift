@@ -40,14 +40,16 @@ struct ReportSheet: View {
             }
             HStack {
                 if case let .test(archive, password) = job.kind, ok {
-                    Button {
-                        exportSums(archive, password: password)
+                    Menu {
+                        ForEach(ArchiveActions.checksumChoices, id: \.self) { a in
+                            Button(a.title) { exportSums(archive, password: password, algorithm: a) }
+                        }
                     } label: {
-                        if exporting { ProgressView().controlSize(.small) } else { Text("Esporta SHA256SUMS…") }
+                        if exporting { ProgressView().controlSize(.small) } else { Text("Esporta checksum…") }
                     }
-                    .buttonStyle(.glass)
+                    .fixedSize()
                     .disabled(exporting)
-                    .help("Calcola l'impronta SHA-256 di ogni file, nel formato di shasum -c")
+                    .help("Calcola il checksum di ogni file dell'archivio, nel formato di sha256sum -c e b3sum -c")
                 }
                 Spacer()
                 Button(isTest && ok ? String(localized: "Fine") : String(localized: "Chiudi")) { dismiss() }
@@ -103,19 +105,21 @@ struct ReportSheet: View {
         }
     }
 
-    /// A second pass that hashes every file (5.1); the manifest is saved next to the archive by default.
-    private func exportSums(_ archive: URL, password: String?) {
+    /// A second pass that hashes every file (5.1); the list is saved next to the archive by default.
+    private func exportSums(_ archive: URL, password: String?, algorithm: ChecksumAlgorithm) {
         let panel = NSSavePanel()
         panel.directoryURL = archive.deletingLastPathComponent()
-        panel.nameFieldStringValue = archive.lastPathComponent + ".sha256sums"
+        panel.nameFieldStringValue = archive.lastPathComponent + "." + algorithm.listName.lowercased()
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         exporting = true
         Task {
-            let result = await Task.detached { Result { try Xipper.test(archive, password: password, workload: Preferences.workload, digests: true) } }.value
+            let result = await Task.detached {
+                Result { try Xipper.hashContents(archive, algorithms: [algorithm], password: password, workload: Preferences.workload) }
+            }.value
             exporting = false
             switch result {
-            case let .success(r): try? r.sha256sums.write(to: url, atomically: true, encoding: .utf8)
+            case let .success(r): try? Xipper.checksumLines(r, algorithms: [algorithm]).write(to: url, atomically: true, encoding: .utf8)
             case let .failure(e):
                 let alert = NSAlert()
                 alert.messageText = String(localized: "Impossibile calcolare le impronte")

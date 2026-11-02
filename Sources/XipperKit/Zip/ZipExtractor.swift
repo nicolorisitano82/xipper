@@ -104,9 +104,9 @@ enum ZipExtractor {
         try parallelFor(records.count, workload: workload, cancel: cancel) { i in
             let r = records[i]
             do {
-                var hasher = digests != nil && r.entry.kind == .file ? SHA256() : nil
+                let hasher = r.entry.kind == .file ? digests?.hasher() : nil
                 try ZipEntryDecoder.decode(r, in: archive, password: password, cancel: cancel) { chunk in
-                    hasher?.update(bufferPointer: chunk)
+                    hasher?.update(chunk)
                     tracker.add(bytes: Int64(chunk.count))
                 }
                 if let hasher { digests?.add(r.entry.path, hasher) }

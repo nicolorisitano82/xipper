@@ -457,9 +457,9 @@ enum TarExtractor {
             do {
                 guard let reader = try ownReader(path, password: password) else { return (0, []) }
                 while let e = try reader.next() {
-                    var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
+                    let hasher = e.entry.kind == .file ? digests?.hasher() : nil
                     try reader.readData(cancel: cancel) { chunk in
-                        hasher?.update(bufferPointer: chunk)
+                        hasher?.update(chunk)
                         tracker.add(bytes: Int64(chunk.count))
                     }
                     if let hasher { digests?.add(e.entry.path, hasher) }
@@ -480,9 +480,9 @@ enum TarExtractor {
             if isTar {
                 let reader = Cpio.reader(for: source, head: source.head)
                 while let e = try reader.next() {
-                    var hasher = digests != nil && e.entry.kind == .file ? SHA256() : nil
+                    let hasher = e.entry.kind == .file ? digests?.hasher() : nil
                     try reader.readData(cancel: cancel) { chunk in
-                        hasher?.update(bufferPointer: chunk)
+                        hasher?.update(chunk)
                         tracker.add(bytes: pipe.compressedRead - tracker.completedBytes)
                     }
                     if let hasher { digests?.add(e.entry.path, hasher) }
@@ -493,12 +493,12 @@ enum TarExtractor {
                 throw XipperError.unsupported("not a recognized archive")
             } else if let digests {
                 // A single compressed file: its digest is the one of the whole decoded stream.
-                var hasher = SHA256()
+                let hasher = digests.hasher()
                 let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
                 defer { buf.deallocate() }
                 while case let n = try source.read(into: buf, max: 1 << 20), n > 0 {
                     try cancel?.check()
-                    hasher.update(bufferPointer: UnsafeRawBufferPointer(start: buf, count: n))
+                    hasher.update(UnsafeRawBufferPointer(start: buf, count: n))
                     tracker.add(bytes: pipe.compressedRead - tracker.completedBytes)
                 }
                 digests.add(singleFileName(path), hasher)

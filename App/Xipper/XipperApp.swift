@@ -58,6 +58,8 @@ struct XipperCommands: Commands {
                 .keyboardShortcut("n")
             Divider()
             Button("Verifica prova di appartenenza…") { ArchiveActions.verifyProof() }
+            Button("Calcola checksum…") { ArchiveActions.computeChecksums() }
+            Button("Verifica checksum…") { ArchiveActions.verifyChecksums() }
         }
         CommandGroup(after: .appInfo) {
             Button("Cerca aggiornamenti…") { UpdateController.shared.checkForUpdates() }

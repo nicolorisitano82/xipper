@@ -63,6 +63,69 @@ enum ArchiveActions {
         }
     }
 
+    /// Algorithms offered in the app, most useful first.
+    static let checksumChoices: [ChecksumAlgorithm] = [.sha256, .blake3, .xxh128, .sha3_256, .sha512, .sha1, .md5, .crc32]
+
+    /// "Calcola checksum…": files and folders, an algorithm, then the list (SHA256SUMS, B3SUMS…)
+    /// saved in their common folder, readable by sha256sum -c, b3sum -c and Xipper.
+    @MainActor
+    static func computeChecksums() {
+        let open = NSOpenPanel()
+        open.canChooseDirectories = true
+        open.allowsMultipleSelection = true
+        open.message = String(localized: "Scegli i file e le cartelle di cui calcolare il checksum.")
+        guard open.runModal() == .OK, !open.urls.isEmpty else { return }
+        let sources = open.urls
+        let ask = NSAlert()
+        ask.messageText = String(localized: "Algoritmo del checksum")
+        ask.informativeText = String(localized: "SHA-256 è il più diffuso; BLAKE3 è il più veloce tra quelli sicuri; XXH128 è velocissimo ma rileva solo i danni accidentali.")
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 26), pullsDown: false)
+        popup.addItems(withTitles: checksumChoices.map(\.title))
+        ask.accessoryView = popup
+        ask.addButton(withTitle: String(localized: "Continua"))
+        ask.addButton(withTitle: String(localized: "Annulla"))
+        guard ask.runModal() == .alertFirstButtonReturn else { return }
+        let algorithm = checksumChoices[popup.indexOfSelectedItem]
+        var common = sources[0].deletingLastPathComponent()
+        while !sources.allSatisfy({ $0.path.hasPrefix(common.path + "/") }) && common.path != "/" { common.deleteLastPathComponent() }
+        let save = NSSavePanel()
+        save.directoryURL = common
+        save.nameFieldStringValue = algorithm.listName
+        save.message = String(localized: "La lista va in una cartella che contiene tutti i file scelti.")
+        guard save.runModal() == .OK, let list = save.url else { return }
+        run(String(localized: "Impossibile calcolare i checksum"), done: { NSWorkspace.shared.activateFileViewerSelecting([list]) }) {
+            try Xipper.createManifest(of: sources, to: list, algorithms: [algorithm], overwrite: true, workload: Preferences.workload)
+        }
+    }
+
+    /// "Verifica checksum…": a list (sha256sum, b3sum, BSD tags or JSON), checked against the files next to it.
+    @MainActor
+    static func verifyChecksums() {
+        let open = NSOpenPanel()
+        open.message = String(localized: "Scegli la lista dei checksum (SHA256SUMS, B3SUMS, .sha256, .json…).")
+        guard open.runModal() == .OK, let list = open.url else { return }
+        Task {
+            let result = await Task.detached { Result { try Xipper.verifyManifest(list, workload: Preferences.workload) } }.value
+            let alert = NSAlert()
+            switch result {
+            case let .success(r):
+                alert.alertStyle = r.isOK ? .informational : .warning
+                alert.messageText = r.isOK ? String(localized: "Tutti i \(r.checked) file corrispondono") : String(localized: "Alcuni file non corrispondono")
+                var lines: [String] = []
+                if !r.mismatches.isEmpty { lines.append(String(localized: "Diversi: \(r.mismatches.prefix(8).map(\.path).joined(separator: ", "))\(r.mismatches.count > 8 ? "…" : "")")) }
+                if !r.missing.isEmpty { lines.append(String(localized: "Mancanti: \(r.missing.prefix(8).joined(separator: ", "))\(r.missing.count > 8 ? "…" : "")")) }
+                if !r.refused.isEmpty { lines.append(String(localized: "Ignorati (percorsi assoluti o con ..): \(r.refused.count)")) }
+                lines.append(String(localized: "\(r.bytes.byteText) letti in \(r.elapsed.formatted(.number.precision(.fractionLength(1)))) s."))
+                alert.informativeText = lines.joined(separator: "\n")
+            case let .failure(error):
+                alert.alertStyle = .warning
+                alert.messageText = String(localized: "Impossibile verificare “\(list.lastPathComponent)”")
+                alert.informativeText = (error as? XipperError).map(Job.localized) ?? error.localizedDescription
+            }
+            alert.runModal()
+        }
+    }
+
     /// "Verifica prova di appartenenza…": the proof, then the file it is about.
     @MainActor
     static func verifyProof() {
