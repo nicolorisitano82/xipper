@@ -11,6 +11,8 @@ struct DamagedEntriesView: View {
     let extractIntact: (Set<String>) -> Void
     /// Repairs the archive from its PAR2 files (nil: no recovery data, or a repair is running).
     var repair: (() -> Void)?
+    /// ZIP without recovery data: a copy keeping only the intact entries (ZIP repair).
+    var rebuildZip: (() -> Void)?
     @State private var onlyErrors = true
 
     struct Row: Identifiable {
@@ -64,6 +66,11 @@ struct DamagedEntriesView: View {
                     .buttonStyle(.glassProminent)
                     .fixedSize()
                     .help("Ricostruisce le parti danneggiate dai dati di recupero PAR2")
+            } else if let rebuildZip {
+                Button("Ricostruisci", systemImage: "wrench.and.screwdriver", action: rebuildZip)
+                    .buttonStyle(.glassProminent)
+                    .fixedSize()
+                    .help("Crea accanto una copia dello ZIP con i soli file integri; l'originale non cambia")
             }
             Button("Esporta rapporto…") { exportReport() }
                 .buttonStyle(.glass)
@@ -140,6 +147,8 @@ struct DamagedEntriesView: View {
             : String(localized: "L'archivio è un unico flusso compresso: i dati dopo il punto danneggiato non sono recuperabili.")
         let recovery = PAR2.indexFile(for: model.url) != nil
             ? String(localized: "Ci sono dati di recupero PAR2: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza.")
+            : rebuildZip != nil
+            ? String(localized: "Senza dati di recupero PAR2 i file danneggiati sono persi: «Ricostruisci» crea una copia dello ZIP con quelli integri.")
             : String(localized: "Riparazione non disponibile: l'archivio non contiene dati di recupero PAR2.")
         return first + " " + recovery
     }

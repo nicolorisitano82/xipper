@@ -24,8 +24,8 @@ struct LibarchiveVectorTests {
         // PKWARE strong encryption: not supported (libarchive neither).
         "test_read_format_zip_encryption_data.zip", "test_read_format_zip_encryption_header.zip",
         "test_read_format_zip_encryption_partially.zip",
-        // No end of central directory at all: needs rebuilding the directory from the local
-        // headers (ZIP repair, roadmap 2.6). libarchive reads it as a stream.
+        // No end of central directory at all: libarchive reads it as a stream; Xipper refuses
+        // it and `Xipper.repairZip` rebuilds it (ZipRepairTests).
         "test_read_format_zip_extra_padding.zip",
     ]
 

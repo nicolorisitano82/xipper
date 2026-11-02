@@ -685,6 +685,16 @@
         }
       }
     },
+    "%lld file cifrati non verificati: servirebbe la password." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld encrypted files not verified: the password is needed."
+          }
+        }
+      }
+    },
     "%lld file copiati senza ricomprimere (%@)" : {
       "localizations" : {
         "en" : {
@@ -1569,6 +1579,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Password-protected archive"
+          }
+        }
+      }
+    },
+    "Archivio ricostruito: “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archive rebuilt: “%@”"
           }
         }
       }
@@ -2746,6 +2766,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Korean (EUC-KR)"
+          }
+        }
+      }
+    },
+    "Crea accanto una copia dello ZIP con i soli file integri; l'originale non cambia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creates a copy of the ZIP next to it with only the intact files; the original does not change"
+          }
+        }
+      }
+    },
+    "Crea accanto una copia riparata dello ZIP con i file ancora leggibili; l'originale non cambia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creates a repaired copy of the ZIP next to it with the files that can still be read; the original does not change"
           }
         }
       }
@@ -4470,6 +4510,16 @@
         }
       }
     },
+    "Impossibile ricostruire “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not rebuild “%@”"
+          }
+        }
+      }
+    },
     "Impossibile riparare “%@”" : {
       "localizations" : {
         "en" : {
@@ -4766,6 +4816,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The original is not changed: the new archive gets its name only after it is verified."
+          }
+        }
+      }
+    },
+    "L'originale non è stato modificato." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original was not changed."
           }
         }
       }
@@ -6028,6 +6088,22 @@
         }
       }
     },
+    "Persi %lld file, troncati o danneggiati: %@%@" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Persi %1$lld file, troncati o danneggiati: %2$@%3$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld files lost, truncated or damaged: %@%@"
+          }
+        }
+      }
+    },
     "Più tardi" : {
       "localizations" : {
         "en" : {
@@ -6288,6 +6364,16 @@
         }
       }
     },
+    "Recuperati %lld elementi." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld items recovered."
+          }
+        }
+      }
+    },
     "Report" : {
       "localizations" : {
         "en" : {
@@ -6334,6 +6420,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rebuilds the damaged parts from the PAR2 recovery data"
+          }
+        }
+      }
+    },
+    "Ricostruisci" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuild"
           }
         }
       }
@@ -6880,6 +6976,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Always on, cannot be turned off."
+          }
+        }
+      }
+    },
+    "Senza dati di recupero PAR2 i file danneggiati sono persi: «Ricostruisci» crea una copia dello ZIP con quelli integri." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without PAR2 recovery data the damaged files are lost: “Rebuild” creates a copy of the ZIP with the intact ones."
           }
         }
       }
@@ -7588,6 +7694,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Volume not available"
+          }
+        }
+      }
+    },
+    "XIZ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XIZ"
           }
         }
       }

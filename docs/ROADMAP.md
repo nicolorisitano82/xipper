@@ -237,7 +237,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - **7z autoestraenti** (.exe e ELF) non riconosciuti: ora si aprono, si verificano e si convertono; modificarli è rifiutato, perché si perderebbe il programma;
   - il controllo «ambiguo» della 2.5 rifiutava un nome diverso tra header locale e central directory anche quando il nome Unicode (0x7075) dell'header locale è proprio quello del central directory: ora è accettato, gli altri casi restano rifiutati;
   - messaggio più chiaro per un central directory cifrato (PKWARE strong encryption, non supportata);
-- ancora aperto: uno ZIP senza record di fine archivio (`extra_padding.zip`), che libarchive legge come flusso: lo coprirà la riparazione ZIP della 2.6;
+- ✅ uno ZIP senza record di fine archivio (`extra_padding.zip`), che libarchive legge come flusso: Xipper lo rifiuta ancora all'apertura, ma `xipper repair` lo ricostruisce (2.6);
 - archivi scritti da WinRAR ed Esplora risorse: servono ancora una VM Windows o un tester.
 
 ### 2.6 — banco di misura, XIZ 1.4, «Cambia formato» v1.5
@@ -257,7 +257,11 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
    - ✅ interop: `7zz t`, bsdtar, GNU/BSD tar, `gzip -t`, `bzip2 -t`, `zstd -t`, `xz -t` passano su tutte le coppie nuove, anche con file da 100 MB. Archive Utility va ancora provato a mano;
    - da fare: ricompressione in streaming senza cartella di lavoro.
 4. **Piccole funzioni attese da chi viene da Windows e Linux:**
-   - **riparazione ZIP senza PAR2:** ricostruire il central directory dagli header locali (troncati, rovinati in fondo);
+   - ✅ **riparazione ZIP senza PAR2** (`Xipper.repairZip`, `xipper repair`, pulsante «Ricostruisci» nell'app):
+     - il central directory viene ricostruito dagli header locali, trovati scorrendo il file; con il data descriptor la fine dei dati si accetta solo dove la dimensione del descriptor coincide;
+     - le voci si copiano senza ricomprimere; permessi, link e commenti si recuperano dai resti del central directory, quando ci sono;
+     - il nuovo ZIP, «nome (riparato).zip», viene verificato prima di prendere il nome, e le voci che non passano il CRC sono scartate; l'originale non si tocca;
+     - provato su ZIP troncati, central directory cancellato, dati rovinati, ZIP «stored» dentro uno ZIP, ZIP di ditto con data descriptor e `extra_padding.zip` di libarchive;
    - **estrazione ricorsiva:** archivi dentro archivi, con un limite di profondità e la quarantena propagata;
    - **strumento di hash:** BLAKE3, XXH3, SHA-3, esportazione in formato GNU `sha256sum`;
    - **«Copia come comando»:** un lavoro dell'app diventa il comando `xipper` equivalente.

@@ -114,6 +114,34 @@ enum ArchiveActions {
         }
     }
 
+    /// "Ricostruisci ZIP": a damaged ZIP without PAR2 rebuilt from its local headers into
+    /// "name (riparato).zip" next to it; the original stays as it is.
+    static func rebuildZip(_ archive: URL, password: String?) {
+        Task {
+            let result = await Task.detached { Result { try Xipper.repairZip(archive, password: password) } }.value
+            let alert = NSAlert()
+            switch result {
+            case let .success(r):
+                alert.messageText = String(localized: "Archivio ricostruito: “\(r.output.lastPathComponent)”")
+                var lines = [String(localized: "Recuperati \(r.recovered) elementi.")]
+                if !r.lost.isEmpty {
+                    lines.append(String(localized: "Persi \(r.lost.count) file, troncati o danneggiati: \(r.lost.prefix(5).joined(separator: ", "))\(r.lost.count > 5 ? "…" : "")"))
+                }
+                if !r.unverified.isEmpty {
+                    lines.append(String(localized: "\(r.unverified.count) file cifrati non verificati: servirebbe la password."))
+                }
+                lines.append(String(localized: "L'originale non è stato modificato."))
+                alert.informativeText = lines.joined(separator: "\n")
+                alert.alertStyle = r.lost.isEmpty ? .informational : .warning
+                NSWorkspace.shared.activateFileViewerSelecting([r.output])
+            case let .failure(error):
+                alert.messageText = String(localized: "Impossibile ricostruire “\(archive.lastPathComponent)”")
+                alert.informativeText = (error as? XipperError).map(Job.localized) ?? error.localizedDescription
+            }
+            alert.runModal()
+        }
+    }
+
     // MARK: genomics
 
     /// BAM → CRAM 3.1 or CRAM → BAM next to the file, with the reference FASTA the user picks

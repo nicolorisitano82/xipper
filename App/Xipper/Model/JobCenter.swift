@@ -105,6 +105,8 @@ final class Job: Identifiable {
         case locate(missing: String)
         /// The archive is damaged and PAR2 recovery data sits next to it.
         case repair
+        /// A damaged ZIP without recovery data: rebuild its directory from the local headers.
+        case rebuildZip
         /// The destination cannot take the files: choose another folder.
         case extractElsewhere
         /// The volume went away: try again once it is back.
@@ -506,6 +508,8 @@ extension Job {
                 state = .failed(String(localized: "Manca la parte “\((missing as NSString).lastPathComponent)” dell'archivio"))
             } else if PAR2.indexFile(for: archive) != nil {
                 remedies = [.repair]
+            } else if ArchiveFormat.inferred(fromFileName: archive.lastPathComponent) == .zip {
+                remedies = [.rebuildZip]
             }
         case .insufficientSpace where isExtract:
             remedies = [.extractElsewhere]

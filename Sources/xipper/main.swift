@@ -37,6 +37,10 @@ usage: xipper <command> [options]
                          cp866, windows1252, windows1251, shiftjis, gbk, big5, euckr
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
+  repair  [-o FILE] [-p | --password-stdin] <archive.zip>   rebuild a damaged ZIP without recovery data:
+                         the directory is rebuilt from the local headers, entries are copied without
+                         recompressing, those failing their CRC are left out. The original is untouched
+                         (default output: "name (riparato).zip").
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
   edit    [options] <archive>   change an archive in place (ZIP: untouched entries are not recompressed;
                                 XIZ: changes are appended; other formats are rebuilt). Repeatable, in order:
@@ -353,6 +357,20 @@ case "test", "t":
         print(r.isOK ? "OK: \(r.entries) entries, \(r.bytes.bytesText) verified in \(String(format: "%.2f", r.elapsed))s"
                      : "\(r.failures.count) of \(r.entries) entries failed")
         if !r.isOK { exit(3) }
+    }
+
+case "repair":
+    guard positional.count == 1 else { fail("repair needs one ZIP archive", code: 2) }
+    let pw = readPassword(confirm: false)
+    run {
+        let r = try Xipper.repairZip(URL(fileURLWithPath: positional[0]), to: value("-o", "--output").map { URL(fileURLWithPath: $0) },
+                                     password: pw, progress: progress, cancel: cancel)
+        endProgress()
+        for p in r.lost { print("LOST \(p)") }
+        for p in r.superseded { print("OLDER COPY \(p)") }
+        for p in r.unverified { print("NOT VERIFIED (encrypted) \(p)") }
+        print("\(r.output.lastPathComponent): \(r.recovered) entries recovered, \(r.lost.count) lost, in \(String(format: "%.2f", r.elapsed))s")
+        if !r.lost.isEmpty { exit(3) }
     }
 
 case "list", "l":

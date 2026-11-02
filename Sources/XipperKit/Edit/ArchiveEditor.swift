@@ -366,25 +366,31 @@ enum ZipEditor {
     /// Copies one entry: local header (with `name`), data, data descriptor; adds its central record.
     static func copy(_ rec: ZipEntryRecord, from zip: ZipArchive, name: String, renamed: Bool,
                              to out: OutputFile, central: inout ByteWriter) throws {
-        let fixed = try zip.reader.read(at: rec.localHeaderOffset, count: 30)
+        try copy(rec, read: { try zip.reader.read(at: $0, count: $1) }, name: name, renamed: renamed, to: out, central: &central)
+    }
+
+    /// The same from any source of bytes (ZIP repair reads a file without a usable central directory).
+    static func copy(_ rec: ZipEntryRecord, read: (Int64, Int) throws -> [UInt8], name: String, renamed: Bool,
+                     rawName: [UInt8]? = nil, to out: OutputFile, central: inout ByteWriter) throws {
+        let fixed = try read(rec.localHeaderOffset, 30)
         let (sig, nameLen, extraLen) = fixed.withUnsafeBytes {
             ($0.loadUnaligned(as: UInt32.self).littleEndian, Int($0.loadUnaligned(fromByteOffset: 26, as: UInt16.self).littleEndian),
              Int($0.loadUnaligned(fromByteOffset: 28, as: UInt16.self).littleEndian))
         }
         guard sig == Zip.localSignature else { throw XipperError.corrupt("bad local header for \(rec.entry.path)") }
-        var localExtra = try zip.reader.read(at: rec.localHeaderOffset + 30 + Int64(nameLen), count: extraLen)
+        var localExtra = try read(rec.localHeaderOffset + 30 + Int64(nameLen), extraLen)
         let dataStart = rec.localHeaderOffset + 30 + Int64(nameLen) + Int64(extraLen)
         let localZip64 = Self.has(localExtra, Zip.Extra.zip64)
         // Data descriptor (bit 3): copied as is; it may or may not start with its signature.
         var descriptor = 0
         if rec.flags & 0x0008 != 0 {
             let afterData = dataStart + rec.compressedSize
-            let peek = try zip.reader.read(at: afterData, count: 4)
+            let peek = try read(afterData, 4)
             let signed = peek.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).littleEndian } == 0x0807_4B50
             let sizes = localZip64 || rec.compressedSize >= 0xFFFF_FFFF || rec.uncompressedSize >= 0xFFFF_FFFF ? 16 : 8
             descriptor = (signed ? 4 : 0) + 4 + sizes
         }
-        let nameBytes = Array(name.utf8)
+        let nameBytes = rawName ?? Array(name.utf8)
         var flags = rec.flags
         if renamed {
             localExtra = strip(localExtra, Zip.Extra.unicodePath)  // its CRC is of the old name
@@ -400,7 +406,7 @@ enum ZipEditor {
         let end = dataStart + rec.compressedSize + Int64(descriptor)
         while off < end {
             let n = Int(min(Int64(4 << 20), end - off))
-            try out.write(try zip.reader.read(at: off, count: n))
+            try out.write(try read(off, n))
             off += Int64(n)
         }
         // Central record with the new name and offset; ZIP64 fields only where they overflow.

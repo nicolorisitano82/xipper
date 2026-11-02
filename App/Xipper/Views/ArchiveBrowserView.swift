@@ -339,7 +339,9 @@ struct ArchiveBrowserView: View {
                     verifyJob = jobs.start(.test(archive: url, password: model.password))
                     Task { await model.load() }
                 }
-            })
+            }, rebuildZip: ArchiveFormat.inferred(fromFileName: url.lastPathComponent) == .zip ? {
+                ArchiveActions.rebuildZip(url, password: model.password)
+            } : nil)
             .transition(.opacity)
         } else if model.loading {
             ProgressView("Lettura dell'archivio…").frame(maxWidth: .infinity, maxHeight: .infinity)

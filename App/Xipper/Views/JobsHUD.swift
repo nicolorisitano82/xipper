@@ -113,6 +113,9 @@ private struct JobCapsule: View {
                         case .repair:
                             Button("Ripara") { center.repairAndRetry(job) }
                                 .help("Ripara l'archivio con i dati di recupero PAR2 e riprova")
+                        case .rebuildZip:
+                            Button("Ricostruisci") { if let a = job.archive { ArchiveActions.rebuildZip(a, password: job.password) } }
+                                .help("Crea accanto una copia riparata dello ZIP con i file ancora leggibili; l'originale non cambia")
                         case .extractElsewhere:
                             Button("Estrai altrove…") { center.extractElsewhere(job) }
                         case .retry:
