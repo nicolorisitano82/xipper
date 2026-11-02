@@ -146,6 +146,11 @@ let package = Package(
             name: "xipper",
             dependencies: ["XipperKit", "XipperMCP"]
         ),
+        // Developer tool: codec bench on local corpora (docs/BENCHMARK.md). Not part of the app.
+        .executableTarget(
+            name: "xipper-bench",
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLZ4"]
+        ),
         .testTarget(
             name: "XipperKitTests",
             dependencies: ["XipperKit", "XipperMCP", "CLZMA"],

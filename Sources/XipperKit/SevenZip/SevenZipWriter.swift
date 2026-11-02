@@ -379,7 +379,7 @@ enum SevenZipWriter {
     }
 
     /// Only these are opened to look at their header (opening every file costs on large trees).
-    private static func mayBeExecutable(_ item: ArchiveItem) -> Bool {
+    static func mayBeExecutable(_ item: ArchiveItem) -> Bool {
         if item.permissions & 0o111 != 0 { return true }
         let ext = (item.name as NSString).pathExtension.lowercased()
         return ["dylib", "so", "bundle", "o", "a", "node", "kext"].contains(ext) || ext.hasPrefix("so.")

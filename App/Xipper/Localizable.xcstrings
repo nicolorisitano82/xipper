@@ -1492,6 +1492,16 @@
         }
       }
     },
+    "Archivi circa 10% più piccoli su programmi e codice sorgente, ma più lenti da aprire. Si leggono solo con Xipper 2.6 o successivo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archives about 10% smaller for apps and source code, but slower to open. Only Xipper 2.6 or later can read them."
+          }
+        }
+      }
+    },
     "Archivio" : {
       "localizations" : {
         "en" : {
@@ -5008,6 +5018,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Level"
+          }
+        }
+      }
+    },
+    "Livello «Massimo» con LZMA2" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Maximum” level with LZMA2"
           }
         }
       }

@@ -1,4 +1,5 @@
 import CArgon2
+import CLZMA
 import CryptoKit
 import CXipShims
 import CZstd
@@ -46,7 +47,9 @@ enum Xiz {
         static let appendChain = Required(rawValue: 1 << 2)
         /// 1.3: catalog directory, access groups, threshold keys, signed segments (§13).
         static let directory = Required(rawValue: 1 << 4)
-        static let understood: Required = [.encrypted, .dictionaries, .directory]
+        /// 1.4: frames compressed with LZMA2, optionally after the ARM64 branch filter (§14).
+        static let lzma2 = Required(rawValue: 1 << 5)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2]
     }
 
     /// Features a reader may ignore.
@@ -56,7 +59,8 @@ enum Xiz {
         static let recovery = Optional(rawValue: 1 << 0)
     }
 
-    enum Codec: UInt8 { case store = 0, zstd = 1 }
+    /// 2 and 3 only with the required feature `lzma2` (1.4).
+    enum Codec: UInt8 { case store = 0, zstd = 1, lzma2 = 2, lzma2ARM64 = 3 }
     enum EntryType: UInt8 { case file = 0, directory = 1, symlink = 2 }
 
     struct Frame: Equatable {
@@ -420,6 +424,51 @@ enum Xiz {
     /// A frame compressed with `dictionary` (ZDICT format). The dictionary is loaded into the
     /// window rather than attached: with 4 MiB frames attaching it costs 3% where loading gains
     /// 1.4% (docs/BENCHMARK.md). nil when the output would not be smaller.
+    /// 1.4 (§14): LZMA2 dictionary as large as the frame; preset 9 gains nothing over 6 in 4 MiB
+    /// frames (docs/BENCHMARK.md, "Codec per XIZ 1.4").
+    static let lzma2Preset = 6
+
+    /// LZMA2 payload: the dictionary property byte, then raw LZMA2 chunks ending with the end
+    /// marker. With `arm64` the data goes through the ARM64 branch filter first (start offset 0).
+    /// nil when it would not be smaller than the data.
+    static func lzma2Compress(_ src: UnsafeRawBufferPointer, arm64: Bool) throws -> [UInt8]? {
+        let dictionary = UInt32(max(4096, src.count))
+        let prop = SZLZMA2.prop(forDictionary: dictionary)
+        var packed: [UInt8]
+        if arm64 {
+            var filtered = Array(src)
+            filtered.withUnsafeMutableBytes { _ = lzma_bcj_arm64_encode(0, $0.baseAddress!.assumingMemoryBound(to: UInt8.self), $0.count) }
+            packed = try filtered.withUnsafeBytes { try LZMA2Chunk.encode($0, preset: lzma2Preset, dictionary: dictionary) }
+        } else {
+            packed = try LZMA2Chunk.encode(src, preset: lzma2Preset, dictionary: dictionary)
+        }
+        guard packed.count + 1 < src.count else { return nil }
+        packed.insert(prop, at: 0)
+        return packed
+    }
+
+    /// Decodes exactly `size` bytes (LZMA SDK decoder, ARM64 assembly loop).
+    static func lzma2Decompress(_ src: UnsafeRawBufferPointer, size: Int, arm64: Bool) throws -> [UInt8] {
+        guard src.count >= 2, src[0] <= SZLZMA2.prop(forDictionary: UInt32(maxFrameData)) else {
+            throw XipperError.corrupt("XIZ LZMA2 frame properties")
+        }
+        let coder = try SDKLZMADecoder(lzma2Prop: src[0], unpackSize: Int64(size))
+        var out = [UInt8](repeating: 0, count: size)
+        var filled = 0
+        try out.withUnsafeMutableBytes { o in
+            let sink: ByteSink = { chunk in
+                guard filled + chunk.count <= o.count else { throw XipperError.corrupt("XIZ LZMA2 frame larger than declared") }
+                (o.baseAddress! + filled).copyMemory(from: chunk.baseAddress!, byteCount: chunk.count)
+                filled += chunk.count
+            }
+            try coder.process(UnsafeRawBufferPointer(rebasing: src[1...]), sink)
+            try coder.finish(sink)
+            guard filled == o.count, coder.unusedInput == 0 else { throw XipperError.corrupt("XIZ LZMA2 frame size") }
+            if arm64, size > 0 { _ = lzma_bcj_arm64_decode(0, o.baseAddress!.assumingMemoryBound(to: UInt8.self), o.count) }
+        }
+        return out
+    }
+
     static func zstdCompress(_ src: UnsafeRawBufferPointer, level: Int, dictionary: [UInt8], pool: ZstdContextPool) -> [UInt8]? {
         let bound = ZSTD_compressBound(src.count)
         let out = [UInt8](unsafeUninitializedCapacity: bound) { buf, n in

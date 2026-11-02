@@ -493,7 +493,8 @@ enum XizEditor {
         // Appended frames reuse the archive's dictionary (the superblock, never rewritten, declares it).
         let dictionary = try a.dictionary().map { (id: $0.0, bytes: $0.1, isNew: false) }
         let (frames, written) = try XizWriter.writeData(fresh, to: out, startFrame: a.catalog.frames.count, known: known, keys: a.keys,
-                                                        level: options.level ?? 3, dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
+                                                        level: options.level ?? 3, lzma2: a.superblock.required.contains(.lzma2),
+                                                        dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
                                                         workload: options.workload, tracker: tracker, cancel: cancel)
         var newByName: [String: Xiz.Entry] = [:]
         for e in written { newByName[e.path] = e }
@@ -566,6 +567,7 @@ enum XizEditor {
             } else {
                 let (f, written) = try XizWriter.writeData(fresh[g.id] ?? [], to: out, startFrame: frames.count, known: known[g.id] ?? [:],
                                                            keys: a.groupKeys[g.id], group: g.id, proofs: true, level: options.level ?? 3,
+                                                           lzma2: a.superblock.required.contains(.lzma2),
                                                            extendedAttributes: options.storeExtendedAttributes,
                                                            workload: options.workload, tracker: tracker, cancel: cancel)
                 frames += f

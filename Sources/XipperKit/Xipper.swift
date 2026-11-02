@@ -112,6 +112,14 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     }
 }
 
+/// Codec of XIZ frames (docs/XIZ_SPEC.md §4.2, §14).
+public enum XizCodec: String, Sendable, CaseIterable {
+    /// zstd at the chosen level: fast to decompress, readable by every XIZ 1.x reader.
+    case zstd
+    /// LZMA2 (XIZ 1.4), with the ARM64 branch filter on frames of arm64 executables; the level is ignored.
+    case lzma2
+}
+
 public struct CreateOptions: Sendable {
     public var format: ArchiveFormat = .zip
     /// nil = the format's default level.
@@ -122,6 +130,9 @@ public struct CreateOptions: Sendable {
     public var storeAlreadyCompressed = true
     /// tar formats: keep macOS extended attributes (Finder tags, resource forks…) as pax `SCHILY.xattr.*`.
     public var storeExtendedAttributes = true
+    /// XIZ frame codec. `.lzma2` (XIZ 1.4) is about 10% smaller than zstd 19 on binaries and
+    /// source code but decompresses about 10× slower; readers before Xipper 2.6 refuse it.
+    public var xizCodec: XizCodec = .zstd
     /// XIZ: train a zstd dictionary for the small files when there are enough of them (1.2).
     public var xizDictionary = true
     /// Tests: small-file bytes needed for a dictionary (default XizDictionary.minimumSmallBytes).
@@ -281,7 +292,8 @@ public enum Xipper {
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
-            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, password: options.password, kdf: options.xizKDF,
+            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2,
+                                       password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        access: options.xizAccess, signer: options.xizSigner,

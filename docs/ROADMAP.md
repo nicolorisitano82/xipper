@@ -241,15 +241,13 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
 - archivi scritti da WinRAR ed Esplora risorse: servono ancora una VM Windows o un tester.
 
 ### 2.6 — banco di misura, XIZ 1.4, «Cambia formato» v1.5
-1. **Banco di misura** (prerequisito di tutto il resto della 2.6):
-   - `scripts/benchmark` su M-series con un corpus Mac vero: bundle `.app`, sorgenti e progetti Xcode, documenti Office e iWork, PDF, foto JPEG/HEIC; solo file sintetici o pubblici nel repo, il resto in locale;
-   - candidati da misurare: zstd 1.5.7, LZ4, zxc, LZMA2, bsc/kanzi (solo se la licenza va bene), LZMESH e LZBITMAP di Apple su OS 27;
-   - esito: la tabella che decide i codec di XIZ 1.4, in `docs/BENCHMARK.md`.
-2. **XIZ 1.4:**
-   - modalità «estrazione veloce» con un codec veloce a versione congelata (LZ4 o zxc, secondo il banco);
-   - LZMA2 per la modalità «massima»;
-   - filtri per chunk: ARM64 e x86 dentro **un solo** flusso compresso. Separare le architetture fa perdere: misurato −1,8% contro −6,1%;
-   - compatibile all'indietro: un lettore 1.3 rifiuta in modo chiaro i chunk che non conosce.
+1. ✅ **Banco di misura**: `swift run -c release xipper-bench` su un corpus Mac vero di 735 MB (binari delle app, sorgenti, documenti, testo strutturato, foto), solo in locale. Risultati in `docs/BENCHMARK.md` («Codec per XIZ 1.4»). zxc, bsc e kanzi non sono stati misurati (lzbench non compilato).
+2. ✅ **XIZ 1.4** (decisione del 02/11/2026: **solo LZMA2**, il formato resta aperto):
+   - LZMA2 (codec 2) per la modalità «massima»: −10% sui binari e −3% sui sorgenti rispetto a zstd 19, ma decompressione circa 10 volte più lenta. Nell'app è un'opzione delle Impostazioni (XIZ › Livello «Massimo» con LZMA2), da riga di comando `--lzma2`;
+   - filtro ARM64 + LZMA2 (codec 3) per i frame fatti per lo più di eseguibili arm64, su tutto il frame: un solo flusso compresso, come misurato (−6,1% contro −1,8% per architettura);
+   - niente codec «veloce»: zstd decomprime già a 1,4–2,9 GB/s per core e i frame vanno in parallelo, più dell'SSD. LZ4 farebbe archivi molto più grandi (binari: 47% contro 31%);
+   - niente filtro x86: su Apple Silicon i binari sono arm64 o universali, e per gli universali il filtro ARM64 su tutto il file è risultato il migliore;
+   - compatibile all'indietro: un lettore 1.3 rifiuta l'archivio con un messaggio chiaro (bit richiesto `lzma2`, spec §14).
 3. **«Cambia formato» v1.5:**
    - coppie con sola intestazione nuova: ZIP LZMA ↔ 7z LZMA, 7z LZMA2 → ZIP xz (metodo 95), ZIP → tar.* a più membri;
    - ZIP zstd → XIZ con sola decodifica per l'hash (i frame zstd passano così come sono);
@@ -276,7 +274,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - riconoscimento di istantanee e cloni APFS, ripiego a file numerati;
   - esce solo dopo i test di interruzione di corrente in una VM macOS su immagini APFS. Apple non documenta come `F_PUNCHHOLE` e `rename` si comportano in quel caso.
 - **ricompressione dei flussi Deflate** dentro Office, EPUB, PDF e PNG (preflate-rs), FLAC per WAV/AIFF: dopo il banco, con i parser in un processo isolato;
-- **LZMESH/LZBITMAP** come codec XIZ facoltativi su OS 27+, se il banco li conferma (illeggibili su macOS 26);
+- **LZRAVEN e LZMESH** di Apple come codec XIZ facoltativi, solo su macOS 27 e successivi (decisione del 02/11/2026). Il banco li ha confermati: LZRAVEN comprime come o meglio di LZMA2 (binari 20,8% contro 23,7%) e decomprime circa 3 volte più veloce; LZMESH comprime come zstd 9 alla velocità di zstd 3. Limiti da gestire: esistono solo nelle librerie di Apple, quindi gli archivi non si aprono su macOS 26 né con i lettori XIZ per altri sistemi (bit richiesto a parte, avviso chiaro alla creazione);
 - **snapshot XIZ montabili per versione**, sul modello di zpaq e restic: i pezzi ci sono già (segmenti firmati, montaggio);
 - **destinatario ibrido X25519 + ML-KEM-768**, compatibile con age (`age1pq1…`), se CryptoKit lo offre;
 - **OpenZL** per i frame strutturati (CSV, Parquet, tabelle genomiche), quando il formato si stabilizza.

@@ -801,6 +801,8 @@ final class SDKLZMADecoder: StreamTransform {
     /// LZMA1 output still expected.
     private var remaining: Int64
     private var ended = false
+    /// Input bytes left after the end of the stream (XIZ 1.4 frames must have none).
+    private(set) var unusedInput = 0
     private let out = UnsafeMutablePointer<UInt8>.allocate(capacity: 1 << 20)
 
     private static func cap(_ size: Int64) -> UInt32 { UInt32(max(4096, min(size, Int64(UInt32.max)))) }
@@ -827,6 +829,7 @@ final class SDKLZMADecoder: StreamTransform {
 
     private func run(_ input: UnsafeRawBufferPointer, last: Bool, _ sink: ByteSink) throws {
         var rest = input
+        defer { if ended { unusedInput += rest.count } }
         while !ended {
             let capacity = lzma2 ? 1 << 20 : Int(min(Int64(1 << 20), remaining))
             var used = 0, produced = 0
@@ -836,7 +839,7 @@ final class SDKLZMADecoder: StreamTransform {
             if produced > 0 { try sink(UnsafeRawBufferPointer(start: out, count: produced)) }
             rest = UnsafeRawBufferPointer(rebasing: rest[used...])
             if !lzma2 { remaining -= Int64(produced) }
-            if st == 1 || (!lzma2 && remaining == 0) { ended = true; return }
+            if st == 1 || (!lzma2 && remaining == 0) { ended = true; break }
             if used == 0 && produced == 0 {
                 if last { throw XipperError.corrupt("truncated \(lzma2 ? "lzma2" : "lzma") stream") }
                 return  // needs more input

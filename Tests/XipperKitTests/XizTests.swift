@@ -278,6 +278,97 @@ struct XizTests {
         #expect(try XizArchive(path: t.url("b.xiz").path).dictionaries.isEmpty)
     }
 
+    // MARK: LZMA2 (1.4)
+
+    func createLZMA2(_ t: TempDir, password: String? = nil) throws -> XizArchive {
+        var o = CreateOptions()
+        o.format = .xiz
+        o.xizCodec = .lzma2
+        o.password = password
+        o.xizKDF = .minimum
+        try Xipper.create(from: [t.url("src")], to: t.url("l.xiz"), options: o)
+        let bytes = try [UInt8](Data(contentsOf: t.url("l.xiz")))
+        #expect(Array(bytes[10..<12]) == [4, 0] && bytes[12] & 0x20 != 0)  // XIZ 1.4, feature "lzma2"
+        return try XizArchive(path: t.url("l.xiz").path, password: password)
+    }
+
+    @Test(arguments: [nil, "segreto"] as [String?])
+    func lzma2RoundTrip(password: String?) throws {
+        let t = TempDir()
+        tree(t)
+        smallTexts(t)
+        let a = try createLZMA2(t, password: password)
+        #expect(a.catalog.frames.contains { $0.codec == .lzma2 })
+        #expect(a.catalog.frames.allSatisfy { $0.dictionary == 0 && $0.codec != .zstd })  // no zstd dictionary with LZMA2
+        #expect(try Xipper.test(t.url("l.xiz"), password: password, digests: true).isOK)
+        t.mkdir("out")
+        var x = ExtractOptions()
+        x.password = password
+        try Xipper.extract(t.url("l.xiz"), to: t.url("out"), mode: .into, options: x)
+        #expect(treesEqual(t.path + "/src", t.path + "/out/src").0)
+
+        // Smaller than zstd at the default level on compressible text.
+        var o = CreateOptions()
+        o.format = .xiz
+        try Xipper.create(from: [t.url("src/notes")], to: t.url("z.xiz"), options: o)
+        o.xizCodec = .lzma2
+        try Xipper.create(from: [t.url("src/notes")], to: t.url("l2.xiz"), options: o)
+        let size = { (n: String) in try FileManager.default.attributesOfItem(atPath: t.path + "/" + n)[.size] as! Int }
+        #expect(try size("l2.xiz") < size("z.xiz"))
+
+        // Appends to an LZMA2 archive stay LZMA2 and readable.
+        t.write("extra/n.txt", String(repeating: "aggiunto ", count: 5000))
+        try Xipper.edit(t.url("l.xiz"), changes: [.add(t.url("extra/n.txt"), as: "src/new.txt")], password: password)
+        let b = try XizArchive(path: t.url("l.xiz").path, password: password)
+        #expect(b.segments == 2 && b.catalog.frames.last?.codec == .lzma2)
+        #expect(try Xipper.readEntry(t.url("l.xiz"), path: "src/new.txt", password: password, maxBytes: 1 << 20).data.count == 45000)
+        #expect(try Xipper.test(t.url("l.xiz"), password: password).isOK)
+    }
+
+    @Test func lzma2UsesTheARM64FilterForExecutables() throws {
+        let t = TempDir()
+        t.mkdir("src")
+        for name in ["zsh", "ls", "cat"] {
+            try FileManager.default.copyItem(atPath: "/bin/" + name, toPath: t.path + "/src/" + name)
+        }
+        #expect(SevenZipWriter.isARM64Executable(t.path + "/src/zsh"))
+        let a = try createLZMA2(t)
+        #expect(a.catalog.frames.allSatisfy { $0.codec == .lzma2ARM64 })
+        #expect(try Xipper.test(t.url("l.xiz"), digests: true).isOK)
+        t.mkdir("out")
+        try Xipper.extract(t.url("l.xiz"), to: t.url("out"), mode: .into, options: ExtractOptions())
+        #expect(treesEqual(t.path + "/src", t.path + "/out/src").0)
+    }
+
+    @Test func lzma2WithoutTheFeatureBitIsRefused() throws {
+        let t = TempDir()
+        smallTexts(t, count: 20)
+        _ = try createLZMA2(t)
+        var bytes = try [UInt8](Data(contentsOf: t.url("l.xiz")))
+        bytes[12] &= ~0x20
+        var crc = Xiz.crc32c(Array(bytes[0..<60])).littleEndian
+        withUnsafeBytes(of: &crc) { bytes.replaceSubrange(60..<64, with: $0) }
+        try Data(bytes).write(to: t.url("bad.xiz"))
+        #expect(throws: XipperError.self) { _ = try Xipper.list(t.url("bad.xiz")) }
+        // A reader that does not know the bit refuses the archive cleanly.
+        bytes[12] |= 0x40
+        crc = Xiz.crc32c(Array(bytes[0..<60])).littleEndian
+        withUnsafeBytes(of: &crc) { bytes.replaceSubrange(60..<64, with: $0) }
+        #expect(throws: XipperError.self) { _ = try Xiz.Superblock.decode(Array(bytes[0..<64])) }
+    }
+
+    @Test func lzma2FramesRejectWrongSizes() throws {
+        let data = [UInt8](String(repeating: "Xipper LZMA2 ", count: 10_000).utf8)
+        let packed = try #require(try data.withUnsafeBytes { try Xiz.lzma2Compress($0, arm64: false) })
+        #expect(try packed.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: data.count, arm64: false) } == data)
+        #expect(throws: XipperError.self) { _ = try packed.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: data.count + 1, arm64: false) } }
+        #expect(throws: XipperError.self) { _ = try packed.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: data.count - 1, arm64: false) } }
+        #expect(throws: XipperError.self) { _ = try (packed + [0x00]).withUnsafeBytes { try Xiz.lzma2Decompress($0, size: data.count, arm64: false) } }
+        var badProp = packed
+        badProp[0] = 40
+        #expect(throws: XipperError.self) { _ = try badProp.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: data.count, arm64: false) } }
+    }
+
     /// Archive written by Xipper 0.9.0-beta4 (XIZ 0.1): src/a.txt "ciao v0\n", src/sub/b.txt "beta\n".
     static let beta = "WElaAA0KGgoAAAEAAAAAAN4d9FEOKVaH3X/aKBZvBM4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApXfhR1hGUjEAAAAAAAAAAA0AAAANAAAAt6pfKQAAAAAAAAAAY2lhbyB2MApiZXRhCii1L/1gAwC9AwC0BFhDQVQAAAEAAABAAA23ql8pAAQAAAABAwBzcmPtAfYBnTnZajy05w0ACS9hLnR4dKQICukNCAEBB3N1YnaN6g0vYjbrDQUFAAAAABEAcwgAJOQOFal6GSRuDndCaL1T2IthwHhWzULFMty8FZYThcMuiwEkAVhJWkYAAAEAbQAAAAAAAACBAAAAAAAAAAMBAAAAAAAAAQAAAAQAAAANAAAAAAAAAPu5j83bzOkXjKdzVqbIZ1MkqQLsV3G2NxzgBH8c8SBtAAAAAAAAAABRJ1WJWElaIQ=="
 

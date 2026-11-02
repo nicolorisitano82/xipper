@@ -30,12 +30,12 @@ enum XizWriter {
         var chunks: [(Int64, Int, [UInt8])] = []
     }
 
-    static func write(items: [ArchiveItem], to path: String, level: Int, password: String?, kdf: XizKeys.KDF = .standard,
+    static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       access: XizAccess? = nil, signer: XizSigner? = nil,
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         if access != nil || signer != nil {
-            return try writeWithDirectory(items: items, to: path, level: level, password: password, kdf: kdf,
+            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, password: password, kdf: kdf,
                                           extendedAttributes: extendedAttributes, access: access, signer: signer,
                                           workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
         }
@@ -46,10 +46,17 @@ enum XizWriter {
 
         // The dictionary is decided before the superblock, which declares it (1.2).
         var superblock = Xiz.Superblock(archiveID: archiveID)
-        let dictionary = level >= XizDictionary.minimumLevel ? try trainDictionary(items, threshold: dictionaryThreshold, cancel: cancel) : nil
+        // LZMA2 frames take no zstd dictionary; the codec is declared there too (1.4).
+        let lzma2 = lzma2 && level > 0
+        let dictionary = !lzma2 && level >= XizDictionary.minimumLevel
+            ? try trainDictionary(items, threshold: dictionaryThreshold, cancel: cancel) : nil
         if dictionary != nil {
             superblock.required.insert(.dictionaries)
             superblock.minor = 2
+        }
+        if lzma2 {
+            superblock.required.insert(.lzma2)
+            superblock.minor = 4
         }
 
         // Keys first: the digests and the chunker depend on them.
@@ -67,7 +74,7 @@ enum XizWriter {
         let out = try OutputFile(path: path)
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
-        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level,
+        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2,
                                               dictionary: dictionary.map { (XizDictionary.id, $0, true) },
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
@@ -116,7 +123,8 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          group: UInt16 = 0, proofs: Bool = false, level: Int, dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
+                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false,
+                          dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil,
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
         let gear = gear(keys)
@@ -290,6 +298,11 @@ enum XizWriter {
         closeFrame()
 
         // 3. Frames, compressed (and sealed) in parallel windows and written in order, numbered from `startFrame`.
+        // LZMA2 (1.4): frames that are mostly arm64 executables go through the ARM64 branch filter.
+        let executables = lzma2 && level > 0 ? Set(items.indices.filter { i in
+            guard case .file = items[i].kind, SevenZipWriter.mayBeExecutable(items[i]) else { return false }
+            return SevenZipWriter.isARM64Executable(items[i].sourcePath)
+        }) : []
         var written: [Xiz.Frame] = []
         let contexts = ZstdContextPool()
         if let dictionary, dictionary.isNew {
@@ -327,7 +340,13 @@ enum XizWriter {
                 var payload = data
                 var dictID: UInt16 = 0
                 let small = frames[idx].reduce(0) { $0 + (items[$1.item].size < XizDictionary.smallFile ? $1.length : 0) }
-                if level > 0, let dictionary, small * 2 >= data.count,
+                if level > 0, lzma2 {
+                    let exe = frames[idx].reduce(0) { $0 + (executables.contains($1.item) ? $1.length : 0) }
+                    if let c = try data.withUnsafeBytes({ try Xiz.lzma2Compress($0, arm64: exe * 2 >= data.count) }) {
+                        codec = exe * 2 >= data.count ? .lzma2ARM64 : .lzma2
+                        payload = c
+                    }
+                } else if level > 0, let dictionary, small * 2 >= data.count,
                    let c = data.withUnsafeBytes({ Xiz.zstdCompress($0, level: level, dictionary: dictionary.bytes, pool: contexts) }) {
                     codec = .zstd
                     payload = c
@@ -378,7 +397,7 @@ enum XizWriter {
     /// An archive with a directory: each access group's data is written as if it were an archive of
     /// its own (frames sealed with the group's key, deduplication inside the group), then one
     /// catalog per group, the directory (signed when there is a signer) and the footer.
-    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, password: String?, kdf: XizKeys.KDF,
+    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, password: String?, kdf: XizKeys.KDF,
                                    extendedAttributes: Bool, access: XizAccess?, signer: XizSigner?,
                                    workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let total = items.reduce(Int64(0)) { $0 + $1.size }
@@ -388,6 +407,11 @@ enum XizWriter {
         var superblock = Xiz.Superblock(archiveID: archiveID)
         superblock.required.insert(.directory)
         superblock.minor = 3
+        let lzma2 = lzma2 && level > 0
+        if lzma2 {
+            superblock.required.insert(.lzma2)
+            superblock.minor = 4
+        }
         let map = try XizGroupMap(access)
 
         // The password of the call, if any, is one more recipient that opens every group.
@@ -434,7 +458,7 @@ enum XizWriter {
                 slots += s
             } else {
                 let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
-                                           group: g.id, proofs: true, level: level, extendedAttributes: extendedAttributes, workload: workload,
+                                           group: g.id, proofs: true, level: level, lzma2: lzma2, extendedAttributes: extendedAttributes, workload: workload,
                                            tracker: tracker, cancel: cancel)
                 frames += f
                 entries[g.id] = e

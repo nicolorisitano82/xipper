@@ -19,6 +19,7 @@ usage: xipper <command> [options]
           --numbered       zip volumes as name.zip.001, .002, … (joined with cat)
           --plain-names    7z with a password: leave file names readable
           --no-dictionary  xiz: no zstd dictionary for small files
+          --lzma2          xiz: LZMA2 frames (XIZ 1.4: ~10% smaller, slower to open; needs Xipper 2.6+)
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
@@ -104,7 +105,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -272,6 +273,10 @@ case "create", "c":
     if flag("--numbered") { o.zipVolumeStyle = .numbered }
     o.encryptFileNames = !flag("--plain-names")
     o.xizDictionary = !flag("--no-dictionary")
+    if flag("--lzma2") {
+        if o.format != .xiz { fail("--lzma2 needs the xiz format", code: 2) }
+        o.xizCodec = .lzma2
+    }
     o.overwrite = flag("--overwrite")
     o.scan.excludeMacMetadata = !flag("--keep-mac-files")
     o.windowsCompatibleNames = flag("--windows-names")

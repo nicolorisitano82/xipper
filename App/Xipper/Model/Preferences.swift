@@ -25,6 +25,7 @@ enum PrefKey {
     static let menuBarExtra = "showMenuBarExtra"
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
+    static let xizLZMA2 = "xizLZMA2"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
     static let favoriteArchives = "favoriteArchives"
@@ -92,6 +93,7 @@ enum Preferences {
             PrefKey.updatesAutomatic: true,
             PrefKey.sevenZipEncryptNames: true,
             PrefKey.sevenZipSolid: true,
+            PrefKey.xizLZMA2: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,
         ])
@@ -121,6 +123,8 @@ enum Preferences {
         o.encryptFileNames = defaults.bool(forKey: PrefKey.sevenZipEncryptNames)
         // nil = automatic solid blocks; 0 = one block per file.
         o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0
+        // XIZ 1.4: «Massimo» with LZMA2 instead of zstd 12, when chosen in Settings.
+        if format == .xiz, preset == .best, defaults.bool(forKey: PrefKey.xizLZMA2) { o.xizCodec = .lzma2 }
         o.workload = workload
         return o
     }

@@ -64,6 +64,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.zipAppleDouble) private var appleDouble = false
     @AppStorage(PrefKey.windowsNames) private var windowsNames = true
     @AppStorage(PrefKey.sevenZipSolid) private var solid = true
+    @AppStorage(PrefKey.xizLZMA2) private var xizLZMA2 = false
 
     var body: some View {
         Form {
@@ -87,6 +88,12 @@ private struct FormatSettings: View {
             Section("7z") {
                 Toggle("Compressione solid (archivi più piccoli, estrazione di un singolo file più lenta)", isOn: $solid)
                 Toggle("Con la password, cifra anche i nomi dei file", isOn: $encryptNames)
+            }
+            Section("XIZ") {
+                Toggle(isOn: $xizLZMA2) {
+                    Text("Livello «Massimo» con LZMA2")
+                    Text("Archivi circa 10% più piccoli su programmi e codice sorgente, ma più lenti da aprire. Si leggono solo con Xipper 2.6 o successivo.")
+                }
             }
             Section {
                 Text("Gli archivi tar.zst sono i più veloci e compatti per backup e scambio tra Mac e Linux; ZIP resta il più compatibile con Windows.")

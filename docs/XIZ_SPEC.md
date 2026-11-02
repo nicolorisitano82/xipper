@@ -1,9 +1,10 @@
-# XIZ archive format, version 1.3
+# XIZ archive format, version 1.4
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
 Xipper 2.2.0) adds access groups, k-of-n threshold keys, signed segments, erasable entries and
-inclusion proofs (§13). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+inclusion proofs (§13). **1.4** (2026-11-02, Xipper 2.6) adds LZMA2 frames with an optional ARM64
+branch filter (§14). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -43,7 +44,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | 0; 2 when `dictionaries` is set |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–4) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -60,7 +61,8 @@ There are no gaps and no overlaps. The footer ends the file.
 | 2 | append_chain | reserved, never set (appended segments are signalled by the footer, §11: the superblock is authenticated by the keys block and is never rewritten) |
 | 3 | genomic_codecs | reserved for the genomic profile XIG (docs/XIG_DESIGN.md), not yet specified |
 | 4 | directory | 1.3: catalog directory, access groups, threshold keys, signed segments (§13) |
-| 5–15 | — | reserved, zero |
+| 5 | lzma2 | 1.4: frames with codec 2 (LZMA2) or 3 (ARM64 + LZMA2) (§14) |
+| 6–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved for embedded
 recovery data; bits 1–15 are reserved and zero. Recovery data for XIZ (and any other archive) is
@@ -75,7 +77,7 @@ written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.x
 | Offset | Size | Field |
 |---:|---:|---|
 | 0 | 4 | magic `XFR1` |
-| 4 | 1 | codec: 0 = store, 1 = zstd |
+| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14) |
 | 5 | 1 | flags: bit 0 = dictionary frame (§12); other bits zero |
 | 6 | 2 | dictionary id: 0, or the dictionary defined (bit 0 set) or used (§12) |
 | 8 | 4 | frame index (0, 1, 2, …) |
@@ -93,6 +95,7 @@ not** use it to decide what to extract.
 - `store`: the data itself (`csize == usize`, or `usize + 16` when encrypted).
 - `zstd`: one zstd frame that decompresses to exactly `usize` bytes. A reader **must** stop at `usize`
   bytes of output and reject any other length.
+- `LZMA2`, `ARM64 + LZMA2`: see §14.
 - When the archive is encrypted the payload is the AES-GCM ciphertext of the above followed by the
   16-byte tag (§6.4). The CRC covers the bytes as written (ciphertext and tag), so damage can be
   located without the password.
@@ -538,3 +541,27 @@ proofs stay valid: they cover the slot's hash, not the slot. The erased entry is
 catalog by appending a segment (when the eraser holds every group); its name stays in the sealed
 catalogs of earlier segments, readable by holders of its group key, until the archive is rewritten.
 Copies of the archive made before the erasure still hold the slot.
+
+## 14. Version 1.4: LZMA2 frames
+
+An archive with frames of codec 2 or 3 sets the required feature `lzma2` (superblock bit 5,
+`version_minor = 4`); readers without it refuse the archive. A frame with codec 2 or 3 in an archive
+without the bit is invalid.
+
+- **Codec 2, LZMA2**: the payload (before encryption) is one byte, the LZMA2 dictionary property as
+  in xz and 7z (`dictionary = (2 | (p & 1)) << (p / 2 + 11)`, at most the value for 64 MiB), followed
+  by raw LZMA2 chunks ending with the end marker `0x00`. The first chunk resets the dictionary and
+  sets new properties. The data decompresses to exactly `usize` bytes; a reader **must** reject any
+  other length and data after the end marker.
+- **Codec 3, ARM64 + LZMA2**: as codec 2; the decompressed bytes are then decoded with the ARM64
+  branch filter of xz 5.4 (`lzma_bcj_arm64_decode`), start offset 0, over the whole frame. Writers
+  use it for frames that are mostly arm64 executables (Mach-O, thin or universal, and ELF).
+- LZMA2 frames take no zstd dictionary (`dictionary = 0`, flags bit 0 clear) and are never dictionary
+  frames. The catalog stays zstd.
+- Appending to an archive with `lzma2` may write frames of any codec; appending to an archive without
+  it writes only codecs 0 and 1 (the superblock is never rewritten).
+
+Xipper writes LZMA2 frames at preset 6 with the dictionary as large as the frame (4 MiB): in 4 MiB
+frames preset 9 gains nothing. On the corpora of docs/BENCHMARK.md LZMA2 is about 10% smaller than
+zstd 19 on executables and 3% smaller on source code, and decompresses about 10 times slower per
+core; frames still decompress in parallel.
