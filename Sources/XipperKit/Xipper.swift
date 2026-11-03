@@ -748,7 +748,7 @@ extension Xipper {
                 throw XipperError.invalidArgument("no entry named \(path)")
             }
             if format == .appleArchive { return try stream(try AppleArchiveReader(path: archivePath, password: password)) }
-            if format == .rar { return try stream(try RarReader(path: archivePath, password: password)) }
+            if format == .rar { return try stream(try IsolatedDecoder.rar(path: archivePath, password: password)) }
             let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
             defer { pipe.close() }
             if !isTar {

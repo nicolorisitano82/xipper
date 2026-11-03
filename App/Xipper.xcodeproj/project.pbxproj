@@ -16,6 +16,8 @@
 		C6A7704CB154132CBD6AA6C9 /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 12A6D691625A90246423A28A /* XipperKit */; };
 		CBF0340F248F29B1CBA7384F /* XipperThumbnail.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = EBB1C9644A180717192D2BA2 /* XipperThumbnail.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D71D48DEC800C8710B91A07E /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7BF614CDD23211EDB8CD1CA1 /* XipperKit */; };
+		0F978FB5394FD3AB1A864395 /* xipper-decoder in Embed CLI */ = {isa = PBXBuildFile; fileRef = 3A016D13AD65EB220532A068 /* xipper-decoder */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		DF98C4E202B0EC9A370AD8A5 /* XipperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 93BEB934EC712A6A3C7036E7 /* XipperKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,6 +49,13 @@
 			remoteGlobalIDString = E1C64FA2A04918194F438558;
 			remoteInfo = XipperThumbnail;
 		};
+		EC28351541B6EB08175AF2A8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10ACCF8A3B8300FA3A0B855;
+			remoteInfo = "xipper-decoder";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -57,6 +66,7 @@
 			dstSubfolderSpec = 1;
 			files = (
 				147C814D6497546DE43CF7CF /* xipper in Embed CLI */,
+				0F978FB5394FD3AB1A864395 /* xipper-decoder in Embed CLI */,
 			);
 			name = "Embed CLI";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -82,6 +92,7 @@
 		AAE659256FA71CF7DAD5086F /* XipperFinder.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = XipperFinder.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB75CB868A8B218A5DB24001 /* XipperPreview.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = XipperPreview.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBB1C9644A180717192D2BA2 /* XipperThumbnail.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = XipperThumbnail.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		3A016D13AD65EB220532A068 /* xipper-decoder */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "xipper-decoder"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -157,6 +168,12 @@
 			path = XipperThumbnail;
 			sourceTree = "<group>";
 		};
+		CBBA86A5F02BF2A416A9BFB3 /* xipper-decoder */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = "xipper-decoder";
+			path = "../Sources/xipper-decoder";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -200,6 +217,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		ED6B5805B16404EF6E1BFC5A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF98C4E202B0EC9A370AD8A5 /* XipperKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -211,6 +236,7 @@
 				1086915E847BE264FFE935D7 /* XipperPreview */,
 				FBB46E6CE7260F73C4575C02 /* XipperFinder */,
 				83A21DD89330134E58F886CE /* xipper */,
+				CBBA86A5F02BF2A416A9BFB3 /* xipper-decoder */,
 				86024CAD1E83101D97359D73 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -223,6 +249,7 @@
 				AB75CB868A8B218A5DB24001 /* XipperPreview.appex */,
 				AAE659256FA71CF7DAD5086F /* XipperFinder.appex */,
 				FEEDB67F42835527FE7A3D72 /* xipper */,
+				3A016D13AD65EB220532A068 /* xipper-decoder */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -244,6 +271,7 @@
 			);
 			dependencies = (
 				F995CD704EFD9C07DC4AC601 /* PBXTargetDependency */,
+				FDA1829982C8F79CE73DD5CB /* PBXTargetDependency */,
 				DC40B7677B27F0CBD5F97D89 /* PBXTargetDependency */,
 				E8A02927F55F580B0555D4A0 /* PBXTargetDependency */,
 				6C55AA883DDD20A70B08C196 /* PBXTargetDependency */,
@@ -348,6 +376,28 @@
 			productReference = EBB1C9644A180717192D2BA2 /* XipperThumbnail.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C10ACCF8A3B8300FA3A0B855 /* xipper-decoder */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 73521A66071D225BC45863AC /* Build configuration list for PBXNativeTarget "xipper-decoder" */;
+			buildPhases = (
+				BE764AC319DB7818895E17DA /* Sources */,
+				ED6B5805B16404EF6E1BFC5A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CBBA86A5F02BF2A416A9BFB3 /* xipper-decoder */,
+			);
+			name = "xipper-decoder";
+			packageProductDependencies = (
+				93BEB934EC712A6A3C7036E7 /* XipperKit */,
+			);
+			productName = "xipper-decoder";
+			productReference = 3A016D13AD65EB220532A068 /* xipper-decoder */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -378,6 +428,7 @@
 			targets = (
 				42AEFBAE01D2DFD981F7DA7D /* Xipper */,
 				A019ABBA0614667BC8CA8AF7 /* xipper */,
+				C10ACCF8A3B8300FA3A0B855 /* xipper-decoder */,
 				816B446FED34437D03212AAA /* XipperFinder */,
 				E1C64FA2A04918194F438558 /* XipperThumbnail */,
 				EC702426D1642005FA451714 /* XipperPreview */,
@@ -452,6 +503,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BE764AC319DB7818895E17DA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -474,6 +532,11 @@
 			isa = PBXTargetDependency;
 			target = E1C64FA2A04918194F438558 /* XipperThumbnail */;
 			targetProxy = 3EAE1296E3C7CD3C9E16793B /* PBXContainerItemProxy */;
+		};
+		FDA1829982C8F79CE73DD5CB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C10ACCF8A3B8300FA3A0B855 /* xipper-decoder */;
+			targetProxy = EC28351541B6EB08175AF2A8 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -732,6 +795,40 @@
 			};
 			name = Release;
 		};
+		A67A3167FEFC283E277F44B0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "XipperDecoder/xipper-decoder.entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "XipperDecoder/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.decoder;
+				PRODUCT_MODULE_NAME = XipperDecoder;
+				PRODUCT_NAME = "xipper-decoder";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		F1DF136A72631C7C30182570 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "XipperDecoder/xipper-decoder.entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "XipperDecoder/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = app.xipper.Xipper.decoder;
+				PRODUCT_MODULE_NAME = XipperDecoder;
+				PRODUCT_NAME = "xipper-decoder";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -789,6 +886,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		73521A66071D225BC45863AC /* Build configuration list for PBXNativeTarget "xipper-decoder" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A67A3167FEFC283E277F44B0 /* Debug */,
+				F1DF136A72631C7C30182570 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -819,6 +925,11 @@
 			productName = XipperKit;
 		};
 		7BF614CDD23211EDB8CD1CA1 /* XipperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */;
+			productName = XipperKit;
+		};
+		93BEB934EC712A6A3C7036E7 /* XipperKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference ".." */;
 			productName = XipperKit;

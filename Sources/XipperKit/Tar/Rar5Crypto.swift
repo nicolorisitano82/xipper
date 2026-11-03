@@ -157,12 +157,12 @@ final class Rar5PlainStream {
         return false
     }
 
-    init(path: String, password: String) throws {
+    init(path: String, password: String, name: String? = nil) throws {
         r = try FileReader(path: path)
-        name = (path as NSString).lastPathComponent
+        self.name = name ?? (path as NSString).lastPathComponent
         self.password = password
         let sig = try r.read(at: 0, count: 8)
-        guard sig == Self.signature else { throw XipperError.corrupt("\(name): not a RAR5 archive") }
+        guard sig == Self.signature else { throw XipperError.corrupt("\(self.name): not a RAR5 archive") }
         pending = sig
         pos = 8
     }

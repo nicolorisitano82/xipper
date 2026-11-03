@@ -50,6 +50,7 @@ Sources/XipperKit/       core Swift
   SevenZip/              7z: header, grafo dei coder, filtri BCJ/BCJ2, LZMA2 parallelo, volumi
   Codecs/                deflate, gzip/bzip2 paralleli, xz/zstd multi-thread, CRC-32
   Crypto/                WinZip AES (CTR little-endian su AES-ECB hardware), 7z AES-256-CBC, ZipCrypto (sola lettura)
+  Isolation/             decoder RAR nel processo sandboxed xipper-decoder (Sources/xipper-decoder)
   Extraction/            estrazione sicura comune a tutti i formati
   Mount/                 archivio montato come volume: albero copy-on-write, server WebDAV locale, NetFS
   Support/               concorrenza P/E-core, I/O, scansione delle sorgenti

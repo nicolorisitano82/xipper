@@ -423,7 +423,7 @@ enum TarExtractor {
 
     static func ownReader(_ path: String, password: String?) throws -> EntryStreamReader? {
         if AppleArchiveReader.isAppleArchive(path) { return try AppleArchiveReader(path: path, password: password) }
-        if RarReader.isRAR(path) { return try RarReader(path: path, password: password) }
+        if RarReader.isRAR(path) { return try IsolatedDecoder.rar(path: path, password: password) }
         return nil
     }
 

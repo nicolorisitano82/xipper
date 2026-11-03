@@ -495,3 +495,17 @@ Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun 
   - fuzzing: 1000 mutazioni per 4 vettori, senza crash né scritture fuori destinazione.
   - I vettori sono in `Tests/XipperKitTests/Fixtures/rar`, con la loro licenza.
 - **Da fare:** RAR5 cifrati (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, intestazioni cifrate), da scrivere da noi sopra libarchive o nel suo lettore.
+
+## Decoder RAR isolati (03/11/2026, 2.7)
+
+- **Helper `xipper-decoder`** (`Sources/xipper-decoder`, `Isolation/IsolatedDecoder.swift`), in `Xipper.app/Contents/Helpers`, firmato con il solo entitlement `com.apple.security.app-sandbox` (Info.plist nel binario, bundle id `app.xipper.Xipper.decoder`, container in `~/Library/Containers`).
+  - L'app o la CLI apre i volumi in sola lettura e li passa come descrittori 3, 4, …; tutti gli altri descrittori si chiudono (`POSIX_SPAWN_CLOEXEC_DEFAULT`). La password viaggia sullo standard input, mai negli argomenti o nell'ambiente.
+  - Protocollo a frame `[tipo u8][lunghezza u32][dati]`: open, next, data; risposte voce, fine, blocco di dati, fine dati, errore. Gli errori di XipperKit arrivano con il loro tipo (password richiesta, password sbagliata, integrità…).
+  - Se il helper muore, l'errore è «the isolated decoder crashed (signal N)…», cioè archivio danneggiato. Un consumatore che si ferma a metà di una voce invalida il lettore, e il processo viene ucciso quando il lettore si chiude.
+  - I dati delle voci non chieste non vengono mandati: libarchive le salta nel helper, così un elenco non decomprime niente.
+- **Perché non XPC né `sandbox_init`:** `sandbox_init` («pure-computation») sull'ultimo macOS uccide il processo (codice 137), e un servizio XPC dentro l'app non lo vede la CLI in `Contents/Helpers`.
+- **Dove resta in process:** estensioni Quick Look, miniature e Finder (già sandboxed: non possono avviare un helper senza `inherit`), build senza helper, `XIPPER_IN_PROCESS_DECODERS=1`.
+- **Firma:** `scripts/release.sh` rifirma il helper con `App/XipperDecoder/xipper-decoder.entitlements`.
+- **Test:** suite "Isolated decoders": stesse voci, dati ed errori di libarchive in process su 16 casi (cifrati, password sbagliata, multivolume, danneggiati); solo intestazioni; arresto a metà; crash del helper; 24 lettori in parallelo. Il fuzzing RAR ora passa dal helper.
+- **Verificato a mano:** con la CLI dentro l'app di debug si creano il container del helper, l'elenco e la verifica multivolume, l'estrazione di un RAR5 cifrato e l'errore con la password sbagliata. In un helper di prova con lo stesso entitlement, l'apertura di file della home, la scrittura in /tmp e la rete sono negate, mentre la lettura del descrittore ricevuto funziona.
+- **Da provare a mano nell'app:** apertura, Quick Look ed estrazione di un RAR grande, per misurare la velocità rispetto alla 2.6.

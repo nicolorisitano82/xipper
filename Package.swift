@@ -146,6 +146,11 @@ let package = Package(
             name: "xipper",
             dependencies: ["XipperKit", "XipperMCP"]
         ),
+        // Sandboxed helper that runs the external decoders (RAR) for the app and the CLI (IsolatedDecoder.swift).
+        .executableTarget(
+            name: "xipper-decoder",
+            dependencies: ["XipperKit"]
+        ),
         // Developer tool: codec bench on local corpora (docs/BENCHMARK.md). Not part of the app.
         .executableTarget(
             name: "xipper-bench",
@@ -153,7 +158,7 @@ let package = Package(
         ),
         .testTarget(
             name: "XipperKitTests",
-            dependencies: ["XipperKit", "XipperMCP", "CLZMA"],
+            dependencies: ["XipperKit", "XipperMCP", "CLZMA", "xipper-decoder"],
             exclude: ["Fixtures"]
         ),
     ],

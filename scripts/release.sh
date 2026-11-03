@@ -35,6 +35,8 @@ ditto "$DERIVED/Build/Products/Release/Xipper.app" "$APP"
 echo "==> signing with \"$IDENTITY\""
 sign() { codesign --force --keychain "$KC" -s "$IDENTITY" --options runtime --timestamp=none "$@"; }
 sign "$APP/Contents/Helpers/xipper"
+# The isolated decoder runs in the App Sandbox: its entitlements must survive the re-signing.
+sign --entitlements App/XipperDecoder/xipper-decoder.entitlements "$APP/Contents/Helpers/xipper-decoder"
 for appex in "$APP"/Contents/PlugIns/*.appex; do
     n=$(basename "$appex" .appex)
     sign --entitlements "App/$n/$n.entitlements" "$appex"

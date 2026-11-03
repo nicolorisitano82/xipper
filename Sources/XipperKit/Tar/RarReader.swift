@@ -84,22 +84,24 @@ final class RarReader: EntryStreamReader {
         return try body()
     }
 
-    init(path: String, password: String? = nil) throws {
+    /// `volumes` and `displayName` stand in for the files and name of `path` when the volumes are
+    /// descriptors (`/dev/fd/N`) in the isolated decoder (IsolatedDecoder.swift).
+    init(path: String, password: String? = nil, volumes: [String]? = nil, displayName: String? = nil) throws {
         let old = uselocale(Self.utf8Locale)
         defer { uselocale(old) }
-        name = (path as NSString).lastPathComponent
+        name = displayName ?? (path as NSString).lastPathComponent
         guard let a = archive_read_new() else { throw XipperError.codec("libarchive") }
         self.a = a
         archive_read_support_format_rar(a)
         archive_read_support_format_rar5(a)
         if let password { archive_read_add_passphrase(a, password) }
-        let files = Self.volumes(for: path)
+        let files = volumes ?? Self.volumes(for: path)
         let r: Int32
         if files.count == 1, Self.isRAR5(path),
            Rar5PlainStream.headersEncrypted(path) || (password != nil && Rar5PlainStream.isEncrypted(path)) {
             // Failures below leave `a` to deinit: a throwing init of a fully initialized class still runs it.
             guard let password else { throw XipperError.passwordRequired(entry: name) }
-            let source = PlainSource(try Rar5PlainStream(path: path, password: password))
+            let source = PlainSource(try Rar5PlainStream(path: path, password: password, name: name))
             plain = source
             r = archive_read_open(a, Unmanaged.passUnretained(source).toOpaque(), nil, { _, ctx, out in
                 let src = Unmanaged<PlainSource>.fromOpaque(ctx!).takeUnretainedValue()

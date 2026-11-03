@@ -279,7 +279,12 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - app: «Dati di recupero dopo ogni compressione» mette il record dentro gli XIZ, «Ripara» lo usa, verifica mensile facoltativa in background degli archivi seguiti (Impostazioni › Generali) con riparazione automatica e notifica; un XIZ col superblock rovinato si riconosce dal trailer;
   - libxiz: stesse funzioni in C (`xiz scrub`, `xiz recovery`); i record delle due implementazioni sono identici byte per byte;
   - PAR2 resta per gli altri formati.
-- **decoder isolati:** RAR (libarchive), 7z e i formati futuri in un servizio XPC sandboxed, così un bug di memoria in un decoder esterno non tocca l'app;
+- ✅ **decoder RAR isolati** (03/11/2026): i lettori RAR e RAR5 di libarchive girano in `xipper-decoder`, un processo a parte firmato solo con l'App Sandbox (nessun file proprio, nessuna rete, nessuna scrittura):
+  - riceve i volumi come descrittori già aperti in sola lettura e la password sullo standard input, e risponde con voci e dati a frame; l'estrazione sicura resta nell'app;
+  - se il decoder va in crash, l'archivio risulta danneggiato e l'app resta in piedi; ogni archivio aperto ha il suo processo, che parte in circa 20 ms;
+  - vale per l'app, la CLI e il server MCP; le estensioni Quick Look e Finder leggono in process, perché sono già sandboxed e non possono avviare il helper. `XIPPER_IN_PROCESS_DECODERS=1` torna al vecchio percorso;
+  - un helper anziché un servizio XPC: i servizi XPC dentro l'app non sono raggiungibili dalla CLI, mentre `sandbox_init` sull'ultimo macOS termina subito il processo;
+- **decoder 7z isolati:** il parser 7z è codice Swift di Xipper, ma i codec sono in C (LZMA SDK con assembly ARM64, PPMd, BCJ2). L'estrazione decodifica le cartelle in parallelo e il formato serve anche a modifica, conversione e montaggio: va progettata a parte (un helper per cartella o solo per elenco ed estrazione);
 - **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
 - **accessibilità e lingue** (dall'analisi UI/UX): annunci VoiceOver per i lavori, altre lingue oltre italiano e inglese.
 
