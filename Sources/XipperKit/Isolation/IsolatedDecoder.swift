@@ -1,10 +1,11 @@
 import Darwin
 import Foundation
 
-/// Decoders of external code (libarchive's RAR readers) run in `xipper-decoder`, a helper process
-/// signed with the App Sandbox and nothing else (2.7): no files of its own, no network, no writes.
-/// It gets the archive volumes as already-open read-only descriptors (3, 4, …), the password on its
-/// standard input, and sends back entries and data as frames on its standard output. A memory bug
+/// Decoders of external code (libarchive's RAR readers; the C codecs of 7z folders, see
+/// IsolatedSevenZip.swift) run in `xipper-decoder`, a helper process signed with the App Sandbox
+/// and nothing else (2.7): no files of its own, no network, no writes. It gets the archive volumes
+/// as already-open read-only descriptors (3, 4, …), the password (RAR) or the derived keys (7z) on
+/// its standard input, and sends back entries and data as frames on its standard output. A memory bug
 /// in the decoder can at worst crash or fool that process: the app sees a damaged archive, and
 /// every entry still goes through Xipper's safe extraction here, in the calling process.
 ///
@@ -12,7 +13,7 @@ import Foundation
 /// build without it; `XIPPER_IN_PROCESS_DECODERS=1`) the same reader runs in process.
 enum IsolatedDecoder {
     /// Request frames, app → helper.
-    enum Op: UInt8 { case open = 1, next = 2, data = 3, crash = 0xFF }
+    enum Op: UInt8 { case open = 1, next = 2, data = 3, sevenZip = 4, folder = 5, crash = 0xFF }
     /// Response frames, helper → app.
     enum Reply: UInt8 { case opened = 0x4F, entry = 0x45, end = 0x4E, chunk = 0x44, dataEnd = 0x5A, error = 0x58 }
 
@@ -35,7 +36,7 @@ enum IsolatedDecoder {
         return dirs.map { $0.appendingPathComponent(helperName).path }.first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
 
-    /// Whether RAR archives are read in the sandboxed helper.
+    /// Whether RAR archives and 7z folders are decoded in the sandboxed helper.
     static var isAvailable: Bool { helperPath != nil }
 
     /// A RAR reader: in the helper when there is one, in process otherwise.
@@ -132,6 +133,7 @@ enum IsolatedDecoder {
 
     static func encode(_ error: Error) -> [UInt8] {
         var w = Writer()
+        if error is SZNeedsPassword { w.u8(11); return w.bytes }
         switch error as? XipperError {
         case let .corrupt(m)?: w.u8(1); w.str(m)
         case let .unsupported(m)?: w.u8(2); w.str(m)
@@ -207,18 +209,15 @@ enum IsolatedDecoder {
     }
 }
 
-/// App side: an entry stream read from the helper. One helper process per reader; it ends with the reader.
-final class IsolatedEntryReader: EntryStreamReader {
-    private let pid: pid_t
-    private let toHelper: Int32
-    private let fromHelper: Int32
-    private let name: String
-    /// Set once the conversation is out of step (an error, a cancellation mid-entry): every later call fails.
-    private var broken: XipperError?
-    private var pendingData = false
-    private static let maxChunk = 4 << 20
+/// One running helper and its two pipes; killed when released.
+final class DecoderProcess: @unchecked Sendable {
+    let pid: pid_t
+    let toHelper: Int32
+    let fromHelper: Int32
+    /// The archive's name, for errors.
+    let name: String
 
-    init(helper: String, volumes: [String], name: String, password: String?) throws {
+    init(helper: String, volumes: [String], name: String) throws {
         self.name = name
         // Volumes become descriptors 3, 4, …; nothing else of this process reaches the helper. Every
         // descriptor handed over is first moved above those numbers, so no dup2 overwrites another.
@@ -268,13 +267,6 @@ final class IsolatedEntryReader: EntryStreamReader {
         toHelper = req[1]
         fromHelper = rep[0]
         _ = fcntl(toHelper, F_SETNOSIGPIPE, 1)  // a dead helper is an error, not a SIGPIPE here
-
-        var w = IsolatedDecoder.Writer()
-        w.str(name); w.u32(UInt32(volumes.count))
-        w.u8(password == nil ? 0 : 1); w.str(password ?? "")
-        try send(.open, w.bytes)
-        let (type, payload) = try receive()
-        guard type == IsolatedDecoder.Reply.opened.rawValue else { throw try unexpected(type, payload) }
     }
 
     deinit {
@@ -283,6 +275,61 @@ final class IsolatedEntryReader: EntryStreamReader {
         kill(pid, SIGKILL)
         var status: Int32 = 0
         while waitpid(pid, &status, 0) < 0 && errno == EINTR {}
+    }
+
+    func send(_ op: IsolatedDecoder.Op, _ payload: [UInt8] = []) throws {
+        guard IsolatedDecoder.frame(toHelper, op.rawValue, payload) else { throw died() }
+    }
+
+    func header() throws -> (UInt8, Int) {
+        guard let h = IsolatedDecoder.readHeader(fromHelper) else { throw died() }
+        return h
+    }
+
+    func read(into p: UnsafeMutableRawPointer, _ n: Int) throws {
+        guard IsolatedDecoder.readAll(fromHelper, p, n) else { throw died() }
+    }
+
+    func payload(_ n: Int) throws -> [UInt8] {
+        guard n <= 16 << 20 else { throw XipperError.corrupt("decoder helper: malformed reply") }
+        var b = [UInt8](repeating: 0, count: n)
+        if n > 0 { try b.withUnsafeMutableBytes { try read(into: $0.baseAddress!, n) } }
+        return b
+    }
+
+    func receive() throws -> (UInt8, [UInt8]) {
+        let (type, n) = try header()
+        return (type, try payload(n))
+    }
+
+    /// The helper's stream ended: it crashed (a decoder bug the archive triggered) or was killed.
+    func died() -> XipperError {
+        var status: Int32 = 0
+        var r: pid_t
+        repeat { r = waitpid(pid, &status, WNOHANG) } while r < 0 && errno == EINTR
+        if r == 0 { usleep(50_000); r = waitpid(pid, &status, WNOHANG) }
+        let signal = status & 0x7F
+        let how = r == pid && signal != 0 ? "crashed (signal \(signal))" : "stopped"
+        return .corrupt("\(name): the isolated decoder \(how) reading this archive; it is damaged or crafted to exploit a decoder bug")
+    }
+}
+
+/// App side: an entry stream read from the helper. One helper process per reader; it ends with the reader.
+final class IsolatedEntryReader: EntryStreamReader {
+    private let process: DecoderProcess
+    /// Set once the conversation is out of step (an error, a cancellation mid-entry): every later call fails.
+    private var broken: XipperError?
+    private var pendingData = false
+    private static let maxChunk = 4 << 20
+
+    init(helper: String, volumes: [String], name: String, password: String?) throws {
+        process = try DecoderProcess(helper: helper, volumes: volumes, name: name)
+        var w = IsolatedDecoder.Writer()
+        w.str(name); w.u32(UInt32(volumes.count))
+        w.u8(password == nil ? 0 : 1); w.str(password ?? "")
+        try send(.open, w.bytes)
+        let (type, payload) = try receive()
+        guard type == IsolatedDecoder.Reply.opened.rawValue else { throw try unexpected(type, payload) }
     }
 
     /// For tests: makes the helper crash as a decoder bug would.
@@ -310,10 +357,11 @@ final class IsolatedEntryReader: EntryStreamReader {
         let buf = UnsafeMutableRawPointer.allocate(byteCount: Self.maxChunk, alignment: 16384)
         defer { buf.deallocate() }
         while true {
-            guard let (type, n) = IsolatedDecoder.readHeader(fromHelper) else { throw fail(died()) }
+            let (type, n) = try checked { try process.header() }
             switch type {
             case IsolatedDecoder.Reply.chunk.rawValue:
-                guard n <= Self.maxChunk, IsolatedDecoder.readAll(fromHelper, buf, n) else { throw fail(died()) }
+                guard n <= Self.maxChunk else { throw fail(.corrupt("decoder helper: malformed reply")) }
+                try checked { try process.read(into: buf, n) }
                 do {
                     try cancel?.check()
                     try sink(UnsafeRawBufferPointer(start: buf, count: n))
@@ -326,27 +374,23 @@ final class IsolatedEntryReader: EntryStreamReader {
                 guard n == 0 else { throw fail(.corrupt("decoder helper: malformed reply")) }
                 return
             default:
-                throw try unexpected(type, try payload(n))
+                throw try unexpected(type, try checked { try process.payload(n) })
             }
         }
     }
 
-    private func send(_ op: IsolatedDecoder.Op, _ payload: [UInt8] = []) throws {
+    /// Runs one exchange with the helper; any failure ends the conversation.
+    private func checked<T>(_ body: () throws -> T) throws -> T {
         if let broken { throw broken }
-        guard IsolatedDecoder.frame(toHelper, op.rawValue, payload) else { throw fail(died()) }
+        do { return try body() } catch let e as XipperError { throw fail(e) }
+    }
+
+    private func send(_ op: IsolatedDecoder.Op, _ payload: [UInt8] = []) throws {
+        try checked { try process.send(op, payload) }
     }
 
     private func receive() throws -> (UInt8, [UInt8]) {
-        if let broken { throw broken }
-        guard let (type, n) = IsolatedDecoder.readHeader(fromHelper) else { throw fail(died()) }
-        return (type, try payload(n))
-    }
-
-    private func payload(_ n: Int) throws -> [UInt8] {
-        guard n <= 16 << 20 else { throw fail(.corrupt("decoder helper: malformed reply")) }
-        var b = [UInt8](repeating: 0, count: n)
-        guard n == 0 || b.withUnsafeMutableBytes({ IsolatedDecoder.readAll(fromHelper, $0.baseAddress!, n) }) else { throw fail(died()) }
-        return b
+        try checked { try process.receive() }
     }
 
     /// An error reply ends the conversation (the helper stops after it); anything else is out of step.
@@ -359,17 +403,6 @@ final class IsolatedEntryReader: EntryStreamReader {
         broken = broken ?? e
         return e
     }
-
-    /// The helper's stream ended: it crashed (a decoder bug the archive triggered) or was killed.
-    private func died() -> XipperError {
-        var status: Int32 = 0
-        var r: pid_t
-        repeat { r = waitpid(pid, &status, WNOHANG) } while r < 0 && errno == EINTR
-        if r == 0 { usleep(50_000); r = waitpid(pid, &status, WNOHANG) }
-        let signal = status & 0x7F
-        let how = r == pid && signal != 0 ? "crashed (signal \(signal))" : "stopped"
-        return .corrupt("\(name): the isolated decoder \(how) reading this archive; it is damaged or crafted to exploit a decoder bug")
-    }
 }
 
 /// Helper side: the loop of `xipper-decoder`. Runs in the sandbox, reads only descriptors 3, 4, ….
@@ -380,9 +413,11 @@ public enum DecoderService {
     }
 
     static func run(input: Int32, output: Int32) -> Int32 {
-        guard let (op, n) = IsolatedDecoder.readHeader(input), op == IsolatedDecoder.Op.open.rawValue, n <= 1 << 20 else { return 2 }
+        guard let (op, n) = IsolatedDecoder.readHeader(input), n <= 1 << 20 else { return 2 }
         var b = [UInt8](repeating: 0, count: n)
         guard n == 0 || b.withUnsafeMutableBytes({ IsolatedDecoder.readAll(input, $0.baseAddress!, n) }) else { return 2 }
+        if op == IsolatedDecoder.Op.sevenZip.rawValue { return SevenZipDecoderPool.serve(b, input: input, output: output) }
+        guard op == IsolatedDecoder.Op.open.rawValue else { return 2 }
         let reader: EntryStreamReader
         do {
             var r = IsolatedDecoder.Reader(b)

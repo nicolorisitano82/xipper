@@ -68,7 +68,7 @@ Sources/XipperKit/       Swift core
   Xiz/                   XIZ: writer, reader, access groups and recipients, signatures, proofs, erasure
   SevenZip/              7z: headers, coder graph, BCJ/BCJ2 filters, parallel LZMA2, volumes
   Codecs/                deflate, parallel gzip/bzip2/BGZF, xz/zstd, LZ4 frames, brotli, CRC-32
-  Isolation/             RAR decoders in the sandboxed xipper-decoder process (Sources/xipper-decoder)
+  Isolation/             RAR and 7z decoders in the sandboxed xipper-decoder process (Sources/xipper-decoder)
   Crypto/                WinZip AES, 7z AES-256-CBC, ZipCrypto
   Extraction/            safe extraction shared by every format
   Genomics/              CRAM 3.1, BAM, indexes (tabix/CSI/BAI/CRAI/FAI), CRAM/VCF/BCF checks, checksum manifests

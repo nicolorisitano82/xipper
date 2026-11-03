@@ -284,7 +284,11 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - se il decoder va in crash, l'archivio risulta danneggiato e l'app resta in piedi; ogni archivio aperto ha il suo processo, che parte in circa 20 ms;
   - vale per l'app, la CLI e il server MCP; le estensioni Quick Look e Finder leggono in process, perché sono già sandboxed e non possono avviare il helper. `XIPPER_IN_PROCESS_DECODERS=1` torna al vecchio percorso;
   - un helper anziché un servizio XPC: i servizi XPC dentro l'app non sono raggiungibili dalla CLI, mentre `sandbox_init` sull'ultimo macOS termina subito il processo;
-- **decoder 7z isolati:** il parser 7z è codice Swift di Xipper, ma i codec sono in C (LZMA SDK con assembly ARM64, PPMd, BCJ2). L'estrazione decodifica le cartelle in parallelo e il formato serve anche a modifica, conversione e montaggio: va progettata a parte (un helper per cartella o solo per elenco ed estrazione);
+- ✅ **decoder 7z isolati** (03/11/2026): il parser 7z (Swift di Xipper) resta nell'app; nel helper vanno i codec in C (LZMA/LZMA2 con l'assembly ARM64, PPMd, BZip2, Deflate, zstd, BCJ2 e filtri), compreso l'header compresso o cifrato:
+  - ogni richiesta porta una cartella (grafo dei codec, posizione dei flussi compressi, chiavi AES già derivate nell'app: la password non esce dal processo), il helper risponde col contenuto;
+  - ogni archivio ha un piccolo gruppo di helper, uno per cartella decodificata in parallelo, riusati a fine cartella; una cartella lasciata a metà si porta via il suo helper;
+  - stessa velocità del percorso in process (7z solid da 640 MB: estrazione 1,02 s contro 1,00 s, M3 Max), perché i blocchi passano dalla pipe direttamente nel buffer di chi legge;
+  - vale per estrazione, verifica, lettura di una voce, modifica e conversione (che leggono le voci allo stesso modo);
 - **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
 - **accessibilità e lingue** (dall'analisi UI/UX): annunci VoiceOver per i lavori, altre lingue oltre italiano e inglese.
 

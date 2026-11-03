@@ -86,9 +86,13 @@ enum SevenZipAES {
 /// and 2^19 rounds cost tens of milliseconds.
 final class SevenZipKeyCache: Sendable {
     let password: [UInt8]
-    private let keys = Mutex<[[UInt8]: [UInt8]]>([:])
+    private let keys: Mutex<[[UInt8]: [UInt8]]>
 
-    init(password: [UInt8]) { self.password = password }
+    /// `known`: keys derived elsewhere, by (cycles power + salt); the decoder helper gets only those.
+    init(password: [UInt8], known: [[UInt8]: [UInt8]] = [:]) {
+        self.password = password
+        keys = Mutex(known)
+    }
 
     func key(salt: [UInt8], cyclesPower: UInt8) -> [UInt8] {
         let id = [cyclesPower] + salt

@@ -25,13 +25,19 @@ final class SevenZipArchive: @unchecked Sendable {
     let folderRecords: [[Int]]
     /// Absolute offset of every packed stream (for raw copies when editing).
     let packOffsets: [Int64]
+    /// Helpers decoding the folders (IsolatedSevenZip.swift); nil: decoded in process.
+    let decoders: SevenZipDecoderPool?
 
     static let maxHeaderSize: Int64 = 1 << 30
 
-    init(path: String, password: String?) throws {
-        input = try SevenZipInput(path: path)
+    /// `isolated`: decode in the sandboxed helper when there is one.
+    init(path: String, password: String?, isolated: Bool = true) throws {
+        let input = try SevenZipInput(path: path)
+        self.input = input
         keys = password.map { SevenZipKeyCache(password: SevenZipAES.passwordBytes($0)) }
         let name = (path as NSString).lastPathComponent
+        let decoders = isolated ? IsolatedDecoder.helperPath.map { SevenZipDecoderPool(helper: $0, volumes: input.volumePaths, name: name) } : nil
+        self.decoders = decoders
         if input.size < Int64(SevenZip.signatureHeaderSize) { throw XipperError.corrupt("not a 7z archive (too small)") }
         let sig = try input.read(at: 0, count: SevenZip.signatureHeaderSize)
         guard sig.starts(with: SevenZip.signature) else { throw XipperError.corrupt("not a 7z archive") }
@@ -94,7 +100,7 @@ final class SevenZipArchive: @unchecked Sendable {
             for s in info.packSizes { offsets.append(off); off += s }
             let packs = (0..<f.packedStreams.count).map { (offsets[f.firstPackStream + $0], info.packSizes[f.firstPackStream + $0]) }
             do {
-                let src = try SZFolderDecoder(folder: f, input: input, packs: packs, keys: keys).open()
+                let src = try Self.decode(f, input: input, packs: packs, keys: keys, decoders: decoders)
                 var out = [UInt8](repeating: 0, count: Int(f.unpackSize))
                 if !out.isEmpty { _ = try out.withUnsafeMutableBytes { try src.readExactly(into: $0.baseAddress!, count: $0.count) } }
                 if let c = f.crc, CRC32.checksum(out) != c { throw XipperError.corrupt("7z header CRC mismatch") }
@@ -179,16 +185,25 @@ final class SevenZipArchive: @unchecked Sendable {
         return (0..<f.packedStreams.count).reduce(0) { $0 + streams.packSizes[f.firstPackStream + $1] }
     }
 
-    /// Pull stream of folder `i`'s content.
+    /// Pull stream of folder `i`'s content, from byte `skip`.
     /// `workers` > 1 lets one folder decode on several threads (LZMA2 with dictionary resets).
-    func open(folder i: Int, workers: Int = 1, qos: QualityOfService = .userInitiated, onPackRead: ((Int) -> Void)? = nil) throws -> ByteSource {
+    func open(folder i: Int, workers: Int = 1, qos: QualityOfService = .userInitiated, skip: Int64 = 0) throws -> ByteSource {
         let f = streams.folders[i]
         let packs = (0..<f.packedStreams.count).map { (packOffsets[f.firstPackStream + $0], streams.packSizes[f.firstPackStream + $0]) }
+        return try Self.decode(f, input: input, packs: packs, keys: keys, decoders: decoders, workers: workers, qos: qos, skip: skip)
+    }
+
+    /// A folder decoded by a helper, or in process without one.
+    static func decode(_ f: SZFolder, input: SevenZipInput, packs: [(offset: Int64, size: Int64)], keys: SevenZipKeyCache?,
+                       decoders: SevenZipDecoderPool?, workers: Int = 1, qos: QualityOfService = .userInitiated,
+                       skip: Int64 = 0) throws -> ByteSource {
+        if let decoders { return try decoders.open(f, packs: packs, keys: keys, workers: workers, qos: qos, skip: skip) }
         var d = SZFolderDecoder(folder: f, input: input, packs: packs, keys: keys)
-        d.onPackRead = onPackRead
         d.workers = workers
         d.qos = qos
-        return try d.open()
+        let src = try d.open()
+        if skip > 0 { try src.skip(skip) }
+        return src
     }
 }
 
@@ -394,8 +409,7 @@ enum SevenZipExtractor {
         let buf = UnsafeMutableRawPointer.allocate(byteCount: 1 << 20, alignment: 16384)
         defer { buf.deallocate() }
         do {
-            let src = try a.open(folder: r.folder)
-            try src.skip(r.offset)
+            let src = try a.open(folder: r.folder, skip: r.offset)
             try copy(src, size: r.size, crc: r.crc, entry: r.entry.path, buf: buf, cancel: nil, sink)
         } catch let e as XipperError {
             throw translate(e, folder: folder, entry: r.entry.path)

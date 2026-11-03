@@ -496,7 +496,7 @@ Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun 
   - I vettori sono in `Tests/XipperKitTests/Fixtures/rar`, con la loro licenza.
 - **Da fare:** RAR5 cifrati (AES-256-CBC, chiave PBKDF2-HMAC-SHA256, intestazioni cifrate), da scrivere da noi sopra libarchive o nel suo lettore.
 
-## Decoder RAR isolati (03/11/2026, 2.7)
+## Decoder RAR e 7z isolati (03/11/2026, 2.7)
 
 - **Helper `xipper-decoder`** (`Sources/xipper-decoder`, `Isolation/IsolatedDecoder.swift`), in `Xipper.app/Contents/Helpers`, firmato con il solo entitlement `com.apple.security.app-sandbox` (Info.plist nel binario, bundle id `app.xipper.Xipper.decoder`, container in `~/Library/Containers`).
   - L'app o la CLI apre i volumi in sola lettura e li passa come descrittori 3, 4, …; tutti gli altri descrittori si chiudono (`POSIX_SPAWN_CLOEXEC_DEFAULT`). La password viaggia sullo standard input, mai negli argomenti o nell'ambiente.
@@ -508,4 +508,13 @@ Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun 
 - **Firma:** `scripts/release.sh` rifirma il helper con `App/XipperDecoder/xipper-decoder.entitlements`.
 - **Test:** suite "Isolated decoders": stesse voci, dati ed errori di libarchive in process su 16 casi (cifrati, password sbagliata, multivolume, danneggiati); solo intestazioni; arresto a metà; crash del helper; 24 lettori in parallelo. Il fuzzing RAR ora passa dal helper.
 - **Verificato a mano:** con la CLI dentro l'app di debug si creano il container del helper, l'elenco e la verifica multivolume, l'estrazione di un RAR5 cifrato e l'errore con la password sbagliata. In un helper di prova con lo stesso entitlement, l'apertura di file della home, la scrittura in /tmp e la rete sono negate, mentre la lettura del descrittore ricevuto funziona.
-- **Da provare a mano nell'app:** apertura, Quick Look ed estrazione di un RAR grande, per misurare la velocità rispetto alla 2.6.
+- **7z** (`Isolation/IsolatedSevenZip.swift`): `SevenZipArchive` decodifica ogni cartella con `SevenZipDecoderPool` quando c'è il helper.
+  - Il parser degli header resta Swift nell'app; l'header compresso o cifrato, essendo una cartella, passa dal helper come le altre.
+  - Richiesta `folder`: codec (metodo, flussi, proprietà), bind pair, flussi compressi con offset e dimensione, dimensioni, CRC, chiavi AES derivate nell'app (per cycles power + salt), thread, QoS, byte da saltare. La password non arriva al helper, solo le chiavi delle cartelle che decodifica.
+  - Risposte: blocchi da 1 MiB, fine, errore (password mancante = codice 11). Dopo un errore il helper resta in ascolto: le cartelle sono indipendenti.
+  - Pool per archivio: un helper torna libero quando la sua cartella è letta fino alla fine (il frame di fine si legge appena arriva l'ultimo byte); una cartella abbandonata a metà uccide il suo helper. I helper si chiudono con l'archivio.
+  - Il lato app controlla la dimensione dichiarata: più byte del previsto o meno sono errori, non dati accettati.
+  - Lettura di una voce in mezzo a una cartella solid: il salto si fa nel helper, non attraverso la pipe.
+- **Velocità** (release, M3 Max, 607 file, 640 MB): 7z solid 64 MB estrazione 1,02 s isolato contro 1,00 s in process, verifica 0,92 s contro 0,90 s; non solid nel rumore. Una prima versione che copiava ogni blocco due volte costava il 15%: ora il blocco va dalla pipe direttamente nel buffer del chiamante.
+- **Test 7z:** 87 archivi (vettori libarchive e corpus interop) letti voce per voce e verificati, identici dentro e fuori dal helper; password assente, sbagliata e giusta; riuso del helper e cartella abbandonata; crash; 24 verifiche in parallelo.
+- **Da provare a mano nell'app:** apertura, Quick Look ed estrazione di un RAR e di un 7z grandi.

@@ -3,8 +3,9 @@ import Synchronization
 import Testing
 @testable import XipperKit
 
-/// RAR archives are read in the `xipper-decoder` helper process (IsolatedDecoder.swift): same
-/// entries, data and errors as libarchive in process, and a crashing decoder is a damaged archive.
+/// RAR archives and 7z folders are decoded in the `xipper-decoder` helper process
+/// (IsolatedDecoder.swift, IsolatedSevenZip.swift): same entries, data and errors as in process,
+/// and a crashing decoder is a damaged archive.
 @Suite("Isolated decoders")
 struct IsolatedDecoderTests {
     struct Item: Equatable { var entry: ArchiveEntry; var data: [UInt8]? }
@@ -106,6 +107,100 @@ struct IsolatedDecoderTests {
         let failures = Mutex<Int>(0)
         DispatchQueue.concurrentPerform(iterations: 24) { _ in
             if (try? Xipper.test(archive).isOK) != true || (try? Xipper.list(archive)) != expected { failures.withLock { $0 += 1 } }
+        }
+        #expect(failures.withLock { $0 } == 0)
+    }
+
+    // MARK: 7z
+
+    static let sevenZipArchives: [String] = {
+        let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
+        let lib = ((try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent("libarchive").path)) ?? [])
+            .filter { $0.hasSuffix(".7z") }.map { "libarchive/" + $0 }
+        let interop = InteropCorpusTests.archives.filter { $0.hasPrefix("7zz-") && !$0.hasSuffix(".zip") }.map { "interop/" + $0 }
+        return (lib + interop).sorted()
+    }()
+
+    static func sevenZipURL(_ rel: String) -> URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/" + rel)
+    }
+
+    /// Every record's data (or error), each read on its own (skip inside solid folders), then the whole test.
+    func sevenZipContents(_ url: URL, password: String?, isolated: Bool) -> [String] {
+        let a: SevenZipArchive
+        do { a = try SevenZipArchive(path: url.path, password: password, isolated: isolated) } catch { return ["open: \(error)"] }
+        #expect((a.decoders != nil) == isolated)
+        var out: [String] = []
+        for r in a.records where r.hasStream {
+            var d: [UInt8] = []
+            do {
+                try SevenZipExtractor.read(a, record: r) { d.append(contentsOf: $0) }
+                out.append("\(r.entry.path) \(d.count) \(CRC32.checksum(d))")
+            } catch { out.append("\(r.entry.path): \(error)") }
+        }
+        do {
+            let failures = try SevenZipExtractor.test(a, workload: .interactive, tracker: ProgressTracker(totalBytes: 0, totalEntries: 0, handler: nil), cancel: nil)
+            out += failures.map { "test \($0.path): \($0.reason)" }
+        } catch { out.append("test: \(error)") }
+        return out
+    }
+
+    @Test(arguments: sevenZipArchives)
+    func sevenZipSameAsInProcess(name: String) throws {
+        let url = Self.sevenZipURL(name)
+        let pw = InteropCorpusTests.password(url.lastPathComponent)
+        #expect(sevenZipContents(url, password: pw, isolated: true) == sevenZipContents(url, password: pw, isolated: false))
+    }
+
+    @Test func sevenZipPasswords() throws {
+        for name in ["7zz-aes-encnames.7z", "7zz-aes-plainnames.7z"] {
+            let url = Self.sevenZipURL("interop/" + name)
+            for pw in [nil, "wrong", InteropCorpusTests.expected.password] {
+                let outside = sevenZipContents(url, password: pw, isolated: true)
+                #expect(outside == sevenZipContents(url, password: pw, isolated: false), "\(name) \(pw ?? "-")")
+                #expect(outside.contains { $0.contains("password") } == (pw != InteropCorpusTests.expected.password), "\(name) \(pw ?? "-")")
+            }
+        }
+    }
+
+    @Test func sevenZipHelpersAreReused() throws {
+        let a = try SevenZipArchive(path: Self.sevenZipURL("interop/7zz-lzma2-nonsolid.7z").path, password: nil)
+        let pool = try #require(a.decoders)
+        #expect(a.streams.folders.count > 1)
+        for r in a.records where r.hasStream { try SevenZipExtractor.read(a, record: r) { _ in } }
+        #expect(pool.idleCount == 1)  // one folder at a time: one helper for all of them
+        // A folder left halfway takes its helper with it; the next one gets a fresh helper.
+        let big = try #require(a.streams.folders.indices.max { a.streams.folders[$0].unpackSize < a.streams.folders[$1].unpackSize })
+        var src: ByteSource? = try a.open(folder: big)
+        #expect(pool.idleCount == 0)
+        var byte: UInt8 = 0
+        #expect(try src!.read(into: &byte, max: 1) == 1)
+        src = nil
+        #expect(pool.idleCount == 0)
+        let r = try #require(a.records.first { $0.hasStream })
+        try SevenZipExtractor.read(a, record: r) { _ in }
+        #expect(pool.idleCount == 1)
+    }
+
+    @Test func crashingSevenZipDecoderIsADamagedArchive() throws {
+        let url = Self.sevenZipURL("interop/7zz-lzma2-solid.7z")
+        let a = try SevenZipArchive(path: url.path, password: nil)
+        let src = try #require(a.decoders).crashing()
+        var byte: UInt8 = 0
+        do {
+            _ = try src.read(into: &byte, max: 1)
+            Issue.record("no error after the helper crashed")
+        } catch let XipperError.corrupt(m) {
+            #expect(m.contains("7zz-lzma2-solid.7z") && m.contains("crashed"), "\(m)")
+        }
+        #expect(try Xipper.test(url).isOK)
+    }
+
+    @Test func manySevenZipArchivesInParallel() throws {
+        let archive = Self.sevenZipURL("interop/7zz-lzma2-nonsolid.7z")
+        let failures = Mutex<Int>(0)
+        DispatchQueue.concurrentPerform(iterations: 24) { _ in
+            if (try? Xipper.test(archive).isOK) != true { failures.withLock { $0 += 1 } }
         }
         #expect(failures.withLock { $0 } == 0)
     }

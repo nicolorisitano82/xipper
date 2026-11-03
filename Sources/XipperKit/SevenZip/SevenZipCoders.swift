@@ -15,9 +15,14 @@ final class SevenZipInput: @unchecked Sendable {
     /// otherwise. Offsets given to `read` are relative to it, as inside the archive.
     let base: Int64
 
-    init(path: String) throws {
+    /// Every volume, in order.
+    let volumePaths: [String]
+
+    /// `volumes`: already known (the decoder helper's descriptors); found next to `path` otherwise.
+    init(path: String, volumes paths: [String]? = nil) throws {
         self.path = path
-        let paths = Self.volumePaths(path)
+        let paths = paths ?? Self.volumePaths(path)
+        volumePaths = paths
         volumes = try paths.map { try FileReader(path: $0) }
         var s: [Int64] = []
         var total: Int64 = 0
@@ -96,8 +101,6 @@ final class PackStreamSource: ByteSource {
     private let input: SevenZipInput
     private var offset: Int64
     private var left: Int64
-    /// Called with the number of packed bytes read (progress).
-    var onRead: ((Int) -> Void)?
 
     init(_ input: SevenZipInput, offset: Int64, size: Int64) {
         self.input = input
@@ -111,7 +114,6 @@ final class PackStreamSource: ByteSource {
         try input.read(at: offset, into: buf, count: n)
         offset += Int64(n)
         left -= Int64(n)
-        onRead?(n)
         return n
     }
 }
@@ -685,7 +687,6 @@ struct SZFolderDecoder {
     /// Absolute offset and size of each of the folder's packed streams.
     let packs: [(offset: Int64, size: Int64)]
     let keys: SevenZipKeyCache?
-    var onPackRead: ((Int) -> Void)?
     /// > 1: decode LZMA2 segments in parallel when the stream has dictionary resets.
     var workers = 1
     var qos: QualityOfService = .userInitiated
@@ -724,9 +725,7 @@ struct SZFolderDecoder {
             let idx = base + k
             if let bp = folder.bindPairs.first(where: { $0.inIndex == idx }) { return try source(forOut: bp.outIndex) }
             guard let p = folder.packedStreams.firstIndex(of: idx), p < packs.count else { throw XipperError.corrupt("7z folder graph") }
-            let s = PackStreamSource(input, offset: packs[p].offset, size: packs[p].size)
-            s.onRead = onPackRead
-            return s
+            return PackStreamSource(input, offset: packs[p].offset, size: packs[p].size)
         }
     }
 
