@@ -25,6 +25,10 @@ private struct GeneralSettings: View {
     @AppStorage(PrefKey.recoveryPercent) private var recoveryPercent = 10.0
     @AppStorage(PrefKey.updatesAutomatic) private var updates = true
     @AppStorage(PrefKey.extractNested) private var nested = false
+    @AppStorage(PrefKey.xizPeriodicScrub) private var periodic = false
+    @State private var watched = XizWatch.archives.count
+    @State private var checking = false
+    @State private var lastCheck: String?
 
     var body: some View {
         Form {
@@ -46,8 +50,28 @@ private struct GeneralSettings: View {
                     Text("10%").tag(10.0)
                     Text("20%").tag(20.0)
                 }
-                Text("File .par2 accanto all'archivio, compatibili con par2cmdline e MultiPar: se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta.")
+                Text("Negli archivi XIZ i dati di recupero stanno dentro l'archivio e lo seguono in ogni copia; per gli altri formati sono file .par2 accanto, compatibili con par2cmdline e MultiPar. Se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta.")
                     .font(.callout).foregroundStyle(.secondary)
+                Toggle(isOn: $periodic) {
+                    Text("Controlla ogni mese gli archivi XIZ con i dati di recupero")
+                    Text("In background rilegge ogni archivio creato o protetto da Xipper e ripara da solo i danni che i dati di recupero coprono. Archivi seguiti: \(watched).")
+                }
+                .onChange(of: periodic) { XizWatch.schedule() }
+                HStack {
+                    Button(checking ? String(localized: "Controllo in corso…") : String(localized: "Controlla ora")) {
+                        checking = true
+                        Task {
+                            let r = await XizWatch.checkDue(force: true)
+                            checking = false
+                            watched = XizWatch.archives.count
+                            lastCheck = r.damaged.isEmpty && r.repaired.isEmpty
+                                ? String(localized: "\(r.checked) archivi integri")
+                                : String(localized: "\(r.repaired.count) riparati, \(r.damaged.count) non riparabili")
+                        }
+                    }
+                    .disabled(checking || watched == 0)
+                    if let lastCheck { Text(lastCheck).foregroundStyle(.secondary) }
+                }
             }
             Section("Aggiornamenti") {
                 Toggle("Cerca aggiornamenti ogni giorno", isOn: $updates)

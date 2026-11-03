@@ -353,8 +353,13 @@ final class JobCenter {
             options.xizAccess = xiz?.access
             options.xizSigner = xiz?.signer
             options.legacyZipCrypto = legacyZipCrypto
+            let recovery = Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate)
+            // XIZ keeps its recovery data inside (2.7); the other formats get PAR2 files.
+            if recovery && format == .xiz { options.xizRecovery = Preferences.recoveryPercent }
             let r = try Xipper.create(from: sources, to: dest, options: options, progress: progress, cancel: cancel)
-            if Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate) {
+            if recovery && format == .xiz {
+                XizWatch.remember(dest)
+            } else if recovery {
                 try PAR2.create(for: [dest], redundancy: Preferences.recoveryPercent, cancel: cancel)
             }
             return .created(r, dest)
@@ -543,7 +548,7 @@ extension Job {
             if let missing = Xipper.missingVolume(of: archive), !FileManager.default.fileExists(atPath: missing) {
                 remedies = [.locate(missing: missing)]
                 state = .failed(String(localized: "Manca la parte “\((missing as NSString).lastPathComponent)” dell'archivio"))
-            } else if PAR2.indexFile(for: archive) != nil {
+            } else if ArchiveActions.hasRecovery(archive) {
                 remedies = [.repair]
             } else if ArchiveFormat.inferred(fromFileName: archive.lastPathComponent) == .zip {
                 remedies = [.rebuildZip]

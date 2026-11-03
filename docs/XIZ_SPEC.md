@@ -1,10 +1,11 @@
-# XIZ archive format, version 1.4
+# XIZ archive format, version 1.5
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
 Xipper 2.2.0) adds access groups, k-of-n threshold keys, signed segments, erasable entries and
 inclusion proofs (§13). **1.4** (2026-11-02, Xipper 2.6) adds LZMA2 frames with an optional ARM64
-branch filter (§14). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+branch filter (§14). **1.5** (2026-11-03, Xipper 2.7) adds an optional recovery record at the end of the
+file (§15), which every reader since 1.1 skips. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -64,8 +65,9 @@ There are no gaps and no overlaps. The footer ends the file.
 | 5 | lzma2 | 1.4: frames with codec 2 (LZMA2) or 3 (ARM64 + LZMA2) (§14) |
 | 6–15 | — | reserved, zero |
 
-**Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved for embedded
-recovery data; bits 1–15 are reserved and zero. Recovery data for XIZ (and any other archive) is
+**Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
+the recovery record (§15) can be added to an existing archive, whose superblock is never rewritten,
+so readers find it by its trailer. Bits 1–15 are reserved and zero. Recovery data can also be
 written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.xiz.volNN+MM.par2`).
 
 `encrypted` is set if and only if `keys_length > 0`. `keys_length` must not exceed 65,536.
@@ -565,3 +567,93 @@ Xipper writes LZMA2 frames at preset 6 with the dictionary as large as the frame
 frames preset 9 gains nothing. On the corpora of docs/BENCHMARK.md LZMA2 is about 10% smaller than
 zstd 19 on executables and 3% smaller on source code, and decompresses about 10 times slower per
 core; frames still decompress in parallel.
+
+## 15. Version 1.5: recovery record
+
+An archive may end with a **recovery record**: Reed–Solomon parity over the whole archive, so that
+damaged bytes anywhere (superblock, keys block, frames, catalogs, footers) can be rebuilt from the
+file alone, without the password and without separate PAR2 files. It is optional data: it changes
+no feature bit and no `version_minor`, and every reader since 1.1 skips it (it looks like the tail
+of an interrupted append, §11).
+
+### 15.1 Layout
+
+```
+0                 archive: superblock … last footer          P = protected_length bytes
+P                 header A                                    64
+P + 64            table A                                     16 × (K + M)
+                  zero padding up to the next multiple of 4096
+R                 recovery slices 0 … M−1                     M × S
+R + M·S           header B (copy of A)                        64
+                  table B (copy of A)                         16 × (K + M)
+file_size − 64    trailer                                     64
+```
+
+`P` is the end of the last footer. The protected bytes `[0, P)` are cut into `K = ⌈P / S⌉` **data
+slices** of `S` bytes; the last one is padded with zeros to `S`. `R = align4096(P + 64 + 16·(K+M))`.
+
+**Header** (64 bytes):
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 4 | magic `XIZR` |
+| 4 | 2 | version = 1 |
+| 6 | 2 | flags = 0 |
+| 8 | 16 | archive_id (as the superblock) |
+| 24 | 8 | protected_length `P` |
+| 32 | 4 | slice_size `S`: a multiple of 4096 |
+| 36 | 4 | data_slices `K` (≥ 1, = ⌈P / S⌉) |
+| 40 | 4 | recovery_slices `M` (1 ≤ M ≤ K, K + M ≤ 65,536) |
+| 44 | 16 | first 16 bytes of SHA256(table) |
+| 60 | 4 | CRC32C of bytes 0–59 |
+
+**Table**: `K + M` entries of 16 bytes, the first 16 bytes of the SHA-256 of each data slice (padded)
+and then of each recovery slice.
+
+**Trailer** (64 bytes, the last of the file):
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 4 | magic `XIZT` |
+| 4 | 2 | version = 1 |
+| 6 | 2 | flags = 0 |
+| 8 | 16 | archive_id |
+| 24 | 8 | offset of header A (= `P`) |
+| 32 | 8 | offset of the recovery slices (`R`) |
+| 40 | 8 | offset of header B (`R + M·S`) |
+| 48 | 8 | reserved, zero |
+| 56 | 4 | CRC32C of bytes 0–55 |
+| 60 | 4 | tail magic `XZR!` |
+
+### 15.2 Code
+
+Arithmetic is in GF(2^16) with the PAR2 polynomial `x^16 + x^12 + x^3 + x + 1` (0x1100B), on
+little-endian 16-bit words. Recovery slice `r` is
+
+    R_r = Σ_{d=0}^{K−1} c(r, d) · D_d      with   c(r, d) = (x_r ⊕ y_d)^−1,  x_r = K + r,  y_d = d
+
+a Cauchy matrix: every square submatrix is invertible, so **any** `m ≤ M` damaged data slices are
+rebuilt from any `m` intact recovery slices.
+
+### 15.3 Reading and repair
+
+- Readers that only extract **may** use the trailer to find the footer: when the trailer is valid,
+  the footer is at `P − 96`. Otherwise they search for the footer as after an interrupted append (§11).
+- A repairer locates the record from the trailer; when the trailer is damaged it searches backwards
+  for a header with a valid CRC at `P` or at `R + M·S` as computed from its own fields. A header is
+  used only with a table that matches its hash. Header A and B are interchangeable.
+- A slice is intact when its SHA-256 prefix matches the table. If the damaged data slices are no more
+  than the intact recovery slices, they are rebuilt and checked against the table before being written.
+- The record never decides what is extracted: rebuilt bytes still pass every check of §8 (CRC, catalog
+  hash, AEAD tags, digests).
+- The archive must not shrink below `P`: a file truncated inside the protected region cannot be
+  repaired (header A lies beyond it). Truncation inside the record only loses the slices past the end.
+
+### 15.4 Writing
+
+- A writer computes the record over the finished archive and appends it after the last footer.
+- Appending a segment (§11) first truncates the file at the end of the last footer, removing the
+  record; the writer then writes a new record over the longer archive if it wants one.
+- Xipper chooses `S` so that `K` stays near 2,000 (at least 4 KiB, at most `K = 32,768`) and `M =
+  ⌈K × redundancy⌉` (default 10%): the record then repairs damage up to 10% of the archive, in as
+  many places as there are recovery slices.

@@ -98,7 +98,7 @@ endif()
 
 add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
-  src/io.c src/extract.c src/sign.c src/writer.c
+  src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>)
 target_include_directories(xiz PUBLIC include PRIVATE src)
 target_link_libraries(xiz PRIVATE xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)

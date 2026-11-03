@@ -92,6 +92,56 @@ int main(void) {
         xiz_windows_name("normal name", 11, out, sizeof out);
         CHECK(strcmp(out, "normal name") == 0);
     }
+    {   /* §15 recovery record: add, damage, repair byte for byte; appending removes it. */
+        const char *path = "unit-recovery.xiz";
+        xiz_error err;
+        xiz_writer *w;
+        xiz_writer_options wo;
+        memset(&wo, 0, sizeof wo);
+        wo.level = 1;
+        size_t n = 700000;
+        uint8_t *data = malloc(n);
+        uint32_t x = 12345;
+        for (size_t i = 0; i < n; i++) { x = x * 1103515245u + 12345u; data[i] = (uint8_t)(x >> 16); }
+        CHECK(xiz_writer_create(&w, path, &wo, 1, &err) == XIZ_OK);
+        CHECK(xiz_writer_add_data(w, "r.bin", data, n, NULL, &err) == XIZ_OK);
+        CHECK(xiz_writer_finish(w, &err) == XIZ_OK);
+        xiz_recovery_info info;
+        CHECK(xiz_recovery_info_file(path, &info, &err) == XIZ_E_NOT_FOUND);
+        CHECK(xiz_recovery_add(path, 10, &info, &err) == XIZ_OK);
+        CHECK(info.recovery_slices == (info.data_slices + 9) / 10);
+        FILE *f = fopen(path, "rb");
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        uint8_t *orig = malloc((size_t)size), *bad = malloc((size_t)size);
+        fseek(f, 0, SEEK_SET);
+        CHECK(fread(orig, 1, (size_t)size, f) == (size_t)size);
+        fclose(f);
+        memcpy(bad, orig, (size_t)size);
+        long offs[] = {0, 70, 300000, (long)info.protected_length - 20, size - 20};
+        for (size_t i = 0; i < sizeof offs / sizeof *offs; i++) bad[offs[i]] ^= 0xFF;
+        f = fopen(path, "wb");
+        fwrite(bad, 1, (size_t)size, f);
+        fclose(f);
+        xiz_recovery_report r;
+        CHECK(xiz_recovery_scrub(path, 0, &r, &err) == XIZ_OK);
+        CHECK(r.has_record && r.damaged_data_slices == 3 && r.damaged_metadata == 1 && r.repairable && !r.repaired);
+        CHECK(xiz_recovery_scrub(path, 1, &r, &err) == XIZ_OK && r.repaired);
+        f = fopen(path, "rb");
+        CHECK(fread(bad, 1, (size_t)size, f) == (size_t)size && memcmp(bad, orig, (size_t)size) == 0);
+        fclose(f);
+        xiz_archive *a;
+        CHECK(xiz_open_file(&a, path, NULL, &err) == XIZ_OK);
+        if (a) xiz_close(a);
+        CHECK(xiz_writer_append(&w, path, &wo, &err) == XIZ_OK);
+        CHECK(xiz_writer_add_data(w, "more.txt", "more", 4, NULL, &err) == XIZ_OK);
+        CHECK(xiz_writer_finish(w, &err) == XIZ_OK);
+        CHECK(xiz_recovery_info_file(path, &info, &err) == XIZ_E_NOT_FOUND);
+        int removed = 1;
+        CHECK(xiz_recovery_remove(path, &removed, &err) == XIZ_OK && !removed);
+        free(data); free(orig); free(bad);
+        remove(path);
+    }
     if (failures) { fprintf(stderr, "%d failures\n", failures); return 1; }
     printf("unit: all passed\n");
     return 0;

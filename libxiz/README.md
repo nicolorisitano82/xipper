@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ 1.4** di Xipper, scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ 1.5** di Xipper, scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -28,6 +28,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | Scrittura: XIZ 1.0 zstd, frame da 4 MiB, deduplica per file, password | completo |
 | Scrittura: segmenti aggiunti (aggiunte, rimozioni, cartelle) su archivi 1.0–1.2/1.4 | completo |
 | Scrittura di strutture 1.3 (gruppi, firme, slot), dizionari, LZMA2 | non prevista |
+| 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
 
 ## Build
 
@@ -76,7 +77,12 @@ xiz history <archive>                    firme dei segmenti (non servono chiavi)
 xiz verify-proof <proof.json> <file>
 xiz create  [-l LEVEL] [--frame-size MiB] [--overwrite] <archive> <file|folder>...
 xiz append  <archive> [--add FILE[:PATH]]... [--delete PATH]... [--mkdir PATH]...
+xiz scrub   [--repair] <archive>         ogni byte contro il recovery record; --repair ripara in place
+xiz recovery add [--redundancy N] | remove | info <archive>
 ```
+
+I record scritti da libxiz e da Xipper sono identici byte per byte e ciascuno ripara quelli
+dell'altro. `append` toglie il record (§15.4): va riaggiunto dopo.
 
 Credenziali: `--password-env VAR`, `--password-stdin` (una password per riga: più custodi di una
 soglia), `--identity FILE` (chiave segreta X25519 `XIZ-SECRET-KEY-1-…`, ripetibile). Codici di

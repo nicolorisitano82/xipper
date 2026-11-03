@@ -360,6 +360,12 @@ final class XizArchive: @unchecked Sendable {
            f.catalogOffset + f.catalogCSize == size - Int64(Xiz.footerSize) {
             return (size - Int64(Xiz.footerSize), f)
         }
+        // A recovery record (§15) ends the file: its trailer says where the archive ends.
+        if let end = XizRecovery.trailerProtectedEnd(reader), end - Int64(Xiz.footerSize) >= dataStart,
+           let f = try? Xiz.Footer.decode(try reader.read(at: end - Int64(Xiz.footerSize), count: Xiz.footerSize)),
+           f.catalogOffset + f.catalogCSize == end - Int64(Xiz.footerSize) {
+            return (end - Int64(Xiz.footerSize), f)
+        }
         let window = 1 << 20
         var end = size - 1
         while end > dataStart + Int64(Xiz.footerSize) {

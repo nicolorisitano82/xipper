@@ -35,7 +35,7 @@ extern "C" {
 
 #define XIZ_LIB_VERSION "0.1.0"
 /* Highest XIZ minor version this library reads. */
-#define XIZ_FORMAT_MINOR 4
+#define XIZ_FORMAT_MINOR 5
 
 /* ------------------------------------------------------------------ errors */
 
@@ -206,6 +206,35 @@ typedef void (*xiz_problem_fn)(void *ctx, long frame, long entry, int code, cons
  * every file's digest. Returns XIZ_OK when nothing failed. */
 XIZ_API int xiz_test(xiz_archive *a, int frames_only, xiz_problem_fn problem, void *ctx, xiz_test_report *report,
                      xiz_error *err);
+
+/* ------------------------------------------------------------------ recovery record (§15) */
+
+typedef struct xiz_recovery_info {
+    uint32_t slice_size;
+    uint32_t data_slices;
+    uint32_t recovery_slices;    /* damaged places the record can rebuild */
+    uint64_t protected_length;   /* the archive proper, before the record */
+    uint64_t record_bytes;
+} xiz_recovery_info;
+
+typedef struct xiz_recovery_report {
+    int has_record;
+    xiz_recovery_info info;
+    uint32_t damaged_data_slices;
+    uint32_t damaged_recovery_slices;
+    uint32_t damaged_metadata;   /* damaged header/table copies and trailer, of 3 */
+    int repairable;              /* damaged data slices <= intact recovery slices */
+    int repaired;
+} xiz_recovery_report;
+
+/* Work on the file by path, without the password: the record covers the bytes as written. */
+XIZ_API int xiz_recovery_info_file(const char *path, xiz_recovery_info *out, xiz_error *err);  /* XIZ_E_NOT_FOUND: none */
+/* Checks every slice; with `repair`, rebuilds damaged bytes (and the record's own damage) in place.
+ * Returns XIZ_OK also when damage is found: read the report. */
+XIZ_API int xiz_recovery_scrub(const char *path, int repair, xiz_recovery_report *report, xiz_error *err);
+/* Appends a record of `redundancy` percent (1–100), replacing any. Appending a segment removes it. */
+XIZ_API int xiz_recovery_add(const char *path, double redundancy, xiz_recovery_info *out, xiz_error *err);
+XIZ_API int xiz_recovery_remove(const char *path, int *removed, xiz_error *err);
 
 /* ------------------------------------------------------------------ extraction */
 

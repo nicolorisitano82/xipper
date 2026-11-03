@@ -20,6 +20,7 @@ usage: xipper <command> [options]
           --plain-names    7z with a password: leave file names readable
           --no-dictionary  xiz: no zstd dictionary for small files
           --lzma2          xiz: LZMA2 frames (XIZ 1.4: ~10% smaller, slower to open; needs Xipper 2.6+)
+          --recovery N     xiz: append N percent of Reed–Solomon recovery data (XIZ 1.5, readable by any XIZ reader)
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
@@ -46,6 +47,10 @@ usage: xipper <command> [options]
                          cp866, windows1252, windows1251, shiftjis, gbk, big5, euckr
   test    [-p | --password-stdin] [--sha256] <archive>
           --sha256         also print a SHA256SUMS manifest of the content (sha256sum -c format)
+  scrub   [--repair] <archive.xiz>   check every byte against the archive's recovery record; with
+                         --repair, rebuild the damaged bytes in place (no password needed)
+  recovery add [--redundancy N] | remove | info <archive.xiz>   the recovery record (N percent, default 10)
+  repair  <archive.xiz>  same as scrub --repair
   repair  [-o FILE] [-p | --password-stdin] <archive.zip>   rebuild a damaged ZIP without recovery data:
                          the directory is rebuilt from the local headers, entries are copied without
                          recompressing, those failing their CRC are left out. The original is untouched
@@ -127,12 +132,12 @@ let knownFlags: Set<String> = command == "bgzip"
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
-                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses"])
+                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
-       "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
+       "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
        "--names-encoding"]
 do {
     var i = 0
@@ -242,6 +247,29 @@ func progressPrinter() -> ProgressHandler {
 
 func endProgress() { if showProgress { fputs("\r\u{1B}[K", stderr) } }
 
+func describe(_ i: XizRecoveryInfo) -> String {
+    "recovery record: \(i.recordBytes.bytesText), \(i.recoverySlices) recovery slices for \(i.dataSlices) slices of \(Int64(i.sliceSize).bytesText) "
+        + "(\(String(format: "%.0f", i.redundancy))%): repairs up to \(i.recoverySlices) damaged places, \((Int64(i.recoverySlices) * Int64(i.sliceSize)).bytesText) in all"
+}
+
+/// scrub and repair of XIZ archives with a recovery record; exit 3 when damage remains.
+func scrub(_ file: URL, repair: Bool) throws {
+    let r = try Xipper.scrubXiz(file, repair: repair, progress: progress, cancel: cancel)
+    endProgress()
+    guard let info = r.info else {
+        print("no recovery record (add one with: xipper recovery add \(file.lastPathComponent))")
+        exit(3)
+    }
+    print(describe(info))
+    for range in r.damagedRanges { print("DAMAGED bytes \(range.lowerBound)–\(range.upperBound - 1)") }
+    if r.damagedRecoverySlices > 0 { print("DAMAGED \(r.damagedRecoverySlices) recovery slices") }
+    if r.damagedMetadata > 0 { print("DAMAGED \(r.damagedMetadata) of 3 copies of the record's index") }
+    if r.isClean { print("all bytes intact"); return }
+    if r.repaired { print("repaired"); return }
+    print(r.repairable ? "repair possible: run xipper scrub --repair" : "repair NOT possible: \(r.damagedRanges.count) damaged slices, only \(info.recoverySlices - r.damagedRecoverySlices) intact recovery slices")
+    exit(3)
+}
+
 
 func run(_ body: () throws -> Void) -> Never {
     do {
@@ -296,6 +324,11 @@ case "create", "c":
     if flag("--lzma2") {
         if o.format != .xiz { fail("--lzma2 needs the xiz format", code: 2) }
         o.xizCodec = .lzma2
+    }
+    if let v = value("--recovery") {
+        guard o.format == .xiz else { fail("--recovery needs the xiz format (other formats: xipper par2 create)", code: 2) }
+        guard let pct = Double(v.hasSuffix("%") ? String(v.dropLast()) : v), pct > 0, pct <= 100 else { fail("invalid recovery percent (1-100)", code: 2) }
+        o.xizRecovery = pct
     }
     o.overwrite = flag("--overwrite")
     o.zipAppleDouble = flag("--apple-double")
@@ -439,6 +472,34 @@ case "hash":
             print(Xipper.checksumLines(entries, algorithms: algorithms, bsd: flag("--bsd")), terminator: "")
         }
     }
+
+case "scrub":
+    guard positional.count == 1 else { fail("scrub needs one XIZ archive", code: 2) }
+    run { try scrub(URL(fileURLWithPath: positional[0]), repair: flag("--repair")) }
+
+case "recovery":
+    guard positional.count == 2, ["add", "remove", "info"].contains(positional[0]) else {
+        fail("recovery needs add, remove or info and a XIZ archive", code: 2)
+    }
+    run {
+        let file = URL(fileURLWithPath: positional[1])
+        switch positional[0] {
+        case "add":
+            guard let pct = Double(value("--redundancy") ?? "10"), pct > 0, pct <= 100 else { fail("invalid redundancy (1-100)", code: 2) }
+            let info = try Xipper.addXizRecovery(file, redundancy: pct, progress: progress, cancel: cancel)
+            endProgress()
+            print(describe(info))
+        case "remove":
+            print(try Xipper.removeXizRecovery(file) ? "recovery record removed" : "no recovery record")
+        default:
+            guard let info = Xipper.xizRecoveryInfo(file) else { print("no recovery record"); exit(3) }
+            print(describe(info))
+        }
+    }
+
+case "repair" where positional.first.map({ $0.lowercased().hasSuffix(".xiz") }) ?? false:
+    guard positional.count == 1 else { fail("repair needs one archive", code: 2) }
+    run { try scrub(URL(fileURLWithPath: positional[0]), repair: true) }
 
 case "repair":
     guard positional.count == 1 else { fail("repair needs one ZIP archive", code: 2) }

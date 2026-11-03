@@ -54,8 +54,13 @@ extension Xipper {
             return try ZipEditor.apply(tree, to: path, options: o, work: work, progress: progress, cancel: cancel)
         }
         if format == .xiz && !compact {
-            return try XizEditor.apply(tree, to: path, options: o, progress: progress, cancel: cancel)
+            // Appending cuts the recovery record (§15.4): it is written again over the longer archive.
+            let recovery = Xipper.xizRecoveryInfo(archive)
+            var report = try XizEditor.apply(tree, to: path, options: o, progress: progress, cancel: cancel)
+            if let recovery { report.outputBytes += try XizRecovery.add(path, redundancy: recovery.redundancy, progress: nil, cancel: cancel).recordBytes }
+            return report
         }
+        if format == .xiz, let recovery = Xipper.xizRecoveryInfo(archive) { o.xizRecovery = recovery.redundancy }
         if format == .xiz, try XizArchive.hasDirectory(path) {
             throw XipperError.unsupported("compacting an XIZ archive with access groups or signatures would drop them: create a new archive instead")
         }

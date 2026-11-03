@@ -35,6 +35,16 @@ static int footer_at(const xiz_archive *a, uint64_t at, footer *f) {
 int find_last_footer(const xiz_archive *a, uint64_t *at, footer *f, xiz_error *err) {
     uint64_t size = a->src.size;
     if (footer_at(a, size - XIZ_FOOTER, f)) { *at = size - XIZ_FOOTER; return XIZ_OK; }
+    /* §15: a recovery record ends the file; its trailer gives the end of the archive. */
+    uint8_t t[64];
+    if (size >= 64 + XIZ_FOOTER && src_read(a, size - 64, t, 64, NULL) == XIZ_OK && memcmp(t, "XIZT", 4) == 0 &&
+        memcmp(t + 60, "XZR!", 4) == 0 && rd32(t + 56) == xiz_crc32c(0, t, 56)) {
+        uint64_t end = rd64(t + 24);
+        if (end >= a->data_start + XIZ_FOOTER && end < size && footer_at(a, end - XIZ_FOOTER, f)) {
+            *at = end - XIZ_FOOTER;
+            return XIZ_OK;
+        }
+    }
     /* §11: an interrupted append left bytes after the last complete footer: search backwards
      * for the tail magic of a valid footer whose catalog ends right before it. */
     const size_t window = 1 << 20;

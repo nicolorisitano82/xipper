@@ -63,6 +63,23 @@ struct ShellCommandTests {
     }
 
     @Test(.enabled(if: CLITests.exe != nil))
+    func xizRecoveryGoesInsideTheArchive() throws {
+        let t = TempDir()
+        makeTree(t, root: "src", bigSize: 1 << 20)
+        var o = CreateOptions()
+        o.format = .xiz
+        let target = t.url("a.xiz")
+        let c = ShellCommand.create([t.url("src")], to: target, options: o, recoveryPercent: 15)
+        #expect(c.line(executable: "xipper").contains("--recovery 15"))
+        #expect(!c.line(executable: "xipper").contains("par2"))
+        let r = shell(c.line(executable: CLITests.exe!), cwd: t.path)
+        #expect(r.status == 0, "\(r.output)")
+        #expect(Xipper.xizRecoveryInfo(target).map { abs($0.redundancy - 15) < 1 } == true)
+        let s = shell("\"\(CLITests.exe!)\" scrub a.xiz", cwd: t.path)
+        #expect(s.status == 0 && s.output.contains("all bytes intact"), "\(s.output)")
+    }
+
+    @Test(.enabled(if: CLITests.exe != nil))
     func extractAndConvertCommands() throws {
         let t = TempDir()
         makeTree(t, bigSize: 1 << 20)

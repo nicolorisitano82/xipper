@@ -44,7 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         EntryStaging.cleanUp()
         UNUserNotificationCenter.current().delegate = notifications
-        MainActor.assumeIsolated { JobFeedback.prepare() }
+        MainActor.assumeIsolated {
+            JobFeedback.prepare()
+            XizWatch.schedule()
+        }
         NSApp.servicesProvider = services
         #if !DEBUG
         MainActor.assumeIsolated { UpdateController.shared.checkQuietlyIfDue() }

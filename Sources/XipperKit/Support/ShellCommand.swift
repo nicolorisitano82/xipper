@@ -44,6 +44,7 @@ public struct ShellCommand: Sendable, Equatable {
         if is7z && o.password != nil && !o.encryptFileNames { a.append("--plain-names") }
         if o.format == .xiz && !o.xizDictionary { a.append("--no-dictionary") }
         if o.format == .xiz && o.xizCodec == .lzma2 { a.append("--lzma2") }
+        if o.format == .xiz, let p = recoveryPercent ?? (o.xizRecovery > 0 ? o.xizRecovery : nil) { a += ["--recovery", String(Int(p))] }
         if o.forceZip64 { a.append("--zip64") }
         if !o.scan.excludeMacMetadata { a.append("--keep-mac-files") }
         if (isZip || is7z) && o.windowsCompatibleNames { a.append("--windows-names") }
@@ -58,7 +59,7 @@ public struct ShellCommand: Sendable, Equatable {
         a.append(archive.path)
         a += sources.map(\.path)
         var c = ShellCommand(arguments: a, notes: notes)
-        if let p = recoveryPercent { c.then.append(["par2", "create", "--redundancy", String(Int(p)), archive.path]) }
+        if let p = recoveryPercent, o.format != .xiz { c.then.append(["par2", "create", "--redundancy", String(Int(p)), archive.path]) }
         return c
     }
 

@@ -145,7 +145,9 @@ struct DamagedEntriesView: View {
         let first = perEntry && intact > 0
             ? String(localized: "Le altre \(intact) voci sono integre e si possono estrarre.")
             : String(localized: "L'archivio è un unico flusso compresso: i dati dopo il punto danneggiato non sono recuperabili.")
-        let recovery = PAR2.indexFile(for: model.url) != nil
+        let recovery = Xipper.xizRecoveryInfo(model.url) != nil
+            ? String(localized: "L'archivio contiene dati di recupero: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza.")
+            : PAR2.indexFile(for: model.url) != nil
             ? String(localized: "Ci sono dati di recupero PAR2: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza.")
             : rebuildZip != nil
             ? String(localized: "Senza dati di recupero PAR2 i file danneggiati sono persi: «Ricostruisci» crea una copia dello ZIP con quelli integri.")

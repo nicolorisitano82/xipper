@@ -163,14 +163,34 @@ enum ArchiveActions {
         alert.runModal()
     }
 
+    /// Recovery data for the archive: PAR2 files next to it, or the record inside a XIZ (2.7).
+    static func hasRecovery(_ archive: URL) -> Bool {
+        PAR2.indexFile(for: archive) != nil || Xipper.xizRecoveryInfo(archive) != nil
+    }
+
+    /// XIZ: the record inside the archive; other formats: PAR2 files next to it.
     static func createRecovery(for archive: URL, done: @escaping () -> Void) {
         let percent = Preferences.recoveryPercent
         run(String(localized: "Impossibile creare i dati di recupero"), done: done) {
-            try PAR2.create(for: [archive], redundancy: percent)
+            if (try? ArchiveFormat.detect(archive)) == .xiz {
+                try Xipper.addXizRecovery(archive, redundancy: percent)
+                XizWatch.remember(archive)
+            } else {
+                try PAR2.create(for: [archive], redundancy: percent)
+            }
         }
     }
 
     static func repair(_ archive: URL, done: @escaping () -> Void) {
+        if Xipper.xizRecoveryInfo(archive) != nil {
+            run(String(localized: "Impossibile riparare “\(archive.lastPathComponent)”"), done: done) {
+                let r = try Xipper.scrubXiz(archive, repair: true)
+                if !r.isClean && !r.repaired {
+                    throw XipperError.corrupt("damaged in \(r.damagedRanges.count) places, the recovery data can rebuild \((r.info?.recoverySlices ?? 0) - r.damagedRecoverySlices)")
+                }
+            }
+            return
+        }
         guard let index = PAR2.indexFile(for: archive) else { return }
         run(String(localized: "Impossibile riparare “\(archive.lastPathComponent)”"), done: done) {
             try PAR2.repair(index)

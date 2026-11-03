@@ -25,6 +25,9 @@ static const char *usage =
     "  verify-proof <proof.json> <file>        check an xiz-proof-1 against a file\n"
     "  create  [-l LEVEL] [--frame-size MiB] [--overwrite] <archive> <file|folder>...\n"
     "  append  <archive> [--add FILE[:PATH]]... [--delete PATH]... [--mkdir PATH]...\n"
+    "  scrub   [--repair] <archive>           check every byte against the recovery record (§15);\n"
+    "                                         --repair rebuilds damaged bytes in place, no password\n"
+    "  recovery add [--redundancy N] | remove | info <archive>\n"
     "\n"
     "credentials (any command that opens an archive):\n"
     "  --password-env VAR    password from an environment variable (create/append: encrypt)\n"
@@ -471,6 +474,58 @@ static int cmd_append(int argc, char **argv) {
     return 0;
 }
 
+static void print_recovery(const xiz_recovery_info *i) {
+    printf("recovery record: %" PRIu64 " bytes, %u recovery slices for %u slices of %u bytes: repairs up to %u damaged places\n",
+           i->record_bytes, i->recovery_slices, i->data_slices, i->slice_size, i->recovery_slices);
+}
+
+static int cmd_scrub(int argc, char **argv) {
+    int repair = 0;
+    const char *path = NULL;
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--repair")) repair = 1;
+        else path = argv[i];
+    }
+    if (!path) die("scrub: archive missing");
+    xiz_recovery_report r;
+    xiz_error err;
+    if (xiz_recovery_scrub(path, repair, &r, &err)) { fprintf(stderr, "xiz: %s\n", err.message); return 1; }
+    if (!r.has_record) { printf("no recovery record\n"); return 1; }
+    print_recovery(&r.info);
+    if (r.damaged_data_slices) printf("DAMAGED %u data slices\n", r.damaged_data_slices);
+    if (r.damaged_recovery_slices) printf("DAMAGED %u recovery slices\n", r.damaged_recovery_slices);
+    if (r.damaged_metadata) printf("DAMAGED %u of 3 copies of the record's index\n", r.damaged_metadata);
+    if (!r.damaged_data_slices && !r.damaged_recovery_slices && !r.damaged_metadata) { printf("all bytes intact\n"); return 0; }
+    if (r.repaired) { printf("repaired\n"); return 0; }
+    printf(r.repairable ? "repair possible: xiz scrub --repair\n" : "repair NOT possible\n");
+    return 1;
+}
+
+static int cmd_recovery(int argc, char **argv) {
+    double pct = 10;
+    const char *op = NULL, *path = NULL;
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--redundancy") && i + 1 < argc) pct = atof(argv[++i]);
+        else if (!op) op = argv[i];
+        else path = argv[i];
+    }
+    if (!op || !path) die("recovery: add, remove or info and an archive");
+    xiz_error err;
+    xiz_recovery_info info;
+    if (!strcmp(op, "add")) {
+        if (xiz_recovery_add(path, pct, &info, &err)) { fprintf(stderr, "xiz: %s\n", err.message); return 1; }
+        print_recovery(&info);
+    } else if (!strcmp(op, "remove")) {
+        int removed;
+        if (xiz_recovery_remove(path, &removed, &err)) { fprintf(stderr, "xiz: %s\n", err.message); return 1; }
+        printf(removed ? "recovery record removed\n" : "no recovery record\n");
+    } else if (!strcmp(op, "info")) {
+        if (xiz_recovery_info_file(path, &info, &err)) { printf("no recovery record\n"); return 1; }
+        print_recovery(&info);
+    } else die("recovery: add, remove or info");
+    return 0;
+}
+
 int main(int argc, char **argv) {
     argc = take_credentials(argc, argv);
     if (argc < 2 || !strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) { fputs(usage, argc < 2 ? stderr : stdout); return argc < 2 ? 2 : 0; }
@@ -487,6 +542,8 @@ int main(int argc, char **argv) {
     if (!strcmp(c, "verify-proof")) return cmd_verify_proof(n, v);
     if (!strcmp(c, "create")) return cmd_create(n, v);
     if (!strcmp(c, "append")) return cmd_append(n, v);
+    if (!strcmp(c, "scrub")) return cmd_scrub(n, v);
+    if (!strcmp(c, "recovery")) return cmd_recovery(n, v);
     fputs(usage, stderr);
     return 2;
 }

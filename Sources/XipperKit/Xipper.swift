@@ -107,6 +107,8 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
             // Self-extracting or prefixed ZIPs have their signature at the end; 7z SFX after the program.
             if (try? ZipArchive(path: url.path)) != nil { return .zip }
             if SevenZipInput.sfxOffset(r) != nil { return .sevenZip }
+            // A XIZ whose superblock is damaged is still known by its recovery record's trailer (§15).
+            if XizRecovery.trailerProtectedEnd(r) != nil { return .xiz }
             return nil
         }
     }
@@ -133,6 +135,8 @@ public struct CreateOptions: Sendable {
     /// XIZ frame codec. `.lzma2` (XIZ 1.4) is about 10% smaller than zstd 19 on binaries and
     /// source code but decompresses about 10× slower; readers before Xipper 2.6 refuse it.
     public var xizCodec: XizCodec = .zstd
+    /// XIZ 1.5: percent of Reed–Solomon recovery data appended to the archive (§15); 0 = none.
+    public var xizRecovery: Double = 0
     /// XIZ: train a zstd dictionary for the small files when there are enough of them (1.2).
     public var xizDictionary = true
     /// Tests: small-file bytes needed for a dictionary (default XizDictionary.minimumSmallBytes).
@@ -294,12 +298,16 @@ public enum Xipper {
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
-            return try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2,
+            var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2,
                                        password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        access: options.xizAccess, signer: options.xizSigner,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
+            if options.xizRecovery > 0 {
+                report.outputBytes += try XizRecovery.add(path, redundancy: options.xizRecovery, progress: nil, cancel: cancel).recordBytes
+            }
+            return report
         case .rar:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
         case .gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli:

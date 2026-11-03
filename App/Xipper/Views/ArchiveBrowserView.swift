@@ -332,7 +332,7 @@ struct ArchiveBrowserView: View {
         if showDamaged, let job = verifyJob, !model.loading {
             DamagedEntriesView(job: job, model: model, extractIntact: { intact in
                 extractSheet = ExtractSheetRequest(selection: intact)
-            }, repair: PAR2.indexFile(for: url) == nil || working != nil ? nil : {
+            }, repair: !ArchiveActions.hasRecovery(url) || working != nil ? nil : {
                 working = String(localized: "Riparazione in corso…")
                 ArchiveActions.repair(url) {
                     working = nil
@@ -837,11 +837,18 @@ private struct ArchiveInspector: View {
                 }
                 Section("Dati di recupero") {
                     let index = recoveryRevision >= 0 ? PAR2.indexFile(for: model.url) : nil
-                    LabeledContent("PAR2", value: index == nil ? String(localized: "Assenti") : String(localized: "Presenti"))
-                    if index == nil {
+                    let inside = recoveryRevision >= 0 && model.format == .xiz ? Xipper.xizRecoveryInfo(model.url) : nil
+                    if let inside {
+                        LabeledContent("Dentro l'archivio", value: "\(Int(inside.redundancy.rounded()))% · \(inside.recordBytes.byteText)")
+                            .help("Ripara fino a \(inside.recoverySlices) punti danneggiati, anche senza password")
+                    } else {
+                        LabeledContent("PAR2", value: index == nil ? String(localized: "Assenti") : String(localized: "Presenti"))
+                    }
+                    if index == nil && inside == nil {
                         Button("Crea dati di recupero", systemImage: "cross.case", action: createRecovery)
                             .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
-                            .help("File .par2 accanto all'archivio: servono a ripararlo se si danneggia")
+                            .help(model.format == .xiz ? "Dati di recupero dentro l'archivio: servono a ripararlo se si danneggia, anche senza password"
+                                                       : "File .par2 accanto all'archivio: servono a ripararlo se si danneggia")
                     }
                 }
                 if let a = model.alignment {

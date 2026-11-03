@@ -36,6 +36,9 @@ enum PrefKey {
     static let xizSignerName = "xizSignerName"
     static let xizTimestampURL = "xizTimestampURL"
     static let xizSignEdits = "xizSignEdits"
+    /// 2.7: monthly check of the XIZ archives with a recovery record, and the list of them.
+    static let xizPeriodicScrub = "xizPeriodicScrub"
+    static let xizWatchList = "xizWatchList"
 }
 
 /// Speed/size trade-off shown in the UI instead of raw per-codec levels.

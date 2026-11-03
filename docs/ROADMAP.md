@@ -272,9 +272,12 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
    - ✅ **«Copia come comando»** (menu contestuale dei lavori, pannello di fine compressione): il lavoro diventa il comando `xipper` equivalente, con le stesse impostazioni dell'app, gli argomenti tra apici per la shell e `-p` al posto della password, che non viene mai scritta. Quello che la riga di comando non sa esprimere (conflitti chiesti uno per uno, soglia anti-bomba diversa, gruppi d'accesso XIZ) finisce in commenti `#` sopra il comando. Per arrivarci la CLI ha nuove opzioni: `--flatten`, `--apple-double`, `--recompress-all`, `--no-bgzf`, `--bgzf-index`, `--zipcrypto`.
 
 ### 2.7 — recupero dentro l'archivio, decoder isolati
-- **recovery record dentro XIZ:**
-  - Reed–Solomon di Cauchy sui frame, metadati duplicati, un solo file che sopravvive alla copia;
-  - `xipper scrub` e una verifica periodica facoltativa nell'app;
+- ✅ **recovery record dentro XIZ** (XIZ 1.5, spec §15; 03/11/2026):
+  - Reed–Solomon di Cauchy su GF(2^16) (il campo e il kernel NEON di PAR2) a fette fisse di tutto l'archivio, superblock e footer compresi: qualsiasi danno fino a M fette si ricostruisce, senza password. Header e tabella degli hash in due copie più un trailer; il record sta dopo l'ultimo footer, così ogni lettore dalla 1.1 lo salta (come la coda di un append interrotto) e nessun bit di formato cambia;
+  - circa 2.000 fette (minimo 4 KiB), 10% predefinito: su 2 GB il record si scrive in 3,2 s e 150 punti danneggiati si riparano in 2,8 s (M3 Max), riparazione in place verificata con gli hash prima di scrivere;
+  - `xipper create --recovery N`, `xipper scrub [--repair]`, `xipper recovery add|remove|info`, `xipper repair a.xiz`; le modifiche (append) riscrivono il record;
+  - app: «Dati di recupero dopo ogni compressione» mette il record dentro gli XIZ, «Ripara» lo usa, verifica mensile facoltativa in background degli archivi seguiti (Impostazioni › Generali) con riparazione automatica e notifica; un XIZ col superblock rovinato si riconosce dal trailer;
+  - libxiz: stesse funzioni in C (`xiz scrub`, `xiz recovery`); i record delle due implementazioni sono identici byte per byte;
   - PAR2 resta per gli altri formati.
 - **decoder isolati:** RAR (libarchive), 7z e i formati futuri in un servizio XPC sandboxed, così un bug di memoria in un decoder esterno non tocca l'app;
 - **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
