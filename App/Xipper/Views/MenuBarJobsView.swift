@@ -37,6 +37,7 @@ struct MenuBarJobsView: View {
                         }
                         if job.isRunning {
                             ProgressView(value: job.progress?.fraction ?? 0).progressViewStyle(.linear)
+                                .accessibilityLabel(Text("Avanzamento di \(job.title)"))
                         } else {
                             Text(status(job)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }

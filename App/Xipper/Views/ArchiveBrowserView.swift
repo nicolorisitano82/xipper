@@ -150,7 +150,7 @@ struct ArchiveBrowserView: View {
 
     private var subtitle: String {
         guard let f = model.format else { return "" }
-        return "\(f.displayName) · \(model.fileCount) file · \(model.totalSize.byteText)"
+        return "\(f.displayName) · " + String(localized: "\(model.fileCount) file") + " · \(model.totalSize.byteText)"
     }
 
     /// "archivebox Progetto.zip › Documenti", each part clickable (3.1).
@@ -420,7 +420,7 @@ struct ArchiveBrowserView: View {
                 }
                 .width(min: 110, ideal: 140)
                 TableColumn("") { item in
-                    if item.entry?.isEncrypted == true { Image(systemName: "lock.fill").foregroundStyle(.secondary) }
+                    if item.entry?.isEncrypted == true { Image(systemName: "lock.fill").foregroundStyle(.secondary).accessibilityLabel(Text("Cifrato")) }
                 }
                 .width(20)
             } rows: {
@@ -759,12 +759,12 @@ private struct ArchiveInspector: View {
                     LabeledContent("Dimensione", value: model.archiveSize.byteText)
                     if model.alignment?.isCRAM != true {
                         LabeledContent("Contenuto", value: model.totalSize.byteText)
-                        LabeledContent("File", value: "\(model.fileCount)")
+                        LabeledContent(String(localized: "inspector.fileCount", defaultValue: "File"), value: "\(model.fileCount)")  // "File" alone is also the singular section title
                     }
                     if model.totalSize > 0 {
                         LabeledContent("Rapporto", value: (Double(model.archiveSize) / Double(model.totalSize)).ratioText)
                     }
-                    LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì") : "No")
+                    LabeledContent("Cifrato", value: model.isEncrypted ? String(localized: "Sì") : String(localized: "No"))
                     LabeledContent("SHA-256") {
                         if let sha256 {
                             Text(String(sha256.prefix(16)) + "…").font(.system(.body, design: .monospaced))

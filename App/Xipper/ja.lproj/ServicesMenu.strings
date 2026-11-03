@@ -1,0 +1,4 @@
+/* Finder Services / Quick Actions (NSServices in Info.plist). */
+"Comprimi con Xipper" = "Xipperで圧縮";
+"Estrai con Xipper" = "Xipperで展開";
+"Verifica con Xipper" = "Xipperで検証";

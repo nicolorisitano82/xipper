@@ -518,3 +518,16 @@ Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun 
 - **Velocità** (release, M3 Max, 607 file, 640 MB): 7z solid 64 MB estrazione 1,02 s isolato contro 1,00 s in process, verifica 0,92 s contro 0,90 s; non solid nel rumore. Una prima versione che copiava ogni blocco due volte costava il 15%: ora il blocco va dalla pipe direttamente nel buffer del chiamante.
 - **Test 7z:** 87 archivi (vettori libarchive e corpus interop) letti voce per voce e verificati, identici dentro e fuori dal helper; password assente, sbagliata e giusta; riuso del helper e cartella abbandonata; crash; 24 verifiche in parallelo.
 - **Da provare a mano nell'app:** apertura, Quick Look ed estrazione di un RAR e di un 7z grandi.
+
+## Accessibilità e lingue (03/11/2026, 2.7)
+
+- **Annunci VoiceOver** (`JobFeedback.announce`, `NSAccessibility.post(.announcementRequested)`, solo con VoiceOver attivo):
+  - «Lavoro avviato / completato / annullato: <verbo> di <nome>», con l'esito;
+  - priorità alta (interrompe) per errore, password richiesta e limite di sicurezza;
+  - avanzamento al 25, 50 e 75% per i lavori che durano più di 5 secondi (`Job.announcedQuarter`).
+- **Etichette:** barre di avanzamento nel riquadro dei lavori, nel pannello e nel menu della barra dei menu; velocità e percentuale del pannello lette insieme; lucchetto «Cifrato» nella tabella dell'archivio.
+- **Lingue:** de, fr, es, ja, zh-Hans (regioni nel progetto Xcode). Flusso: build Debug → `scripts/sync-strings.sh` → `scripts/translations-en.py` → `scripts/translations.py`. Lo script rifiuta traduzioni con segnaposto diversi dalla chiave (anche numerati, `%2$@`) o senza le forme one/other dove servono; ja e zh-Hans non hanno plurale. Le traduzioni sono di macchina, da far rivedere.
+- **Stringhe sistemate:** «N file» (sottotitolo del browser, riepilogo della finestra principale, esito dell'estrazione, miniature ZIP), «N elementi · a → b (x%)», «N saltati», «… in corso», «No» nell'ispettore; il conteggio dei file nell'ispettore ha una chiave sua (`inspector.fileCount`) perché «File» è anche il titolo al singolare. Tolte dal catalogo 18 stringhe non più usate.
+- **Layout:** Password, Firma e Accesso nella barra della finestra principale non vanno più a capo (`fixedSize`): in tedesco «Passwort» e «Zugriff» si spezzavano.
+- **Verificato:** screenshot dell'app di debug in tedesco e giapponese (finestra principale, browser, riquadro dei lavori). Non verificato: annunci con VoiceOver acceso, le altre schermate e lingue a vista.
+

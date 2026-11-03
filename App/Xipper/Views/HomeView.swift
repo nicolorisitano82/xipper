@@ -258,7 +258,7 @@ struct HomeView: View {
     }
 
     private var summary: String {
-        var s = "\(totalFiles) file · \(totalSize.byteText)"
+        var s = String(localized: "\(totalFiles) file") + " · \(totalSize.byteText)"
         if excludedMac > 0 { s += String(localized: " · .DS_Store e __MACOSX esclusi (\(excludedMac))") }
         return s
     }
@@ -301,6 +301,7 @@ struct HomeView: View {
                     Label("Password", systemImage: password == nil ? "lock" : "lock.fill")
                 }
                 .buttonStyle(.borderless)
+                .fixedSize()  // longer words in other languages must not wrap
                 .opacity(passwordUnavailable == nil ? 1 : 0.45)
                 .reasonPopover(isPresented: $passwordReason, passwordUnavailable ?? "")
                 .help(format.supportsPassword ? (password == nil ? String(localized: "Proteggi con password (AES-256)") : String(localized: "Rimuovi la password")) : String(localized: "La password è disponibile per ZIP, 7z, XIZ e Apple Archive"))
@@ -312,6 +313,7 @@ struct HomeView: View {
                         Label("Firma", systemImage: signAppleArchive ? "signature" : "pencil.slash")
                     }
                     .buttonStyle(.borderless)
+                    .fixedSize()  // longer words in other languages must not wrap
                     .opacity(signUnavailable == nil ? 1 : 0.45)
                     .reasonPopover(isPresented: $signReason, signUnavailable ?? "")
                     .accessibilityValue(signAppleArchive ? String(localized: "attiva") : String(localized: "non attiva"))
@@ -328,6 +330,7 @@ struct HomeView: View {
                         Label("Accesso", systemImage: xizDraft.isConfigured ? "person.2.badge.key.fill" : "person.2.badge.key")
                     }
                     .buttonStyle(.borderless)
+                    .fixedSize()  // longer words in other languages must not wrap
                     .help("Cartelle riservate, destinatari, custodi, file cancellabili e firma (XIZ)")
                 }
             }

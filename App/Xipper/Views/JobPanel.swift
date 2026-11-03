@@ -41,10 +41,14 @@ struct JobPanel: View {
                 Text("\(Int((job.progress?.fraction ?? 0) * 100))%")
                     .font(.title2.weight(.semibold)).monospacedDigit()
             }
+            // Read as one line: "velocità 230 MB/s, 45%".
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text("Velocità"))
             VStack(alignment: .leading, spacing: 6) {
                 ProgressView(value: job.progress?.fraction ?? 0)
                     .progressViewStyle(.linear)
                     .scaleEffect(x: 1, y: 1.6, anchor: .center)
+                    .accessibilityLabel(Text("Avanzamento"))
                 HStack {
                     Text("\((job.progress?.completedBytes ?? 0).byteText) di \((job.progress?.totalBytes ?? 0).byteText)")
                     Spacer()
@@ -126,7 +130,7 @@ struct JobPanel: View {
                 header(symbol: "xmark.circle.fill", color: .red, title: failureTitle(message),
                        subtitle: String(localized: "La compressione si è fermata al \(Int((job.progress?.fraction ?? 0) * 100))%."))
                 if job.progress?.fraction ?? 0 > 0 {
-                    ProgressView(value: job.progress?.fraction ?? 0).tint(.red)
+                    ProgressView(value: job.progress?.fraction ?? 0).tint(.red).accessibilityLabel(Text("Avanzamento"))
                 }
                 Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
                     if case .diskFull = job.failure {

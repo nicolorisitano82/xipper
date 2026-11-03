@@ -290,7 +290,11 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - stessa velocità del percorso in process (7z solid da 640 MB: estrazione 1,02 s contro 1,00 s, M3 Max), perché i blocchi passano dalla pipe direttamente nel buffer di chi legge;
   - vale per estrazione, verifica, lettura di una voce, modifica e conversione (che leggono le voci allo stesso modo);
 - **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
-- **accessibilità e lingue** (dall'analisi UI/UX): annunci VoiceOver per i lavori, altre lingue oltre italiano e inglese.
+- ✅ **accessibilità e lingue** (03/11/2026, dall'analisi UI/UX):
+  - VoiceOver annuncia inizio, fine e annullamento di ogni lavoro; errori, password richiesta e blocco di sicurezza interrompono la lettura; sui lavori oltre i 5 secondi un annuncio ogni 25%. Barre di avanzamento e lucchetto dei file cifrati hanno un'etichetta;
+  - tedesco, francese, spagnolo, giapponese e cinese semplificato oltre a italiano e inglese: app, estensioni Finder e Quick Look, miniature, menu Servizi (`scripts/translations.py` con `scripts/translations/<lingua>.json`, controllo dei segnaposto e dei plurali);
+  - corretti testi che non passavano dalla traduzione (conteggi dei file, riepiloghi di estrazione e creazione) e pulsanti che andavano a capo con parole lunghe;
+  - da fare: revisione delle traduzioni da madrelingua, frasi Siri delle scorciatoie nelle nuove lingue, prova con VoiceOver acceso.
 
 ### 3.0 — poco spazio, post-quantum
 - **«Cambia formato» v2, con poco spazio libero:**

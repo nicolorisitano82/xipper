@@ -1,7 +1,8 @@
 import AppKit
 import UserNotifications
 
-/// Progress on the Dock icon and a notification when a job ends while Xipper is in the background.
+/// Progress on the Dock icon, a notification when a job ends while Xipper is in the background,
+/// and VoiceOver announcements of start, progress and end (2.7).
 @MainActor
 enum JobFeedback {
     private static let progressView = DockProgressView()
@@ -26,6 +27,45 @@ enum JobFeedback {
         }
         tile.display()
         HUDPanel.update(jobs)
+        announceProgress(running)
+    }
+
+    /// Speaks `text` with VoiceOver, if it is running; `urgent` interrupts what it is saying.
+    static func announce(_ text: String, urgent: Bool = false) {
+        guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+        let priority: NSAccessibilityPriorityLevel = urgent ? .high : .medium
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: priority.rawValue])
+    }
+
+    /// Every quarter of a job that has been running for a while (short ones only start and end).
+    private static func announceProgress(_ running: [Job]) {
+        guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+        for job in running where Date().timeIntervalSince(job.started) >= 5 {
+            guard let f = job.progress?.fraction else { continue }
+            let quarter = Int(f * 4)
+            guard quarter > job.announcedQuarter, quarter < 4 else { continue }
+            job.announcedQuarter = quarter
+            announce(String(localized: "\(job.verb) di \(job.title): \(quarter * 25)%"))
+        }
+    }
+
+    /// The outcome, whether or not Xipper is in front; problems interrupt.
+    static func announceEnd(of job: Job) {
+        switch job.state {
+        case let .finished(detail):
+            announce(String(localized: "Lavoro completato: \(job.verb) di \(job.title). \(detail)"))
+        case let .failed(reason):
+            announce(String(localized: "Lavoro non riuscito: \(job.verb) di \(job.title). \(reason)"), urgent: true)
+        case .needsPassword:
+            announce(String(localized: "Password richiesta: \(job.title) è protetto da password."), urgent: true)
+        case .needsOverride:
+            announce(String(localized: "Estrazione fermata: \(job.title) supera il limite di sicurezza sulla compressione."), urgent: true)
+        case .cancelled:
+            announce(String(localized: "Lavoro annullato: \(job.verb) di \(job.title)"))
+        case .running:
+            break
+        }
     }
 
     /// Asks once, quietly: provisional notifications land in Notification Center without a prompt.

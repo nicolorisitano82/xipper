@@ -750,6 +750,11 @@ PLURAL = {
         "BGZF · %lld blocco · marcatore di fine presente", "BGZF · %lld blocchi · marcatore di fine presente",
         "BGZF · %lld block · end marker present", "BGZF · %lld blocks · end marker present"),
     "rapporto %lld%%": None,
+    "%lld file": ("%lld file", "%lld file", "%lld file", "%lld files"),
+    "%lld saltati": ("%lld saltato", "%lld saltati", "%lld skipped", "%lld skipped"),
+    "%lld elementi · %@ → %@ (%lld%%)": ("%lld elemento · %@ → %@ (%lld%%)", "%lld elementi · %@ → %@ (%lld%%)",
+                                          "%lld item · %@ → %@ (%lld%%)", "%lld items · %@ → %@ (%lld%%)"),
+    "%lld archivi integri": ("%lld archivio integro", "%lld archivi integri", "%lld intact archive", "%lld intact archives"),
     "… e altri %lld elementi": ("… e un altro elemento", "… e altri %lld elementi", "… and one more item", "… and %lld more items"),
     '%lld cartelle': ('%lld cartella', '%lld cartelle', '%lld folder', '%lld folders'),
     '%lld modifiche non firmate': ('%lld modifica non firmata', '%lld modifiche non firmate', '%lld unsigned change', '%lld unsigned changes'),
@@ -792,6 +797,33 @@ EN["Decomprimi %lld archivi"] = "Decompress %lld archives"
 EN["Decomprimi gli archivi"] = "Decompress the archives"
 EN["Decomprimi “%@”"] = "Decompress “%@”"
 
+EN["%@ di %@: %lld%%"] = "%1$@ of %2$@: %3$lld%%"
+EN["Archivi danneggiati"] = "Damaged archives"
+EN["Archivi riparati"] = "Archives repaired"
+EN["Avanzamento"] = "Progress"
+EN["Avanzamento di %@"] = "Progress of %@"
+EN["Controlla ogni mese gli archivi XIZ con i dati di recupero"] = "Check XIZ archives with recovery data every month"
+EN["Controlla ora"] = "Check Now"
+EN["Controllo in corso…"] = "Checking…"
+EN["Dati di recupero dentro l'archivio: servono a ripararlo se si danneggia, anche senza password"] = "Recovery data inside the archive: it repairs the archive if it gets damaged, even without the password"
+EN["Dentro l'archivio"] = "Inside the archive"
+EN["Estrazione fermata: %@ supera il limite di sicurezza sulla compressione."] = "Extraction stopped: %@ exceeds the compression safety limit."
+EN["I dati di recupero non bastano a riparare %@. Fanne una nuova copia da un'altra fonte, se ce l'hai."] = "The recovery data is not enough to repair %@. Make a new copy from another source, if you have one."
+EN["In background rilegge ogni archivio creato o protetto da Xipper e ripara da solo i danni che i dati di recupero coprono. Archivi seguiti: %lld."] = "In the background, rereads every archive Xipper created or protected and repairs on its own any damage the recovery data covers. Archives followed: %lld."
+EN["L'archivio contiene dati di recupero: «Ripara» ricostruisce le parti danneggiate, se il danno non supera la ridondanza."] = "The archive contains recovery data: “Repair” rebuilds the damaged parts, if the damage does not exceed the redundancy."
+EN["La verifica periodica ha trovato e riparato dei danni in %@."] = "The periodic check found and repaired damage in %@."
+EN["Lavoro annullato: %@ di %@"] = "Job cancelled: %1$@ of %2$@"
+EN["Lavoro avviato: %@ di %@"] = "Job started: %1$@ of %2$@"
+EN["Lavoro completato: %@ di %@. %@"] = "Job completed: %1$@ of %2$@. %3$@"
+EN["Lavoro non riuscito: %@ di %@. %@"] = "Job failed: %1$@ of %2$@. %3$@"
+EN["Negli archivi XIZ i dati di recupero stanno dentro l'archivio e lo seguono in ogni copia; per gli altri formati sono file .par2 accanto, compatibili con par2cmdline e MultiPar. Se l'archivio si danneggia, Xipper lo ripara finché il danno non supera la ridondanza scelta."] = "In XIZ archives the recovery data is inside the archive and travels with every copy; for the other formats it is .par2 files alongside, compatible with par2cmdline and MultiPar. If the archive gets damaged, Xipper repairs it as long as the damage does not exceed the chosen redundancy."
+EN["Password richiesta: %@ è protetto da password."] = "Password required: %@ is password protected."
+EN["Ripara fino a %lld punti danneggiati, anche senza password"] = "Repairs up to %lld damaged spots, even without the password"
+EN["Velocità"] = "Speed"
+EN["%@ in corso…"] = "%@ in progress…"
+EN["inspector.fileCount"] = "Files"
+EN["%lld riparati, %lld non riparabili"] = "%1$lld repaired, %2$lld not repairable"
+
 
 def unit(value):
     return {"stringUnit": {"state": "translated", "value": value}}
@@ -816,7 +848,7 @@ for catalog in sorted(pathlib.Path("App").glob("*/Localizable.xcstrings")):
             locs["en"] = unit(EN[key])
         elif key in SAME:
             locs["en"] = unit(key)
-        else:
+        elif "en" not in locs:  # translated in the catalog itself
             missing.append(f"{catalog.parent.name}: {key!r}")
     catalog.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", " : ")) + "\n")
 

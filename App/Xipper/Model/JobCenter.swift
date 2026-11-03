@@ -142,6 +142,8 @@ final class Job: Identifiable {
     private(set) var smoothedSpeed: Double = 0
     @ObservationIgnored private var samples: [(Date, Int64)] = []
     @ObservationIgnored private var lastSpeedUpdate = Date.distantPast
+    /// For VoiceOver (2.7): the last quarter of progress announced.
+    @ObservationIgnored var announcedQuarter = 0
 
     func record(_ p: ProgressSnapshot) {
         progress = p
@@ -223,6 +225,7 @@ final class JobCenter {
         job.legacyZipCrypto = legacyZipCrypto
         jobs.append(job)
         jobsChanged()
+        JobFeedback.announce(String(localized: "Lavoro avviato: \(job.verb) di \(job.title)"))
         run(job, kind)
         return job
     }
@@ -330,6 +333,7 @@ final class JobCenter {
             await MainActor.run {
                 job.apply(outcome)
                 JobCenter.shared.jobsChanged()
+                JobFeedback.announceEnd(of: job)
                 JobFeedback.notifyEnd(of: job)
                 if !job.blocked.isEmpty { BlockedEntriesWindow.show(job) }
             }
@@ -464,14 +468,14 @@ extension Job {
             output = url
             writeReport = r
             let ratio = r.inputBytes > 0 ? Double(r.outputBytes) / Double(r.inputBytes) * 100 : 0
-            state = .finished("\(r.entries) elementi · \(r.inputBytes.byteText) → \(r.outputBytes.byteText) (\(Int(ratio.rounded()))%)")
+            state = .finished(String(localized: "\(r.entries) elementi · \(r.inputBytes.byteText) → \(r.outputBytes.byteText) (\(Int(ratio.rounded()))%)"))
             revealIfWanted()
         case let .extracted(r):
             output = r.destination
             report = r.skipped
             extractReport = r
-            var s = "\(r.files) file · \(r.bytes.byteText)"
-            if !r.skipped.isEmpty { s += " · \(r.skipped.count) saltati" }
+            var s = String(localized: "\(r.files) file") + " · \(r.bytes.byteText)"
+            if !r.skipped.isEmpty { s += " · " + String(localized: "\(r.skipped.count) saltati") }
             if !r.deceptive.isEmpty { s += " · " + String(localized: "⚠️ \(r.deceptive.count) nomi ingannevoli") }
             state = .finished(s)
             revealIfWanted()

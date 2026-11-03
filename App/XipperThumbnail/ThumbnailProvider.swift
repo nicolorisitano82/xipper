@@ -101,7 +101,7 @@ final class ThumbnailProvider: QLThumbnailProvider {
         let labelY = count == nil ? 46 * s : 54 * s
         (label as NSString).draw(at: NSPoint(x: rect.minX + 129 * s - t.width / 2, y: rect.minY + labelY - t.height / 2), withAttributes: attrs)
         if let count, rect.width >= 128 {
-            let text = "\(count) file" as NSString
+            let text = String(localized: "\(count) file") as NSString
             let small: [NSAttributedString.Key: Any] = [.font: rounded(16 * s, .semibold), .foregroundColor: NSColor(white: 0.45, alpha: 1)]
             let c = text.size(withAttributes: small)
             text.draw(at: NSPoint(x: rect.minX + 129 * s - c.width / 2, y: rect.minY + 28 * s - c.height / 2), withAttributes: small)

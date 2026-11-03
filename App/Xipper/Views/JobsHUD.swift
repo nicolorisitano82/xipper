@@ -101,6 +101,7 @@ private struct JobCapsule: View {
             if job.isRunning {
                 ProgressView(value: job.progress?.fraction ?? 0)
                     .progressViewStyle(.linear)
+                    .accessibilityLabel(Text("Avanzamento di \(job.title)"))
             }
             if case .failed = job.state, !job.remedies.isEmpty {
                 HStack {
@@ -166,7 +167,7 @@ private struct JobCapsule: View {
         case .running:
             if job.paused { return String(localized: "In pausa: un file esiste già") }
             if job.userPaused { return String(localized: "In pausa") }
-            guard let p = job.progress else { return "\(job.verb) in corso…" }
+            guard let p = job.progress else { return String(localized: "\(job.verb) in corso…") }
             let pct = p.totalBytes > 0 ? String(localized: "\(Int(p.fraction * 100))% · ") : ""
             return "\(pct)" + (job.smoothedSpeed > 0 ? "\(Int(job.smoothedSpeed / 1e6)) MB/s" : "…") + (p.currentEntry.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
         case let .finished(s): return s
