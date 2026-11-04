@@ -138,8 +138,8 @@ final class XizArchive: @unchecked Sendable {
                   f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead else {
                 throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
             }
-            guard f.codec.rawValue < Xiz.Codec.lzma2.rawValue || sb.required.contains(.lzma2) else {
-                throw XipperError.corrupt("XIZ frame uses LZMA2, not declared")
+            guard f.codec.isDeclared(by: sb.required) else {
+                throw XipperError.corrupt("XIZ frame codec \(f.codec.rawValue) not declared by the superblock")
             }
             next = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
         }
@@ -319,8 +319,8 @@ final class XizArchive: @unchecked Sendable {
                       directory.groups.contains(where: { $0.group == f.group }) else {
                     throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
                 }
-                guard f.codec.rawValue < Xiz.Codec.lzma2.rawValue || sb.required.contains(.lzma2) else {
-                    throw XipperError.corrupt("XIZ frame uses LZMA2, not declared")
+                guard f.codec.isDeclared(by: sb.required) else {
+                    throw XipperError.corrupt("XIZ frame codec \(f.codec.rawValue) not declared by the superblock")
                 }
                 at = f.offset + Int64(Xiz.frameHeaderSize) + Int64(f.csize)
             }
@@ -458,6 +458,8 @@ final class XizArchive: @unchecked Sendable {
             return try payload.withUnsafeBytes { try Xiz.zstdDecompress($0, size: Int(f.usize), dictionary: dict) }
         case .lzma2, .lzma2ARM64:
             return try payload.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: Int(f.usize), arm64: f.codec == .lzma2ARM64) }
+        case .jpeg:
+            return try JPEGRecompression.decode(payload, size: Int(f.usize))
         }
     }
 

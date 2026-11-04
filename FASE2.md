@@ -531,3 +531,15 @@ Primo formato della 3.0, anticipato. Segue la decisione di STUDIO §4.2: nessun 
 - **Layout:** Password, Firma e Accesso nella barra della finestra principale non vanno più a capo (`fixedSize`): in tedesco «Passwort» e «Zugriff» si spezzavano.
 - **Verificato:** screenshot dell'app di debug in tedesco e giapponese (finestra principale, browser, riquadro dei lavori). Non verificato: annunci con VoiceOver acceso, le altre schermate e lingue a vista.
 
+## Ricompressione JPEG (03/11/2026, 2.7, XIZ 1.6)
+
+- **Scelta:** brunsli (google/brunsli, MIT, commit `c18b962`), incluso come target C++17 `CBrunsli` con il decoder Brotli 1.2.1 aggiunto a `CBrotli`. Scartati lepton_jpeg_rust (toolchain Rust e 7 crate nella build) e libjxl (Highway, skcms, molto più grande). Sorgenti controllati prima di includerli: nessun I/O, rete o exec; `BrunsliDumpAndAbort` chiama `abort()`.
+- **Misura** (`xipper-bench --jpeg`, release, un core): risorse di Keynote 43 JPEG 41 MB → 80,7%; Numbers 46 JPEG → 84,3%; sfondi → 78,3%; JPEG progressivi e con EXIF → 77,5–80,5%; zstd -19 sugli stessi file 98,4–98,8%. Tutti ricostruiti identici, nessuno rifiutato. 12–20 MB/s per core in codifica e decodifica.
+- **Formato** (spec §16): codec 4, feature richiesta bit 6 `jpeg`, `version_minor = 6`. Un file per frame, solo deduplicazione a file intero (i JPEG non vengono tagliati in chunk). Il bit si mette solo se l'archivio contiene almeno un candidato (estensione JPEG e `FF D8 FF`, 4 KiB–64 MiB).
+- **Scrittura:** i candidati sono messi dopo i frame condivisi (gli indici dei frame restano giusti); il frame viene codificato nel helper, decodificato di nuovo e confrontato nell'app; se brunsli rifiuta, se il risultato non è almeno il 3% più piccolo o se il confronto fallisce, il frame va con zstd/LZMA2 come gli altri.
+- **Helper:** modalità `jpeg` di `xipper-decoder` (`JPEGCoderPool`, richieste encode/decode, risposte a blocchi da 1 MiB). Il gruppo di helper è condiviso dal processo e i helper si riusano; un helper che muore su un JPEG ostile fa solo cadere quel frame su zstd (in scrittura) o dà un errore (in lettura). Senza helper (estensioni) brunsli gira in process.
+- **App e CLI:** `--jpeg` (solo xiz), `CreateOptions.xizJPEG`, «Copia come comando», interruttore «Foto JPEG più piccole» in Impostazioni (a ogni livello che comprime). La modifica di un archivio con il bit continua a ricomprimere i JPEG aggiunti.
+- **Compatibilità:** Xipper prima della 2.7 e libxiz rifiutano l'archivio («required feature bits 0x0040 not implemented»).
+- **Test:** suite "XIZ JPEG recompression": layout (bit, minor, un frame per JPEG, duplicato deduplicato, `.jpg` finti e troncati in frame normali), estrazione identica, cifratura e lettura di una voce, modifica, nessun JPEG nessun bit, 300 flussi brunsli e JPEG manomessi attraverso il helper.
+- **Da fare:** brunsli in libxiz; misura su una libreria di foto reale (fotocamere, iPhone in JPEG); prova a mano nell'app.
+

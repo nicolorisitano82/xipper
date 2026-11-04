@@ -17,6 +17,7 @@ LIBRARIES = {
     "libarchive": ("3.8.11", "https://github.com/libarchive/libarchive", "v3.8.11 (03036ff)"),
     "lz4": ("1.10.0", "https://github.com/lz4/lz4", "v1.10.0"),
     "brotli": ("1.2.1", "https://github.com/google/brotli", "v1.2.1"),
+    "brunsli": ("0.1+c18b962", "https://github.com/google/brunsli", "c18b9625ef045b0b89ebb4439ae2339e2160df71"),
     "argon2": ("20190702", "https://github.com/P-H-C/phc-winner-argon2", "62358ba"),
 }
 
@@ -26,7 +27,7 @@ OURS = {
     "htscodecs/include/CHtsCodecs.h", "htscodecs/htscodecs/config.h", "htscodecs/htscodecs/version.h",
     "libarchive/include/CArchive.h", "libarchive/libarchive/config.h", "lz4/include/CLZ4.h",
     "brotli/c/include/module.modulemap", "lzma-sdk/include/CLzmaSDK.h", "lzma-sdk/shim/xs_ppmd.c",
-    "lzma-sdk/shim/xs_lzdec.c",
+    "lzma-sdk/shim/xs_lzdec.c", "brunsli/c/include/brunsli/brunsli_export.h", "brunsli/c/include/module.modulemap",
 }
 
 

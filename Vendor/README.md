@@ -13,7 +13,8 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 | [htscodecs](https://github.com/samtools/htscodecs) | 1.6.7 (`b9fc194`) | BSD-3-Clause; rANS and range coder public domain (`htscodecs/LICENSE.md`) | `htscodecs/htscodecs` (C sources; x86 SSE4/AVX2/AVX512 files removed, NEON kept) | CRAM 3.0/3.1 codecs: rANS 4x8 and Nx16, adaptive arithmetic coder, fqzcomp_qual, name tokeniser |
 | [libarchive](https://github.com/libarchive/libarchive) | 3.8.11 (`03036ff`) | BSD-2-Clause (`libarchive/COPYING`; BLAKE2 files CC0/Apache-2.0) | `libarchive/libarchive`: 32 sources (read core, RAR and RAR5 formats, PPMd H, BLAKE2sp, entry/string utilities) and their headers | RAR 1.5–4.x and RAR5 reading (Xipper never writes RAR) |
 | [LZ4](https://github.com/lz4/lz4) | 1.10.0 | BSD-2-Clause (`lz4/LICENSE`) | `lz4/lib` (`lz4.c`, `lz4hc.c`, `lz4frame.c`, `xxhash.c` and headers) | creating tar.lz4 and .lz4 (decoding is Xipper's own) |
-| [Brotli](https://github.com/google/brotli) | 1.2.1 (CVE-2026-111497 fixed) | MIT (`brotli/LICENSE`) | `brotli/c/common`, `brotli/c/enc`, `brotli/c/include` | creating tar.br and .br (decoding is Apple's Compression framework) |
+| [Brotli](https://github.com/google/brotli) | 1.2.1 (CVE-2026-111497 fixed) | MIT (`brotli/LICENSE`) | `brotli/c/common`, `brotli/c/enc`, `brotli/c/dec`, `brotli/c/include` | creating tar.br and .br (decoding them is Apple's Compression framework); the decoder serves brunsli |
+| [brunsli](https://github.com/google/brunsli) | `c18b962` (2026-09-10; last release v0.1) | MIT (`brunsli/LICENSE`) | `brunsli/c/common`, `brunsli/c/dec`, `brunsli/c/enc`, `brunsli/c/include` (C++17) | XIZ 1.6: lossless JPEG recompression (about −20%, rebuilt byte for byte), run in the sandboxed `xipper-decoder` helper because its internal checks `abort()` |
 | [Argon2](https://github.com/P-H-C/phc-winner-argon2) (PHC reference) | 20190702 (`62358ba`) | CC0 1.0 or Apache-2.0 (`argon2/LICENSE`) | `argon2/include`, `argon2/src` (portable `ref.c`, BLAKE2b, threads) | Argon2id password KDF of encrypted XIZ archives |
 
 From the system (part of macOS, not vendored): zlib (streaming inflate, chunked deflate,
@@ -25,6 +26,7 @@ fails when a file differs from it. After updating a library, check the diff and 
 
 ## Local modifications
 - Only library sources are kept (no CLI tools, tests, build scripts, x86/RISC-V assembly).
+- `brunsli/c/include/brunsli/brunsli_export.h` stands in for the header brunsli's CMake build generates (static library: `BRUNSLI_EXPORT` is empty); `brunsli/c/include/module.modulemap` exposes the C API (`encode.h`, `decode.h`). `c/common/nothing.cc`, `c/experimental`, tests and tools are not kept.
 - `zstd/include/CZstd.h`, `libdeflate/include/CDeflate.h`: umbrella headers for SwiftPM (`CZstd.h` defines `ZSTD_STATIC_LINKING_ONLY` for `ZSTD_getFrameProgression`).
 - `xz/src/liblzma/api/module.modulemap`: exposes only `lzma.h` (the `lzma/*.h` headers must not be included directly).
 - liblzma is configured with the same `-D` defines its CMake build uses on macOS arm64 (see `Package.swift`).

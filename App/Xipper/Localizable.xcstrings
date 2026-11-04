@@ -8649,6 +8649,46 @@
         }
       }
     },
+    "Circa il 20% in meno senza perdere nulla: all'estrazione ogni foto torna identica byte per byte. Compressione ed estrazione delle foto più lente. Si leggono solo con Xipper 2.7 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwa 20 % kleiner, ohne Verlust: Beim Entpacken ist jedes Foto Byte für Byte identisch. Komprimieren und Entpacken von Fotos dauert länger. Nur mit Xipper 2.7 oder neuer lesbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 20% smaller with nothing lost: on extraction every photo comes back identical, byte for byte. Compressing and extracting photos is slower. Readable only with Xipper 2.7 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alrededor de un 20% más pequeñas sin perder nada: al extraerlas, cada foto vuelve idéntica byte a byte. Comprimir y extraer fotos es más lento. Solo se pueden leer con Xipper 2.7 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Environ 20 % plus petites sans rien perdre : à l'extraction, chaque photo est identique octet par octet. La compression et l'extraction des photos sont plus lentes. Lisibles uniquement avec Xipper 2.7 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画質を損なわずに約20%小さくなります。展開すると各写真はバイト単位で元どおりに戻ります。写真の圧縮と展開は遅くなります。Xipper 2.7以降でのみ読み込めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无损缩小约 20%：解压时每张照片都会逐字节还原。照片的压缩和解压会变慢。仅可使用 Xipper 2.7 或更高版本读取。"
+          }
+        }
+      }
+    },
     "Cirillico (DOS, CP866)" : {
       "localizations" : {
         "de" : {
@@ -15885,6 +15925,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认格式"
+          }
+        }
+      }
+    },
+    "Foto JPEG più piccole" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere JPEG-Fotos"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smaller JPEG photos"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos JPEG más pequeñas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos JPEG plus petites"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JPEG写真を小さく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更小的 JPEG 照片"
           }
         }
       }

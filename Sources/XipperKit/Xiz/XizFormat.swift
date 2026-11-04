@@ -49,7 +49,9 @@ enum Xiz {
         static let directory = Required(rawValue: 1 << 4)
         /// 1.4: frames compressed with LZMA2, optionally after the ARM64 branch filter (§14).
         static let lzma2 = Required(rawValue: 1 << 5)
-        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2]
+        /// 1.6: JPEG files recompressed with brunsli, one per frame (§16).
+        static let jpeg = Required(rawValue: 1 << 6)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg]
     }
 
     /// Features a reader may ignore.
@@ -60,7 +62,20 @@ enum Xiz {
     }
 
     /// 2 and 3 only with the required feature `lzma2` (1.4).
-    enum Codec: UInt8 { case store = 0, zstd = 1, lzma2 = 2, lzma2ARM64 = 3 }
+    enum Codec: UInt8 {
+        case store = 0, zstd = 1, lzma2 = 2, lzma2ARM64 = 3
+        /// 1.6: one whole JPEG file recompressed with brunsli (§16).
+        case jpeg = 4
+
+        /// Whether the superblock declares the feature this codec needs.
+        func isDeclared(by required: Required) -> Bool {
+            switch self {
+            case .store, .zstd: true
+            case .lzma2, .lzma2ARM64: required.contains(.lzma2)
+            case .jpeg: required.contains(.jpeg)
+            }
+        }
+    }
     enum EntryType: UInt8 { case file = 0, directory = 1, symlink = 2 }
 
     struct Frame: Equatable {

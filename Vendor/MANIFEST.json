@@ -1326,6 +1326,42 @@
     "brotli/c/common/version.h": {
      "sha256": "67783763c494a7fa337f215c858cb4b05b346318186a11160f6382ac3fb078a0"
     },
+    "brotli/c/dec/bit_reader.c": {
+     "sha256": "ad4a7608173afe62bc7b36d83768e4ac73dadc4a6272437340ee46e8a61a0d92"
+    },
+    "brotli/c/dec/bit_reader.h": {
+     "sha256": "f23fbb82054c5e4405e2a262df9cf4c4756b3e0e476ac849c0dd8f741018d161"
+    },
+    "brotli/c/dec/decode.c": {
+     "sha256": "8d7beeafed5ff9f3f00f6e528e92ad6a36059b3549356bed5a9ca3ee16938438"
+    },
+    "brotli/c/dec/huffman.c": {
+     "sha256": "b7c973c2918c6765c4eb534c3ae314055d535b6d1fafb021cee5f7eae170aae6"
+    },
+    "brotli/c/dec/huffman.h": {
+     "sha256": "09f3a1f7608b09df131342c9759f4a63c19b0e784bda5e474ec01eb72699079d"
+    },
+    "brotli/c/dec/prefix.c": {
+     "sha256": "0a31304f440f7bb2017d52b83ae35cb428cbc5ac2fc172c8eec2fea449c2f7cd"
+    },
+    "brotli/c/dec/prefix.h": {
+     "sha256": "fe1f3630f78a0ed3f79146a52d8e480c12d130ccfe9781f03d0edc581c3b9e83"
+    },
+    "brotli/c/dec/prefix_inc.h": {
+     "sha256": "e1ade26b7b1e1e56b1a91af20ef93f81ef7a4ed83e0543fd6d9eb29f5c6d2983"
+    },
+    "brotli/c/dec/state.c": {
+     "sha256": "66a7c3d9c01cda374d33d3693ba45d059ff00b12114a8844ee4f2519ba2af14e"
+    },
+    "brotli/c/dec/state.h": {
+     "sha256": "8937c3799c177eacfaf3c0dba8da8c2558f435d6baffa2d787aec3212eaca041"
+    },
+    "brotli/c/dec/static_init.c": {
+     "sha256": "a4a308e394fe05a124d919977b3f457a06363615a882dce058f329edcf7dc851"
+    },
+    "brotli/c/dec/static_init.h": {
+     "sha256": "a4f13d0e5c770ad92fb2d6b8d4a8f93bfe70b1e97352306636a1119a6f44f270"
+    },
     "brotli/c/enc/backward_references.c": {
      "sha256": "2e4320bf880dd0e03781fbd56159da069325da73ad47c1fdae46872b1db41463"
     },
@@ -1566,6 +1602,229 @@
     },
     "brotli/c/include/brotli/types.h": {
      "sha256": "ebbd136dc411cc8167636d6f54b66ad0c234dc18989265c37a28c242eaae2efd"
+    }
+   }
+  },
+  {
+   "name": "brunsli",
+   "version": "0.1+c18b962",
+   "upstream": "https://github.com/google/brunsli",
+   "ref": "c18b9625ef045b0b89ebb4439ae2339e2160df71",
+   "files": {
+    "brunsli/LICENSE": {
+     "sha256": "be859c765a089fc55cc777c0d4c557b928332cdd605039a888fc1e25f21d46ab"
+    },
+    "brunsli/c/common/ans_params.cc": {
+     "sha256": "cdadc94861b6d6c08bc3d75b69e2b805da08920ac4bd0f4bd84eac759a098ee4"
+    },
+    "brunsli/c/common/ans_params.h": {
+     "sha256": "ce6bd359930865f348510e51e42d20a13c9aa48cc47882b9af0addca4b1ba5b4"
+    },
+    "brunsli/c/common/constants.cc": {
+     "sha256": "3ca79464afdfa99c232fa09a388003397b12b0d3c05cfc8c56b3a79fed9774c8"
+    },
+    "brunsli/c/common/constants.h": {
+     "sha256": "d8e6e3b915e225274527c1a546b495086ff8366ab14b65a0458fcf3091967ff5"
+    },
+    "brunsli/c/common/context.cc": {
+     "sha256": "17fdd3a6c33b2295f6ce85550a9c49505fc54b38b32dd7f48f2f0977f1697f8e"
+    },
+    "brunsli/c/common/context.h": {
+     "sha256": "166ea6d5d947c883f7fc18e73d5d868a79b45e6b34e86b305411e8801d0d2119"
+    },
+    "brunsli/c/common/distributions.h": {
+     "sha256": "08cd4373b420a61558af436654507a3791449a1ebfd5435fe7a6e46d0f206d08"
+    },
+    "brunsli/c/common/histogram.h": {
+     "sha256": "2bbd06d01f06ec82a3ad88c15936d6e6dedc6c7f8e4a4717662fc2b867d000c1"
+    },
+    "brunsli/c/common/lehmer_code.cc": {
+     "sha256": "e736452d83b25a9736729798f682d1b91cabdeb3cdb079d4e910736aaf836361"
+    },
+    "brunsli/c/common/lehmer_code.h": {
+     "sha256": "53e662ffca1cd3079fd41e87c15fb4e70e59b62750c2e68aec684c0de82a9fa0"
+    },
+    "brunsli/c/common/platform.cc": {
+     "sha256": "ff280abafdf927b1e91f978d5e9ab1eb8adf764d30922dd50815b1fbc398ed19"
+    },
+    "brunsli/c/common/platform.h": {
+     "sha256": "c776233326336f120f92318e61634b76e3c2f89ad7f4152cc32012fe1b24a884"
+    },
+    "brunsli/c/common/port.h": {
+     "sha256": "7f930bdfaba3e78a85b9f7fa9d8bb1f60848536609dfaa9bf2e0a8411bc73c81"
+    },
+    "brunsli/c/common/predict.cc": {
+     "sha256": "a883c54e55c6712a45746016855b4ff8eca544afba94de62a8cdba275e84b3b5"
+    },
+    "brunsli/c/common/predict.h": {
+     "sha256": "e816331e5bb296969c2e4861c5867379f491108cc24eecc4ca357ea8f60f7052"
+    },
+    "brunsli/c/common/quant_matrix.cc": {
+     "sha256": "c0b85b22455b1d20e7a8faf42c14824e1b5a897bdce5a1d452d8a5e554ccb542"
+    },
+    "brunsli/c/common/quant_matrix.h": {
+     "sha256": "b09ebb2180bb63b4788112314fc984e3e38ba03d21a1540e273f0694e8ca2b96"
+    },
+    "brunsli/c/dec/ans_decode.cc": {
+     "sha256": "a50de6f91dd790ed31b24eb00d0b02bdecdcdb9e150c9374e061de7aed25a7fd"
+    },
+    "brunsli/c/dec/ans_decode.h": {
+     "sha256": "acc4a24283f3f261c80d5a58d356771deea5c20380f06fbcb8c0f37d4285d5c0"
+    },
+    "brunsli/c/dec/arith_decode.h": {
+     "sha256": "d134963ac9748b2736354688dc18379db9eb0aaf2e816de34d0c01f1cc01515d"
+    },
+    "brunsli/c/dec/bit_reader.cc": {
+     "sha256": "d2e74f17a1cc6475ca4d2d3bd2bcd09bc9cc7c55338d1f64d98e30d2ffe9912d"
+    },
+    "brunsli/c/dec/bit_reader.h": {
+     "sha256": "766f5763220f472d15f611aad3a5feadc2482c4752a4a5fd15c2c16b9be42cf5"
+    },
+    "brunsli/c/dec/brunsli_decode.cc": {
+     "sha256": "33a9333ed2a418e283a679c28c80d128fbbdd52b986cc0e741bd044deb11cb23"
+    },
+    "brunsli/c/dec/brunsli_input.h": {
+     "sha256": "39faebb41c191e2ceb3fc480542ed88eae9422e9459dfe65980d0615a3d6192b"
+    },
+    "brunsli/c/dec/context_map_decode.cc": {
+     "sha256": "9997194290f3f6d898b35c241019a7c6bb03d0bfb839c2e89424a570a407f1ef"
+    },
+    "brunsli/c/dec/context_map_decode.h": {
+     "sha256": "1069e289ebe33b55888d5b862e8dec40784e5f0caeda7af4529499fcf84c9308"
+    },
+    "brunsli/c/dec/decode.cc": {
+     "sha256": "bee7f4ebcc23c92b13a2a88de79bfa35c3be3606b6ed7b363f7d63ee510eb107"
+    },
+    "brunsli/c/dec/histogram_decode.cc": {
+     "sha256": "0593220f8532d90e79bcbcc9091e049cf255da3e1dc29ff85f7f19343e5abf2b"
+    },
+    "brunsli/c/dec/histogram_decode.h": {
+     "sha256": "34347fb77d6b70354c3aa6e80d93ba38956937f5321710bc11017fdb393370fe"
+    },
+    "brunsli/c/dec/huffman_decode.cc": {
+     "sha256": "25df35a1b72fd911dcb39031a31292a1bb62b74f606be850ce1adc1041b63d0d"
+    },
+    "brunsli/c/dec/huffman_decode.h": {
+     "sha256": "ae6c53e4034b83c689d434c56fe442b00f6c424eabe75b86a254367d036478d8"
+    },
+    "brunsli/c/dec/huffman_table.cc": {
+     "sha256": "48512fb73b05caf9e4819e635fd060d344ba23bd267bcb0a160dcb5081e41320"
+    },
+    "brunsli/c/dec/huffman_table.h": {
+     "sha256": "d49e3bf1a82eb442d29ac57fc77306027c38e0edaa5dcb38360795d237cbea62"
+    },
+    "brunsli/c/dec/jpeg_data_writer.cc": {
+     "sha256": "eb9f23c0ea6a0c584ee0f401c74338a698fb7cd4a206a5eb04470b0634a4d724"
+    },
+    "brunsli/c/dec/output_chunk.h": {
+     "sha256": "49f0976ae83061931649da0346290cc4a7a931849125b84089dd32136ac55c4f"
+    },
+    "brunsli/c/dec/serialization_state.h": {
+     "sha256": "b88cb6e9be48b5f5c7910be5bef457bbec16d7b3b225e426b9a08a97a20c2ffb"
+    },
+    "brunsli/c/dec/state.cc": {
+     "sha256": "ce807c51caddd3964ca42a7c10b0183825a06ad60be2ae81bf2790c7f5c96005"
+    },
+    "brunsli/c/dec/state.h": {
+     "sha256": "382266fe1a8cc0162bdf8021d4334b9ea178a0fbee28306dea7987c3aa88440f"
+    },
+    "brunsli/c/dec/state_internal.h": {
+     "sha256": "d280857d8f985e62b4a4bc9caa6e1cc260ab1386d4a49f447e69499b4aa7e1dd"
+    },
+    "brunsli/c/enc/ans_encode.cc": {
+     "sha256": "3bffafbd70947d36253d24d2ca0dbe0aebc74f884f89219aa74b3526d2e4d8d1"
+    },
+    "brunsli/c/enc/ans_encode.h": {
+     "sha256": "3cb5db2fc4a20202389bc0e6281a0ca1dedbca3fb85f0944a6a28a4155dd335b"
+    },
+    "brunsli/c/enc/brunsli_encode.cc": {
+     "sha256": "809601683fcf64825c2e088f2b41ccb9460533b403a2dd46988558688108e19c"
+    },
+    "brunsli/c/enc/cluster.h": {
+     "sha256": "1f655b26752ac8fc2c2cfdf5075b33e6d5bde302efc2ad3555ba8e6be138be37"
+    },
+    "brunsli/c/enc/context_map_encode.cc": {
+     "sha256": "8c93fbe89771f50bd48a6947206c30401aaef8d924a75380f63155f30e61a906"
+    },
+    "brunsli/c/enc/context_map_encode.h": {
+     "sha256": "ab13f31755da3e8fb2b7ad8b1febc4be24edab9926ef0e4fd8f79534964e441f"
+    },
+    "brunsli/c/enc/encode.cc": {
+     "sha256": "888143721cc21d6ae03660b01bc50ef9ecd05c3d6a89b63d5325802fe13abbbf"
+    },
+    "brunsli/c/enc/fast_log.h": {
+     "sha256": "64edc4050fe180dd2ce620fb79cc9bf02bb1b07452945aa0e1cf156810f857fa"
+    },
+    "brunsli/c/enc/histogram_encode.cc": {
+     "sha256": "da744ed7dc13dd5695b7a7bdb29a049b77a109ff38a6ddce5292dc917a419a2d"
+    },
+    "brunsli/c/enc/histogram_encode.h": {
+     "sha256": "b310e3693fb4ae1369a7e6d6b63ad9d9e04bcc34f75d43ab8737b7be377c06c9"
+    },
+    "brunsli/c/enc/huffman_encode.cc": {
+     "sha256": "da531c83c8acd9fe63309d1d5d41fa6b7d6257d6eb166205ea03eefd71a89909"
+    },
+    "brunsli/c/enc/huffman_encode.h": {
+     "sha256": "a31c69ce2a5fea26c56b774759abfa8335cd85c483242591d90b0f529a41a2d0"
+    },
+    "brunsli/c/enc/huffman_tree.cc": {
+     "sha256": "6dc4d1ab15b2de6da9774de419aa5edebc6ef5d408e08ac637d8cf822f1ae984"
+    },
+    "brunsli/c/enc/huffman_tree.h": {
+     "sha256": "ede0a2ceec2f2e18accbfbc6570e29623a91526bf9995b5cc2995eae916db69d"
+    },
+    "brunsli/c/enc/jpeg_data_reader.cc": {
+     "sha256": "46d00dee28d6c8d54b1ffc02467e05a58d492ec27488f04443e5dfbfe47aaa3c"
+    },
+    "brunsli/c/enc/jpeg_huffman_decode.cc": {
+     "sha256": "53dd068d296b9d5b77fa2ae9f1fbfc7946490f9c7482e21b7cf896b61f12053c"
+    },
+    "brunsli/c/enc/jpeg_huffman_decode.h": {
+     "sha256": "2341c4cf1aef5f31301f7b238aaf757d172f39e462c759cba0bc13e7cd8db2dc"
+    },
+    "brunsli/c/enc/state.h": {
+     "sha256": "f529d9ed8428bb92f1df7d52a2e04fcc4064ef6430639541325e347d1d887616"
+    },
+    "brunsli/c/enc/write_bits.cc": {
+     "sha256": "a0cda8f74822e14c9ee5e90a2d44faf72ac5629022e0dec486552c17970466af"
+    },
+    "brunsli/c/enc/write_bits.h": {
+     "sha256": "3dbcbe7fa4334f1114df3a6414196be881a2d861d139c61e4e52f0b0c1184deb"
+    },
+    "brunsli/c/include/module.modulemap": {
+     "sha256": "8049f44854505d062f0fdf6a508213705726c397cccb5433956bff0d517e51fe",
+     "ours": true
+    },
+    "brunsli/c/include/brunsli/brunsli_decode.h": {
+     "sha256": "5fb94ab79538eef00fb240279d64d086394e89e56682807e6bc123e46819bdf8"
+    },
+    "brunsli/c/include/brunsli/brunsli_encode.h": {
+     "sha256": "d8f2936681fb2fed6d61c44c1027f88a0d5252accd912ff88d75f97292809cff"
+    },
+    "brunsli/c/include/brunsli/brunsli_export.h": {
+     "sha256": "bbad57664d6e0ea6f3919192d6e7785fa9f9ec578c6797bb9cb7e8d245ed64dc",
+     "ours": true
+    },
+    "brunsli/c/include/brunsli/decode.h": {
+     "sha256": "fb109c42e36bfcb28c6044ee13aed36aa10beb21225bd6b1b8be9da6e74a93e6"
+    },
+    "brunsli/c/include/brunsli/encode.h": {
+     "sha256": "c8d4e50a3d12f360f47a7308faf555652bcb0a06b082ca80298cccdab524e66f"
+    },
+    "brunsli/c/include/brunsli/jpeg_data.h": {
+     "sha256": "af5cd9bf7775c8a1c1c71cb8e80c641fc3ec390b060c27dd975870938520081d"
+    },
+    "brunsli/c/include/brunsli/jpeg_data_reader.h": {
+     "sha256": "7da116c9d6cba706555ffa729ebe8a61a53d3b4237c9092ca4e2a76bfa763878"
+    },
+    "brunsli/c/include/brunsli/jpeg_data_writer.h": {
+     "sha256": "895a8a7fa69b3567d1d7d9138a5c5a8bf9d465c0f3c2a6fc30b87c144e9bf487"
+    },
+    "brunsli/c/include/brunsli/status.h": {
+     "sha256": "a2a43873bfe70c91cca410e948a9b86fb8073e920b2b7bc4d847759e867b5a0b"
+    },
+    "brunsli/c/include/brunsli/types.h": {
+     "sha256": "35a8f72fe2fb840bdad984593468748818332143516a243fa6b680348ca32314"
     }
    }
   },

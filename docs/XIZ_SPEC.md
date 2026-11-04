@@ -1,11 +1,12 @@
-# XIZ archive format, version 1.5
+# XIZ archive format, version 1.6
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
 Xipper 2.2.0) adds access groups, k-of-n threshold keys, signed segments, erasable entries and
 inclusion proofs (§13). **1.4** (2026-11-02, Xipper 2.6) adds LZMA2 frames with an optional ARM64
 branch filter (§14). **1.5** (2026-11-03, Xipper 2.7) adds an optional recovery record at the end of the
-file (§15), which every reader since 1.1 skips. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+file (§15), which every reader since 1.1 skips. **1.6** (2026-11-03, Xipper 2.7) adds JPEG files
+recompressed losslessly with brunsli, one per frame (§16). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -45,7 +46,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–4) |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–6) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -63,7 +64,8 @@ There are no gaps and no overlaps. The footer ends the file.
 | 3 | genomic_codecs | reserved for the genomic profile XIG (docs/XIG_DESIGN.md), not yet specified |
 | 4 | directory | 1.3: catalog directory, access groups, threshold keys, signed segments (§13) |
 | 5 | lzma2 | 1.4: frames with codec 2 (LZMA2) or 3 (ARM64 + LZMA2) (§14) |
-| 6–15 | — | reserved, zero |
+| 6 | jpeg | 1.6: frames with codec 4 (a JPEG file recompressed with brunsli) (§16) |
+| 7–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
 the recovery record (§15) can be added to an existing archive, whose superblock is never rewritten,
@@ -79,7 +81,7 @@ written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.x
 | Offset | Size | Field |
 |---:|---:|---|
 | 0 | 4 | magic `XFR1` |
-| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14) |
+| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14), 4 = brunsli JPEG (needs `jpeg`, §16) |
 | 5 | 1 | flags: bit 0 = dictionary frame (§12); other bits zero |
 | 6 | 2 | dictionary id: 0, or the dictionary defined (bit 0 set) or used (§12) |
 | 8 | 4 | frame index (0, 1, 2, …) |
@@ -98,6 +100,7 @@ not** use it to decide what to extract.
 - `zstd`: one zstd frame that decompresses to exactly `usize` bytes. A reader **must** stop at `usize`
   bytes of output and reject any other length.
 - `LZMA2`, `ARM64 + LZMA2`: see §14.
+- `brunsli JPEG`: see §16.
 - When the archive is encrypted the payload is the AES-GCM ciphertext of the above followed by the
   16-byte tag (§6.4). The CRC covers the bytes as written (ciphertext and tag), so damage can be
   located without the password.
@@ -657,3 +660,30 @@ rebuilt from any `m` intact recovery slices.
 - Xipper chooses `S` so that `K` stays near 2,000 (at least 4 KiB, at most `K = 32,768`) and `M =
   ⌈K × redundancy⌉` (default 10%): the record then repairs damage up to 10% of the archive, in as
   many places as there are recovery slices.
+
+## 16. Version 1.6: JPEG recompression
+
+An archive with frames of codec 4 sets the required feature `jpeg` (superblock bit 6,
+`version_minor = 6`); readers without it refuse the archive. A frame with codec 4 in an archive
+without the bit is invalid.
+
+- **Codec 4, brunsli JPEG**: the payload (before encryption) is one brunsli stream, the lossless JPEG
+  recompression of [google/brunsli](https://github.com/google/brunsli) (reference: its `c/dec` decoder;
+  Xipper uses commit `c18b962`). Decoding it gives back the original JPEG file byte for
+  byte, exactly `usize` bytes; a reader **must** reject any other length.
+- The frame holds **one whole file**: the extents of the entries that use it cover the frame from
+  offset 0 to `usize`. Files of up to 64 MiB qualify. Brunsli frames take no zstd dictionary
+  (`dictionary = 0`, flags bit 0 clear).
+- Readers decode brunsli streams that come from the archive, i.e. from anyone: they **should** run the
+  decoder isolated from the rest of the process (Xipper uses its sandboxed `xipper-decoder` helper).
+  The entry digests (§5) still check every rebuilt file.
+- Appending to an archive with `jpeg` may write frames of any codec; appending to an archive without
+  it never writes codec 4.
+
+Xipper writes codec 4 only when asked (`xipper create --jpeg`, «Foto JPEG più piccole» in Settings),
+for files with a JPEG extension that start with `FF D8 FF`, and only after decoding the stream again
+and comparing it with the file: a JPEG that brunsli refuses, or that would be less than 3% smaller,
+goes into an ordinary frame. Identical JPEGs are stored once (whole-file deduplication; JPEG files are
+not cut into chunks). On JPEG photos the frame is about 78–84% of the file; brunsli runs at about
+15–20 MB/s per core in each direction on an M3 Max, and frames are coded in parallel.
+

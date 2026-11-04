@@ -44,6 +44,7 @@ public struct ShellCommand: Sendable, Equatable {
         if is7z && o.password != nil && !o.encryptFileNames { a.append("--plain-names") }
         if o.format == .xiz && !o.xizDictionary { a.append("--no-dictionary") }
         if o.format == .xiz && o.xizCodec == .lzma2 { a.append("--lzma2") }
+        if o.format == .xiz && o.xizJPEG { a.append("--jpeg") }
         if o.format == .xiz, let p = recoveryPercent ?? (o.xizRecovery > 0 ? o.xizRecovery : nil) { a += ["--recovery", String(Int(p))] }
         if o.forceZip64 { a.append("--zip64") }
         if !o.scan.excludeMacMetadata { a.append("--keep-mac-files") }

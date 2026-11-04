@@ -122,9 +122,19 @@ let package = Package(
         .target(
             name: "CBrotli",
             path: "Vendor/brotli",
-            sources: ["c/common", "c/enc"],
+            sources: ["c/common", "c/enc", "c/dec"],
             publicHeadersPath: "c/include",
             cSettings: [.define("NDEBUG", .when(configuration: .release))]
+        ),
+        // brunsli (MIT): lossless JPEG recompression, ~22% smaller, rebuilt byte for byte (XIZ, 2.7).
+        // Run in the xipper-decoder helper: its internal checks abort().
+        .target(
+            name: "CBrunsli",
+            dependencies: ["CBrotli"],
+            path: "Vendor/brunsli",
+            sources: ["c/common", "c/dec", "c/enc"],
+            publicHeadersPath: "c/include",
+            cxxSettings: [.define("NDEBUG", .when(configuration: .release))]
         ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
@@ -134,7 +144,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
@@ -154,7 +164,7 @@ let package = Package(
         // Developer tool: codec bench on local corpora (docs/BENCHMARK.md). Not part of the app.
         .executableTarget(
             name: "xipper-bench",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLZ4"]
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLZ4", "CBrunsli"]
         ),
         .testTarget(
             name: "XipperKitTests",
@@ -162,5 +172,6 @@ let package = Package(
             exclude: ["Fixtures"]
         ),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v6],
+    cxxLanguageStandard: .cxx17
 )

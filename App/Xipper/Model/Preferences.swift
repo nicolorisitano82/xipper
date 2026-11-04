@@ -26,6 +26,7 @@ enum PrefKey {
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
     static let xizLZMA2 = "xizLZMA2"
+    static let xizJPEG = "xizJPEG"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
@@ -98,6 +99,7 @@ enum Preferences {
             PrefKey.sevenZipEncryptNames: true,
             PrefKey.sevenZipSolid: true,
             PrefKey.xizLZMA2: false,
+            PrefKey.xizJPEG: false,
             PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,
@@ -130,6 +132,8 @@ enum Preferences {
         o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0
         // XIZ 1.4: «Massimo» with LZMA2 instead of zstd 12, when chosen in Settings.
         if format == .xiz, preset == .best, defaults.bool(forKey: PrefKey.xizLZMA2) { o.xizCodec = .lzma2 }
+        // XIZ 1.6: JPEG photos recompressed with brunsli, at every level that compresses.
+        if format == .xiz, defaults.bool(forKey: PrefKey.xizJPEG) { o.xizJPEG = true }
         o.workload = workload
         return o
     }

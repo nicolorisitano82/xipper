@@ -351,7 +351,7 @@ struct XizTests {
         try Data(bytes).write(to: t.url("bad.xiz"))
         #expect(throws: XipperError.self) { _ = try Xipper.list(t.url("bad.xiz")) }
         // A reader that does not know the bit refuses the archive cleanly.
-        bytes[12] |= 0x40
+        bytes[12] |= 0x80
         crc = Xiz.crc32c(Array(bytes[0..<60])).littleEndian
         withUnsafeBytes(of: &crc) { bytes.replaceSubrange(60..<64, with: $0) }
         #expect(throws: XipperError.self) { _ = try Xiz.Superblock.decode(Array(bytes[0..<64])) }

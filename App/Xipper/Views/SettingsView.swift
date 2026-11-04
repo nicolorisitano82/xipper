@@ -94,6 +94,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.windowsNames) private var windowsNames = true
     @AppStorage(PrefKey.sevenZipSolid) private var solid = true
     @AppStorage(PrefKey.xizLZMA2) private var xizLZMA2 = false
+    @AppStorage(PrefKey.xizJPEG) private var xizJPEG = false
 
     var body: some View {
         Form {
@@ -122,6 +123,10 @@ private struct FormatSettings: View {
                 Toggle(isOn: $xizLZMA2) {
                     Text("Livello «Massimo» con LZMA2")
                     Text("Archivi circa 10% più piccoli su programmi e codice sorgente, ma più lenti da aprire. Si leggono solo con Xipper 2.6 o successivo.")
+                }
+                Toggle(isOn: $xizJPEG) {
+                    Text("Foto JPEG più piccole")
+                    Text("Circa il 20% in meno senza perdere nulla: all'estrazione ogni foto torna identica byte per byte. Compressione ed estrazione delle foto più lente. Si leggono solo con Xipper 2.7 o successivo.")
                 }
             }
             Section {

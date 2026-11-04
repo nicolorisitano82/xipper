@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 
 /// Decoders of external code (libarchive's RAR readers; the C codecs of 7z folders, see
-/// IsolatedSevenZip.swift) run in `xipper-decoder`, a helper process signed with the App Sandbox
+/// IsolatedSevenZip.swift; brunsli, JPEGRecompression.swift) run in `xipper-decoder`, a helper process signed with the App Sandbox
 /// and nothing else (2.7): no files of its own, no network, no writes. It gets the archive volumes
 /// as already-open read-only descriptors (3, 4, …), the password (RAR) or the derived keys (7z) on
 /// its standard input, and sends back entries and data as frames on its standard output. A memory bug
@@ -13,7 +13,7 @@ import Foundation
 /// build without it; `XIPPER_IN_PROCESS_DECODERS=1`) the same reader runs in process.
 enum IsolatedDecoder {
     /// Request frames, app → helper.
-    enum Op: UInt8 { case open = 1, next = 2, data = 3, sevenZip = 4, folder = 5, crash = 0xFF }
+    enum Op: UInt8 { case open = 1, next = 2, data = 3, sevenZip = 4, folder = 5, jpeg = 6, jpegEncode = 7, jpegDecode = 8, crash = 0xFF }
     /// Response frames, helper → app.
     enum Reply: UInt8 { case opened = 0x4F, entry = 0x45, end = 0x4E, chunk = 0x44, dataEnd = 0x5A, error = 0x58 }
 
@@ -417,6 +417,7 @@ public enum DecoderService {
         var b = [UInt8](repeating: 0, count: n)
         guard n == 0 || b.withUnsafeMutableBytes({ IsolatedDecoder.readAll(input, $0.baseAddress!, n) }) else { return 2 }
         if op == IsolatedDecoder.Op.sevenZip.rawValue { return SevenZipDecoderPool.serve(b, input: input, output: output) }
+        if op == IsolatedDecoder.Op.jpeg.rawValue { return JPEGCoderPool.serve(input: input, output: output) }
         guard op == IsolatedDecoder.Op.open.rawValue else { return 2 }
         let reader: EntryStreamReader
         do {

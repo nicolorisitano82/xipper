@@ -2,6 +2,9 @@
 // on independent blocks like XIZ frames. Not shipped: a developer tool.
 //   swift run -c release xipper-bench <file-or-folder>... [--block 4m] [--runs 3]
 // Each argument is one corpus; folders are read whole (regular files, in path order).
+//   swift run -c release xipper-bench --jpeg <file-or-folder>...
+// JPEG recompression (brunsli): each file on its own, rebuilt and compared byte for byte.
+import CBrunsli
 import CDeflate
 import CLZ4
 import CLZMA
@@ -88,6 +91,8 @@ var args = Array(CommandLine.arguments.dropFirst())
     defer { args.removeSubrange(i...(i + 1)) }
     return args[i + 1]
 }
+let jpegMode = args.contains("--jpeg")
+args.removeAll { $0 == "--jpeg" }
 let block = (option("--block").flatMap { Int($0.dropLast()) } ?? 4) << 20
 let runs = Int(option("--runs") ?? "3") ?? 3
 guard !args.isEmpty else {
@@ -118,6 +123,56 @@ if #available(macOS 27, *) {
 }
 
 func now() -> Double { Double(DispatchTime.now().uptimeNanoseconds) / 1e9 }
+
+/// brunsli on every JPEG under the arguments, against zstd -19 on the same files.
+func jpegBench(_ paths: [String]) {
+    var files: [String] = []
+    for p in paths {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: p, isDirectory: &isDir)
+        if !isDir.boolValue { files.append(p); continue }
+        for f in (FileManager.default.subpaths(atPath: p) ?? []).sorted() where ["jpg", "jpeg"].contains((f as NSString).pathExtension.lowercased()) {
+            files.append(p + "/" + f)
+        }
+    }
+    var okBytes = 0, input = 0, output = 0, zstdOut = 0, encTime = 0.0, decTime = 0.0, ok = 0, refused = 0, mismatch = 0
+    final class Sink { var bytes: [UInt8] = [] }
+    let collect: @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) -> Int = { ctx, buf, n in
+        Unmanaged<Sink>.fromOpaque(ctx!).takeUnretainedValue().bytes.append(contentsOf: UnsafeBufferPointer(start: buf, count: n))
+        return n
+    }
+    for f in files {
+        guard let data = try? [UInt8](Data(contentsOf: URL(fileURLWithPath: f))), !data.isEmpty else { continue }
+        let packed = Sink(), rebuilt = Sink()
+        let t0 = now()
+        let e = data.withUnsafeBufferPointer { EncodeBrunsli($0.count, $0.baseAddress, Unmanaged.passUnretained(packed).toOpaque(), collect) }
+        let t1 = now()
+        var z = [UInt8](repeating: 0, count: ZSTD_compressBound(data.count))
+        let zn = ZSTD_compress(&z, z.count, data, data.count, 19)
+        zstdOut += ZSTD_isError(zn) != 0 ? data.count : min(zn, data.count)
+        input += data.count
+        guard e == 1 else { refused += 1; output += data.count; continue }
+        let t2 = now()
+        let d = packed.bytes.withUnsafeBufferPointer { DecodeBrunsli($0.count, $0.baseAddress, Unmanaged.passUnretained(rebuilt).toOpaque(), collect) }
+        let t3 = now()
+        guard d == 1, rebuilt.bytes == data else { mismatch += 1; output += data.count; continue }
+        ok += 1
+        okBytes += data.count
+        output += packed.bytes.count
+        encTime += t1 - t0
+        decTime += t3 - t2
+    }
+    let mb = Double(input) / 1e6
+    print("\(files.count) JPEG, \(String(format: "%.1f", mb)) MB: \(ok) recompressed, \(refused) refused, \(mismatch) not identical")
+    print(String(format: "brunsli %.2f%% of the original (zstd -19: %.2f%%), encode %.1f MB/s, decode %.1f MB/s (one core, recompressed files)",
+                 Double(output) / Double(input) * 100, Double(zstdOut) / Double(input) * 100,
+                 Double(okBytes) / 1e6 / max(encTime, 1e-9), Double(okBytes) / 1e6 / max(decTime, 1e-9)))
+}
+
+if jpegMode {
+    jpegBench(args)
+    exit(0)
+}
 
 for path in args {
     let data = load(path)

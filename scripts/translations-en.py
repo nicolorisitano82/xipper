@@ -820,6 +820,8 @@ EN["Negli archivi XIZ i dati di recupero stanno dentro l'archivio e lo seguono i
 EN["Password richiesta: %@ è protetto da password."] = "Password required: %@ is password protected."
 EN["Ripara fino a %lld punti danneggiati, anche senza password"] = "Repairs up to %lld damaged spots, even without the password"
 EN["Velocità"] = "Speed"
+EN["Foto JPEG più piccole"] = "Smaller JPEG photos"
+EN["Circa il 20% in meno senza perdere nulla: all'estrazione ogni foto torna identica byte per byte. Compressione ed estrazione delle foto più lente. Si leggono solo con Xipper 2.7 o successivo."] = "About 20% smaller with nothing lost: on extraction every photo comes back identical, byte for byte. Compressing and extracting photos is slower. Readable only with Xipper 2.7 or later."
 EN["%@ in corso…"] = "%@ in progress…"
 EN["inspector.fileCount"] = "Files"
 EN["%lld riparati, %lld non riparabili"] = "%1$lld repaired, %2$lld not repairable"

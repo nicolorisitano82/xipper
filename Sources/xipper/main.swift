@@ -20,6 +20,7 @@ usage: xipper <command> [options]
           --plain-names    7z with a password: leave file names readable
           --no-dictionary  xiz: no zstd dictionary for small files
           --lzma2          xiz: LZMA2 frames (XIZ 1.4: ~10% smaller, slower to open; needs Xipper 2.6+)
+          --jpeg           xiz: recompress JPEG photos losslessly (XIZ 1.6: ~20% smaller, rebuilt byte for byte; needs Xipper 2.7+)
           --recovery N     xiz: append N percent of Reed–Solomon recovery data (XIZ 1.5, readable by any XIZ reader)
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
@@ -130,7 +131,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--jpeg", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -321,6 +322,10 @@ case "create", "c":
     if flag("--numbered") { o.zipVolumeStyle = .numbered }
     o.encryptFileNames = !flag("--plain-names")
     o.xizDictionary = !flag("--no-dictionary")
+    if flag("--jpeg") {
+        if o.format != .xiz { fail("--jpeg needs the xiz format", code: 2) }
+        o.xizJPEG = true
+    }
     if flag("--lzma2") {
         if o.format != .xiz { fail("--lzma2 needs the xiz format", code: 2) }
         o.xizCodec = .lzma2

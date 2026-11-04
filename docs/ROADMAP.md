@@ -271,7 +271,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
      - checksum dei file dentro un archivio senza estrarlo (`--contents`), anche per i 7z;
    - ✅ **«Copia come comando»** (menu contestuale dei lavori, pannello di fine compressione): il lavoro diventa il comando `xipper` equivalente, con le stesse impostazioni dell'app, gli argomenti tra apici per la shell e `-p` al posto della password, che non viene mai scritta. Quello che la riga di comando non sa esprimere (conflitti chiesti uno per uno, soglia anti-bomba diversa, gruppi d'accesso XIZ) finisce in commenti `#` sopra il comando. Per arrivarci la CLI ha nuove opzioni: `--flatten`, `--apple-double`, `--recompress-all`, `--no-bgzf`, `--bgzf-index`, `--zipcrypto`.
 
-### 2.7 — recupero dentro l'archivio, decoder isolati
+### 2.7 — recupero dentro l'archivio, decoder isolati, JPEG più piccoli
 - ✅ **recovery record dentro XIZ** (XIZ 1.5, spec §15; 03/11/2026):
   - Reed–Solomon di Cauchy su GF(2^16) (il campo e il kernel NEON di PAR2) a fette fisse di tutto l'archivio, superblock e footer compresi: qualsiasi danno fino a M fette si ricostruisce, senza password. Header e tabella degli hash in due copie più un trailer; il record sta dopo l'ultimo footer, così ogni lettore dalla 1.1 lo salta (come la coda di un append interrotto) e nessun bit di formato cambia;
   - circa 2.000 fette (minimo 4 KiB), 10% predefinito: su 2 GB il record si scrive in 3,2 s e 150 punti danneggiati si riparano in 2,8 s (M3 Max), riparazione in place verificata con gli hash prima di scrivere;
@@ -289,7 +289,11 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - ogni archivio ha un piccolo gruppo di helper, uno per cartella decodificata in parallelo, riusati a fine cartella; una cartella lasciata a metà si porta via il suo helper;
   - stessa velocità del percorso in process (7z solid da 640 MB: estrazione 1,02 s contro 1,00 s, M3 Max), perché i blocchi passano dalla pipe direttamente nel buffer di chi legge;
   - vale per estrazione, verifica, lettura di una voce, modifica e conversione (che leggono le voci allo stesso modo);
-- **ricompressione JPEG** (circa −22% senza perdita, byte per byte): JPEG XL o lepton_jpeg_rust come blob verificato in XIZ, dopo aver controllato licenza e toolchain e misurato la velocità su Apple Silicon;
+- ✅ **ricompressione JPEG** (XIZ 1.6, spec §16; 03/11/2026): brunsli di Google (MIT, C++, incluso in `Vendor/`), scelto su lepton_jpeg_rust (Rust nella build) e libjxl (troppo grande):
+  - un JPEG per frame (codec 4, feature richiesta `jpeg`); in scrittura lo stream viene decodificato di nuovo e confrontato col file, altrimenti il JPEG va in un frame normale (anche sotto il 3% di guadagno);
+  - misurato su JPEG di sistema (Keynote, Numbers, sfondi, progressivi e con EXIF): 78–84% della dimensione, tutti identici; zstd -19 arriva al 98,5%. Circa 15–20 MB/s per core in ogni direzione, in parallelo sui file. Su una cartella di 55 MB con 43 JPEG l'archivio XIZ passa da 52,4 a 43,2 MB;
+  - codifica e decodifica nel helper `xipper-decoder` (brunsli fa `abort()` sui controlli interni): 300 flussi e JPEG manomessi danno errori, mai un crash di Xipper;
+  - facoltativa: `xipper create --jpeg`, «Foto JPEG più piccole» in Impostazioni › Formati; gli archivi si leggono da Xipper 2.7, libxiz li rifiuta in modo pulito (bit 0x0040) finché non avrà brunsli;
 - ✅ **accessibilità e lingue** (03/11/2026, dall'analisi UI/UX):
   - VoiceOver annuncia inizio, fine e annullamento di ogni lavoro; errori, password richiesta e blocco di sicurezza interrompono la lettura; sui lavori oltre i 5 secondi un annuncio ogni 25%. Barre di avanzamento e lucchetto dei file cifrati hanno un'etichetta;
   - tedesco, francese, spagnolo, giapponese e cinese semplificato oltre a italiano e inglese: app, estensioni Finder e Quick Look, miniature, menu Servizi (`scripts/translations.py` con `scripts/translations/<lingua>.json`, controllo dei segnaposto e dei plurali);

@@ -1,0 +1,6 @@
+// Ours (Xipper): the C API of brunsli (JPEG ↔ brunsli, lossless) for Swift.
+module CBrunsli {
+    header "brunsli/encode.h"
+    header "brunsli/decode.h"
+    export *
+}

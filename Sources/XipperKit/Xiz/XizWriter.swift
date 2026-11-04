@@ -40,7 +40,7 @@ enum XizWriter {
         var chunks: [(Int64, Int, [UInt8])] = []
     }
 
-    static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
+    static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, jpeg: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       access: XizAccess? = nil, signer: XizSigner? = nil, carried: [XizCarriedFrame] = [],
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
@@ -48,7 +48,7 @@ enum XizWriter {
             throw XipperError.invalidArgument("copied zstd frames go only into plain XIZ archives")
         }
         if access != nil || signer != nil {
-            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, password: password, kdf: kdf,
+            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, jpeg: jpeg, password: password, kdf: kdf,
                                           extendedAttributes: extendedAttributes, access: access, signer: signer,
                                           workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
         }
@@ -71,6 +71,11 @@ enum XizWriter {
             superblock.required.insert(.lzma2)
             superblock.minor = 4
         }
+        let jpeg = jpeg && level > 0 && items.contains(where: Self.isJPEG)
+        if jpeg {
+            superblock.required.insert(.jpeg)
+            superblock.minor = 6
+        }
 
         // Keys first: the digests and the chunker depend on them.
         var keysBlock: [UInt8] = []
@@ -87,7 +92,7 @@ enum XizWriter {
         let out = try OutputFile(path: path)
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
-        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2,
+        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2, jpeg: jpeg,
                                               dictionary: dictionary.map { (XizDictionary.id, $0, true) }, carried: carried,
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
@@ -116,6 +121,12 @@ enum XizWriter {
         return XizDictionary.train(samples)
     }
 
+    /// A file recompressed with brunsli when the archive allows it (1.6).
+    static func isJPEG(_ item: ArchiveItem) -> Bool {
+        guard case let .file(size) = item.kind else { return false }
+        return JPEGRecompression.isCandidate(name: item.name, path: item.sourcePath, size: size)
+    }
+
     /// Indexes of the items in the order their data is stored: extension, file name, size, path.
     static func similarityOrder(_ items: [ArchiveItem]) -> [Int] {
         let keys = items.map { item -> (String, String, Int64, String) in
@@ -136,7 +147,7 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false,
+                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false, jpeg: Bool = false,
                           dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil, carried: [XizCarriedFrame] = [],
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
@@ -149,11 +160,13 @@ enum XizWriter {
         //    (fixed offsets: shifted data still deduplicates, except right at the borders).
         enum Work { case whole(Int), region(Int, Int64, Int64) }
         let files = items.indices.filter { if case .file = items[$0].kind { items[$0].size > 0 } else { false } }
+        // JPEG files (1.6) get a frame each, recompressed whole: deduplicated as whole files only.
+        let jpegs = jpeg && level > 0 ? Set(files.filter { Self.isJPEG(items[$0]) }) : []
         var work: [Work] = []
         for i in files {
             work.append(.whole(i))
             let size = items[i].size
-            if size >= chunkedFrom {
+            if size >= chunkedFrom && !jpegs.contains(i) {
                 var start: Int64 = 0
                 while start < size {
                     work.append(.region(i, start, min(size, start + regionSize)))
@@ -265,11 +278,15 @@ enum XizWriter {
         // files this makes the archive 16% smaller at zstd 3 (docs/BENCHMARK.md). Only the order
         // of the data changes; the catalog keeps the entries in their own order.
         var placed: [Int: [Xiz.Extent]] = [:]
+        var pendingJPEGs: [Int] = []
         for i in Self.similarityOrder(items) {
             guard case let .file(size) = items[i].kind, let h = digests[i] else { continue }
             var extents: [Xiz.Extent] = []
             if let copy = seenFiles[h.digest] {
                 extents = copy  // identical content stored once
+            } else if jpegs.contains(i) {
+                pendingJPEGs.append(i)  // after the shared frames, which are still being filled
+                continue
             } else if h.chunks.isEmpty {
                 extents = place(i, from: 0, length: size)
             } else {
@@ -284,6 +301,17 @@ enum XizWriter {
                 }
                 extents = Self.merged(extents)
             }
+            seenFiles[h.digest] = extents
+            placed[i] = extents
+        }
+        closeFrame()
+        var jpegFrames = Set<Int>()
+        for i in pendingJPEGs {
+            guard let h = digests[i] else { continue }
+            if let copy = seenFiles[h.digest] { placed[i] = copy; continue }
+            frames.append([Segment(item: i, fileOffset: 0, length: Int(items[i].size))])
+            jpegFrames.insert(frames.count - 1)
+            let extents = [Xiz.Extent(frame: UInt32(base + frames.count - 1), offset: 0, length: UInt32(items[i].size))]
             seenFiles[h.digest] = extents
             placed[i] = extents
         }
@@ -353,7 +381,10 @@ enum XizWriter {
                 var payload = data
                 var dictID: UInt16 = 0
                 let small = frames[idx].reduce(0) { $0 + (items[$1.item].size < XizDictionary.smallFile ? $1.length : 0) }
-                if level > 0, lzma2 {
+                if jpegFrames.contains(idx), let p = JPEGRecompression.encode(data) {
+                    codec = .jpeg  // checked: decodes back to `data`
+                    payload = p
+                } else if level > 0, lzma2 {
                     let exe = frames[idx].reduce(0) { $0 + (executables.contains($1.item) ? $1.length : 0) }
                     if let c = try data.withUnsafeBytes({ try Xiz.lzma2Compress($0, arm64: exe * 2 >= data.count) }) {
                         codec = exe * 2 >= data.count ? .lzma2ARM64 : .lzma2
@@ -430,7 +461,7 @@ enum XizWriter {
     /// An archive with a directory: each access group's data is written as if it were an archive of
     /// its own (frames sealed with the group's key, deduplication inside the group), then one
     /// catalog per group, the directory (signed when there is a signer) and the footer.
-    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, password: String?, kdf: XizKeys.KDF,
+    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, jpeg: Bool = false, password: String?, kdf: XizKeys.KDF,
                                    extendedAttributes: Bool, access: XizAccess?, signer: XizSigner?,
                                    workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let total = items.reduce(Int64(0)) { $0 + $1.size }
@@ -444,6 +475,11 @@ enum XizWriter {
         if lzma2 {
             superblock.required.insert(.lzma2)
             superblock.minor = 4
+        }
+        let jpeg = jpeg && level > 0 && items.contains(where: Self.isJPEG)
+        if jpeg {
+            superblock.required.insert(.jpeg)
+            superblock.minor = 6
         }
         let map = try XizGroupMap(access)
 
@@ -491,7 +527,7 @@ enum XizWriter {
                 slots += s
             } else {
                 let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
-                                           group: g.id, proofs: true, level: level, lzma2: lzma2, extendedAttributes: extendedAttributes, workload: workload,
+                                           group: g.id, proofs: true, level: level, lzma2: lzma2, jpeg: jpeg, extendedAttributes: extendedAttributes, workload: workload,
                                            tracker: tracker, cancel: cancel)
                 frames += f
                 entries[g.id] = e
