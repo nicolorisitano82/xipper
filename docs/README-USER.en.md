@@ -1,4 +1,4 @@
-# Xipper 2.3
+# Xipper 2.7
 
 *[Italiano](LEGGIMI.md) · English*
 
@@ -23,13 +23,16 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Extract:** next to the archive, or chosen entries anywhere. Xipper never writes outside the destination, blocks zip bombs and keeps the quarantine of downloaded files.
 - **Edit without extracting:** in the browser, right-click › **Rename…**, **Delete**, **Add Files…**, or drop files on the table. ZIP, 7z and XIZ keep what does not change as it is, without recompressing it (in a solid 7z, only the blocks you touch are compressed again).
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
-- **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion.
+- **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion. In XIZ archives the recovery data can live inside the archive (Settings › Formats › XIZ), with an optional monthly background check.
+- **Smaller photos:** with Settings › Formats › XIZ › «Smaller JPEG photos», JPEG files take about 20% less space and extract identical byte for byte (archives readable by Xipper 2.7 and later).
 - **XIZ for sensitive data:** with the XIZ format, the **Access** button sets reserved folders, who opens what (password or public key), groups of custodians (for example 2 of 3 must unlock together), erasable files and your signature. Your keys live in the Keychain (**Settings › Keys**, Touch ID). In an archive, the inspector shows the signed history; right-click a file for **Create Proof of Inclusion…** or **Erase Permanently…**; **File › Verify Proof of Inclusion…** checks a proof. The same from the command line: give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, sign every change so `xipper history` shows who changed what and when, prove that one file belongs to the archive without handing over the rest (`prove`, `verify-proof`), and erase a file for good (`erase`, in archives created as erasable; copies made before keep it). `xipper help` lists the options.
 - **Genomics:**
   - BGZF compatible with `bgzip`;
   - **CRAM 3.1**: open a `.cram` or `.bam` and use **Convert to BAM…** / **Convert to CRAM…** with the reference FASTA (CRAM is usually 30–50% smaller than BAM, and samtools reads it);
   - `.bai`/`.csi`, `.crai`, BCF `.csi`, `.fai` and tabix indexes (SAM too);
   - VCF/BCF/BAM/CRAM checks and checksum manifests.
+
+Xipper speaks Italian, English, German, French, Spanish, Japanese and Simplified Chinese, and announces job progress to VoiceOver. RAR and 7z archives are decoded in a separate, isolated process: a malformed archive cannot make Xipper quit.
 
 ## Finder integration
 On first launch Xipper offers three optional steps: the Finder extension, Xipper as the default app for archives, and the `xipper` command in Terminal. Reopen them from **Help › Welcome to Xipper**.
@@ -49,7 +52,7 @@ Finder actions always create new files next to the originals and never overwrite
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.
 
 ## Acknowledgements
-Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): the licenses are in **Xipper › Acknowledgements**.
+Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli): the licenses are in **Xipper › Acknowledgements**.
 
 ## Updates
 Once a day Xipper asks GitHub whether there is a new version (also from **Xipper › Check for Updates…**). It downloads it only if you say so, checks its SHA-256 and opens the disk image: drag Xipper into **Applications** as the first time.

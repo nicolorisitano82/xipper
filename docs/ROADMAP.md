@@ -271,7 +271,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
      - checksum dei file dentro un archivio senza estrarlo (`--contents`), anche per i 7z;
    - ✅ **«Copia come comando»** (menu contestuale dei lavori, pannello di fine compressione): il lavoro diventa il comando `xipper` equivalente, con le stesse impostazioni dell'app, gli argomenti tra apici per la shell e `-p` al posto della password, che non viene mai scritta. Quello che la riga di comando non sa esprimere (conflitti chiesti uno per uno, soglia anti-bomba diversa, gruppi d'accesso XIZ) finisce in commenti `#` sopra il comando. Per arrivarci la CLI ha nuove opzioni: `--flatten`, `--apple-double`, `--recompress-all`, `--no-bgzf`, `--bgzf-index`, `--zipcrypto`.
 
-### 2.7 — recupero dentro l'archivio, decoder isolati, JPEG più piccoli
+### 2.7 — pubblicata il 05/11/2026 (v2.7.0): recupero dentro l'archivio, decoder isolati, JPEG più piccoli
 - ✅ **recovery record dentro XIZ** (XIZ 1.5, spec §15; 03/11/2026):
   - Reed–Solomon di Cauchy su GF(2^16) (il campo e il kernel NEON di PAR2) a fette fisse di tutto l'archivio, superblock e footer compresi: qualsiasi danno fino a M fette si ricostruisce, senza password. Header e tabella degli hash in due copie più un trailer; il record sta dopo l'ultimo footer, così ogni lettore dalla 1.1 lo salta (come la coda di un append interrotto) e nessun bit di formato cambia;
   - circa 2.000 fette (minimo 4 KiB), 10% predefinito: su 2 GB il record si scrive in 3,2 s e 150 punti danneggiati si riparano in 2,8 s (M3 Max), riparazione in place verificata con gli hash prima di scrivere;

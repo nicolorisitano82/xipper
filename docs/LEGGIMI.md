@@ -1,4 +1,4 @@
-# Xipper 2.3
+# Xipper 2.7
 
 *Italiano · [English](README-USER.en.md)*
 
@@ -23,13 +23,16 @@ Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 
 - **Estrai:** accanto all'archivio, oppure le voci scelte dove vuoi. Xipper non scrive mai fuori dalla destinazione, blocca le zip-bomb e mantiene la quarantena dei file scaricati.
 - **Modifica senza estrarre:** nel browser, tasto destro › **Rinomina…**, **Elimina**, **Aggiungi file…**, oppure trascina file nella tabella. Con ZIP, 7z e XIZ quello che non cambia non viene ricompresso (in un 7z solido si ricomprimono solo i blocchi toccati).
 - **Monta come volume:** pulsante **Monta** (o Finder › Xipper › Monta come volume). L'archivio compare in `/Volumes`, lo apri e lo modifichi nel Finder; quando lo espelli Xipper chiede se salvare le modifiche.
-- **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce, anche quando dei dati sono stati spostati da un'inserzione o una cancellazione.
+- **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce, anche quando dei dati sono stati spostati da un'inserzione o una cancellazione. Negli XIZ i dati di recupero possono stare dentro l'archivio (Impostazioni › Formati › XIZ), con una verifica mensile facoltativa in background.
+- **Foto più piccole:** con Impostazioni › Formati › XIZ › «Foto JPEG più piccole» i JPEG occupano circa il 20% in meno e all'estrazione tornano identici byte per byte (archivi leggibili da Xipper 2.7 in poi).
 - **XIZ per dati sensibili:** con il formato XIZ, il pulsante **Accesso** imposta le cartelle riservate, chi apre cosa (password o chiave pubblica), i gruppi di custodi (per esempio 2 su 3 devono sbloccare insieme), i file cancellabili e la tua firma. Le tue chiavi stanno nel Portachiavi (**Impostazioni › Chiavi**, Touch ID). In un archivio, l'inspector mostra la cronologia firmata; con il tasto destro su un file ci sono **Crea prova di appartenenza…** e **Cancella definitivamente…**; **Archivio › Verifica prova di appartenenza…** controlla una prova. Le stesse cose da riga di comando: ognuno accede solo alle sue cartelle (password o chiave pubblica), una parte si apre solo con 2 custodi su 3, ogni modifica è firmata, così `xipper history` mostra chi ha cambiato cosa e quando; si può provare che un file appartiene all'archivio senza consegnare il resto (`prove`, `verify-proof`) e cancellare un file in modo definitivo (`erase`, negli archivi creati come cancellabili; le copie fatte prima lo conservano). `xipper help` elenca le opzioni.
 - **Genomica:**
   - BGZF compatibile con `bgzip`;
   - **CRAM 3.1**: apri un `.cram` o un `.bam` e usa **Converti in BAM…** / **Converti in CRAM…** con il riferimento FASTA (il CRAM è di solito il 30–50% più piccolo del BAM, e samtools lo legge);
   - indici `.bai`/`.csi`, `.crai`, `.csi` dei BCF, `.fai` e tabix (anche per SAM);
   - verifica di VCF/BCF/BAM/CRAM e manifest dei checksum.
+
+Xipper parla italiano, inglese, tedesco, francese, spagnolo, giapponese e cinese semplificato, e annuncia a VoiceOver l'avanzamento dei lavori. I RAR e i 7z vengono decodificati in un processo separato e isolato: un archivio malformato non può far chiudere Xipper.
 
 ## Integrazione con il Finder
 Al primo avvio Xipper mostra un'introduzione con tre passaggi facoltativi: estensione del Finder, app predefinita per gli archivi e comando `xipper` nel Terminale. Si riapre da **Aiuto › Introduzione a Xipper**.
@@ -49,7 +52,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovra
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.
 
 ## Riconoscimenti
-Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK): le licenze sono in **Xipper › Riconoscimenti**.
+Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli): le licenze sono in **Xipper › Riconoscimenti**.
 
 ## Aggiornamenti
 Una volta al giorno Xipper chiede a GitHub se c'è una versione nuova (anche da **Xipper › Cerca aggiornamenti…**). Se c'è, la scarica solo se glielo dici, la controlla con l'impronta SHA-256 e apre l'immagine disco: trascini Xipper in **Applicazioni** come la prima volta.
