@@ -109,4 +109,33 @@ EOF
 cp "$out/erasable.xiz" "$out/erased.xiz"
 printf '%s\n' "$XIZ_PW_A" | "$X" erase -q --password-stdin "$out/erased.xiz" tree/docs/b.md > /dev/null
 
+# ---------------------------------------------------------------- 1.6 JPEG (brunsli, §16)
+# Synthetic photos: a gradient with noise as BMP, made JPEG by sips (baseline and a second seed).
+mkdir -p "$work/jpeg/photos"
+for seed in 1 2; do
+  python3 -I - "$work/jpeg/p$seed.bmp" "$seed" <<'PY'
+import struct, sys, random
+w, h = 320, 240
+random.seed(int(sys.argv[2]))
+row = (w * 3 + 3) & ~3
+px = bytearray()
+for y in range(h):
+    r = bytearray()
+    for x in range(w):
+        n = random.randrange(16)
+        r += bytes(((x * 255 // w + n) & 255, (y * 255 // h + n) & 255, ((x + y) * 128 // (w + h) + 40 * int(sys.argv[2])) & 255))
+    px += r + bytes(row - len(r))
+hdr = struct.pack('<2sIHHI', b'BM', 54 + len(px), 0, 0, 54) + struct.pack('<IiiHHIIiiII', 40, w, h, 1, 24, 0, len(px), 2835, 2835, 0, 0)
+open(sys.argv[1], 'wb').write(hdr + px)
+PY
+  sips -s format jpeg -s formatOptions 85 "$work/jpeg/p$seed.bmp" --out "$work/jpeg/photos/photo$seed.jpg" > /dev/null
+done
+cp "$work/jpeg/photos/photo1.jpg" "$work/jpeg/photos/copy.jpg"
+printf 'not a jpeg\n' > "$work/jpeg/photos/fake.jpg"
+printf 'notes\n' > "$work/jpeg/photos/notes.txt"
+find "$work/jpeg/photos" -exec touch -h -t 202601020304.05 {} +
+(cd "$work/jpeg" && "$M" "$work/jpeg" | grep -v '\.bmp	') > "$out/jpeg.manifest"
+"$X" create -q -f xiz --jpeg "$out/jpeg.xiz" "$work/jpeg/photos"
+printf '%s\n' "$pw" | "$X" create -q -f xiz --jpeg --password-stdin "$out/password-jpeg.xiz" "$work/jpeg/photos"
+
 ls -l "$out"

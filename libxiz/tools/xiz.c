@@ -193,14 +193,15 @@ static int cmd_info(int argc, char **argv) {
     printf("format          XIZ %u.%u\n", in.version_major, in.version_minor);
     printf("archive id      ");
     hex(in.archive_id, 16);
-    printf("\nfeatures        0x%04x%s%s%s%s\n", in.required_features,
+    printf("\nfeatures        0x%04x%s%s%s%s%s\n", in.required_features,
            in.required_features & XIZ_FEATURE_ENCRYPTED ? " encrypted" : "",
            in.required_features & XIZ_FEATURE_DICTIONARIES ? " dictionaries" : "",
            in.required_features & XIZ_FEATURE_DIRECTORY ? " directory" : "",
-           in.required_features & XIZ_FEATURE_LZMA2 ? " lzma2" : "");
+           in.required_features & XIZ_FEATURE_LZMA2 ? " lzma2" : "",
+           in.required_features & XIZ_FEATURE_JPEG ? " jpeg" : "");
     printf("segments        %u\n", in.segments);
-    printf("frames          %u (store %u, zstd %u, LZMA2 %u, ARM64+LZMA2 %u)\n", in.frame_count, in.codec_frames[0],
-           in.codec_frames[1], in.codec_frames[2], in.codec_frames[3]);
+    printf("frames          %u (store %u, zstd %u, LZMA2 %u, ARM64+LZMA2 %u, JPEG %u)\n", in.frame_count,
+           in.codec_frames[0], in.codec_frames[1], in.codec_frames[2], in.codec_frames[3], in.codec_frames[4]);
     printf("dictionaries    %u\n", in.dictionaries);
     printf("entries         %u (%zu visible)\n", in.entry_count, in.visible_entries);
     printf("total bytes     %" PRIu64 "\n", in.total_bytes);

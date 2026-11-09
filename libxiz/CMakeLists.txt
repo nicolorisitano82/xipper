@@ -8,6 +8,7 @@ option(XIZ_WERROR "Treat warnings as errors in libxiz's own sources" OFF)
 option(XIZ_SANITIZE "Address and undefined-behaviour sanitizers (default in Debug)" ON)
 option(XIZ_FUZZ "Build the libFuzzer targets (clang)" OFF)
 option(XIZ_TESTS "Build and register the tests" ON)
+option(XIZ_JPEG "Decode brunsli JPEG frames (XIZ 1.6, §16); needs a C++17 compiler" ON)
 set(XIZ_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Vendor" CACHE PATH "Xipper's Vendor directory")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -58,7 +59,22 @@ add_library(xiz_crypto OBJECT ${BEARSSL_SOURCES}
 target_include_directories(xiz_crypto SYSTEM PUBLIC third_party/bearssl/inc third_party/monocypher
   PRIVATE third_party/bearssl/src)
 
-foreach(dep xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)
+# brunsli decoder (C++) with the Brotli decoder it needs: only for codec 4 (§16).
+set(XIZ_DEPS xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)
+if(XIZ_JPEG)
+  enable_language(CXX)
+  set(BROTLI_DIR "${XIZ_VENDOR_DIR}/brotli/c")
+  set(BRUNSLI_DIR "${XIZ_VENDOR_DIR}/brunsli/c")
+  file(GLOB BRUNSLI_SOURCES "${BROTLI_DIR}/common/*.c" "${BROTLI_DIR}/dec/*.c"
+       "${BRUNSLI_DIR}/common/*.cc" "${BRUNSLI_DIR}/dec/*.cc")
+  add_library(xiz_brunsli OBJECT ${BRUNSLI_SOURCES})
+  target_include_directories(xiz_brunsli SYSTEM PUBLIC "${BRUNSLI_DIR}/include" PRIVATE "${BROTLI_DIR}/include" "${BRUNSLI_DIR}")
+  target_compile_definitions(xiz_brunsli PRIVATE NDEBUG)
+  set_target_properties(xiz_brunsli PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  list(APPEND XIZ_DEPS xiz_brunsli)
+endif()
+
+foreach(dep ${XIZ_DEPS})
   set_target_properties(${dep} PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 99 C_EXTENSIONS ON)
   if(MSVC)
     target_compile_options(${dep} PRIVATE /W0)
@@ -87,7 +103,7 @@ set(XIZ_SAN_FLAGS)
 if(XIZ_FUZZ)
   # Coverage instrumentation for everything libFuzzer runs, dependencies included.
   set(XIZ_SAN_FLAGS -fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -g)
-  foreach(dep xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)
+  foreach(dep ${XIZ_DEPS})
     target_compile_options(${dep} PRIVATE -fsanitize=fuzzer-no-link,address,undefined)
   endforeach()
 elseif(XIZ_SANITIZE AND CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT MSVC AND NOT WIN32)
@@ -99,9 +115,15 @@ endif()
 add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
   src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c
-  $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>)
+  $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
+  $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>>)
 target_include_directories(xiz PUBLIC include PRIVATE src)
-target_link_libraries(xiz PRIVATE xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)
+target_link_libraries(xiz PRIVATE ${XIZ_DEPS})
+if(XIZ_JPEG)
+  # The static library carries C++ objects: whoever links it needs the C++ runtime.
+  target_compile_definitions(xiz PRIVATE XIZ_HAVE_JPEG)
+  set_target_properties(xiz PROPERTIES LINKER_LANGUAGE CXX)
+endif()
 target_compile_options(xiz PRIVATE ${XIZ_WARNINGS} ${XIZ_SAN_FLAGS})
 target_link_options(xiz PUBLIC ${XIZ_SAN_FLAGS})
 if(WIN32)

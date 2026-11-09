@@ -1,6 +1,6 @@
 /*
  * libxiz — an independent C99 reader (and writer) of XIZ archives.
- * Implements docs/XIZ_SPEC.md (XIZ 1.4). MIT license, see libxiz/README.md.
+ * Implements docs/XIZ_SPEC.md (XIZ 1.6). MIT license, see libxiz/README.md.
  *
  * Conventions
  *  - Every function that can fail returns an `int` status (XIZ_OK = 0, otherwise a negative
@@ -118,7 +118,11 @@ XIZ_API void xiz_close(xiz_archive *a);
 #define XIZ_FEATURE_GENOMIC      0x0008u
 #define XIZ_FEATURE_DIRECTORY    0x0010u
 #define XIZ_FEATURE_LZMA2        0x0020u
-#define XIZ_FEATURES_KNOWN       (XIZ_FEATURE_ENCRYPTED | XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_DIRECTORY | XIZ_FEATURE_LZMA2)
+#define XIZ_FEATURE_JPEG         0x0040u  /* brunsli frames (§16): needs a build with XIZ_JPEG */
+#define XIZ_FEATURES_KNOWN       (XIZ_FEATURE_ENCRYPTED | XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_DIRECTORY | XIZ_FEATURE_LZMA2 | XIZ_FEATURE_JPEG)
+
+/* 1 when this build decodes JPEG frames (codec 4, §16), 0 when it refuses them. */
+XIZ_API int xiz_has_jpeg(void);
 
 typedef struct xiz_info {
     uint16_t version_major, version_minor;  /* superblock */
@@ -139,7 +143,7 @@ typedef struct xiz_info {
     uint64_t data_start;        /* 64 + keys block */
     uint64_t footer_offset;     /* of the current footer */
     uint64_t trailing_bytes;    /* bytes after the footer (an interrupted append) */
-    uint32_t codec_frames[4];   /* frames per codec: store, zstd, LZMA2, ARM64+LZMA2 */
+    uint32_t codec_frames[5];   /* frames per codec: store, zstd, LZMA2, ARM64+LZMA2, brunsli JPEG */
 } xiz_info;
 
 XIZ_API int xiz_get_info(const xiz_archive *a, xiz_info *out);

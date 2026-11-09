@@ -122,9 +122,13 @@ static int check_frames(xiz_archive *a, const gaps_t *gs, uint64_t frame_end, in
         if (f->csize < overhead) return FAIL(XIZ_E_CORRUPT, "frame %u shorter than its tag", i);
         if (f->codec == CODEC_STORE && f->csize != f->usize + overhead)
             return FAIL(XIZ_E_CORRUPT, "stored frame %u: payload %u, data %u", i, f->csize, f->usize);
-        if (f->codec >= CODEC_LZMA2) {
+        if (f->codec == CODEC_LZMA2 || f->codec == CODEC_LZMA2_ARM64) {
             if (!(a->sb.required & XIZ_FEATURE_LZMA2)) return FAIL(XIZ_E_CORRUPT, "frame %u uses LZMA2, not declared", i);
             if (f->flags & XIZ_FLAG_DICTIONARY || f->dict) return FAIL(XIZ_E_CORRUPT, "LZMA2 frame %u with a dictionary", i);
+        }
+        if (f->codec == CODEC_JPEG) {
+            if (!(a->sb.required & XIZ_FEATURE_JPEG)) return FAIL(XIZ_E_CORRUPT, "frame %u uses brunsli, not declared", i);
+            if (f->flags & XIZ_FLAG_DICTIONARY || f->dict) return FAIL(XIZ_E_CORRUPT, "brunsli frame %u with a dictionary", i);
         }
         if (f->flags & XIZ_FLAG_ENTRY_KEY && !a->encrypted) return FAIL(XIZ_E_CORRUPT, "entry-key frame %u, not encrypted", i);
         if ((f->flags & XIZ_FLAG_DICTIONARY || f->dict) && !allow_dicts)
@@ -617,7 +621,7 @@ int xiz_get_info(const xiz_archive *a, xiz_info *o) {
     o->data_start = a->data_start;
     o->footer_offset = a->footer_offset;
     o->trailing_bytes = a->src.size - a->footer_offset - XIZ_FOOTER;
-    for (uint32_t i = 0; i < a->cat.n_frames; i++) o->codec_frames[a->cat.frames[i].codec & 3]++;
+    for (uint32_t i = 0; i < a->cat.n_frames; i++) o->codec_frames[a->cat.frames[i].codec]++;  /* ≤ CODEC_JPEG, checked when parsed */
     return XIZ_OK;
 }
 

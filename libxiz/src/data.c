@@ -81,6 +81,8 @@ static int decode_frame(xiz_archive *a, uint32_t i, uint8_t *dst, const void *dd
     case CODEC_LZMA2:
     case CODEC_LZMA2_ARM64:
         return lzma2_decode_frame(p, n, dst, f->usize, f->codec == CODEC_LZMA2_ARM64, err);
+    case CODEC_JPEG:
+        return jpeg_decode_frame(p, n, dst, f->usize, err);
     default:
         return FAIL(XIZ_E_UNSUPPORTED, "frame %u codec %u", i, f->codec);
     }

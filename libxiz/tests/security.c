@@ -167,8 +167,8 @@ static void test_structure(void) {
 
     xiz_archive *a;
     xiz_error e;
-    /* Unknown required feature bits (bit 2 is reserved, 6–15 unknown). */
-    k.required = 0x0040;
+    /* Unknown required feature bits (bit 2 is reserved, 7–15 unknown). */
+    k.required = 0x0080;
     b = forge(basic, 3, &k);
     CHECK(open_mem(&b, &a, &e) == XIZ_E_UNSUPPORTED);
     wb_free(&b);
@@ -296,6 +296,80 @@ static void test_lzma2(void) {
     b = forge(basic, 3, &k);
     CHECK(open_test(b.p, b.n) == XIZ_OK);
     wb_free(&b);
+}
+
+static uint8_t *slurp(const char *path, size_t *n);
+
+/* Brunsli frames (§16): the streams of jpeg.xiz, forged into archives with and without the
+ * feature bit, then mutated. Every outcome must be a status; a decoder abort fails the test run. */
+static void test_jpeg(const char *dir) {
+    char path[1024];
+    snprintf(path, sizeof path, "%s/jpeg.xiz", dir);
+    size_t n;
+    uint8_t *b = slurp(path, &n);
+    CHECK(b != NULL);
+    if (!b) return;
+    if (!xiz_has_jpeg()) {
+        CHECK(open_test(b, n) == XIZ_E_UNSUPPORTED);
+        free(b);
+        return;
+    }
+    CHECK(open_test(b, n) == XIZ_OK);
+    xiz_source src;
+    xiz_source_memory(&src, b, n);
+    xiz_archive *a;
+    xiz_error e;
+    CHECK(xiz_open(&a, &src, NULL, &e) == XIZ_OK);
+    const frame_rec *jf = NULL;
+    for (uint32_t i = 0; i < a->cat.n_frames; i++)
+        if (a->cat.frames[i].codec == CODEC_JPEG) jf = &a->cat.frames[i];
+    CHECK(jf != NULL);
+    if (!jf) { xiz_close(a); free(b); return; }
+    size_t pl = jf->csize;
+    uint32_t usize = jf->usize;
+    uint8_t *p = malloc(pl);
+    memcpy(p, b + jf->offset + 32, pl);
+    xiz_close(a);
+    knobs k = {0};
+    k.codec = CODEC_JPEG;
+    k.payload = p;
+    k.payload_len = pl;
+    k.usize_override = usize;
+    wbuf w = forge(basic, 3, &k);  /* codec 4 without the feature bit */
+    CHECK(open_test(w.p, w.n) == XIZ_E_CORRUPT);
+    wb_free(&w);
+    k.required = XIZ_FEATURE_JPEG;
+    k.usize_override = usize - 1;  /* decodes to more than declared */
+    w = forge(basic, 3, &k);
+    CHECK(open_test(w.p, w.n) == XIZ_E_CORRUPT);
+    wb_free(&w);
+    k.usize_override = usize;
+    uint32_t seed = 12345;
+    int ok = 0;
+    for (int round = 0; round < 500; round++) {
+        uint8_t *m = malloc(pl);
+        memcpy(m, p, pl);
+        size_t ml = pl;
+        seed = seed * 1103515245u + 12345u;
+        if (round % 3 == 0) {
+            ml = 1 + (seed >> 8) % (pl - 1);  /* truncated */
+        } else {
+            for (int j = 0; j < 1 + round % 8; j++) {
+                seed = seed * 1103515245u + 12345u;
+                m[(seed >> 8) % pl] ^= (uint8_t)(1 + (seed >> 3) % 255);
+            }
+        }
+        k.payload = m;
+        k.payload_len = ml;
+        w = forge(basic, 3, &k);
+        int rc = open_test(w.p, w.n);  /* the forged entries do not match the JPEG: never OK */
+        if (rc == XIZ_OK) ok++;
+        wb_free(&w);
+        free(m);
+    }
+    CHECK(ok == 0);
+    free(p);
+    free(b);
 }
 
 /* ------------------------------------------------------------------ extraction */
@@ -481,6 +555,7 @@ int main(int argc, char **argv) {
     if (argc != 3) { fprintf(stderr, "usage: xiz_security FIXTURES SCRATCH\n"); return 2; }
     test_structure();
     test_lzma2();
+    test_jpeg(argv[1]);
     test_extraction(argv[2]);
     test_fixture_flips(argv[1]);
     test_erased_slot(argv[1]);

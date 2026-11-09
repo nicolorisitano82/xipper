@@ -23,6 +23,8 @@ int superblock_parse(const uint8_t b[XIZ_SUPERBLOCK], superblock *s, int allow_b
         return FAIL(XIZ_E_UNSUPPORTED, "required feature bits 0x%04x not implemented (archive made by a newer writer)",
                     unknown);
     }
+    if ((s->required & XIZ_FEATURE_JPEG) && !xiz_has_jpeg())
+        return FAIL(XIZ_E_UNSUPPORTED, "required feature jpeg (0x0040): this libxiz was built without brunsli (XIZ_JPEG=OFF)");
     for (int i = 36; i < 60; i++)
         if (b[i]) return FAIL(XIZ_E_CORRUPT, "superblock reserved bytes are not zero");
     if (((s->required & XIZ_FEATURE_ENCRYPTED) != 0) != (s->keys_length > 0))
@@ -192,7 +194,7 @@ int catalog_parse(const uint8_t *b, size_t n, catalog *c, arena *ar, int allow_b
             f->dict = rb_u16(&r);
         }
         if (version == 2) f->group = rb_u16(&r);
-        if (f->codec > CODEC_LZMA2_ARM64) return FAIL(XIZ_E_UNSUPPORTED, "frame %u: codec %u", i, f->codec);
+        if (f->codec > CODEC_JPEG) return FAIL(XIZ_E_UNSUPPORTED, "frame %u: codec %u", i, f->codec);
         uint8_t allowed = version == 2 ? (XIZ_FLAG_DICTIONARY | XIZ_FLAG_ENTRY_KEY) : XIZ_FLAG_DICTIONARY;
         if (f->flags & ~allowed) return FAIL(XIZ_E_UNSUPPORTED, "frame %u: flags 0x%02x", i, f->flags);
     }

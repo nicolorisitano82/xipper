@@ -230,3 +230,35 @@ più piccoli del 18% (binari), 11% (sorgenti) e 15% (testo); la creazione è len
 l'estrazione, con i frame in parallelo, resta sotto il mezzo secondo. Per questo nell'app LZMA2 è
 un'opzione di «Massimo» (Impostazioni › Formati › XIZ) e non il predefinito: gli archivi si aprono solo
 con Xipper 2.6 o successivo.
+
+### 3.0, fase A: misure su file veri (09/11/2026)
+
+File dell'utente in Documenti, Download e Scrivania (cartella dei BAM esclusa), letti sul posto; qui
+solo i totali. La libreria Foto non ha originali in locale (sono su iCloud), quindi le foto sono i
+JPEG di quelle cartelle.
+
+**JPEG con brunsli** (`xipper-bench --jpeg`, un core): 650 file, 3.808 MB. 622 ricompressi, tutti
+identici; 28 rifiutati da brunsli (restano in un frame normale). Risultato **83,98%** dell'originale
+contro **98,31%** di zstd -19; 15,9 MB/s in codifica e 15,5 MB/s in decodifica per core. Le cifre dei
+JPEG di sistema della 2.7 (78–84%) reggono su foto vere.
+
+**Deflate e audio** (`scripts/estimate-recompression.py`, file da 4 KiB a 64 MiB). Per ogni file:
+cosa fa XIZ oggi (zstd -19 e LZMA2 sul file com'è) e cosa farebbe con i flussi Deflate decompressi
+(o con FLAC per l'audio). I dati che preflate aggiunge per ricostruire il Deflate originale non sono
+contati: sui flussi di zlib sono circa lo 0,01%, con altri compressori di più, quindi i guadagni veri
+sono un po' più bassi.
+
+| Tipo | File | MB | LZMA2 oggi | LZMA2 dopo | Guadagno |
+|---|---|---|---|---|---|
+| PNG | 206 | 915,3 | 99,6% | 66,7% | **33,0%** |
+| PDF | 311 | 275,2 | 85,4% | 67,1% | **21,5%** |
+| DOCX, XLSX, PPTX, EPUB, ODF | 95 | 59,5 | 60,9% | 51,5% | **15,5%** |
+| AIFF (suoni di sistema) → FLAC | 14 | 4,8 | 49,9% | 24,9% | 50,1% |
+
+- **PNG** è il bersaglio più grande: oggi non si comprimono affatto (99,6%), dopo un terzo in meno;
+- **PDF**: 264 file su 311 hanno flussi Flate; i PDF sopra i 64 MiB (circa 670 MB) non sono contati;
+- **documenti Office**: guadagno minore, perché sono già piccoli e in parte testo che LZMA2 comprime;
+- **audio**: nessun WAV o AIFF tra i file dell'utente; la stima viene solo dai suoni di sistema e non
+  dice quanto conti nella pratica.
+
+**Decisione per la fase E:** si fa, partendo da PNG e PDF; FLAC resta in fondo, solo se avanza tempo.

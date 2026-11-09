@@ -293,23 +293,73 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - un JPEG per frame (codec 4, feature richiesta `jpeg`); in scrittura lo stream viene decodificato di nuovo e confrontato col file, altrimenti il JPEG va in un frame normale (anche sotto il 3% di guadagno);
   - misurato su JPEG di sistema (Keynote, Numbers, sfondi, progressivi e con EXIF): 78–84% della dimensione, tutti identici; zstd -19 arriva al 98,5%. Circa 15–20 MB/s per core in ogni direzione, in parallelo sui file. Su una cartella di 55 MB con 43 JPEG l'archivio XIZ passa da 52,4 a 43,2 MB;
   - codifica e decodifica nel helper `xipper-decoder` (brunsli fa `abort()` sui controlli interni): 300 flussi e JPEG manomessi danno errori, mai un crash di Xipper;
-  - facoltativa: `xipper create --jpeg`, «Foto JPEG più piccole» in Impostazioni › Formati; gli archivi si leggono da Xipper 2.7, libxiz li rifiuta in modo pulito (bit 0x0040) finché non avrà brunsli;
+  - facoltativa: `xipper create --jpeg`, «Foto JPEG più piccole» in Impostazioni › Formati; gli archivi si leggono da Xipper 2.7 e da libxiz (dal 09/11/2026, fase A della 3.0);
 - ✅ **accessibilità e lingue** (03/11/2026, dall'analisi UI/UX):
   - VoiceOver annuncia inizio, fine e annullamento di ogni lavoro; errori, password richiesta e blocco di sicurezza interrompono la lettura; sui lavori oltre i 5 secondi un annuncio ogni 25%. Barre di avanzamento e lucchetto dei file cifrati hanno un'etichetta;
   - tedesco, francese, spagnolo, giapponese e cinese semplificato oltre a italiano e inglese: app, estensioni Finder e Quick Look, miniature, menu Servizi (`scripts/translations.py` con `scripts/translations/<lingua>.json`, controllo dei segnaposto e dei plurali);
   - corretti testi che non passavano dalla traduzione (conteggi dei file, riepiloghi di estrazione e creazione) e pulsanti che andavano a capo con parole lunghe;
   - da fare: revisione delle traduzioni da madrelingua, frasi Siri delle scorciatoie nelle nuove lingue, prova con VoiceOver acceso.
 
-### 3.0 — poco spazio, post-quantum
-- **«Cambia formato» v2, con poco spazio libero:**
-  - registro delle operazioni, `F_PUNCHHOLE` sull'originale, ripresa e ritorno all'originale prima del primo punching;
-  - riconoscimento di istantanee e cloni APFS, ripiego a file numerati;
-  - esce solo dopo i test di interruzione di corrente in una VM macOS su immagini APFS. Apple non documenta come `F_PUNCHHOLE` e `rename` si comportano in quel caso.
-- **ricompressione dei flussi Deflate** dentro Office, EPUB, PDF e PNG (preflate-rs), FLAC per WAV/AIFF: dopo il banco, con i parser in un processo isolato;
-- **LZRAVEN e LZMESH** di Apple come codec XIZ facoltativi, solo su macOS 27 e successivi (decisione del 02/11/2026). Il banco li ha confermati: LZRAVEN comprime come o meglio di LZMA2 (binari 20,8% contro 23,7%) e decomprime circa 3 volte più veloce; LZMESH comprime come zstd 9 alla velocità di zstd 3. Limiti da gestire: esistono solo nelle librerie di Apple, quindi gli archivi non si aprono su macOS 26 né con i lettori XIZ per altri sistemi (bit richiesto a parte, avviso chiaro alla creazione);
-- **snapshot XIZ montabili per versione**, sul modello di zpaq e restic: i pezzi ci sono già (segmenti firmati, montaggio);
-- **destinatario ibrido X25519 + ML-KEM-768**, compatibile con age (`age1pq1…`), se CryptoKit lo offre;
-- **OpenZL** per i frame strutturati (CSV, Parquet, tabelle genomiche), quando il formato si stabilizza.
+### 3.0 — post-quantum, versioni, codec Apple, documenti più piccoli, poco spazio
+Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.7; il formato cresce per bit di feature (XIZ 1.7, 1.8, 1.9), così gli archivi che non usano le novità restano leggibili dalle versioni precedenti.
+
+**Verifiche fatte prima del piano** (SDK MacOSX27.0, Xcode 27):
+- CryptoKit ha `MLKEM768`, `MLKEM1024`, `XWingMLKEM768X25519` e la suite HPKE `XWingMLKEM768X25519_SHA256_AES_GCM_256`, **da macOS 26**: il post-quantum non alza il sistema minimo;
+- `COMPRESSION_LZRAVEN` e `COMPRESSION_LZMESH` esistono **solo da macOS 27** (API a buffer);
+- la toolchain Rust (`cargo`) è installata: preflate-rs si può compilare, ma porta Rust nella build.
+
+#### Ordine di lavoro
+
+##### A. Misure su dati veri — ✅ fatto (09/11/2026)
+- JPEG con brunsli su 650 foto vere (3,8 GB): **84,0%** dell'originale contro 98,3% di zstd -19, 622 ricompressi e tutti identici, 28 rifiutati; circa 16 MB/s per core ([BENCHMARK.md](BENCHMARK.md), «3.0, fase A»);
+- stima dei flussi Deflate (`scripts/estimate-recompression.py`), LZMA2 dopo contro LZMA2 oggi: PNG **−33%** (915 MB), PDF **−21,5%**, documenti Office ed EPUB **−15,5%**; nessun audio non compresso tra i file veri;
+- **decisione:** la fase E si fa, con PNG e PDF per primi; FLAC solo in fondo;
+- brunsli in libxiz: legge gli XIZ 1.6 (decoder in C++17, opzione `XIZ_JPEG`, `xiz_has_jpeg()`); fixture `jpeg.xiz` e `password-jpeg.xiz`, 500 flussi manomessi senza abort con ASan e UBSan; verde su macOS (Debug e Release, `-Werror`), senza brunsli, e su Linux (gcc 14).
+
+##### B. Destinatario post-quantum (XIZ 1.7) — media
+- nuovo tipo di destinatario (4) accanto a password (2) e X25519 (3): chiave di gruppo sigillata con X-Wing (ML-KEM-768 + X25519) di CryptoKit; protegge dal «registra ora, decifra dopo»;
+- chiavi nel Portachiavi come le X25519, Touch ID, export e import della chiave pubblica; «Accesso» propone la chiave ibrida come predefinita per le chiavi nuove;
+- feature richiesta `pq` solo negli archivi che hanno un destinatario ibrido;
+- libxiz: X-Wing in C (implementazione di riferimento o mlkem-native, licenza da verificare);
+- **da verificare:** age 1.3 usa per `age1pq1…` lo schema HPKE «MLKEM768-X25519», che potrebbe non coincidere con X-Wing. Se coincide, le chiavi age si usano direttamente; altrimenti l'interoperabilità con age resta un'aggiunta.
+- le firme restano Ed25519: ML-DSA può aspettare, perché le firme non soffrono del «registra ora».
+
+##### C. Versioni di un XIZ come snapshot — media
+Sul modello di zpaq e restic, con i pezzi che ci sono già (segmenti in append, cronologia firmata, montaggio):
+- ogni segmento è una versione: `xipper versions a.xiz`, `xipper extract --version N` (o `--until data`), `xipper mount --version N` in sola lettura;
+- app: nell'inspector la cronologia diventa un elenco di versioni con «Sfoglia questa versione», «Estrai», «Monta»;
+- «Aggiorna archivio» da una cartella: aggiunge solo ciò che è cambiato (FastCDC e deduplica), per i backup ripetuti;
+- nessun cambio di formato.
+
+##### D. Codec Apple LZRAVEN e LZMESH (XIZ 1.8) — media
+- due codec di frame facoltativi, con un bit richiesto a parte;
+- LZRAVEN per «Massimo» (come LZMA2, decodifica circa 3× più veloce); LZMESH per «Veloce» (rapporto di zstd 9 alla velocità di zstd 3);
+- solo su macOS 27: su macOS 26 l'opzione non compare e gli archivi vengono rifiutati con un messaggio chiaro; libxiz e i lettori per altri sistemi li rifiutano allo stesso modo;
+- avviso alla creazione: «Si apre solo con Xipper su macOS 27 o successivo».
+
+##### E. Documenti, PNG e audio più piccoli (XIZ 1.9) — grande, con go/no-go dopo A
+- **flussi Deflate** dentro DOCX/XLSX/PPTX, EPUB, ODF, PNG e PDF: si decomprimono e si ricomprimono con zstd o LZMA2, insieme ai dati per ricostruire il Deflate originale bit per bit (preflate-rs, Apache-2.0);
+- **WAV e AIFF** in FLAC (libFLAC, BSD-3), intestazioni e chunk extra conservati a parte;
+- stesse regole del JPEG: il writer ricostruisce il file e lo confronta, altrimenti frame normale; parser e codifica nel helper isolato `xipper-decoder`; opzione facoltativa;
+- i file iWork restano fuori: usano Snappy, e non esiste un ricostruttore bit-exact.
+
+##### F. «Cambia formato» v2 con poco spazio libero — grande, con un cancello
+- registro delle operazioni, `F_PUNCHHOLE` sull'originale, ripresa dopo un'interruzione, ritorno all'originale prima del primo punching;
+- riconoscimento di istantanee e cloni APFS, che non liberano spazio, con ripiego su file numerati;
+- **cancello:** esce solo dopo i test di interruzione di corrente in una VM macOS (Virtualization.framework) su immagini APFS piccole, ripetuti molte volte. Se i test non bastano, F passa alla 3.1 e la 3.0 esce senza.
+
+##### G. Rilascio
+- versione 3.0.0, note utente, DMG, release; prove a mano rimaste dalla 2.7 (RAR e 7z grandi, JPEG, VoiceOver).
+
+#### Decisioni da prendere
+1. **Rust nella build** per preflate-rs, oppure preflate in C++ (l'originale, Apache-2.0), che ha già lo stesso tipo di build di brunsli.
+2. **Chiave post-quantum predefinita** per le chiavi nuove, oppure solo su richiesta.
+3. **F nella 3.0** anche se slitta, oppure spostata subito alla 3.1.
+
+#### Fuori dalla 3.0
+- **OpenZL** per CSV, Parquet e tabelle genomiche: formato e API ancora dichiarati instabili; si riguarda alla 3.1;
+- **FSKit** al posto del volume WebDAV: richiede un entitlement riservato e quindi un account Apple (vedi [FSKIT.md](FSKIT.md));
+- ML-DSA per le firme, libbsc e kanzi per il testo (licenze da verificare).
 
 ### 3.1 — XIZ forense
 Analisi e progetto in [FORENSE_3.1.md](FORENSE_3.1.md): acquisizione di dischi e volumi da `/dev/rdiskN` in un XIZ verificabile, firmato e datato, con catena di custodia come segmenti firmati in coda. Lacune principali da colmare:

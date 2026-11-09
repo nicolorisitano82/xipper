@@ -88,3 +88,9 @@ Nessuna modifica è stata fatta alla spec né al codice Swift.
 - Lettura degli archivi beta 0.1 (§9): implementata dietro `XIZ_OPEN_ALLOW_BETA`, ma senza
   fixture per provarla.
 - Recovery data (`optional_features` bit 0): ignorata, come consente la spec.
+- Isolamento del decoder brunsli (§16): la spec raccomanda di decodificare i flussi in un processo
+  separato, perché brunsli chiude il processo con `abort()` su alcuni controlli interni. libxiz
+  decodifica nel processo chiamante: una libreria non può avviare un helper in modo portabile. Nei
+  test 500 flussi manomessi (troncati o con byte cambiati) hanno dato solo errori, senza abort,
+  anche con ASan e UBSan; chi apre archivi non fidati può comunque chiamare libxiz da un processo
+  a parte. Sui flussi non validi brunsli scrive un messaggio su stderr.

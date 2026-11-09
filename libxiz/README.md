@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ 1.5** di Xipper, scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ 1.6** di Xipper, scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -29,11 +29,13 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | Scrittura: segmenti aggiunti (aggiunte, rimozioni, cartelle) su archivi 1.0–1.2/1.4 | completo |
 | Scrittura di strutture 1.3 (gruppi, firme, slot), dizionari, LZMA2 | non prevista |
 | 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
+| 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
 
 ## Build
 
-Serve CMake ≥ 3.16 e un compilatore C99. Le dipendenze vengono compilate dai sorgenti già in
-`../Vendor` (zstd, liblzma, Argon2) e da `third_party/` (crittografia).
+Serve CMake ≥ 3.16, un compilatore C99 e, per i frame JPEG, un compilatore C++17. Le dipendenze
+vengono compilate dai sorgenti già in `../Vendor` (zstd, liblzma, Argon2, brunsli e il decoder
+Brotli) e da `third_party/` (crittografia).
 
 ```bash
 cmake -S libxiz -B libxiz/build -DCMAKE_BUILD_TYPE=Release
@@ -51,7 +53,8 @@ Opzioni: `-DCMAKE_BUILD_TYPE=Debug` attiva AddressSanitizer e UBSan (`XIZ_SANITI
 `-DXIZ_WERROR=ON` rende errori i warning (`-Wall -Wextra -Wpedantic -Wshadow -Wformat=2 …`);
 `-DXIZ_FUZZ=ON` costruisce i fuzzer (serve un clang con libFuzzer: su macOS quello di Homebrew,
 `-DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang`); `XIZ_VENDOR_DIR` indica un'altra copia di
-`Vendor/`.
+`Vendor/`; `-DXIZ_JPEG=OFF` toglie brunsli e il C++: gli archivi con la feature `jpeg` vengono
+rifiutati con un errore chiaro e `xiz_has_jpeg()` restituisce 0.
 
 Piattaforme provate:
 
@@ -186,7 +189,9 @@ sono in `third_party/*/LICEN*`. Le librerie vanno aggiunte ai riconoscimenti del
 ci entra.
 
 Codec: zstd 1.5.7 (BSD), liblzma 5.8.4 (0BSD, solo decoder LZMA2 e filtro ARM64, a thread
-singolo), da `../Vendor` senza modifiche.
+singolo), brunsli `c18b962` (MIT, solo decoder) con il decoder di Brotli 1.2.1 (MIT), da
+`../Vendor` senza modifiche. Con brunsli la libreria statica contiene codice C++: chi la collega
+usa il linker C++ (CMake lo fa da solo).
 
 ## Test
 

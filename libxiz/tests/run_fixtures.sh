@@ -53,6 +53,17 @@ expect_code test-password 0 "$XIZ" test --password-env PW "$F/password.xiz"
 "$XIZ" info "$F/lzma2-arm64.xiz" | grep -q 'ARM64+LZMA2 1' && pass codec-arm64 || fail codec-arm64
 "$XIZ" info "$F/dict.xiz" | grep -q 'dictionaries    1' && pass dictionary-frame || fail dictionary-frame
 
+# 1.6: brunsli JPEG frames (two JPEG frames, the copy deduplicated, fake.jpg in an ordinary frame)
+if "$XIZ" info "$F/jpeg.xiz" > "$W/jpeg-info.log" 2>&1; then
+    extract_cmp jpeg jpeg.xiz jpeg.manifest
+    extract_cmp password-jpeg password-jpeg.xiz jpeg.manifest -- --password-env PW
+    expect_code test-jpeg 0 "$XIZ" test "$F/jpeg.xiz"
+    grep -q 'JPEG 2)' "$W/jpeg-info.log" && pass codec-jpeg || fail codec-jpeg
+    "$XIZ" cat "$F/jpeg.xiz" photos/photo2.jpg > "$W/photo2.jpg" && cmp -s "$W/photo2.jpg" "$W/jpeg/photos/photo2.jpg" && pass cat-jpeg || fail cat-jpeg
+else
+    grep -q 'built without brunsli' "$W/jpeg-info.log" && pass jpeg-refused-cleanly || fail "jpeg: $(tail -1 "$W/jpeg-info.log")"
+fi
+
 # cat
 "$XIZ" cat "$F/plain.xiz" tree/docs/a.md > "$W/a.md" && grep -q 'Line 199 of a document about nothing' "$W/a.md" && pass cat || fail cat
 "$XIZ" cat --password-env PW "$F/password.xiz" tree/link-to-a | grep -qx 'docs/a.md' && pass cat-symlink || fail cat-symlink

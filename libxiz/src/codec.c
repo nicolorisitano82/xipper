@@ -1,10 +1,14 @@
-/* Frame codecs: zstd (with dictionaries, §12) and LZMA2 / ARM64 + LZMA2 (§14). Every decoder
+/* Frame codecs: zstd (with dictionaries, §12), LZMA2 / ARM64 + LZMA2 (§14) and brunsli JPEG (§16,
+ * when built with XIZ_JPEG). Every decoder
  * writes into a buffer of exactly the declared size and rejects any other length (§4.2). */
 #include "internal.h"
 
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
 #include "lzma.h"
+#ifdef XIZ_HAVE_JPEG
+#include <brunsli/decode.h>
+#endif
 
 int zstd_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, const void *ddict, xiz_error *err) {
     /* Exactly one zstd frame (§1, §4.2): no trailing frames or skippable frames. */
@@ -135,3 +139,35 @@ int lzma2_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize,
     if (rc == XIZ_OK && arm64 && usize) lzma_bcj_arm64_decode(0, dst, usize);
     return rc;
 }
+
+/* ------------------------------------------------------------------ brunsli JPEG (§16) */
+
+#ifdef XIZ_HAVE_JPEG
+typedef struct { uint8_t *dst; size_t cap, len; } jpeg_sink;
+
+static size_t jpeg_put(void *ctx, const uint8_t *buf, size_t size) {
+    jpeg_sink *s = ctx;
+    if (size > s->cap - s->len) return 0;  /* larger than declared: brunsli stops with an error */
+    memcpy(s->dst + s->len, buf, size);
+    s->len += size;
+    return size;
+}
+
+int xiz_has_jpeg(void) { return 1; }
+
+/* brunsli aborts the process on some internal checks: callers that read untrusted archives
+ * should decode in a separate process (§16). */
+int jpeg_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    jpeg_sink s = {dst, usize, 0};
+    if (!DecodeBrunsli(n, src, &s, jpeg_put)) return FAIL(XIZ_E_CORRUPT, "brunsli data invalid, truncated or larger than declared");
+    if (s.len != usize) return FAIL(XIZ_E_CORRUPT, "brunsli frame decodes to %zu bytes, %zu declared", s.len, usize);
+    return XIZ_OK;
+}
+#else
+int xiz_has_jpeg(void) { return 0; }
+
+int jpeg_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    (void)src; (void)n; (void)dst; (void)usize;
+    return FAIL(XIZ_E_UNSUPPORTED, "brunsli JPEG frames: this libxiz was built without XIZ_JPEG");
+}
+#endif
