@@ -18,13 +18,19 @@ struct KeysSettings: View {
             Section {
                 keyList(identities, kind: .identity)
                 HStack {
-                    Button("Nuova identità…") { create(.identity) }
+                    Menu("Nuova identità…") {
+                        Button("Post-quantum (consigliata)") { create(.identity) }
+                        Button("Classica (X25519)") { create(.identity, postQuantum: false) }
+                    } primaryAction: {
+                        create(.identity)
+                    }
+                    .fixedSize()
                     Button("Importa…") { importKey() }
                 }
             } header: {
                 Text("Le mie identità")
             } footer: {
-                Text("Chi vuole mandarti un archivio XIZ usa la tua chiave pubblica (xizpk1…): solo tu potrai aprire le cartelle destinate a te.")
+                Text("Chi vuole mandarti un archivio XIZ usa la tua chiave pubblica: solo tu potrai aprire le cartelle destinate a te. Le identità post-quantum (xizpq1…) resistono anche ai computer quantistici futuri; chi ti manda l'archivio deve avere Xipper 3.0 o successivo. Le classiche (xizpk1…) funzionano con tutte le versioni.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
@@ -64,7 +70,14 @@ struct KeysSettings: View {
         ForEach(items) { item in
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name)
+                    HStack(spacing: 6) {
+                        Text(item.name)
+                        if item.publicKey.hasPrefix("xizpq1") {
+                            Text("post-quantum").font(.caption2).foregroundStyle(.secondary)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
                     Text(item.publicKey).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                 }
@@ -94,11 +107,11 @@ struct KeysSettings: View {
         if !signingKeys.contains(where: { $0.name == defaultKey }) { defaultKey = "" }
     }
 
-    private func create(_ kind: XizKeychain.Kind) {
+    private func create(_ kind: XizKeychain.Kind, postQuantum: Bool = true) {
         guard let name = KeysSettings.askName(kind == .identity ? String(localized: "Nuova identità") : String(localized: "Nuova chiave di firma"),
                                               default: kind == .identity ? NSFullUserName() : String(localized: "Firma di \(NSFullUserName())")) else { return }
         do {
-            try XizKeychain.generate(kind, name: name)
+            try XizKeychain.generate(kind, name: name, postQuantum: postQuantum)
             if kind == .signing && defaultKey.isEmpty { defaultKey = name }
             message = String(localized: "«\(name)» creata nel Portachiavi.")
         } catch {

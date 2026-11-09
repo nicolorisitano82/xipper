@@ -4,8 +4,9 @@ import Security
 
 // XIZ 1.3 (docs/XIZ_SPEC.md §13): access groups, recipients, k-of-n threshold keys and signed
 // segments. This file holds the public description of an access policy, the identities and
-// credentials, Shamir secret sharing, the keys-block stanzas (types 2–5), the catalog directory
-// and the segment signatures (Ed25519, optional RFC 3161 time-stamp).
+// credentials, Shamir secret sharing, the keys-block stanzas (types 2–5, and 6–7 for the
+// post-quantum X-Wing recipients of XIZ 1.7, §17), the catalog directory and the segment
+// signatures (Ed25519, optional RFC 3161 time-stamp).
 
 // MARK: - Public API
 
@@ -33,7 +34,7 @@ public struct XizAccess: Sendable {
         public init(name: String, prefixes: [String]) { self.name = name; self.prefixes = prefixes }
     }
 
-    /// A password or an X25519 public key.
+    /// A password or a public key: X25519 (32 bytes) or X-Wing (1216 bytes, post-quantum).
     public enum Credential: Sendable, Equatable {
         case password(String)
         case publicKey([UInt8])
@@ -69,30 +70,69 @@ public struct XizAccess: Sendable {
     public static let defaultGroup = ""
 }
 
-/// An X25519 key pair to receive XIZ archives (`xizpk1…` public, `XIZ-SECRET-KEY-1-…` secret).
+/// A key pair to receive XIZ archives: X25519 (`xizpk1…` public, `XIZ-SECRET-KEY-1-…` secret) or,
+/// from XIZ 1.7, the post-quantum hybrid X-Wing, ML-KEM-768 + X25519 (`xizpq1…` public,
+/// `XIZ-SECRET-KEY-PQ-1-…` secret, the 32-byte seed).
 public struct XizIdentity: Sendable {
-    public let privateKey: Curve25519.KeyAgreement.PrivateKey
-    public var publicKey: [UInt8] { Array(privateKey.publicKey.rawRepresentation) }
-    public var publicText: String { Self.publicPrefix + Base64URL.encode(publicKey) }
-    public var secretText: String { Self.secretPrefix + Base64URL.encode(Array(privateKey.rawRepresentation)) }
+    enum Key: Sendable {
+        case x25519(Curve25519.KeyAgreement.PrivateKey)
+        case xwing(XWingMLKEM768X25519.PrivateKey)
+    }
+    let key: Key
+
+    public var isPostQuantum: Bool { if case .xwing = key { true } else { false } }
+    public var publicKey: [UInt8] {
+        switch key {
+        case let .x25519(k): Array(k.publicKey.rawRepresentation)
+        case let .xwing(k): Array(k.publicKey.rawRepresentation)
+        }
+    }
+    public var publicText: String { Self.publicText(publicKey) }
+    public var secretText: String {
+        switch key {
+        case let .x25519(k): Self.secretPrefix + Base64URL.encode(Array(k.rawRepresentation))
+        case let .xwing(k): Self.pqSecretPrefix + Base64URL.encode(Array(k.seedRepresentation))
+        }
+    }
 
     static let publicPrefix = "xizpk1", secretPrefix = "XIZ-SECRET-KEY-1-"
+    static let pqPublicPrefix = "xizpq1", pqSecretPrefix = "XIZ-SECRET-KEY-PQ-1-"
+    /// X-Wing sizes: public (encapsulation) key and ciphertext.
+    static let xwingPublicKeySize = 1216, xwingCiphertextSize = 1120
 
-    public init() { privateKey = Curve25519.KeyAgreement.PrivateKey() }
+    /// A new X25519 identity, or an X-Wing one when `postQuantum`.
+    public init(postQuantum: Bool = false) {
+        key = postQuantum ? .xwing(try! XWingMLKEM768X25519.PrivateKey.generate()) : .x25519(Curve25519.KeyAgreement.PrivateKey())
+    }
     public init(secretText: String) throws {
+        if let line = Self.keyLine(secretText, prefix: Self.pqSecretPrefix) {
+            guard let seed = Base64URL.decode(String(line.dropFirst(Self.pqSecretPrefix.count))), seed.count == 32 else {
+                throw XipperError.invalidArgument("not an XIZ secret key")
+            }
+            key = .xwing(try XWingMLKEM768X25519.PrivateKey(seedRepresentation: seed, publicKey: nil))
+            return
+        }
         guard let line = Self.keyLine(secretText, prefix: Self.secretPrefix),
               let raw = Base64URL.decode(String(line.dropFirst(Self.secretPrefix.count))), raw.count == 32 else {
             throw XipperError.invalidArgument("not an XIZ secret key")
         }
-        privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: raw)
+        key = .x25519(try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: raw))
     }
 
+    /// The raw public key of an `xizpk1…` (32 bytes) or `xizpq1…` (1216 bytes) text.
     public static func publicKey(fromText text: String) throws -> [UInt8] {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard t.hasPrefix(publicPrefix), let raw = Base64URL.decode(String(t.dropFirst(publicPrefix.count))), raw.count == 32 else {
-            throw XipperError.invalidArgument("not an XIZ public key: \(t)")
+        for (prefix, size) in [(publicPrefix, 32), (pqPublicPrefix, xwingPublicKeySize)] where t.hasPrefix(prefix) {
+            if let raw = Base64URL.decode(String(t.dropFirst(prefix.count))), raw.count == size,
+               size == 32 || (try? XWingMLKEM768X25519.PublicKey(rawRepresentation: raw)) != nil {
+                return raw
+            }
         }
-        return raw
+        throw XipperError.invalidArgument("not an XIZ public key: \(t.prefix(60))")
+    }
+
+    public static func publicText(_ raw: [UInt8]) -> String {
+        (raw.count == 32 ? publicPrefix : pqPublicPrefix) + Base64URL.encode(raw)
     }
 
     /// The first line starting with `prefix` (key files carry comments).
@@ -103,7 +143,8 @@ public struct XizIdentity: Sendable {
 
     /// Key file contents: comments with the public key, then the secret.
     public var fileText: String {
-        "# XIZ identity (X25519), created \(ISO8601DateFormatter().string(from: Date()))\n# public key: \(publicText)\n\(secretText)\n"
+        let kind = isPostQuantum ? "X-Wing, ML-KEM-768 + X25519, post-quantum" : "X25519"
+        return "# XIZ identity (\(kind)), created \(ISO8601DateFormatter().string(from: Date()))\n# public key: \(publicText)\n\(secretText)\n"
     }
 }
 
@@ -267,7 +308,7 @@ enum Shamir {
 // MARK: - Keys block (1.3)
 
 enum XizAccessKeys {
-    enum StanzaType: UInt8 { case passwordRecipient = 2, keyRecipient = 3, threshold = 4, share = 5 }
+    enum StanzaType: UInt8 { case passwordRecipient = 2, keyRecipient = 3, threshold = 4, share = 5, pqKeyRecipient = 6, pqShare = 7 }
 
     static func bundle(_ keys: [(UInt16, SymmetricKey)]) -> [UInt8] {
         var w = ByteWriter(capacity: 2 + keys.count * 34)
@@ -306,9 +347,14 @@ enum XizAccessKeys {
 
     static func keyID(_ publicKey: [UInt8]) -> [UInt8] { Array(Array(SHA256.hash(data: publicKey)).prefix(8)) }
 
-    /// KEK and header fields for a password (Argon2id) or a public key (X25519 to an ephemeral key).
+    /// KEK and header fields for a password (Argon2id), an X25519 public key (to an ephemeral key)
+    /// or an X-Wing public key (encapsulation: ciphertext ‖ key id, §17).
     static func credentialKEK(_ c: XizAccess.Credential, kdf: XizKeys.KDF) throws -> (header: [UInt8], kek: SymmetricKey) {
         switch c {
+        case let .publicKey(pub) where pub.count == XizIdentity.xwingPublicKeySize:
+            let r = try XWingMLKEM768X25519.PublicKey(rawRepresentation: pub).encapsulate()
+            let id = keyID(pub)
+            return (Array(r.encapsulated) + id, xwingKEK(r.sharedSecret, keyID: id))
         case let .password(p):
             var salt = [UInt8](repeating: 0, count: 32)
             arc4random_buf(&salt, 32)
@@ -329,6 +375,19 @@ enum XizAccessKeys {
                                        sharedInfo: Data("xiz/1.3/x25519".utf8), outputByteCount: 32)
     }
 
+    static func xwingKEK(_ shared: SymmetricKey, keyID: [UInt8]) -> SymmetricKey {
+        HKDF<SHA256>.deriveKey(inputKeyMaterial: shared, salt: Data(keyID), info: Data("xiz/1.7/xwing".utf8), outputByteCount: 32)
+    }
+
+    static func isPostQuantum(_ c: XizAccess.Credential) -> Bool {
+        if case let .publicKey(pub) = c { pub.count == XizIdentity.xwingPublicKeySize } else { false }
+    }
+
+    /// Whether a policy has X-Wing recipients or custodians (the archive is then XIZ 1.7).
+    static func hasPostQuantum(_ a: XizAccess) -> Bool {
+        a.recipients.contains { isPostQuantum($0.credential) } || a.thresholds.contains { $0.custodians.contains { isPostQuantum($0.credential) } }
+    }
+
     static func thresholdKEK(_ secret: [UInt8], archiveID: [UInt8]) -> SymmetricKey {
         HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: secret), salt: Data(archiveID),
                                info: Data("xiz/1.3/threshold".utf8), outputByteCount: 32)
@@ -347,7 +406,7 @@ enum XizAccessKeys {
         var out: [Pending] = []
         for r in access.recipients {
             let (header, kek) = try credentialKEK(r.credential, kdf: kdf)
-            let type: StanzaType = if case .password = r.credential { .passwordRecipient } else { .keyRecipient }
+            let type: StanzaType = if case .password = r.credential { .passwordRecipient } else if isPostQuantum(r.credential) { .pqKeyRecipient } else { .keyRecipient }
             out.append(Pending(type: type, header: header + label(r.label), kek: kek, plaintext: bundle(try keys(r.groups))))
         }
         for (tid, t) in access.thresholds.enumerated() {
@@ -361,6 +420,10 @@ enum XizAccessKeys {
                                kek: thresholdKEK(secret, archiveID: archiveID), plaintext: bundle(try keys(t.groups))))
             for (i, (c, share)) in zip(t.custodians, Shamir.split(secret, k: t.k, n: n)).enumerated() {
                 let (header, kek) = try credentialKEK(c.credential, kdf: kdf)
+                if isPostQuantum(c.credential) {  // a type of its own: older readers skip it (§17)
+                    out.append(Pending(type: .pqShare, header: [UInt8(tid), UInt8(i + 1)] + header + label(c.label), kek: kek, plaintext: share))
+                    continue
+                }
                 let kind: UInt8 = if case .password = c.credential { 1 } else { 2 }
                 out.append(Pending(type: .share, header: [UInt8(tid), UInt8(i + 1), kind] + header + label(c.label), kek: kek, plaintext: share))
             }
@@ -431,11 +494,23 @@ enum XizAccessKeys {
                 }
                 return (44, keks)
             }
+            if kind == 3 {  // X-Wing (types 6 and 7): ciphertext ‖ key id
+                let n = XizIdentity.xwingCiphertextSize
+                guard body.count >= p + n + 8 else { throw XipperError.corrupt("XIZ stanza") }
+                let ct = Data(body[p..<(p + n)]), id = Array(body[(p + n)..<(p + n + 8)])
+                var keks: [SymmetricKey] = []
+                for idn in identities where keyID(idn.publicKey) == id {
+                    guard case let .xwing(k) = idn.key, let shared = try? k.decapsulate(ct) else { continue }
+                    keks.append(xwingKEK(shared, keyID: id))
+                }
+                return (n + 8, keks)
+            }
             guard kind == 2, body.count >= p + 40 else { throw XipperError.corrupt("XIZ stanza") }
             let eph = Array(body[p..<(p + 32)]), id = Array(body[(p + 32)..<(p + 40)])
             var keks: [SymmetricKey] = []
             for idn in identities where keyID(idn.publicKey) == id {
-                let shared = try idn.privateKey.sharedSecretFromKeyAgreement(with: try Curve25519.KeyAgreement.PublicKey(rawRepresentation: eph))
+                guard case let .x25519(k) = idn.key else { continue }
+                let shared = try k.sharedSecretFromKeyAgreement(with: try Curve25519.KeyAgreement.PublicKey(rawRepresentation: eph))
                 keks.append(try x25519KEK(shared: shared, ephemeral: eph, recipient: idn.publicKey))
             }
             return (40, keks)
@@ -465,8 +540,8 @@ enum XizAccessKeys {
             guard let t = StanzaType(rawValue: type) else { continue }  // unknown types are skipped (§6.2)
             result.stanzas += 1
             switch t {
-            case .passwordRecipient, .keyRecipient:
-                let (n, keks) = try credentialKEKs(t == .passwordRecipient ? 1 : 2, body, at: 0)
+            case .passwordRecipient, .keyRecipient, .pqKeyRecipient:
+                let (n, keks) = try credentialKEKs(t == .passwordRecipient ? 1 : t == .keyRecipient ? 2 : 3, body, at: 0)
                 let end = try labelEnd(body, at: n)
                 if let plain = openBox(type, body, headerEnd: end, keks: keks) {
                     result.groupKeys.merge(try unbundle(plain)) { a, _ in a }
@@ -475,10 +550,13 @@ enum XizAccessKeys {
                 guard body.count >= 3 else { throw XipperError.corrupt("XIZ threshold stanza") }
                 let end = try labelEnd(body, at: 3)
                 thresholdStanzas.append((body[0], Int(body[1]), String(decoding: body[4..<end], as: UTF8.self), body, end))
-            case .share:
+            case .share, .pqShare:
                 guard body.count >= 3 else { throw XipperError.corrupt("XIZ share stanza") }
-                let (n, keks) = try credentialKEKs(body[2], body, at: 3)
-                let end = try labelEnd(body, at: 3 + n)
+                // Type 5: threshold id, x, kind (1 or 2), credential; type 7: threshold id, x, X-Wing.
+                let at = t == .share ? 3 : 2
+                guard t == .pqShare || body[2] == 1 || body[2] == 2 else { throw XipperError.corrupt("XIZ stanza") }
+                let (n, keks) = try credentialKEKs(t == .share ? body[2] : 3, body, at: at)
+                let end = try labelEnd(body, at: at + n)
                 if let y = openBox(type, body, headerEnd: end, keks: keks), y.count == 32, body[1] != 0,
                    !(shares[body[0]] ?? []).contains(where: { $0.x == body[1] }) {
                     shares[body[0], default: []].append((body[1], y))

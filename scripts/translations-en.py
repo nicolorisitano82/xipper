@@ -566,7 +566,6 @@ EN = {
     '%@ · password': '%@ · password',
     '%@, custode %lld': '%1$@, custodian %2$lld',
     '%@: il numero richiesto deve stare tra 2 e %lld.': '%1$@: the required number must be between 2 and %2$lld.',
-    '%@: la chiave pubblica non è valida (xizpk1…).': '%@: the public key is not valid (xizpk1…).',
     '%@: le password non coincidono.': '%@: the passwords do not match.',
     '%@: manca la password.': '%@: the password is missing.',
     '%@: servono almeno 2 custodi.': '%@: at least 2 custodians are needed.',
@@ -593,7 +592,6 @@ EN = {
     'Chi ha questo file può aprire gli archivi destinati a te o firmare al posto tuo. Tienilo in un posto sicuro e non mandarlo per email.': 'Whoever has this file can open archives meant for you or sign in your name. Keep it somewhere safe and do not email it.',
     'Chi può aprire': 'Who can open',
     'Chi può aprirlo': 'Who can open it',
-    'Chi vuole mandarti un archivio XIZ usa la tua chiave pubblica (xizpk1…): solo tu potrai aprire le cartelle destinate a te.': 'To send you an XIZ archive, people use your public key (xizpk1…): only you can open the folders meant for you.',
     'Chiave di firma «%@» importata.': 'Signing key “%@” imported.',
     'Chiave esportata in %@.': 'Key exported to %@.',
     'Chiave pubblica': 'Public key',
@@ -694,7 +692,6 @@ EN = {
     'nessuna': 'none',
     'senza nome': 'unnamed',
     'usare le tue chiavi per aprire %@': 'use your keys to open %@',
-    'xizpk1…': 'xizpk1…',
     '«%@» creata nel Portachiavi.': '“%@” created in the Keychain.',
     'La cartella riservata «%@» non esiste più: aggiorna chi può aprirla.': 'The reserved folder “%@” no longer exists: update who can open it.',
     'Genera password sicura': 'Generate a strong password',
@@ -820,6 +817,12 @@ EN["Negli archivi XIZ i dati di recupero stanno dentro l'archivio e lo seguono i
 EN["Password richiesta: %@ è protetto da password."] = "Password required: %@ is password protected."
 EN["Ripara fino a %lld punti danneggiati, anche senza password"] = "Repairs up to %lld damaged spots, even without the password"
 EN["Velocità"] = "Speed"
+EN["%@: la chiave pubblica non è valida (xizpq1… o xizpk1…)."] = "%@: the public key is not valid (xizpq1… or xizpk1…)."
+EN["Chi vuole mandarti un archivio XIZ usa la tua chiave pubblica: solo tu potrai aprire le cartelle destinate a te. Le identità post-quantum (xizpq1…) resistono anche ai computer quantistici futuri; chi ti manda l'archivio deve avere Xipper 3.0 o successivo. Le classiche (xizpk1…) funzionano con tutte le versioni."] = "To send you an XIZ archive, people use your public key: only you can open the folders meant for you. Post-quantum identities (xizpq1…) also resist future quantum computers; the sender needs Xipper 3.0 or later. Classic ones (xizpk1…) work with every version."
+EN["Classica (X25519)"] = "Classic (X25519)"
+EN["Post-quantum (consigliata)"] = "Post-quantum (recommended)"
+EN["post-quantum"] = "post-quantum"
+EN["xizpq1… o xizpk1…"] = "xizpq1… or xizpk1…"
 EN["Foto JPEG più piccole"] = "Smaller JPEG photos"
 EN["Circa il 20% in meno senza perdere nulla: all'estrazione ogni foto torna identica byte per byte. Compressione ed estrazione delle foto più lente. Si leggono solo con Xipper 2.7 o successivo."] = "About 20% smaller with nothing lost: on extraction every photo comes back identical, byte for byte. Compressing and extracting photos is slower. Readable only with Xipper 2.7 or later."
 EN["%@ in corso…"] = "%@ in progress…"

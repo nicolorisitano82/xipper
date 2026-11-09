@@ -316,12 +316,14 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - **decisione:** la fase E si fa, con PNG e PDF per primi; FLAC solo in fondo;
 - brunsli in libxiz: legge gli XIZ 1.6 (decoder in C++17, opzione `XIZ_JPEG`, `xiz_has_jpeg()`); fixture `jpeg.xiz` e `password-jpeg.xiz`, 500 flussi manomessi senza abort con ASan e UBSan; verde su macOS (Debug e Release, `-Werror`), senza brunsli, e su Linux (gcc 14).
 
-##### B. Destinatario post-quantum (XIZ 1.7) — media
-- nuovo tipo di destinatario (4) accanto a password (2) e X25519 (3): chiave di gruppo sigillata con X-Wing (ML-KEM-768 + X25519) di CryptoKit; protegge dal «registra ora, decifra dopo»;
-- chiavi nel Portachiavi come le X25519, Touch ID, export e import della chiave pubblica; «Accesso» propone la chiave ibrida come predefinita per le chiavi nuove;
-- feature richiesta `pq` solo negli archivi che hanno un destinatario ibrido;
-- libxiz: X-Wing in C (implementazione di riferimento o mlkem-native, licenza da verificare);
-- **da verificare:** age 1.3 usa per `age1pq1…` lo schema HPKE «MLKEM768-X25519», che potrebbe non coincidere con X-Wing. Se coincide, le chiavi age si usano direttamente; altrimenti l'interoperabilità con age resta un'aggiunta.
+##### B. Destinatario post-quantum (XIZ 1.7) — ✅ fatto in Xipper (09/11/2026)
+- stanza 6 (destinatario) e 7 (custode di una soglia) con X-Wing, ML-KEM-768 + X25519, di CryptoKit (da macOS 26): KEK = HKDF-SHA-256 del segreto X-Wing; spec [§17](XIZ_SPEC.md);
+- **nessun bit di feature:** i lettori saltano i tipi di stanza che non conoscono, quindi un archivio con destinatari post-quantum accanto a password o chiavi X25519 si apre ancora con Xipper 2.2–2.7 e con libxiz usando quelle credenziali (provato con la 2.7.0); solo la parte post-quantum chiede la 3.0. `version_minor = 7`;
+- chiavi `xizpq1…` (pubblica, 1216 byte) e `XIZ-SECRET-KEY-PQ-1-…` (seed di 32 byte): `xipper keygen --pq`, Portachiavi come le X25519 (Touch ID, export, import), riconosciute dal foglio «Accesso»;
+- app: in Impostazioni › Chiavi «Nuova identità…» crea una chiave post-quantum (decisione 2: predefinita), con «Classica (X25519)» nel menu; le identità post-quantum hanno un'etichetta;
+- test: chiavi, destinatari e custodi misti, descrizione pubblica, modifica in append, stanza manomesse;
+- **age:** le chiavi `age1pq1…` di age 1.3 usano anch'esse X-Wing, ma con un'altra codifica (Bech32); importarle si può aggiungere quando c'è age per provare la compatibilità;
+- **da fare:** libxiz apre gli archivi 1.7 con le altre credenziali ma non ancora le stanze X-Wing: serve ML-KEM-768 in C (mlkem-native o PQClean, codice esterno da approvare);
 - le firme restano Ed25519: ML-DSA può aspettare, perché le firme non soffrono del «registra ora».
 
 ##### C. Versioni di un XIZ come snapshot — media
@@ -353,7 +355,7 @@ Sul modello di zpaq e restic, con i pezzi che ci sono già (segmenti in append, 
 
 #### Decisioni da prendere
 1. **Rust nella build** per preflate-rs, oppure preflate in C++ (l'originale, Apache-2.0), che ha già lo stesso tipo di build di brunsli.
-2. **Chiave post-quantum predefinita** per le chiavi nuove, oppure solo su richiesta.
+2. ~~Chiave post-quantum predefinita~~: sì, nell'app (09/11/2026); la CLI la crea con `--pq`.
 3. **F nella 3.0** anche se slitta, oppure spostata subito alla 3.1.
 
 #### Fuori dalla 3.0

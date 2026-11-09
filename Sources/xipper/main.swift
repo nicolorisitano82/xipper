@@ -132,7 +132,7 @@ let knownFlags: Set<String> = command == "bgzip"
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--jpeg", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
-                         "--read-only", "--discard", "--compact", "--numbered", "--signing",
+                         "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]

@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// XIZ identities (X25519) and signing keys (Ed25519) in the login Keychain, by name, so the app
+/// XIZ identities (X25519 or X-Wing) and signing keys (Ed25519) in the login Keychain, by name, so the app
 /// and the CLI (`--identity keychain:NAME`, `--sign keychain:NAME`) share them and no secret sits
 /// in a file. The public key is kept in the item's comment, so listing needs no unlock; reading a
 /// secret may make macOS ask whether this program may use it (the app also asks for Touch ID).
@@ -45,7 +45,8 @@ public enum XizKeychain {
         add[kSecValueData as String] = Data(secretText.utf8)
         add[kSecAttrComment as String] = publicText
         add[kSecAttrLabel as String] = "Xipper: \(name)"
-        add[kSecAttrDescription as String] = kind == .identity ? "XIZ identity (X25519)" : "XIZ signing key (Ed25519)"
+        add[kSecAttrDescription as String] = kind == .signing ? "XIZ signing key (Ed25519)"
+            : publicText.hasPrefix(XizIdentity.pqPublicPrefix) ? "XIZ identity (X-Wing, post-quantum)" : "XIZ identity (X25519)"
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw XipperError.io("Keychain: save \(name)", path: nil, errno: Int32(truncatingIfNeeded: status)) }
     }
@@ -64,12 +65,12 @@ public enum XizKeychain {
         SecItemDelete(query(kind, name: name) as CFDictionary)
     }
 
-    /// A new identity or signing key, stored under `name`; returns its public key.
+    /// A new identity (X-Wing when `postQuantum`) or signing key, stored under `name`; returns its public key.
     @discardableResult
-    public static func generate(_ kind: Kind, name: String) throws -> String {
+    public static func generate(_ kind: Kind, name: String, postQuantum: Bool = false) throws -> String {
         switch kind {
         case .identity:
-            let k = XizIdentity()
+            let k = XizIdentity(postQuantum: postQuantum)
             try save(kind, name: name, secretText: k.secretText, publicText: k.publicText)
             return k.publicText
         case .signing:
@@ -157,6 +158,10 @@ extension XizAccessKeys {
                 case .keyRecipient?:
                     guard body.count >= 40 else { continue }
                     out.append(XizRecipientInfo(label: label(at: 40), kind: .publicKey(keyID: Array(body[32..<40]))))
+                case .pqKeyRecipient?:
+                    let n = XizIdentity.xwingCiphertextSize
+                    guard body.count >= n + 8 else { continue }
+                    out.append(XizRecipientInfo(label: label(at: n + 8), kind: .publicKey(keyID: Array(body[n..<(n + 8)]))))
                 case .threshold?:
                     guard body.count >= 4 else { continue }
                     let l = label(at: 3)
@@ -168,6 +173,10 @@ extension XizAccessKeys {
                     let kind = body[2]
                     let id: [UInt8]? = kind == 2 && body.count >= 43 ? Array(body[35..<43]) : nil
                     shares.append((body[0], XizRecipientInfo(label: label(at: 3 + (kind == 1 ? 44 : 40)), kind: .custodian(threshold: "", keyID: id))))
+                case .pqShare?:
+                    let n = XizIdentity.xwingCiphertextSize
+                    guard body.count >= 2 + n + 8 else { continue }
+                    shares.append((body[0], XizRecipientInfo(label: label(at: 2 + n + 8), kind: .custodian(threshold: "", keyID: Array(body[(2 + n)..<(2 + n + 8)])))))
                 default: continue
                 }
             }

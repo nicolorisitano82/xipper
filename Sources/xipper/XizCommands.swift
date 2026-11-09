@@ -4,8 +4,9 @@ import Foundation
 import XipperKit
 
 let xizUsage = """
-  keygen  [--signing] -o FILE | --keychain NAME
-                                  new XIZ identity (X25519, to receive archives) or signing key
+  keygen  [--signing | --pq] -o FILE | --keychain NAME
+                                  new XIZ identity (X25519, to receive archives; --pq: X-Wing,
+                                  ML-KEM-768 + X25519, post-quantum, XIZ 1.7) or signing key
                                   (Ed25519, --signing): the secret goes to FILE (mode 600) or to the
                                   login Keychain under NAME (shared with the app); prints the public key
   history <archive.xiz|.aar>      signed changes of an XIZ archive: signer, time, checks, time-stamp;
@@ -134,7 +135,7 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 @MainActor func runKeygen() -> Never {
     if let name = value("--keychain") {
         do {
-            print(try XizKeychain.generate(flag("--signing") ? .signing : .identity, name: name))
+            print(try XizKeychain.generate(flag("--signing") ? .signing : .identity, name: name, postQuantum: flag("--pq")))
             exit(0)
         } catch {
             fail("\(error)")
@@ -144,7 +145,7 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
     if FileManager.default.fileExists(atPath: out) { fail("\(out) already exists") }
     let signing = flag("--signing")
     let (text, publicText) = signing ? { let k = XizSigningKey(); return (k.fileText, k.publicText) }()
-                                     : { let k = XizIdentity(); return (k.fileText, k.publicText) }()
+                                     : { let k = XizIdentity(postQuantum: flag("--pq")); return (k.fileText, k.publicText) }()
     let fd = open(out, O_WRONLY | O_CREAT | O_EXCL, 0o600)
     guard fd >= 0 else { fail("cannot create \(out)") }
     let ok = text.utf8CString.withUnsafeBufferPointer { write(fd, $0.baseAddress, $0.count - 1) == $0.count - 1 }

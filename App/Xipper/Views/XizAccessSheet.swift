@@ -60,7 +60,7 @@ struct XizAccessDraft {
                 if p.password.isEmpty { out.append(String(localized: "\(who): manca la password.")) }
                 else if p.password != p.confirm { out.append(String(localized: "\(who): le password non coincidono.")) }
             case .publicKey:
-                if (try? XizIdentity.publicKey(fromText: p.publicKey)) == nil { out.append(String(localized: "\(who): la chiave pubblica non è valida (xizpk1…).")) }
+                if (try? XizIdentity.publicKey(fromText: p.publicKey)) == nil { out.append(String(localized: "\(who): la chiave pubblica non è valida (xizpq1… o xizpk1…).")) }
             }
         }
         for (i, p) in recipients.enumerated() { check(p, p.label.isEmpty ? String(localized: "Destinatario \(i + 1)") : p.label) }
@@ -264,7 +264,7 @@ struct XizAccessSheet: View {
                     SecureField("Ripeti", text: p.confirm, prompt: Text("Ripeti")).labelsHidden()
                 } else {
                     HStack(spacing: 4) {
-                        TextField("Chiave pubblica", text: p.publicKey, prompt: Text("xizpk1…")).labelsHidden()
+                        TextField("Chiave pubblica", text: p.publicKey, prompt: Text("xizpq1… o xizpk1…")).labelsHidden()
                             .font(.system(.body, design: .monospaced))
                         if !identities.isEmpty {
                             Menu {

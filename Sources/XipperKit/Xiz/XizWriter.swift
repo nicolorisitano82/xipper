@@ -487,6 +487,7 @@ enum XizWriter {
         var policy = access ?? XizAccess()
         if let password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(password)), at: 0) }
         let encrypted = !policy.recipients.isEmpty || !policy.thresholds.isEmpty
+        if XizAccessKeys.hasPostQuantum(policy) { superblock.minor = 7 }  // X-Wing stanzas (§17): no feature bit
         guard encrypted || map.groups.count == 1 else {
             throw XipperError.invalidArgument("access groups need recipients (a password or a public key)")
         }

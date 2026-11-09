@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.6
+# XIZ archive format, version 1.7
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -6,7 +6,8 @@ Xipper 2.2.0) adds access groups, k-of-n threshold keys, signed segments, erasab
 inclusion proofs (§13). **1.4** (2026-11-02, Xipper 2.6) adds LZMA2 frames with an optional ARM64
 branch filter (§14). **1.5** (2026-11-03, Xipper 2.7) adds an optional recovery record at the end of the
 file (§15), which every reader since 1.1 skips. **1.6** (2026-11-03, Xipper 2.7) adds JPEG files
-recompressed losslessly with brunsli, one per frame (§16). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+recompressed losslessly with brunsli, one per frame (§16). **1.7** (2026-11-09, Xipper 3.0) adds
+post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which older readers skip. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -46,7 +47,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–6) |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–7) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -687,3 +688,36 @@ goes into an ordinary frame. Identical JPEGs are stored once (whole-file dedupli
 not cut into chunks). On JPEG photos the frame is about 78–84% of the file; brunsli runs at about
 15–20 MB/s per core in each direction on an M3 Max, and frames are coded in parallel.
 
+## 17. Version 1.7: post-quantum recipients
+
+XIZ 1.7 adds two keys-block stanza types (§6.2, §13.3) whose key-encryption key comes from
+**X-Wing**, the hybrid KEM that combines ML-KEM-768 (FIPS 203) with X25519
+([draft-connolly-cfrg-xwing-kem](https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/)).
+An attacker has to break both to open the stanza, so an archive recorded today stays closed even
+for a future quantum computer ("harvest now, decrypt later"). Signatures (§13.5) stay Ed25519: they
+cannot be forged retroactively.
+
+| Type | Name | Header | KEK |
+|---:|---|---|---|
+| 6 | post-quantum recipient | X-Wing ciphertext[1120], recipient key id[8], label | HKDF-SHA-256(X-Wing shared secret, salt = key id, info `xiz/1.7/xwing`) |
+| 7 | post-quantum custodian share | threshold id u8, x u8, X-Wing ciphertext[1120], recipient key id[8], label | as type 6; the sealed plaintext is the share (32 bytes) |
+
+- The X-Wing public (encapsulation) key is 1216 bytes, the private key its 32-byte seed. The key id is
+  the first 8 bytes of SHA-256 of the 1216-byte public key, as for X25519 (§13.3).
+- The writer encapsulates to the recipient's public key once per stanza; the reader decapsulates
+  with the identity whose key id matches. X-Wing rejects a damaged ciphertext implicitly (a different
+  shared secret), so a damaged stanza simply does not open; the AES-GCM tag and the keys-block CRC
+  catch it as for the other types.
+- Bundles, nonces, associated data and labels are exactly as in §13.3. Type 7 belongs to the
+  threshold group with the same id; its shares combine with those of type 5 stanzas.
+- **No feature bit.** Readers skip stanza types they do not know (§6.2): an archive with recipients
+  of types 6 and 7 next to passwords or X25519 keys still opens in readers since 1.3 with those
+  credentials, and only the post-quantum part needs a 1.7 reader. `version_minor = 7` when the keys
+  block has a stanza of type 6 or 7.
+- Each post-quantum stanza takes about 1.2 KB of the 64 KiB keys block, so an archive holds about
+  50 of them.
+
+Key texts: public `xizpq1` + base64url of the 1216-byte key; secret `XIZ-SECRET-KEY-PQ-1-` +
+base64url of the seed (the X25519 ones stay `xizpk1…` and `XIZ-SECRET-KEY-1-…`). Xipper creates
+them with `xipper keygen --pq` or in Settings › Keys, where new identities are post-quantum by
+default.
