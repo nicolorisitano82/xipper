@@ -262,3 +262,22 @@ sono un po' più bassi.
   dice quanto conti nella pratica.
 
 **Decisione per la fase E:** si fa, partendo da PNG e PDF; FLAC resta in fondo, solo se avanza tempo.
+
+### XIZ 1.8: LZRAVEN e LZMESH (10/11/2026)
+
+`xipper create -f xiz` con tutti i core (M3 Max); «verifica» è `xipper test` (decompressione e hash,
+senza scrivere su disco).
+
+| Codec | gcc di Homebrew (481 MB: binari, librerie, header) | creazione | verifica |
+|---|---|---|---|
+| zstd 3 | 151,3 MB | 0,55 s | 0,09 s |
+| zstd 12 («Massimo») | 136,3 MB | 1,71 s | 0,09 s |
+| LZMA2 | 105,4 MB | 12,6 s | 0,37 s |
+| **LZRAVEN** | **98,3 MB** | 13,9 s | 0,23 s |
+| **LZMESH** | **133,0 MB** | 0,75 s | 0,11 s |
+
+Su un'app Java (Cyberduck, 261 MB quasi tutta già compressa) le differenze si riducono all'1–4%:
+LZRAVEN 153,5 MB contro 154,6 di LZMA2 e 159,2 di zstd 12. LZRAVEN è il miglior rapporto, del 7% sotto
+LZMA2 sui binari, e si apre 1,6 volte più in fretta; LZMESH sta tra zstd 3 e zstd 12 per tempo e sotto
+zstd 12 per dimensione. Restano opzioni: si aprono solo su macOS 27.
+

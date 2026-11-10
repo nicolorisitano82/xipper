@@ -51,7 +51,9 @@ enum Xiz {
         static let lzma2 = Required(rawValue: 1 << 5)
         /// 1.6: JPEG files recompressed with brunsli, one per frame (§16).
         static let jpeg = Required(rawValue: 1 << 6)
-        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg]
+        /// 1.8: frames compressed with Apple's LZRAVEN or LZMESH (§18), readable on macOS 27 only.
+        static let apple = Required(rawValue: 1 << 7)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple]
     }
 
     /// Features a reader may ignore.
@@ -66,6 +68,8 @@ enum Xiz {
         case store = 0, zstd = 1, lzma2 = 2, lzma2ARM64 = 3
         /// 1.6: one whole JPEG file recompressed with brunsli (§16).
         case jpeg = 4
+        /// 1.8: Apple's LZRAVEN and LZMESH, macOS 27 and later only (§18).
+        case lzraven = 5, lzmesh = 6
 
         /// Whether the superblock declares the feature this codec needs.
         func isDeclared(by required: Required) -> Bool {
@@ -73,6 +77,7 @@ enum Xiz {
             case .store, .zstd: true
             case .lzma2, .lzma2ARM64: required.contains(.lzma2)
             case .jpeg: required.contains(.jpeg)
+            case .lzraven, .lzmesh: required.contains(.apple)
             }
         }
     }

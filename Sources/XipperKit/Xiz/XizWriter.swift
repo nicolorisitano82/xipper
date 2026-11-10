@@ -40,7 +40,8 @@ enum XizWriter {
         var chunks: [(Int64, Int, [UInt8])] = []
     }
 
-    static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, jpeg: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
+    static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false,
+                      password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       access: XizAccess? = nil, signer: XizSigner? = nil, carried: [XizCarriedFrame] = [],
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
@@ -48,7 +49,7 @@ enum XizWriter {
             throw XipperError.invalidArgument("copied zstd frames go only into plain XIZ archives")
         }
         if access != nil || signer != nil {
-            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, jpeg: jpeg, password: password, kdf: kdf,
+            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, password: password, kdf: kdf,
                                           extendedAttributes: extendedAttributes, access: access, signer: signer,
                                           workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
         }
@@ -59,9 +60,11 @@ enum XizWriter {
 
         // The dictionary is decided before the superblock, which declares it (1.2).
         var superblock = Xiz.Superblock(archiveID: archiveID)
-        // LZMA2 frames take no zstd dictionary; the codec is declared there too (1.4).
-        let lzma2 = lzma2 && level > 0
-        let dictionary = !lzma2 && level >= XizDictionary.minimumLevel
+        // LZMA2 and Apple frames take no zstd dictionary; the codec is declared there too (1.4, 1.8).
+        let appleCodec = level > 0 ? appleCodec : nil
+        if appleCodec != nil && !Xiz.hasAppleCodecs { throw XipperError.unsupported("LZRAVEN and LZMESH need macOS 27 or later") }
+        let lzma2 = lzma2 && level > 0 && appleCodec == nil
+        let dictionary = !lzma2 && appleCodec == nil && level >= XizDictionary.minimumLevel
             ? try trainDictionary(items, threshold: dictionaryThreshold, cancel: cancel) : nil
         if dictionary != nil {
             superblock.required.insert(.dictionaries)
@@ -75,6 +78,10 @@ enum XizWriter {
         if jpeg {
             superblock.required.insert(.jpeg)
             superblock.minor = 6
+        }
+        if appleCodec != nil {
+            superblock.required.insert(.apple)
+            superblock.minor = 8
         }
 
         // Keys first: the digests and the chunker depend on them.
@@ -92,7 +99,7 @@ enum XizWriter {
         let out = try OutputFile(path: path)
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
-        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2, jpeg: jpeg,
+        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg,
                                               dictionary: dictionary.map { (XizDictionary.id, $0, true) }, carried: carried,
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
@@ -147,7 +154,7 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false, jpeg: Bool = false,
+                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false,
                           dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil, carried: [XizCarriedFrame] = [],
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
@@ -384,6 +391,9 @@ enum XizWriter {
                 if jpegFrames.contains(idx), let p = JPEGRecompression.encode(data) {
                     codec = .jpeg  // checked: decodes back to `data`
                     payload = p
+                } else if level > 0, let appleCodec, let c = data.withUnsafeBytes({ Xiz.appleCompress($0, codec: appleCodec) }) {
+                    codec = appleCodec
+                    payload = c
                 } else if level > 0, lzma2 {
                     let exe = frames[idx].reduce(0) { $0 + (executables.contains($1.item) ? $1.length : 0) }
                     if let c = try data.withUnsafeBytes({ try Xiz.lzma2Compress($0, arm64: exe * 2 >= data.count) }) {
@@ -461,7 +471,8 @@ enum XizWriter {
     /// An archive with a directory: each access group's data is written as if it were an archive of
     /// its own (frames sealed with the group's key, deduplication inside the group), then one
     /// catalog per group, the directory (signed when there is a signer) and the footer.
-    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, jpeg: Bool = false, password: String?, kdf: XizKeys.KDF,
+    static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false,
+                                   password: String?, kdf: XizKeys.KDF,
                                    extendedAttributes: Bool, access: XizAccess?, signer: XizSigner?,
                                    workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let total = items.reduce(Int64(0)) { $0 + $1.size }
@@ -471,7 +482,9 @@ enum XizWriter {
         var superblock = Xiz.Superblock(archiveID: archiveID)
         superblock.required.insert(.directory)
         superblock.minor = 3
-        let lzma2 = lzma2 && level > 0
+        let appleCodec = level > 0 ? appleCodec : nil
+        if appleCodec != nil && !Xiz.hasAppleCodecs { throw XipperError.unsupported("LZRAVEN and LZMESH need macOS 27 or later") }
+        let lzma2 = lzma2 && level > 0 && appleCodec == nil
         if lzma2 {
             superblock.required.insert(.lzma2)
             superblock.minor = 4
@@ -481,13 +494,17 @@ enum XizWriter {
             superblock.required.insert(.jpeg)
             superblock.minor = 6
         }
+        if appleCodec != nil {
+            superblock.required.insert(.apple)
+            superblock.minor = 8
+        }
         let map = try XizGroupMap(access)
 
         // The password of the call, if any, is one more recipient that opens every group.
         var policy = access ?? XizAccess()
         if let password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(password)), at: 0) }
         let encrypted = !policy.recipients.isEmpty || !policy.thresholds.isEmpty
-        if XizAccessKeys.hasPostQuantum(policy) { superblock.minor = 7 }  // X-Wing stanzas (§17): no feature bit
+        if XizAccessKeys.hasPostQuantum(policy) { superblock.minor = max(superblock.minor, 7) }  // X-Wing stanzas (§17): no feature bit
         guard encrypted || map.groups.count == 1 else {
             throw XipperError.invalidArgument("access groups need recipients (a password or a public key)")
         }
@@ -528,7 +545,7 @@ enum XizWriter {
                 slots += s
             } else {
                 let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
-                                           group: g.id, proofs: true, level: level, lzma2: lzma2, jpeg: jpeg, extendedAttributes: extendedAttributes, workload: workload,
+                                           group: g.id, proofs: true, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, extendedAttributes: extendedAttributes, workload: workload,
                                            tracker: tracker, cancel: cancel)
                 frames += f
                 entries[g.id] = e

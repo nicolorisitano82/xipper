@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.7
+# XIZ archive format, version 1.8
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -7,7 +7,8 @@ inclusion proofs (§13). **1.4** (2026-11-02, Xipper 2.6) adds LZMA2 frames with
 branch filter (§14). **1.5** (2026-11-03, Xipper 2.7) adds an optional recovery record at the end of the
 file (§15), which every reader since 1.1 skips. **1.6** (2026-11-03, Xipper 2.7) adds JPEG files
 recompressed losslessly with brunsli, one per frame (§16). **1.7** (2026-11-09, Xipper 3.0) adds
-post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which older readers skip. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which older readers skip. **1.8**
+(2026-11-10, Xipper 3.0) adds frames compressed with Apple's LZRAVEN and LZMESH (§18), macOS 27 only. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -47,7 +48,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–7) |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–8) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -66,6 +67,7 @@ There are no gaps and no overlaps. The footer ends the file.
 | 4 | directory | 1.3: catalog directory, access groups, threshold keys, signed segments (§13) |
 | 5 | lzma2 | 1.4: frames with codec 2 (LZMA2) or 3 (ARM64 + LZMA2) (§14) |
 | 6 | jpeg | 1.6: frames with codec 4 (a JPEG file recompressed with brunsli) (§16) |
+| 7 | apple | 1.8: frames with codec 5 or 6 (Apple's LZRAVEN, LZMESH) (§18) |
 | 7–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
@@ -82,7 +84,7 @@ written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.x
 | Offset | Size | Field |
 |---:|---:|---|
 | 0 | 4 | magic `XFR1` |
-| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14), 4 = brunsli JPEG (needs `jpeg`, §16) |
+| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14), 4 = brunsli JPEG (needs `jpeg`, §16), 5 = LZRAVEN, 6 = LZMESH (need `apple`, §18) |
 | 5 | 1 | flags: bit 0 = dictionary frame (§12); other bits zero |
 | 6 | 2 | dictionary id: 0, or the dictionary defined (bit 0 set) or used (§12) |
 | 8 | 4 | frame index (0, 1, 2, …) |
@@ -725,3 +727,25 @@ Key texts: public `xizpq1` + base64url of the 1216-byte key; secret `XIZ-SECRET-
 base64url of the seed (the X25519 ones stay `xizpk1…` and `XIZ-SECRET-KEY-1-…`). Xipper creates
 them with `xipper keygen --pq` or in Settings › Keys, where new identities are post-quantum by
 default.
+
+## 18. Version 1.8: Apple's LZRAVEN and LZMESH
+
+An archive with frames of codec 5 or 6 sets the required feature `apple` (superblock bit 7,
+`version_minor = 8`); readers without it refuse the archive, and a frame with codec 5 or 6 in an
+archive without the bit is invalid.
+
+- **Codec 5, LZRAVEN** and **codec 6, LZMESH**: the payload (before encryption) is the output of
+  `compression_encode_buffer` with `COMPRESSION_LZRAVEN` (0xD05) or `COMPRESSION_LZMESH` (0xE05) of
+  Apple's Compression framework on the frame's data. These formats are not documented; the only
+  decoder is the same framework, from **macOS 27** on. Readers elsewhere refuse the archive
+  (`xiz_has_apple_codecs()` in libxiz).
+- Decoding must give exactly `usize` bytes: readers decode into room for `usize + 1` and reject any
+  other length. Frames take no zstd dictionary (`dictionary = 0`).
+- A writer that finds the output not smaller than the data stores the frame (codec 0).
+- Appending to an archive with `apple` may write frames of any codec; appending to one without it
+  never writes codec 5 or 6.
+
+Xipper writes them only when asked (`--lzraven`, `--lzmesh`, «Codec di Apple» in Settings, on macOS
+27). On 481 MB of compiler binaries and libraries (M3 Max, all cores): LZRAVEN 98.3 MB against 105.4
+MB for LZMA2 (§14), verified in 0.23 s against 0.37 s; LZMESH 133 MB against 136 MB for zstd 12 and
+151 MB for zstd 3, written in 0.75 s against 1.7 s and 0.55 s (docs/BENCHMARK.md).

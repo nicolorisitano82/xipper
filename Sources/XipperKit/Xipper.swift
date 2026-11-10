@@ -120,6 +120,16 @@ public enum XizCodec: String, Sendable, CaseIterable {
     case zstd
     /// LZMA2 (XIZ 1.4), with the ARM64 branch filter on frames of arm64 executables; the level is ignored.
     case lzma2
+    /// Apple's LZRAVEN (XIZ 1.8): the ratio of LZMA2, decoding about 3× faster. macOS 27 only, to
+    /// write and to read; the level is ignored.
+    case lzraven
+    /// Apple's LZMESH (XIZ 1.8): the ratio of zstd 9 at the speed of zstd 3. macOS 27 only.
+    case lzmesh
+
+    /// The Apple frame codec, if this is one.
+    var appleFrameCodec: Xiz.Codec? { self == .lzraven ? .lzraven : self == .lzmesh ? .lzmesh : nil }
+    /// LZRAVEN and LZMESH exist on this Mac (macOS 27 or later).
+    public static var appleCodecsAvailable: Bool { Xiz.hasAppleCodecs }
 }
 
 public struct CreateOptions: Sendable {
@@ -301,7 +311,7 @@ public enum Xipper {
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
-            var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2,
+            var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2, appleCodec: options.xizCodec.appleFrameCodec,
                                        jpeg: options.xizJPEG, password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,

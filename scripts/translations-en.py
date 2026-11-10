@@ -837,6 +837,8 @@ EN["Una sola versione: ogni modifica ne aggiunge una, e quelle precedenti restan
 EN["Versione %lld"] = "Version %lld"
 EN["Versione %lld (attuale)"] = "Version %lld (current)"
 EN["Versioni"] = "Versions"
+EN["Codec di Apple (LZRAVEN e LZMESH)"] = "Apple codecs (LZRAVEN and LZMESH)"
+EN["«Massimo» circa 7% più piccolo di LZMA2 e più veloce da aprire, gli altri livelli più compatti di zstd alla stessa velocità. Gli archivi si aprono solo con Xipper 3.0 o successivo su macOS 27 o successivo."] = "“Maximum” about 7% smaller than LZMA2 and faster to open, the other levels more compact than zstd at the same speed. Archives open only with Xipper 3.0 or later on macOS 27 or later."
 EN["Foto JPEG più piccole"] = "Smaller JPEG photos"
 EN["Circa il 20% in meno senza perdere nulla: all'estrazione ogni foto torna identica byte per byte. Compressione ed estrazione delle foto più lente. Si leggono solo con Xipper 2.7 o successivo."] = "About 20% smaller with nothing lost: on extraction every photo comes back identical, byte for byte. Compressing and extracting photos is slower. Readable only with Xipper 2.7 or later."
 EN["%@ in corso…"] = "%@ in progress…"

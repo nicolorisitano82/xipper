@@ -58,7 +58,7 @@ if "$XIZ" info "$F/jpeg.xiz" > "$W/jpeg-info.log" 2>&1; then
     extract_cmp jpeg jpeg.xiz jpeg.manifest
     extract_cmp password-jpeg password-jpeg.xiz jpeg.manifest -- --password-env PW
     expect_code test-jpeg 0 "$XIZ" test "$F/jpeg.xiz"
-    grep -q 'JPEG 2)' "$W/jpeg-info.log" && pass codec-jpeg || fail codec-jpeg
+    grep -q 'JPEG 2,' "$W/jpeg-info.log" && pass codec-jpeg || fail codec-jpeg
     "$XIZ" cat "$F/jpeg.xiz" photos/photo2.jpg > "$W/photo2.jpg" && cmp -s "$W/photo2.jpg" "$W/jpeg/photos/photo2.jpg" && pass cat-jpeg || fail cat-jpeg
 else
     grep -q 'built without brunsli' "$W/jpeg-info.log" && pass jpeg-refused-cleanly || fail "jpeg: $(tail -1 "$W/jpeg-info.log")"

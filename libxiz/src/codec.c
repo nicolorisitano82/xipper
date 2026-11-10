@@ -1,5 +1,5 @@
-/* Frame codecs: zstd (with dictionaries, §12), LZMA2 / ARM64 + LZMA2 (§14) and brunsli JPEG (§16,
- * when built with XIZ_JPEG). Every decoder
+/* Frame codecs: zstd (with dictionaries, §12), LZMA2 / ARM64 + LZMA2 (§14), brunsli JPEG (§16,
+ * when built with XIZ_JPEG) and Apple's LZRAVEN / LZMESH (§18, macOS 27 or later). Every decoder
  * writes into a buffer of exactly the declared size and rejects any other length (§4.2). */
 #include "internal.h"
 
@@ -8,6 +8,9 @@
 #include "lzma.h"
 #ifdef XIZ_HAVE_JPEG
 #include <brunsli/decode.h>
+#endif
+#ifdef __APPLE__
+#include <compression.h>
 #endif
 
 int zstd_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, const void *ddict, xiz_error *err) {
@@ -169,5 +172,38 @@ int xiz_has_jpeg(void) { return 0; }
 int jpeg_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
     (void)src; (void)n; (void)dst; (void)usize;
     return FAIL(XIZ_E_UNSUPPORTED, "brunsli JPEG frames: this libxiz was built without XIZ_JPEG");
+}
+#endif
+
+/* ------------------------------------------------------------------ LZRAVEN / LZMESH (§18) */
+
+#ifdef __APPLE__
+int xiz_has_apple_codecs(void) {
+    if (__builtin_available(macOS 27, *)) return 1;
+    return 0;
+}
+
+int apple_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, int codec, xiz_error *err) {
+    if (__builtin_available(macOS 27, *)) {
+        if (n == 0) return FAIL(XIZ_E_CORRUPT, "empty Apple-codec frame");
+        /* One byte of room more than declared, so a stream that decodes to more is caught. */
+        uint8_t *buf = malloc(usize + 1);
+        if (!buf) return FAIL(XIZ_E_NOMEM, "out of memory");
+        size_t got = compression_decode_buffer(buf, usize + 1, src, n, NULL,
+                                               codec == CODEC_LZRAVEN ? COMPRESSION_LZRAVEN : COMPRESSION_LZMESH);
+        if (got == usize) memcpy(dst, buf, usize);
+        free(buf);
+        if (got != usize) return FAIL(XIZ_E_CORRUPT, "Apple-codec frame decodes to %zu bytes, %zu declared", got, usize);
+        return XIZ_OK;
+    }
+    (void)src; (void)n; (void)dst; (void)usize; (void)codec;
+    return FAIL(XIZ_E_UNSUPPORTED, "LZRAVEN and LZMESH frames need macOS 27 or later");
+}
+#else
+int xiz_has_apple_codecs(void) { return 0; }
+
+int apple_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, int codec, xiz_error *err) {
+    (void)src; (void)n; (void)dst; (void)usize; (void)codec;
+    return FAIL(XIZ_E_UNSUPPORTED, "LZRAVEN and LZMESH frames exist only on macOS 27 or later");
 }
 #endif

@@ -488,7 +488,7 @@ struct ArchiveConverter {
                                    permissions: e.permissions ?? 0o644, modified: e.modified ?? Date(), uid: getuid(), gid: getgid())
             carried.append(XizCarriedFrame(item: item, payload: payload, sha256: Array(SHA256.hash(data: data))))
         }
-        _ = try XizWriter.write(items: items, to: staged.path, level: o.level ?? 3, lzma2: o.xizCodec == .lzma2, password: nil,
+        _ = try XizWriter.write(items: items, to: staged.path, level: o.level ?? 3, lzma2: o.xizCodec == .lzma2, appleCodec: o.xizCodec.appleFrameCodec, password: nil,
                                 extendedAttributes: o.storeExtendedAttributes, carried: carried, workload: o.workload,
                                 overwrite: true, progress: progress, cancel: cancel)
     }

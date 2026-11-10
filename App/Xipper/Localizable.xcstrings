@@ -9183,6 +9183,46 @@
         }
       }
     },
+    "Codec di Apple (LZRAVEN e LZMESH)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple-Codecs (LZRAVEN und LZMESH)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple codecs (LZRAVEN and LZMESH)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Códecs de Apple (LZRAVEN y LZMESH)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codecs d'Apple (LZRAVEN et LZMESH)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple のコーデック（LZRAVEN と LZMESH）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 编解码器（LZRAVEN 和 LZMESH）"
+          }
+        }
+      }
+    },
     "Codifica dei nomi" : {
       "localizations" : {
         "de" : {
@@ -34463,6 +34503,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已在“钥匙串”中创建“%@”。"
+          }
+        }
+      }
+    },
+    "«Massimo» circa 7% più piccolo di LZMA2 e più veloce da aprire, gli altri livelli più compatti di zstd alla stessa velocità. Gli archivi si aprono solo con Xipper 3.0 o successivo su macOS 27 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Maximum“ etwa 7 % kleiner als LZMA2 und schneller zu öffnen, die anderen Stufen kompakter als zstd bei gleicher Geschwindigkeit. Archive lassen sich nur mit Xipper 3.0 oder neuer unter macOS 27 oder neuer öffnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Maximum” about 7% smaller than LZMA2 and faster to open, the other levels more compact than zstd at the same speed. Archives open only with Xipper 3.0 or later on macOS 27 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Máximo» alrededor de un 7 % más pequeño que LZMA2 y más rápido de abrir; los demás niveles, más compactos que zstd a la misma velocidad. Los archivos solo se abren con Xipper 3.0 o posterior en macOS 27 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Maximum » environ 7 % plus petit que LZMA2 et plus rapide à ouvrir, les autres niveaux plus compacts que zstd à vitesse égale. Les archives ne s'ouvrent qu'avec Xipper 3.0 ou ultérieur sous macOS 27 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「最大」は LZMA2 より約7%小さく、開くのも速くなります。ほかのレベルは同じ速度で zstd よりコンパクトです。アーカイブは macOS 27 以降の Xipper 3.0 以降でのみ開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“最高”比 LZMA2 约小 7% 且打开更快，其他级别在相同速度下比 zstd 更紧凑。归档只能在 macOS 27 或更高版本上用 Xipper 3.0 或更高版本打开。"
           }
         }
       }

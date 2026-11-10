@@ -461,6 +461,8 @@ final class XizArchive: @unchecked Sendable {
             return try payload.withUnsafeBytes { try Xiz.lzma2Decompress($0, size: Int(f.usize), arm64: f.codec == .lzma2ARM64) }
         case .jpeg:
             return try JPEGRecompression.decode(payload, size: Int(f.usize))
+        case .lzraven, .lzmesh:
+            return try payload.withUnsafeBytes { try Xiz.appleDecompress($0, size: Int(f.usize), codec: f.codec) }
         }
     }
 

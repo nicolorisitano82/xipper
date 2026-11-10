@@ -133,6 +133,9 @@ else()
   target_compile_definitions(xiz PRIVATE _POSIX_C_SOURCE=200809L _DARWIN_C_SOURCE _DEFAULT_SOURCE)
   find_package(Threads REQUIRED)
   target_link_libraries(xiz PUBLIC Threads::Threads)
+  if(APPLE)
+    target_link_libraries(xiz PUBLIC compression)  # LZRAVEN and LZMESH frames (§18), macOS 27+
+  endif()
 endif()
 set_target_properties(xiz PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME xiz)
 

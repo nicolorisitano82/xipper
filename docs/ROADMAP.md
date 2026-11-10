@@ -334,11 +334,12 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - app: sezione «Versioni» nell'inspector degli XIZ con «Apri» per ogni versione precedente (finestra in sola lettura: sfogliare, estrarre, montare) e «Aggiorna da una cartella…» con conferma dei conteggi;
 - `--until DATA` non c'è: i segmenti non firmati non hanno una data; si può aggiungere usando l'ora delle firme.
 
-##### D. Codec Apple LZRAVEN e LZMESH (XIZ 1.8) — media
-- due codec di frame facoltativi, con un bit richiesto a parte;
-- LZRAVEN per «Massimo» (come LZMA2, decodifica circa 3× più veloce); LZMESH per «Veloce» (rapporto di zstd 9 alla velocità di zstd 3);
-- solo su macOS 27: su macOS 26 l'opzione non compare e gli archivi vengono rifiutati con un messaggio chiaro; libxiz e i lettori per altri sistemi li rifiutano allo stesso modo;
-- avviso alla creazione: «Si apre solo con Xipper su macOS 27 o successivo».
+##### D. Codec Apple LZRAVEN e LZMESH (XIZ 1.8) — ✅ fatto (10/11/2026)
+- codec di frame 5 (LZRAVEN) e 6 (LZMESH) con il bit richiesto `apple` (bit 7), `version_minor = 8`: spec [§18](XIZ_SPEC.md);
+- `--lzraven` e `--lzmesh` (solo su macOS 27); nell'app «Codec di Apple» in Impostazioni › Formati › XIZ, visibile solo su macOS 27: «Massimo» con LZRAVEN, gli altri livelli con LZMESH;
+- misure su gcc (481 MB): LZRAVEN 98,3 MB contro 105,4 di LZMA2, verifica 1,6× più veloce; LZMESH 133 MB, sotto zstd 12 (136 MB) a una velocità vicina a zstd 3 ([BENCHMARK.md](BENCHMARK.md));
+- Xipper 2.7 e libxiz fuori da macOS 27 rifiutano gli archivi con un errore chiaro; libxiz su macOS 27 li apre con il framework Compression (`xiz_has_apple_codecs()`);
+- test: andata e ritorno per i due codec, cifratura e modifica, 300 flussi manomessi per codec (solo errori), dimensioni sbagliate.
 
 ##### E. Documenti, PNG e audio più piccoli (XIZ 1.9) — grande, con go/no-go dopo A
 - **flussi Deflate** dentro DOCX/XLSX/PPTX, EPUB, ODF, PNG e PDF: si decomprimono e si ricomprimono con zstd o LZMA2, insieme ai dati per ricostruire il Deflate originale bit per bit (preflate-rs, Apache-2.0);

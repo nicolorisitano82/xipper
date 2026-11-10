@@ -95,6 +95,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.sevenZipSolid) private var solid = true
     @AppStorage(PrefKey.xizLZMA2) private var xizLZMA2 = false
     @AppStorage(PrefKey.xizJPEG) private var xizJPEG = false
+    @AppStorage(PrefKey.xizAppleCodecs) private var xizApple = false
 
     var body: some View {
         Form {
@@ -123,6 +124,12 @@ private struct FormatSettings: View {
                 Toggle(isOn: $xizLZMA2) {
                     Text("Livello «Massimo» con LZMA2")
                     Text("Archivi circa 10% più piccoli su programmi e codice sorgente, ma più lenti da aprire. Si leggono solo con Xipper 2.6 o successivo.")
+                }
+                if XizCodec.appleCodecsAvailable {
+                    Toggle(isOn: $xizApple) {
+                        Text("Codec di Apple (LZRAVEN e LZMESH)")
+                        Text("«Massimo» circa 7% più piccolo di LZMA2 e più veloce da aprire, gli altri livelli più compatti di zstd alla stessa velocità. Gli archivi si aprono solo con Xipper 3.0 o successivo su macOS 27 o successivo.")
+                    }
                 }
                 Toggle(isOn: $xizJPEG) {
                     Text("Foto JPEG più piccole")

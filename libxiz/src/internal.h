@@ -29,7 +29,7 @@
 #define XIZ_FLAG_DICTIONARY 1u   /* §12 */
 #define XIZ_FLAG_ENTRY_KEY 2u    /* §13.7 */
 
-enum { CODEC_STORE = 0, CODEC_ZSTD = 1, CODEC_LZMA2 = 2, CODEC_LZMA2_ARM64 = 3, CODEC_JPEG = 4 };
+enum { CODEC_STORE = 0, CODEC_ZSTD = 1, CODEC_LZMA2 = 2, CODEC_LZMA2_ARM64 = 3, CODEC_JPEG = 4, CODEC_LZRAVEN = 5, CODEC_LZMESH = 6 };
 
 enum {
     TAG_SIZE = 0x8001, TAG_EXTENTS = 0x8002, TAG_LINK = 0x8003,
@@ -272,6 +272,7 @@ int zstd_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, 
 int zstd_decode_catalog(const uint8_t *src, size_t n, uint64_t usize, uint8_t **out, xiz_error *err);
 int lzma2_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, int arm64, xiz_error *err);
 int jpeg_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err);
+int apple_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, int codec, xiz_error *err);
 void *zstd_ddict_create(const uint8_t *dict, size_t n, uint16_t id, xiz_error *err);
 void zstd_ddict_free(void *d);
 /* Returns compressed size, 0 when it would not be smaller (the caller stores). */

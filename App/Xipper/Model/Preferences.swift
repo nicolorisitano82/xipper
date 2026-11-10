@@ -26,6 +26,7 @@ enum PrefKey {
     static let sevenZipEncryptNames = "sevenZipEncryptNames"
     static let sevenZipSolid = "sevenZipSolid"
     static let xizLZMA2 = "xizLZMA2"
+    static let xizAppleCodecs = "xizAppleCodecs"
     static let xizJPEG = "xizJPEG"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
@@ -99,6 +100,7 @@ enum Preferences {
             PrefKey.sevenZipEncryptNames: true,
             PrefKey.sevenZipSolid: true,
             PrefKey.xizLZMA2: false,
+            PrefKey.xizAppleCodecs: false,
             PrefKey.xizJPEG: false,
             PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
@@ -132,6 +134,10 @@ enum Preferences {
         o.solidBlockSize = defaults.bool(forKey: PrefKey.sevenZipSolid) ? nil : 0
         // XIZ 1.4: «Massimo» with LZMA2 instead of zstd 12, when chosen in Settings.
         if format == .xiz, preset == .best, defaults.bool(forKey: PrefKey.xizLZMA2) { o.xizCodec = .lzma2 }
+        // XIZ 1.8 (macOS 27): «Massimo» with LZRAVEN, the other levels with LZMESH; before LZMA2.
+        if format == .xiz, XizCodec.appleCodecsAvailable, defaults.bool(forKey: PrefKey.xizAppleCodecs) {
+            o.xizCodec = preset == .best ? .lzraven : .lzmesh
+        }
         // XIZ 1.6: JPEG photos recompressed with brunsli, at every level that compresses.
         if format == .xiz, defaults.bool(forKey: PrefKey.xizJPEG) { o.xizJPEG = true }
         o.workload = workload
