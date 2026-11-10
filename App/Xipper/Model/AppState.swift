@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         EntryStaging.cleanUp()
+        MainActor.assumeIsolated { ArchiveVersions.cleanUp() }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

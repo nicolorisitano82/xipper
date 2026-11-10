@@ -22,7 +22,10 @@ final class FileReader: @unchecked Sendable {
 
     convenience init(path: String) throws { try self.init(parts: [path]) }
 
-    init(parts paths: [String]) throws {
+    /// The file seen as if it ended at `limit` (an earlier version of an appended XIZ archive).
+    convenience init(path: String, limit: Int64?) throws { try self.init(parts: [path], limit: limit) }
+
+    init(parts paths: [String], limit: Int64? = nil) throws {
         var opened: [Part] = []
         var total: Int64 = 0
         for p in paths {
@@ -44,7 +47,7 @@ final class FileReader: @unchecked Sendable {
         }
         parts = opened
         path = paths.last ?? ""
-        size = total
+        size = limit.map { min($0, total) } ?? total
     }
 
     deinit { parts.forEach { close($0.fd) } }

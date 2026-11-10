@@ -55,18 +55,7 @@ struct ArchiveBrowserView: View {
         } detail: {
             content
                 .inspector(isPresented: Binding(get: { showInspector && !showDamaged }, set: { showInspector = $0 })) {
-                    ArchiveInspector(model: model, selection: selectedItems, verify: {
-                        verifyJob = jobs.start(.test(archive: url, password: model.password))
-                    }, createRecovery: {
-                        working = String(localized: "Creazione dei dati di recupero…")
-                        ArchiveActions.createRecovery(for: url) { working = nil; recoveryRevision += 1 }
-                    }, recoveryRevision: recoveryRevision, convert: { toCRAM in
-                        working = toCRAM ? String(localized: "Conversione in CRAM…") : String(localized: "Conversione in BAM…")
-                        ArchiveActions.convertAlignment(url, toCRAM: toCRAM) { working = nil }
-                    }, buildIndex: {
-                        working = String(localized: "Creazione dell'indice…")
-                        ArchiveActions.buildIndex(url) { working = nil }
-                    })
+                    inspectorView
                         .inspectorColumnWidth(min: 240, ideal: 262)
                 }
         }
@@ -148,6 +137,23 @@ struct ArchiveBrowserView: View {
         }
     }
 
+    /// The inspector, with its actions (a property of its own: the body is too big to type-check with it).
+    private var inspectorView: some View {
+        let update: (() -> Void)? = editable ? { updateFromFolders() } : nil
+        return ArchiveInspector(model: model, selection: selectedItems, verify: {
+            verifyJob = jobs.start(.test(archive: url, password: model.password))
+        }, createRecovery: {
+            working = String(localized: "Creazione dei dati di recupero…")
+            ArchiveActions.createRecovery(for: url) { working = nil; recoveryRevision += 1 }
+        }, recoveryRevision: recoveryRevision, convert: { toCRAM in
+            working = toCRAM ? String(localized: "Conversione in CRAM…") : String(localized: "Conversione in BAM…")
+            ArchiveActions.convertAlignment(url, toCRAM: toCRAM) { working = nil }
+        }, buildIndex: {
+            working = String(localized: "Creazione dell'indice…")
+            ArchiveActions.buildIndex(url) { working = nil }
+        }, updateFromFolders: update)
+    }
+
     private var subtitle: String {
         guard let f = model.format else { return "" }
         return "\(f.displayName) · " + String(localized: "\(model.fileCount) file") + " · \(model.totalSize.byteText)"
@@ -218,9 +224,44 @@ struct ArchiveBrowserView: View {
         .background(.bar)
     }
 
-    /// Editing needs a format Xipper writes, the archive not mounted, and nothing else running.
+    /// Editing needs a format Xipper writes, a writable file (not an earlier version), the archive
+    /// not mounted, and nothing else running.
     private var editable: Bool {
         ArchiveActions.canEdit(model.format) && !model.namesLocked && working == nil && MountCenter.shared.mounted(url) == nil
+            && FileManager.default.isWritableFile(atPath: url.path)
+    }
+
+    /// Brings the archive in line with folders on disk: adds new and changed files, removes the
+    /// missing ones (an XIZ archive keeps the previous state as a version).
+    private func updateFromFolders() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.directoryURL = url.deletingLastPathComponent()
+        panel.prompt = String(localized: "Aggiorna")
+        panel.message = String(localized: "Scegli le cartelle da cui è stato creato l'archivio: Xipper aggiunge i file nuovi o cambiati e toglie quelli che non ci sono più.")
+        guard panel.runModal() == .OK else { return }
+        let sources = panel.urls
+        withPassword(for: Set(model.entries.map(\.path))) {
+            Task {
+                let archive = url, pw = model.password
+                guard let plan = await Task.detached(operation: { try? Xipper.updatePlan(archive, from: sources, password: pw) }).value else { return }
+                let alert = NSAlert()
+                if plan.isEmpty {
+                    alert.messageText = String(localized: "L'archivio è già aggiornato.")
+                    alert.runModal()
+                    return
+                }
+                alert.messageText = String(localized: "Aggiornare l'archivio?")
+                alert.informativeText = String(localized: "\(plan.added.count) file nuovi, \(plan.changed.count) cambiati, \(plan.removed.count) da togliere.")
+                    + (model.format == .xiz ? " " + String(localized: "La versione attuale resta disponibile in «Versioni».") : "")
+                alert.addButton(withTitle: String(localized: "Aggiorna"))
+                alert.addButton(withTitle: String(localized: "Annulla"))
+                guard alert.runModal() == .alertFirstButtonReturn else { return }
+                applyEdit(plan.changes)
+            }
+        }
     }
 
     private func applyEdit(_ changes: [ArchiveChange]) {
@@ -715,6 +756,8 @@ private struct ArchiveInspector: View {
     /// BAM ↔ CRAM (true: to CRAM) and the usual index, for alignment files.
     var convert: (Bool) -> Void = { _ in }
     var buildIndex: () -> Void = {}
+    /// "Aggiorna da una cartella…"; nil when the archive cannot be changed.
+    var updateFromFolders: (() -> Void)?
     @State private var preview: Preview?
     @State private var sha256: String?
 
@@ -835,6 +878,33 @@ private struct ArchiveInspector: View {
                         }
                     }
                 }
+                if model.format == .xiz {
+                    Section("Versioni") {
+                        if model.versions.count <= 1 {
+                            Text("Una sola versione: ogni modifica ne aggiunge una, e quelle precedenti restano consultabili.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        ForEach(model.versions.reversed(), id: \.number) { v in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(v.number == model.versions.count ? String(localized: "Versione \(v.number) (attuale)") : String(localized: "Versione \(v.number)"))
+                                    Text(versionDetail(v)).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if v.number < model.versions.count {
+                                    Button("Apri") { openVersion(v.number) }
+                                        .controlSize(.small)
+                                        .help("Apri questa versione in sola lettura: puoi sfogliarla, estrarla o montarla")
+                                }
+                            }
+                        }
+                        if let updateFromFolders {
+                            Button("Aggiorna da una cartella…", systemImage: "arrow.triangle.2.circlepath", action: updateFromFolders)
+                                .buttonStyle(.glass).controlSize(.large).frame(maxWidth: .infinity)
+                                .help("Aggiunge i file nuovi o cambiati e toglie quelli che non ci sono più, in una nuova versione")
+                        }
+                    }
+                }
                 Section("Dati di recupero") {
                     let index = recoveryRevision >= 0 ? PAR2.indexFile(for: model.url) : nil
                     let inside = recoveryRevision >= 0 && model.format == .xiz ? Xipper.xizRecoveryInfo(model.url) : nil
@@ -879,6 +949,28 @@ private struct ArchiveInspector: View {
         .task(id: model.url) {
             let url = model.url
             sha256 = await Task.detached { try? Updates.sha256(of: url) }.value
+        }
+    }
+
+    /// "18 nov 2026 · Laboratorio · +2 ~1 −0", or the size when the version is not signed.
+    private func versionDetail(_ v: XizVersion) -> String {
+        var parts: [String] = []
+        if let d = v.date { parts.append(d.formatted(date: .abbreviated, time: .shortened)) }
+        if let s = v.signer, !s.isEmpty { parts.append(s) }
+        if parts.isEmpty { parts.append(v.size.byteText) }
+        if let a = v.added, let c = v.changed, let r = v.removed, v.number > 1 { parts.append("+\(a) ~\(c) −\(r)") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func openVersion(_ number: Int) {
+        let archive = model.url
+        Task {
+            do {
+                try await ArchiveVersions.open(archive, number: number)
+            } catch {
+                let alert = NSAlert(error: error)
+                alert.runModal()
+            }
         }
     }
 

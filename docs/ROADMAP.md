@@ -326,12 +326,13 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - **da fare:** libxiz apre gli archivi 1.7 con le altre credenziali ma non ancora le stanze X-Wing: serve ML-KEM-768 in C (mlkem-native o PQClean, codice esterno da approvare);
 - le firme restano Ed25519: ML-DSA può aspettare, perché le firme non soffrono del «registra ora».
 
-##### C. Versioni di un XIZ come snapshot — media
-Sul modello di zpaq e restic, con i pezzi che ci sono già (segmenti in append, cronologia firmata, montaggio):
-- ogni segmento è una versione: `xipper versions a.xiz`, `xipper extract --version N` (o `--until data`), `xipper mount --version N` in sola lettura;
-- app: nell'inspector la cronologia diventa un elenco di versioni con «Sfoglia questa versione», «Estrai», «Monta»;
-- «Aggiorna archivio» da una cartella: aggiunge solo ciò che è cambiato (FastCDC e deduplica), per i backup ripetuti;
-- nessun cambio di formato.
+##### C. Versioni di un XIZ come snapshot — ✅ fatto (10/11/2026)
+- ogni segmento aggiunto è una versione, e la versione N è esattamente il file fino al footer di quel segmento: nessun cambio di formato (nota in [§11](XIZ_SPEC.md));
+- `xipper versions a.xiz`: dimensione, file, firmatario e data quando è firmato, e con la password cosa è cambiato (+aggiunti ~cambiati −tolti);
+- `--version N` per `extract`, `list`, `test` e `mount` (in sola lettura): la versione è un clone APFS del file tagliato a quella dimensione, istantaneo e senza spazio in più (copia dei byte su altri file system), rimosso alla fine;
+- `xipper update [--dry-run] a.xiz cartella…`: aggiunge i file nuovi o cambiati (dimensione, ora, destinazione dei link) e toglie quelli spariti, in un'unica modifica; negli XIZ diventa una nuova versione e i contenuti già presenti non si riscrivono. Vale anche per ZIP, 7z e gli altri formati modificabili;
+- app: sezione «Versioni» nell'inspector degli XIZ con «Apri» per ogni versione precedente (finestra in sola lettura: sfogliare, estrarre, montare) e «Aggiorna da una cartella…» con conferma dei conteggi;
+- `--until DATA` non c'è: i segmenti non firmati non hanno una data; si può aggiungere usando l'ora delle firme.
 
 ##### D. Codec Apple LZRAVEN e LZMESH (XIZ 1.8) — media
 - due codec di frame facoltativi, con un bit richiesto a parte;

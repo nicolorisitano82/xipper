@@ -43,6 +43,8 @@ usage: xipper <command> [options]
                            next to itself and is removed once extracted cleanly
           --keep-nested    with --recursive: keep the nested archives
       -p, --password / --password-stdin
+  --version N            (extract, test, list, mount) XIZ: work on version N of the archive (see
+                         `versions`); mount is then read-only
   --names-encoding ENC   (extract, test, list, convert, mount) code page of ZIP names written
                          without the UTF-8 flag, instead of the automatic guess: cp437, cp850,
                          cp866, windows1252, windows1251, shiftjis, gbk, big5, euckr
@@ -63,6 +65,11 @@ usage: xipper <command> [options]
                          BSD-tagged lines; -o writes a list (SHA256SUMS, B3SUMS, list.json for all).
   hash -c LIST           verify a list (sha256sum -c, b3sum -c, BSD tags, JSON manifests)
   list    [--long] [-p | --password-stdin] <archive>   (password: 7z with encrypted names)
+  versions [-p | --password-stdin] <archive.xiz>   every version of an XIZ archive (one per change):
+                         size, files, signer and date when signed, and with the password what changed
+  update  [--dry-run] [-p | --password-stdin] <archive> <file|folder>...   bring the archive in line with
+                         the sources as `create` stores them: new and changed files (size, time, link)
+                         are added, missing ones removed; XIZ keeps the previous state as a version
   edit    [options] <archive>   change an archive in place (ZIP: untouched entries are not recompressed;
                                 XIZ: changes are appended; other formats are rebuilt). Repeatable, in order:
           --delete PATH    remove a file or folder
@@ -139,7 +146,7 @@ let valueOptions: Set<String> = command == "bgzip"
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
-       "--names-encoding"]
+       "--names-encoding", "--version"]
 do {
     var i = 0
     while i < args.count {
@@ -292,6 +299,13 @@ func run(_ body: () throws -> Void) -> Never {
     }
 }
 
+/// `--version N`: runs `body` on that version of the XIZ archive (a clone next to it), else on the archive.
+@MainActor func versioned<T>(_ archive: URL, _ body: (URL) throws -> T) throws -> T {
+    guard let v = value("--version") else { return try body(archive) }
+    guard let n = Int(v), n >= 1 else { fail("--version needs a number from 1", code: 2) }
+    return try Xipper.withXizVersion(archive, number: n, body)
+}
+
 // MARK: commands
 
 switch command {
@@ -397,10 +411,11 @@ case "extract", "x":
     let archive = URL(fileURLWithPath: positional[0])
     if positional.count > 1 { o.selection = Set(positional.dropFirst()) }
     o.password = readPassword(confirm: false)
-    let dest = value("-d", "--dest").map { URL(fileURLWithPath: $0) }
+    // A version is read from a temporary clone: by default it goes next to the archive, not the clone.
+    let dest = value("-d", "--dest").map { URL(fileURLWithPath: $0) } ?? (value("--version") != nil ? archive.deletingLastPathComponent() : nil)
     run {
-        let r = try Xipper.extract(archive, to: dest, mode: flag("--into") ? .into : .smart, options: o,
-                                   progress: progress, cancel: cancel)
+        let r = try versioned(archive) { try Xipper.extract($0, to: dest, mode: flag("--into") ? .into : .smart, options: o,
+                                                            progress: progress, cancel: cancel) }
         endProgress()
         print("\(r.destination.path): \(r.files) files, \(r.directories) folders, \(r.symlinks) links, \(r.bytes.bytesText) in \(String(format: "%.2f", r.elapsed))s")
         if !r.nested.isEmpty { print("nested archives extracted: \(r.nested.count)") }
@@ -416,8 +431,9 @@ case "test", "t":
     let pw = readPassword(confirm: false)
     run {
         let sums = flag("--sha256")
-        let r = try Xipper.test(URL(fileURLWithPath: positional[0]), password: pw, workload: workload, digests: sums,
-                                progress: progress, cancel: cancel)
+        let r = try versioned(URL(fileURLWithPath: positional[0])) {
+            try Xipper.test($0, password: pw, workload: workload, digests: sums, progress: progress, cancel: cancel)
+        }
         endProgress()
         if sums {
             // The manifest goes to stdout alone, so it can be redirected to a SHA256SUMS file.
@@ -524,7 +540,7 @@ case "list", "l":
     guard positional.count == 1 else { fail("list needs one archive", code: 2) }
     let pw = readPassword(confirm: false)
     run {
-        let entries = try Xipper.list(URL(fileURLWithPath: positional[0]), password: pw, workload: workload)
+        let entries = try versioned(URL(fileURLWithPath: positional[0])) { try Xipper.list($0, password: pw, workload: workload) }
         if let access = try? Xipper.xizAccess(URL(fileURLWithPath: positional[0]), password: pw), access.hidden > 0 {
             fputs("xipper: \(access.hidden) access group(s) of this archive are not opened by these credentials\n", stderr)
         }
@@ -542,6 +558,42 @@ case "list", "l":
                 print(name)
             }
         }
+    }
+
+case "versions":
+    guard positional.count == 1 else { fail("versions needs one archive", code: 2) }
+    let pw = readPassword(confirm: false)
+    run {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm"
+        for v in try Xipper.xizVersions(URL(fileURLWithPath: positional[0]), password: pw) {
+            var line = "\(String(v.number).leftPad(4))  \(v.size.bytesText.leftPad(10))  \(String(v.entries).leftPad(7)) entries  \(v.totalBytes.bytesText.leftPad(10))"
+            if let a = v.added, let c = v.changed, let r = v.removed { line += "  +\(a) ~\(c) -\(r)" }
+            if let s = v.signer { line += "  signed by \(s)\(v.date.map { " on " + df.string(from: $0) } ?? "")" }
+            print(line)
+        }
+    }
+
+case "update":
+    guard positional.count >= 2 else { fail("update needs an archive and at least one source", code: 2) }
+    let pw = readPassword(confirm: false)
+    run {
+        let archive = URL(fileURLWithPath: positional[0])
+        let sources = positional.dropFirst().map { URL(fileURLWithPath: $0) }
+        var o = CreateOptions()
+        o.xizSigner = xizSigner()
+        if flag("--dry-run") {
+            let plan = try Xipper.updatePlan(archive, from: sources, password: pw, options: o)
+            for p in plan.added { print("+ \(p)") }
+            for p in plan.changed { print("~ \(p)") }
+            for p in plan.removed { print("- \(p)") }
+            print(plan.isEmpty ? "up to date" : "\(plan.added.count) to add, \(plan.changed.count) changed, \(plan.removed.count) to remove")
+            return
+        }
+        let (plan, report) = try Xipper.update(archive, from: sources, password: pw, options: o, progress: progress, cancel: cancel)
+        endProgress()
+        guard let report else { print("\(archive.lastPathComponent): up to date"); return }
+        print("\(archive.lastPathComponent): \(plan.added.count) added, \(plan.changed.count) changed, \(plan.removed.count) removed; \(report.entries) entries, \(report.outputBytes.bytesText)")
     }
 
 case "edit":
@@ -691,6 +743,18 @@ case "mount":
     let pw = readPassword(confirm: false)
     run {
         let archive = URL(fileURLWithPath: positional[0])
+        if value("--version") != nil {  // an earlier version: read-only, from a clone removed on unmount
+            try versioned(archive) { clone in
+                let m = try ArchiveMount(archive: clone, password: pw, writable: false, propagateQuarantine: !flag("--no-quarantine"))
+                let point = try m.mount(at: value("--at").map { URL(fileURLWithPath: $0, isDirectory: true) })
+                print("mounted version \(value("--version")!) of \(archive.lastPathComponent) on \(point.path) (read-only)")
+                m.waitUntilUnmounted(cancel: cancel)
+                if m.isMounted { try? m.unmount(); m.waitUntilUnmounted() }
+                try m.finish(save: false, progress: nil)
+                print("unmounted")
+            }
+            return
+        }
         let m = try ArchiveMount(archive: archive, password: pw, writable: !flag("--read-only"),
                                  propagateQuarantine: !flag("--no-quarantine"))
         let point = try m.mount(at: value("--at").map { URL(fileURLWithPath: $0, isDirectory: true) })

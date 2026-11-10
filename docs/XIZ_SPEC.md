@@ -321,6 +321,10 @@ new footer, after the current end of the file. Nothing already written changes.
   valid footer in the last 96 bytes searches backwards for the last footer whose CRC is valid and
   whose catalog ends right before it; the next writer truncates the file there before appending.
 - 1.0 readers refuse appended archives (they require `previous_footer = 0`).
+- **Versions.** Since nothing written changes, the file's first bytes up to the end of any footer in
+  the chain are a complete archive: the archive as it was after that segment. Xipper lists them
+  (`xipper versions`) and reads one (`--version N`) from an APFS clone cut at that footer; only
+  erased slots (§13.7) are erased in every version, since erasing overwrites them in place.
 
 ## 12. Version 1.2: dictionaries
 

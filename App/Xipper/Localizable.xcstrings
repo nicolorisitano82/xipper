@@ -201,6 +201,52 @@
         }
       }
     },
+    "%@ (versione %lld)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (Version %lld)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (version %lld)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (versión %lld)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (version %lld)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (versione %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（バージョン %lld）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（版本 %lld）"
+          }
+        }
+      }
+    },
     "%@ completata" : {
       "localizations" : {
         "de" : {
@@ -2720,6 +2766,52 @@
         }
       }
     },
+    "%lld file nuovi, %lld cambiati, %lld da togliere." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld neue Dateien, %lld geändert, %lld zu entfernen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld new files, %lld changed, %lld to remove."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld archivos nuevos, %lld cambiados, %lld por quitar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld nouveaux fichiers, %lld modifiés, %lld à supprimer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld file nuovi, %2$lld cambiati, %3$lld da togliere."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規 %lld、変更 %lld、削除 %lld ファイル。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新文件 %lld 个，已更改 %lld 个，待移除 %lld 个。"
+          }
+        }
+      }
+    },
     "%lld file ricompressi (%@)" : {
       "localizations" : {
         "de" : {
@@ -4152,6 +4244,86 @@
         }
       }
     },
+    "Aggiorna" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
+    "Aggiorna da una cartella…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus einem Ordner aktualisieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update from a Folder…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar desde una carpeta…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour depuis un dossier…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダからアップデート…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从文件夹更新…"
+          }
+        }
+      }
+    },
     "Aggiornamenti" : {
       "localizations" : {
         "de" : {
@@ -4188,6 +4360,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新"
+          }
+        }
+      }
+    },
+    "Aggiornare l'archivio?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archiv aktualisieren?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update the archive?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Actualizar el archivo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour l'archive ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブをアップデートしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新归档？"
+          }
+        }
+      }
+    },
+    "Aggiunge i file nuovi o cambiati e toglie quelli che non ci sono più, in una nuova versione" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fügt neue oder geänderte Dateien hinzu und entfernt nicht mehr vorhandene, in einer neuen Version"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds new or changed files and removes those that are gone, in a new version"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade los archivos nuevos o cambiados y quita los que ya no están, en una nueva versión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoute les fichiers nouveaux ou modifiés et supprime ceux qui n'existent plus, dans une nouvelle version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいファイルや変更されたファイルを追加し、なくなったファイルを削除して、新しいバージョンを作ります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加新的或已更改的文件，并移除已不存在的文件，生成一个新版本"
           }
         }
       }
@@ -5494,6 +5746,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成后打开文件夹"
+          }
+        }
+      }
+    },
+    "Apri questa versione in sola lettura: puoi sfogliarla, estrarla o montarla" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version schreibgeschützt öffnen: Du kannst sie durchsuchen, entpacken oder aktivieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open this version read-only: you can browse, extract or mount it"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir esta versión en solo lectura: puedes explorarla, extraerla o montarla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir cette version en lecture seule : vous pouvez la parcourir, l’extraire ou la monter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバージョンを読み出し専用で開きます。閲覧、展開、マウントができます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以只读方式打开此版本：可以浏览、提取或装载"
           }
         }
       }
@@ -18997,6 +19289,46 @@
         }
       }
     },
+    "L'archivio è già aggiornato." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Archiv ist bereits aktuell."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is already up to date."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo ya está actualizado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'archive est déjà à jour."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブはすでに最新です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "归档已是最新。"
+          }
+        }
+      }
+    },
     "L'archivio è un unico flusso compresso: i dati dopo il punto danneggiato non sono recuperabili." : {
       "localizations" : {
         "de" : {
@@ -19633,6 +19965,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "定期检查在 %@ 中发现并修复了损坏。"
+          }
+        }
+      }
+    },
+    "La versione attuale resta disponibile in «Versioni»." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die aktuelle Version bleibt unter „Versionen“ verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current version stays available in “Versions”."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La versión actual sigue disponible en «Versiones»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La version actuelle reste disponible dans « Versions »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のバージョンは「バージョン」で引き続き利用できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前版本仍可在“版本”中查看。"
           }
         }
       }
@@ -27705,6 +28077,46 @@
         }
       }
     },
+    "Scegli le cartelle da cui è stato creato l'archivio: Xipper aggiunge i file nuovi o cambiati e toglie quelli che non ci sono più." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle die Ordner, aus denen das Archiv erstellt wurde: Xipper fügt neue oder geänderte Dateien hinzu und entfernt nicht mehr vorhandene."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the folders the archive was created from: Xipper adds new or changed files and removes those that are gone."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige las carpetas con las que se creó el archivo: Xipper añade los archivos nuevos o cambiados y quita los que ya no están."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez les dossiers à partir desquels l'archive a été créée : Xipper ajoute les fichiers nouveaux ou modifiés et supprime ceux qui n'existent plus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブの作成元フォルダを選んでください。Xipper は新しいファイルや変更されたファイルを追加し、なくなったファイルを削除します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择创建归档时使用的文件夹：Xipper 会添加新的或已更改的文件，并移除已不存在的文件。"
+          }
+        }
+      }
+    },
     "Scegli un archivio da aprire" : {
       "localizations" : {
         "de" : {
@@ -29903,6 +30315,46 @@
         }
       }
     },
+    "Una sola versione: ogni modifica ne aggiunge una, e quelle precedenti restano consultabili." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur eine Version: Jede Änderung fügt eine hinzu, frühere bleiben abrufbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only one version: every change adds one, and the earlier ones stay available."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una sola versión: cada cambio añade una, y las anteriores siguen disponibles."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une seule version : chaque modification en ajoute une, et les précédentes restent consultables."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バージョンは1つだけです。変更するたびに1つ増え、以前のバージョンも参照できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有一个版本：每次更改都会新增一个版本，之前的版本仍可查看。"
+          }
+        }
+      }
+    },
     "Unix, initramfs" : {
       "localizations" : {
         "de" : {
@@ -30807,6 +31259,126 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バージョン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "Versione %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versión %lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バージョン %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本 %lld"
+          }
+        }
+      }
+    },
+    "Versione %lld (attuale)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld (aktuell)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld (current)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versión %lld (actual)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %lld (actuelle)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バージョン %lld（現在）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本 %lld（当前）"
+          }
+        }
+      }
+    },
+    "Versioni" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versionen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versions"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versions"
           }
         },
         "ja" : {

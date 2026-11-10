@@ -49,8 +49,9 @@ final class XizArchive: @unchecked Sendable {
     }
 
     /// `passwordRequired` for an encrypted archive opened without a password, `wrongPassword` when it does not fit.
-    init(path: String, password: String? = nil) throws {
-        reader = try FileReader(path: path)
+    /// `limit`: read the file as if it ended there, i.e. as the version whose footer ends at `limit`.
+    init(path: String, password: String? = nil, limit: Int64? = nil) throws {
+        reader = try FileReader(path: path, limit: limit)
         let size = reader.size
         guard size >= Int64(Xiz.superblockSize + Xiz.footerSize) else { throw XipperError.corrupt("XIZ archive too small") }
         let sbBytes = try reader.read(at: 0, count: Xiz.superblockSize)

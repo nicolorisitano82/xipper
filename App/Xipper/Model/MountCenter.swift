@@ -45,7 +45,9 @@ final class MountCenter {
         Task {
             let result = await Task.detached { () -> Result<(ArchiveMount, URL), Error> in
                 Result {
+                    // A read-only file (an earlier version of an XIZ archive) mounts read-only.
                     let m = try ArchiveMount(archive: archive, password: password,
+                                             writable: FileManager.default.isWritableFile(atPath: archive.path),
                                              propagateQuarantine: UserDefaults.standard.bool(forKey: PrefKey.propagateQuarantine))
                     return (m, try m.mount())
                 }

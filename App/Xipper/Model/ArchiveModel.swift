@@ -50,6 +50,8 @@ final class ArchiveModel {
     private(set) var xizAccess: (groups: [String], hidden: Int)?
     /// XIZ 1.3: the signed history, oldest change first.
     private(set) var history: [XizSegmentSignature] = []
+    /// XIZ: its versions, oldest first (one per change appended to it).
+    private(set) var versions: [XizVersion] = []
     /// XIZ 1.3: opened with the session's credentials (identities, custodians' passwords), so no
     /// password is needed for its entries.
     private(set) var openedWithCredentials = false
@@ -116,6 +118,9 @@ final class ArchiveModel {
             bgzf = b
             folders = Self.folderSet(e).sorted()
             unlockMessage = nil
+            if f == .xiz {
+                versions = await Task.detached { (try? Xipper.xizVersions(url, password: pw)) ?? [] }.value
+            }
             if let info = xizInfo, info.hasDirectory {
                 openedWithCredentials = info.encrypted
                 let (access, history) = await Task.detached {
