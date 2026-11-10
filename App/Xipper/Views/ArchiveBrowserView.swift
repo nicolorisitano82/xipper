@@ -15,6 +15,8 @@ struct ArchiveBrowserView: View {
     @State private var sortOrder = [KeyPathComparator(\BrowserItem.name)]
     @State private var extractSheet: ExtractSheetRequest?
     @State private var convertSheet = false
+    /// A little-space conversion of this archive that was interrupted.
+    @State private var interrupted: LowSpaceConversionStatus?
     @State private var quickLook = EntryPreviewController()
     /// The verification started here (or opened from the HUD): its result replaces the content (5.2).
     @State private var verifyJob: Job?
@@ -116,6 +118,8 @@ struct ArchiveBrowserView: View {
             quickLook.selectionChanged()
         }
         .task {
+            let source = url
+            interrupted = await Task.detached { Xipper.interruptedConversion(of: source) }.value
             await model.load()
             if model.namesLocked { unlockNames() }
             #if DEBUG
@@ -182,6 +186,47 @@ struct ArchiveBrowserView: View {
         .padding(.horizontal, 16)
         .frame(height: 28)
         .background(.bar)
+    }
+
+    /// The archive is being converted with little free space and the conversion stopped: part of
+    /// it may already be in the new archive only. Resuming finishes it; giving up is possible only
+    /// while nothing was released.
+    private func interruptedBanner(_ s: LowSpaceConversionStatus) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.orange).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cambio di formato in \(s.target.lastPathComponent) interrotto").fontWeight(.semibold)
+                Text(s.released ? "Parte dei file è già solo nel nuovo archivio: riprendi per completarlo. L'originale non si apre più da solo."
+                                : "L'originale è ancora intatto: puoi riprendere o annullare la conversione.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if s.targetEncrypted {
+                    Text("Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt».")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if !s.released {
+                Button("Annulla conversione") {
+                    do {
+                        try Xipper.abandonConversion(s.journal)
+                        interrupted = nil
+                    } catch {
+                        working = (error as? XipperError)?.description ?? error.localizedDescription
+                    }
+                }
+            }
+            if !s.targetEncrypted {
+                Button("Riprendi") {
+                    jobs.start(.resumeConversion(journal: s.journal, source: s.source, target: s.target, password: model.password))
+                    interrupted = nil
+                }
+                .buttonStyle(.glassProminent)
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.12))
     }
 
     /// Names disguised as documents ("fattura.pdf.app", right-to-left override): shown before
@@ -495,6 +540,7 @@ struct ArchiveBrowserView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
+                    if let pending = interrupted { interruptedBanner(pending) }
                     if !model.deceptive.isEmpty { deceptiveBanner }
                     pathBar
                 }

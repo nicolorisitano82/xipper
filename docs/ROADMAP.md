@@ -350,10 +350,27 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - libxiz legge i frame 7 (opzione `XIZ_PREFLATE`, `xiz_has_preflate()`), con il fixture `docs.xiz` e 300 payload manomessi senza abort sotto ASan e UBSan; verde su macOS e Linux;
 - **non fatto:** FLAC per WAV e AIFF (nessun audio non compresso tra i file veri: resta in fondo alla lista); i file iWork restano fuori (Snappy).
 
-##### F. «Cambia formato» v2 con poco spazio libero — grande, con un cancello
-- registro delle operazioni, `F_PUNCHHOLE` sull'originale, ripresa dopo un'interruzione, ritorno all'originale prima del primo punching;
-- riconoscimento di istantanee e cloni APFS, che non liberano spazio, con ripiego su file numerati;
-- **cancello:** esce solo dopo i test di interruzione di corrente in una VM macOS (Virtualization.framework) su immagini APFS piccole, ripetuti molte volte. Se i test non bastano, F passa alla 3.1 e la 3.0 esce senza.
+##### F. «Cambia formato» v2 con poco spazio libero — fatto, tranne il cancello (10/11/2026)
+- ✅ **ZIP e 7z → XIZ a blocchi** (`Xipper.convertWithLittleSpace`, `xipper convert --to xiz --little-space`, interruttore «Converti con poco spazio libero» nel foglio «Cambia formato», proposto da solo quando lo spazio non basta per la conversione normale):
+  - ogni blocco (fino a 4 GiB estratti, al massimo un terzo dello spazio libero) viene estratto in una cartella di lavoro e aggiunto al nuovo XIZ come segmento (§11), reso durevole con `F_FULLFSYNC`;
+  - solo dopo, i byte del blocco nell'originale vengono liberati con `F_PUNCHHOLE` (blocchi interi; mai il blocco 0 né la coda con central directory o header 7z);
+  - unità che si liberano insieme: una voce ZIP, una cartella 7z (solida o no), con i loro metadati macOS `._`;
+  - alla fine: dati di recupero se richiesti, verifica completa (test, ogni file con dimensione e CRC), nome definitivo, originale eliminato.
+- ✅ **registro e ripresa:** `<originale>.xipper-resume` (JSON, scritto con `F_FULLFSYNC` e rinomina) contiene il piano dei blocchi e un'impronta dell'originale (dispositivo, inode, dimensione, SHA-256 della coda). Quali blocchi sono fatti lo dice il nuovo archivio stesso: un segmento c'è tutto o non c'è. Si riprende rilanciando lo stesso comando, o con «Riprendi» nel banner che il browser mostra aprendo l'originale.
+- ✅ **ritorno all'originale:** un errore prima che un blocco arrivi nel nuovo archivio cancella il nuovo archivio e il registro, e l'originale resta com'era. «Annulla conversione» (`--abandon`) è possibile solo finché non è stato liberato niente.
+- ✅ **cloni e istantanee APFS:** rifiutati prima di iniziare, perché liberare quei blocchi non libererebbe spazio. I cloni si riconoscono dalla dimensione privata del file (`ATTR_CMNEXT_PRIVATESIZE`); le istantanee si leggono da `diskutil apfs listSnapshots`: contano quelle di Time Machine più recenti del file e tutte quelle senza data. Non c'è un ripiego su file numerati: si cancella l'istantanea o si usa la conversione normale.
+- ✅ **corretto:** `volumeSpace` restituiva 0 byte liberi sulle immagini disco (Foundation non dà lo spazio «per uso importante»). Ora usa il valore più alto tra Foundation e `statfs`.
+- ✅ **prove:**
+  - `LowSpaceConversionTests`, 13 casi: ZIP, 7z non solido e solido; ripresa dopo ogni passo (blocco scritto, blocco liberato, verificato, rinominato); errore prima di liberare; archivi cifrati in entrambi i formati; rifiuto di cloni, formati non supportati e destinazioni diverse da XIZ;
+  - `scripts/lowspace-crash.sh` su un volume APFS da 300 MB:
+    - uno ZIP da 124 MB di dati non comprimibili, con 175 MB liberi: la conversione normale chiede 258 MB e viene rifiutata, quella a blocchi riesce;
+    - 60 conversioni uccise con `kill -9` in momenti a caso (116 interruzioni) e rilanciate: tutte complete, con file identici e nessun originale rimasto;
+    - trovato e corretto: il file temporaneo del primo segmento, rimasto da un'esecuzione uccisa, occupava spazio e faceva fallire la ripresa: ora viene rimosso quando la conversione riparte.
+- **limiti:**
+  - solo ZIP e 7z (un solo volume, senza hard link) verso XIZ senza gruppi di accesso né firma;
+  - un file grande quanto lo spazio libero non si può convertire, perché ogni blocco viene estratto su disco;
+  - la cronologia del nuovo archivio (`xipper versions`) mostra un passo per ogni blocco.
+- **cancello, spostato alla 3.1 (decisione del 10/11/2026):** F esce nella 3.0 provata con `kill -9`. `kill -9` non perde ciò che il processo ha già passato al kernel, quindi verifica l'ordine di scritture, registro e rilasci, non un'interruzione di corrente. Per quella serve una VM macOS (Virtualization.framework) da spegnere di colpo molte volte, e serve scaricare l'immagine di macOS (IPSW, circa 18 GB).
 
 ##### G. Rilascio
 - versione 3.0.0, note utente, DMG, release; prove a mano rimaste dalla 2.7 (RAR e 7z grandi, JPEG, VoiceOver).
@@ -361,7 +378,7 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 #### Decisioni da prendere
 1. ~~Rust o C++ per preflate~~: preflate in C++ (10/11/2026).
 2. ~~Chiave post-quantum predefinita~~: sì, nell'app (09/11/2026); la CLI la crea con `--pq`.
-3. **F nella 3.0** anche se slitta, oppure spostata subito alla 3.1.
+3. ~~F nella 3.0~~: sì, provata con `kill -9`; la prova di interruzione di corrente in VM passa alla 3.1 (10/11/2026).
 
 #### Fuori dalla 3.0
 - **OpenZL** per CSV, Parquet e tabelle genomiche: formato e API ancora dichiarati instabili; si riguarda alla 3.1;
@@ -369,6 +386,10 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - ML-DSA per le firme, libbsc e kanzi per il testo (licenze da verificare).
 
 ### 3.1 — XIZ forense
+- **prova di corrente per «Cambia formato» a poco spazio** (dalla 3.0, F): VM macOS con Virtualization.framework, spegnimenti improvvisi ripetuti durante `--little-space`; serve scaricare l'IPSW (circa 18 GB).
+
+**Decisione del 10/11/2026:** il forense è un **prodotto derivato e separato, `xipper-forensic`**, che fa parte della famiglia Xipper. Ha una sua app con un'interfaccia pensata solo per questo lavoro: caso, dispositivo, acquisizione, verifica e catena di custodia, non il browser di archivi. Condivide con Xipper XipperKit e il formato XIZ; l'app Xipper resta un archiviatore e non mostra funzioni forensi.
+
 Analisi e progetto in [FORENSE_3.1.md](FORENSE_3.1.md): acquisizione di dischi e volumi da `/dev/rdiskN` in un XIZ verificabile, firmato e datato, con catena di custodia come segmenti firmati in coda. Lacune principali da colmare:
 - metadati forensi: record del caso e del dispositivo, log di acquisizione, mappa dei settori illeggibili, hash della sorgente (MD5, SHA-1, SHA-256) firmati;
 - identità di chi firma: oggi Ed25519 con un'etichetta libera; servono certificati X.509 o smart card e una TSA qualificata;

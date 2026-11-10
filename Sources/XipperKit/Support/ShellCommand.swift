@@ -99,12 +99,19 @@ public struct ShellCommand: Sendable, Equatable {
         ShellCommand(arguments: ["test"] + (password ? ["-p"] : []) + [archive.path])
     }
 
-    public static func convert(_ source: URL, to target: URL, options o: CreateOptions, password: Bool, trashOriginal: Bool) -> ShellCommand {
+    public static func convert(_ source: URL, to target: URL, options o: CreateOptions, password: Bool, trashOriginal: Bool,
+                               littleSpace: Bool = false) -> ShellCommand {
         var a = ["convert", "--to", o.format.rawValue, "-o", target.path]
+        if littleSpace { a.append("--little-space") }
+        if o.format == .xiz {
+            if o.xizCodec != .zstd { a.append("--" + o.xizCodec.rawValue) }
+            if o.xizJPEG { a.append("--jpeg") }
+            if o.xizDocuments { a.append("--documents") }
+        }
         if o.format == .zip && o.zipMethod != .deflate { a += ["-m", o.zipMethod.name] }
         if let l = o.level { a += ["-l", String(l)] }
         if password { a.append("-p") }
-        if trashOriginal { a.append("--trash-original") }
+        if trashOriginal && !littleSpace { a.append("--trash-original") }
         a.append(source.path)
         return ShellCommand(arguments: a)
     }

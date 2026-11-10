@@ -133,7 +133,7 @@ struct ReportSheet: View {
         switch job.kind {
         case .test: ok ? String(localized: "Tutte le \(entries.isEmpty ? (job.testReport?.entries ?? 0) : entries.count) voci sono integre") : String(localized: "Problemi di integrità")
         case .extract: String(localized: "Voci non estratte per sicurezza")
-        case .create, .convert: String(localized: "Report")
+        case .create, .convert, .resumeConversion: String(localized: "Report")
         }
     }
 }

@@ -33,7 +33,7 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 - **Zip per Windows:** niente `.DS_Store` né `__MACOSX`, nomi in NFC e, a richiesta (nell'app è attivo di default), nomi che Windows sa estrarre: niente `: ? * " < > | \`, punti o spazi finali, `CON`/`AUX`/`NUL`…, nomi uguali a meno delle maiuscole (`xipper create --windows-names`).
 - **Modifica senza estrarre** (ZIP, 7z e XIZ senza ricomprimere quello che non cambia), **dati di recupero PAR2** (anche con dati spostati), **montaggio come volume** in lettura e scrittura.
 - **ZIP da Windows e da altri sistemi:** legge anche il metodo PPMd di 7-Zip; i nomi scritti senza UTF-8 in una code page DOS (russo, giapponese, cinese, coreano…) sono riconosciuti da soli, e la codifica si può scegliere a mano (menu Azioni › Codifica dei nomi, `--names-encoding`).
-- **Cambia formato:** da ZIP a 7z e ritorno copiando i dati compressi così come sono (store, Deflate, Deflate64, bzip2), gli altri formati ricomprimendo; prima mostra il piano, il nuovo archivio viene verificato prima di prendere il suo nome e l'originale non viene toccato (`xipper convert`).
+- **Cambia formato:** da ZIP a 7z e ritorno copiando i dati compressi così come sono (store, Deflate, Deflate64, bzip2), gli altri formati ricomprimendo; prima mostra il piano, il nuovo archivio viene verificato prima di prendere il suo nome e l'originale non viene toccato (`xipper convert`). Con poco spazio libero, da ZIP o 7z a XIZ, converte un blocco alla volta e libera via via lo spazio dell'originale; se si interrompe, anche per un calo di corrente, riprende da dove era arrivato (`--little-space`).
 
 ## Struttura
 

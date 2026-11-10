@@ -284,13 +284,15 @@ final class ExtractionContext: @unchecked Sendable {
     /// is free: macOS reclaims it when we write); statfs when the volume does not report them.
     static func volumeSpace(_ path: String, fd: Int32) -> (free: Int64, total: Int64)? {
         let keys: Set<URLResourceKey> = [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]
+        var fs = statfs()
+        let raw: (free: Int64, total: Int64)? = (fd >= 0 ? fstatfs(fd, &fs) : statfs(path, &fs)) == 0
+            ? (Int64(fs.f_bavail) * Int64(fs.f_bsize), Int64(fs.f_blocks) * Int64(fs.f_bsize)) : nil
+        // Purgeable space counts as free; but some volumes (disk images) report 0 there.
         if let v = try? URL(fileURLWithPath: path).resourceValues(forKeys: keys),
            let free = v.volumeAvailableCapacityForImportantUsage, let total = v.volumeTotalCapacity, total > 0 {
-            return (free, Int64(total))
+            return (max(free, raw?.free ?? 0), Int64(total))
         }
-        var fs = statfs()
-        guard fstatfs(fd, &fs) == 0 else { return nil }
-        return (Int64(fs.f_bavail) * Int64(fs.f_bsize), Int64(fs.f_blocks) * Int64(fs.f_bsize))
+        return raw
     }
 
     deinit {

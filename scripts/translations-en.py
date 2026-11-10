@@ -12,6 +12,16 @@ SAME = {"", "5%", "10%", "20%", "PAR2", "7z", "CRC-32", "SHA-256", "No", "%@", "
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
+    "Annulla conversione": "Cancel Conversion",
+    "Cambio di formato in %@ interrotto": "Format change to %@ interrupted",
+    "Converti con poco spazio libero": "Convert with Little Free Space",
+    "Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt».": "The new archive has a password: resume in Terminal with “xipper convert --to xiz --little-space --encrypt”.",
+    "L'originale non si potrà più aprire da solo dopo il primo blocco: il nuovo archivio prende il suo nome solo dopo la verifica completa.": "After the first batch the original no longer opens on its own: the new archive gets its name only after it is fully verified.",
+    "L'originale è ancora intatto: puoi riprendere o annullare la conversione.": "The original is still intact: you can resume or cancel the conversion.",
+    "Parte dei file è già solo nel nuovo archivio: riprendi per completarlo. L'originale non si apre più da solo.": "Some files are already only in the new archive: resume to complete it. The original no longer opens on its own.",
+    "Sul disco ci sono solo %@ liberi": "Only %@ free on the disk",
+    "Xipper converte un blocco alla volta e libera via via lo spazio dell'originale, che alla fine viene eliminato. Se si interrompe, anche per un calo di corrente, riaprendo l'originale Xipper riprende da dove era arrivato.": "Xipper converts one batch at a time and frees the original's space as it goes; the original is deleted at the end. If it stops, even because of a power cut, reopening the original lets Xipper resume where it left off.",
+    "verificato, originale sostituito": "verified, original replaced",
     " · .DS_Store e __MACOSX esclusi (%lld)": " · .DS_Store and __MACOSX excluded (%lld)",
     "%@ completata": "%@ completed",
     "%@ di %@": "%1$@ of %2$@",

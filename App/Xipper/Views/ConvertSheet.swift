@@ -15,6 +15,10 @@ struct ConvertSheet: View {
     @State private var trashOriginal = false
     @State private var acceptLosses = false
     @State private var showDetails = false
+    /// Little free space (XIZ from ZIP or 7z): possible here, chosen, free bytes on the volume.
+    @State private var littleSpacePossible = false
+    @State private var littleSpace = false
+    @State private var freeBytes: Int64?
 
     /// Every archive format the compression window offers (single-file streams hold no archive).
     static let targets: [ArchiveFormat] = ArchiveFormat.multiItem
@@ -43,6 +47,10 @@ struct ConvertSheet: View {
                         Label("\(plan.copied) file copiati senza ricomprimere (\(plan.bytesCopied.byteText))", systemImage: "bolt.fill")
                         Label("\(plan.recompressed) file ricompressi (\(plan.bytesRecompressed.byteText))", systemImage: "arrow.triangle.2.circlepath")
                         Label("Spazio libero necessario: fino a \(plan.spaceNeeded.byteText)", systemImage: "internaldrive")
+                        if let freeBytes, freeBytes < plan.spaceNeeded {
+                            Label("Sul disco ci sono solo \(freeBytes.byteText) liberi", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(littleSpacePossible ? .secondary : Color.orange)
+                        }
                         if plan.streamed && plan.recompressed > 0 {
                             Label("I file passano direttamente nel nuovo archivio, senza essere estratti su disco", systemImage: "arrow.right.circle")
                         }
@@ -72,11 +80,23 @@ struct ConvertSheet: View {
                 }
             }
 
-            Toggle("Sposta l'originale nel Cestino quando il nuovo archivio è verificato", isOn: $trashOriginal)
+            if littleSpacePossible {
+                Toggle(isOn: $littleSpace) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Converti con poco spazio libero")
+                        Text("Xipper converte un blocco alla volta e libera via via lo spazio dell'originale, che alla fine viene eliminato. Se si interrompe, anche per un calo di corrente, riaprendo l'originale Xipper riprende da dove era arrivato.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            if !littleSpace {
+                Toggle("Sposta l'originale nel Cestino quando il nuovo archivio è verificato", isOn: $trashOriginal)
+            }
             if !seriousLosses.isEmpty {
                 Toggle("Ho capito cosa si perde", isOn: $acceptLosses)
             }
-            Text("L'originale non viene modificato: il nuovo archivio prende il suo nome solo dopo la verifica.")
+            Text(littleSpace ? "L'originale non si potrà più aprire da solo dopo il primo blocco: il nuovo archivio prende il suo nome solo dopo la verifica completa."
+                             : "L'originale non viene modificato: il nuovo archivio prende il suo nome solo dopo la verifica.")
                 .font(.caption).foregroundStyle(.secondary)
 
             HStack {
@@ -84,7 +104,8 @@ struct ConvertSheet: View {
                 Button("Annulla", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("Cambia formato") {
-                    jobs.start(.convert(source: archive, target: target, format: format, password: password, trashOriginal: trashOriginal))
+                    jobs.start(.convert(source: archive, target: target, format: format, password: password,
+                                        trashOriginal: trashOriginal && !littleSpace, littleSpace: littleSpace))
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -102,14 +123,28 @@ struct ConvertSheet: View {
         plan = nil
         planError = nil
         acceptLosses = false
+        littleSpacePossible = false
+        littleSpace = false
         let (archive, format, password) = (archive, format, password)
         let result = await Task.detached { () -> Result<ConversionPlan, Error> in
             var o = CreateOptions()
             o.format = format
             return Result { try Xipper.conversionPlan(archive, to: format, password: password, options: o) }
         }.value
+        let (possible, free) = await Task.detached { () -> (Bool, Int64?) in
+            let values = try? archive.deletingLastPathComponent().resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            var fs = statfs()
+            let raw = statfs(archive.deletingLastPathComponent().path, &fs) == 0 ? Int64(fs.f_bavail) * Int64(fs.f_bsize) : nil
+            let free = [values?.volumeAvailableCapacityForImportantUsage, raw].compactMap { $0 }.max()
+            return (format == .xiz && Xipper.lowSpaceConversionProblem(archive, to: format, password: password) == nil, free)
+        }.value
+        freeBytes = free
         switch result {
-        case let .success(p): plan = p
+        case let .success(p):
+            plan = p
+            littleSpacePossible = possible
+            // Suggested when the usual way would not fit.
+            littleSpace = possible && (free.map { $0 < p.spaceNeeded } ?? false)
         case let .failure(e): planError = (e as? XipperError)?.description ?? e.localizedDescription
         }
     }

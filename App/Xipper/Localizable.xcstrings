@@ -5124,6 +5124,46 @@
         }
       }
     },
+    "Annulla conversione" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konvertierung abbrechen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Conversion"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar conversión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler la conversion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変換を中止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消转换"
+          }
+        }
+      }
+    },
     "Annullato" : {
       "localizations" : {
         "de" : {
@@ -7312,6 +7352,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "格式更改"
+          }
+        }
+      }
+    },
+    "Cambio di formato in %@ interrotto" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formatwechsel zu %@ unterbrochen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format change to %@ interrupted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambio de formato a %@ interrumpido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changement de format vers %@ interrompu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ への形式変更が中断されました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转换为 %@ 的格式更改已中断"
           }
         }
       }
@@ -10645,6 +10725,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在转换为 CRAM…"
+          }
+        }
+      }
+    },
+    "Converti con poco spazio libero" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit wenig freiem Speicher konvertieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convert with Little Free Space"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convertir con poco espacio libre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convertir avec peu d'espace libre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空き容量が少なくても変換"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在可用空间不足时转换"
           }
         }
       }
@@ -17503,6 +17623,46 @@
         }
       }
     },
+    "Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt»." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das neue Archiv hat ein Passwort: Im Terminal mit „xipper convert --to xiz --little-space --encrypt“ fortsetzen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new archive has a password: resume in Terminal with “xipper convert --to xiz --little-space --encrypt”."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El nuevo archivo tiene contraseña: reanuda desde Terminal con «xipper convert --to xiz --little-space --encrypt»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nouvel archive a un mot de passe : reprenez dans Terminal avec « xipper convert --to xiz --little-space --encrypt »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいアーカイブにはパスワードがあります。ターミナルで「xipper convert --to xiz --little-space --encrypt」を実行して再開してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新归档有密码：请在终端中用“xipper convert --to xiz --little-space --encrypt”继续。"
+          }
+        }
+      }
+    },
     "Il nuovo archivio non avrà la password" : {
       "localizations" : {
         "de" : {
@@ -19570,6 +19730,46 @@
         }
       }
     },
+    "L'originale non si potrà più aprire da solo dopo il primo blocco: il nuovo archivio prende il suo nome solo dopo la verifica completa." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach dem ersten Block lässt sich das Original nicht mehr allein öffnen: Das neue Archiv erhält seinen Namen erst nach der vollständigen Prüfung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the first batch the original no longer opens on its own: the new archive gets its name only after it is fully verified."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el primer bloque el original ya no se abre por sí solo: el nuevo archivo recibe su nombre solo después de la verificación completa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après le premier bloc, l'original ne s'ouvre plus seul : le nouvel archive ne prend son nom qu'après une vérification complète."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最初のブロックの後、元のアーカイブは単独では開けなくなります。新しいアーカイブは完全に検証されてから名前が付きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一个批次之后，原文件将无法单独打开：新归档只有在完整验证后才会获得其名称。"
+          }
+        }
+      }
+    },
     "L'originale non viene modificato: il nuovo archivio prende il suo nome solo dopo la verifica." : {
       "localizations" : {
         "de" : {
@@ -19646,6 +19846,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原件未被更改。"
+          }
+        }
+      }
+    },
+    "L'originale è ancora intatto: puoi riprendere o annullare la conversione." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Original ist noch unversehrt: Du kannst die Konvertierung fortsetzen oder abbrechen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original is still intact: you can resume or cancel the conversion."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El original sigue intacto: puedes reanudar o cancelar la conversión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'original est encore intact : vous pouvez reprendre ou annuler la conversion."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のアーカイブはまだ無傷です。変換を再開するか中止できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原文件仍然完好：你可以继续或取消转换。"
           }
         }
       }
@@ -24308,6 +24548,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更小的 PNG、PDF 和文稿"
+          }
+        }
+      }
+    },
+    "Parte dei file è già solo nel nuovo archivio: riprendi per completarlo. L'originale non si apre più da solo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einige Dateien befinden sich bereits nur im neuen Archiv: Setze fort, um es fertigzustellen. Das Original lässt sich nicht mehr allein öffnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some files are already only in the new archive: resume to complete it. The original no longer opens on its own."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunos archivos ya están solo en el nuevo archivo: reanuda para completarlo. El original ya no se abre por sí solo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certains fichiers ne sont déjà plus que dans le nouvel archive : reprenez pour le terminer. L'original ne s'ouvre plus seul."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のファイルはすでに新しいアーカイブにしかありません。再開して完了してください。元のアーカイブは単独では開けません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分文件已只存在于新归档中：请继续以完成它。原文件已无法单独打开。"
           }
         }
       }
@@ -29650,6 +29930,46 @@
         }
       }
     },
+    "Sul disco ci sono solo %@ liberi" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf dem Laufwerk sind nur %@ frei"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %@ free on the disk"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo hay %@ libres en el disco"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seulement %@ libres sur le disque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディスクの空き容量は %@ のみです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁盘上仅有 %@ 可用"
+          }
+        }
+      }
+    },
     "Sul disco resta meno del 10% di spazio libero: libera spazio prima di estrarre." : {
       "localizations" : {
         "de" : {
@@ -31912,6 +32232,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xipper 会向 GitHub 查询是否有新版本，并且仅在你同意时才下载。安装仍需手动完成：像第一次那样将 Xipper 拖到“应用程序”中。"
+          }
+        }
+      }
+    },
+    "Xipper converte un blocco alla volta e libera via via lo spazio dell'originale, che alla fine viene eliminato. Se si interrompe, anche per un calo di corrente, riaprendo l'originale Xipper riprende da dove era arrivato." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper konvertiert einen Block nach dem anderen und gibt dabei den Speicher des Originals frei, das am Ende gelöscht wird. Wird der Vorgang unterbrochen, auch durch einen Stromausfall, setzt Xipper beim erneuten Öffnen des Originals dort fort, wo es aufgehört hat."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper converts one batch at a time and frees the original's space as it goes; the original is deleted at the end. If it stops, even because of a power cut, reopening the original lets Xipper resume where it left off."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper convierte un bloque cada vez y va liberando el espacio del original, que al final se elimina. Si se interrumpe, incluso por un corte de luz, al volver a abrir el original Xipper continúa donde lo dejó."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper convertit un bloc à la fois et libère au fur et à mesure l'espace de l'original, supprimé à la fin. En cas d'interruption, même par une coupure de courant, rouvrir l'original permet à Xipper de reprendre là où il s'était arrêté."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper は 1 ブロックずつ変換し、元のアーカイブの領域を順に解放します。元のアーカイブは最後に削除されます。停電などで中断しても、元のアーカイブを開き直すと Xipper は中断した所から再開します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper 每次转换一个批次，并逐步释放原文件占用的空间，原文件最后会被删除。如果中断（即使是断电），重新打开原文件后 Xipper 会从中断处继续。"
           }
         }
       }
@@ -34463,6 +34823,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用你的密钥打开 %@"
+          }
+        }
+      }
+    },
+    "verificato, originale sostituito" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "geprüft, Original ersetzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verified, original replaced"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verificado, original sustituido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vérifié, original remplacé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検証済み、元のアーカイブを置き換え"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已验证，已替换原文件"
           }
         }
       }

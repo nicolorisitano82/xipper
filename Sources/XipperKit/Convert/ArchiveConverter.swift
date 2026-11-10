@@ -63,6 +63,9 @@ public struct FormatChangeReport: Sendable {
     public var elapsed: Double
     /// The original moved to the Trash after the new archive was verified.
     public var originalTrashed: Bool
+    /// Little free space: the original was released into the new archive as it was converted,
+    /// and removed at the end.
+    public var originalReleased = false
 }
 
 extension Xipper {

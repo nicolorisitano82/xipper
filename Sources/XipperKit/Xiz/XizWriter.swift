@@ -44,6 +44,7 @@ enum XizWriter {
                       deflate: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       access: XizAccess? = nil, signer: XizSigner? = nil, carried: [XizCarriedFrame] = [],
+                      declareRecompression: Bool = false,
                       workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         guard carried.isEmpty || (password == nil && access == nil && signer == nil) else {
             throw XipperError.invalidArgument("copied zstd frames go only into plain XIZ archives")
@@ -74,7 +75,7 @@ enum XizWriter {
             superblock.required.insert(.lzma2)
             superblock.minor = 4
         }
-        let jpeg = jpeg && level > 0 && items.contains(where: Self.isJPEG)
+        let jpeg = jpeg && level > 0 && (declareRecompression || items.contains(where: Self.isJPEG))
         if jpeg {
             superblock.required.insert(.jpeg)
             superblock.minor = 6
@@ -83,7 +84,7 @@ enum XizWriter {
             superblock.required.insert(.apple)
             superblock.minor = 8
         }
-        let deflate = deflate && level > 0 && items.contains(where: Self.isDeflateDocument)
+        let deflate = deflate && level > 0 && (declareRecompression || items.contains(where: Self.isDeflateDocument))
         if deflate {
             superblock.required.insert(.deflate)
             superblock.minor = 9

@@ -4,6 +4,8 @@ Stato: **bozza di analisi**, 02/11/2026. Nessuna riga di codice è stata scritta
 Riferimenti interni: [XIZ_SPEC.md](XIZ_SPEC.md) (versione 1.4), [ROADMAP.md](ROADMAP.md) (2.6, 2.7, 3.0),
 `Sources/XipperKit/Xiz/` (firme, marche temporali, prove), `Sources/XipperKit/Edit/ArchiveEditor.swift` (append).
 
+**Decisione del 10/11/2026:** il forense diventa un prodotto derivato e separato, **xipper-forensic**, nella famiglia Xipper. Avrà un'app con un'interfaccia progettata apposta per l'acquisizione e la catena di custodia, distinta dall'app Xipper. Dove questo documento dice «Xipper 3.1» o parla di funzioni dell'app, va letto come xipper-forensic. Il formato XIZ e XipperKit restano in comune.
+
 Convenzioni del documento:
 
 - **[Fatto]**: verificato nel codice o nella spec di Xipper, oppure in una fonte esterna citata.

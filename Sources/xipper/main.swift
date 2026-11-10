@@ -96,6 +96,13 @@ usage: xipper <command> [options]
           --trash-original move the original to the Trash once the new archive is verified
           --accept-losses  go on when signatures, access groups or the password would be lost
           --overwrite      replace an existing file at the output path
+          --lzma2, --lzraven, --lzmesh, --jpeg, --documents   XIZ: as in create
+          --little-space   ZIP or 7z → XIZ when the disk cannot hold both archives: a batch at a time,
+                           each batch's bytes released from the original once it is safe in the new
+                           archive; the original is removed at the end. Interrupted (even by a power
+                           cut), the same command resumes it
+          --abandon        give up an interrupted --little-space conversion (only before any of the
+                           original was released)
   par2    create [--redundancy N] <file> | verify <file.par2> | repair <file.par2>
           PAR2 recovery data (compatible with par2cmdline): N percent, default 10
   mount   [options] <archive>   mount as a volume (/Volumes/<name>) until ejected or Ctrl-C
@@ -144,7 +151,7 @@ let knownFlags: Set<String> = command == "bgzip"
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
-                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair"])
+                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
@@ -650,6 +657,24 @@ case "convert":
     let source = URL(fileURLWithPath: positional[0])
     var o = CreateOptions()
     o.format = fmt
+    if fmt == .xiz {
+        if flag("--lzma2") { o.xizCodec = .lzma2 }
+        if flag("--lzraven") { o.xizCodec = .lzraven }
+        if flag("--lzmesh") { o.xizCodec = .lzmesh }
+        o.xizJPEG = flag("--jpeg")
+        o.xizDocuments = flag("--documents")
+    }
+    if flag("--abandon") {
+        run {
+            guard let s = Xipper.interruptedConversion(of: source) else { fail("no interrupted conversion of \(source.lastPathComponent)") }
+            try Xipper.abandonConversion(s.journal)
+            print("\(source.lastPathComponent): conversion abandoned, the original is as it was")
+        }
+    }
+    if !flag("--little-space"), let s = Xipper.interruptedConversion(of: source) {
+        fail("\(source.lastPathComponent): a conversion to \(s.target.lastPathComponent) was interrupted (\(s.batchesDone) of \(s.batches) batches): "
+             + "run it again with --little-space to finish it" + (s.released ? "" : ", or give it up with --abandon"), code: 2)
+    }
     if let l = value("-l", "--level") { guard let n = Int(l) else { fail("invalid level \(l)", code: 2) }; o.level = n }
     if let m = value("-m", "--method") {
         guard let method = ZipMethod(name: m) else { fail("unknown method \(m)", code: 2) }
@@ -677,6 +702,27 @@ case "convert":
         memset_s(&buf, buf.count, 0, buf.count); memset_s(&again, again.count, 0, again.count)
         guard !a.isEmpty, a == b else { fail("passwords empty or different") }
         o.password = a
+    }
+    if flag("--little-space") {
+        run {
+            if let s = Xipper.interruptedConversion(of: source) {
+                print("\(source.lastPathComponent) → \(s.target.lastPathComponent): resuming (\(s.batchesDone) of \(s.batches) batches done)")
+                let r = try Xipper.resumeConversion(s.journal, password: pw, newPassword: o.password, progress: progress, cancel: cancel)
+                endProgress()
+                print(String(format: "%@: %@, verified, in %.2fs; original removed", r.output.lastPathComponent, r.outputBytes.bytesText, r.elapsed))
+                return
+            }
+            if let problem = Xipper.lowSpaceConversionProblem(source, to: fmt, password: pw) { fail(problem) }
+            print("\(source.lastPathComponent) → \(target.lastPathComponent): converting a batch at a time; the original is released as it goes and removed at the end")
+            let r = try Xipper.convertWithLittleSpace(source, to: target, password: pw, options: o, progress: progress, cancel: cancel)
+            endProgress()
+            if flag("--json") {
+                let json: [String: Any] = ["output": r.output.path, "outputBytes": r.outputBytes, "elapsed": r.elapsed, "originalRemoved": true]
+                print(String(decoding: try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]), as: UTF8.self))
+            } else {
+                print(String(format: "%@: %@, verified, in %.2fs; original removed", r.output.lastPathComponent, r.outputBytes.bytesText, r.elapsed))
+            }
+        }
     }
     run {
         let plan = try Xipper.conversionPlan(source, to: fmt, password: pw, options: o)
