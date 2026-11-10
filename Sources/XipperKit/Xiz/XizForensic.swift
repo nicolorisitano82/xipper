@@ -112,7 +112,7 @@ public enum XizForensic {
             return w.bytes
         }
 
-        init(_ b: [UInt8]) throws {
+        public init(_ b: [UInt8]) throws {
             guard b.count >= 40, (b.count - 40) % 32 == 0 else { throw XipperError.corrupt("XIZ frame hashes") }
             first = b.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self).littleEndian }
             let n = Int(b.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self).littleEndian })
@@ -147,7 +147,7 @@ public enum XizForensic {
             self.started = started; self.finished = finished
         }
 
-        init(_ b: [UInt8]) throws {
+        public init(_ b: [UInt8]) throws {
             try self = b.withUnsafeBytes { raw in
                 var r = ByteReader(raw)
                 let path = String(decoding: try r.bytes(Int(try r.u16())), as: UTF8.self)
@@ -185,7 +185,7 @@ public enum XizForensic {
 
         init(path: String, ranges: [Range]) { self.path = path; self.ranges = ranges }
 
-        init(_ b: [UInt8]) throws {
+        public init(_ b: [UInt8]) throws {
             try self = b.withUnsafeBytes { raw in
                 var r = ByteReader(raw)
                 let path = String(decoding: try r.bytes(Int(try r.u16())), as: UTF8.self)
@@ -216,6 +216,111 @@ public enum XizForensic {
         d["t"] = timestamp(date)
         d["event"] = event
         return String(decoding: json(d), as: UTF8.self)
+    }
+
+    // MARK: writing (shared by images and logical acquisitions)
+
+    /// The common part of a forensic archive: superblock and keys, frames with their hashes,
+    /// the "forensic/" files, the forensic block, the signed directory.
+    final class Writer {
+        let out: OutputFile
+        let keys: XizKeys?
+        let archiveID: [UInt8]
+        let level: Int
+        var frames: [Xiz.Frame] = []
+        var hashes: [[UInt8]] = []
+
+        init(path: String, password: String?, access: XizAccess?, level: Int) throws {
+            var id = [UInt8](repeating: 0, count: 16)
+            arc4random_buf(&id, 16)
+            archiveID = id
+            self.level = level
+            var superblock = Xiz.Superblock(archiveID: id)
+            superblock.required.formUnion([.directory, .forensic])
+            superblock.minor = 10
+            var policy = access ?? XizAccess()
+            guard policy.groups.isEmpty, !policy.erasable else {
+                throw XipperError.invalidArgument("forensic archives use no access groups and no erasable files")
+            }
+            if let pw = password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(pw)), at: 0) }
+            var keysBlock: [UInt8] = []
+            if !policy.recipients.isEmpty || !policy.thresholds.isEmpty {
+                let k = SymmetricKey(size: .bits256)
+                keys = XizKeys(fileKey: k, archiveID: id)
+                let stanzas = try XizAccessKeys.prepare(policy, groupIDs: [XizAccess.defaultGroup: 0], groupKeys: [0: k], archiveID: id, kdf: .standard)
+                let n = XizAccessKeys.size(stanzas)
+                guard n <= Xiz.maxKeysBlock else { throw XipperError.limitExceeded("too many recipients for one XIZ archive") }
+                superblock.required.insert(.encrypted)
+                superblock.keysLength = UInt32(n)
+                keysBlock = try XizAccessKeys.seal(stanzas, superblock: superblock.encode())
+            } else {
+                keys = nil
+            }
+            if FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
+            out = try OutputFile(path: path)
+            try out.write(superblock.encode())
+            if !keysBlock.isEmpty { try out.write(keysBlock) }
+        }
+
+        func compress(_ b: UnsafeRawBufferPointer) -> [UInt8]? { level > 0 ? ZipWriter.zstdCompress(b, level: level) : nil }
+
+        func writeFrame(_ data: UnsafeRawBufferPointer, compressed: [UInt8]?) throws -> UInt32 {
+            let index = UInt32(frames.count)
+            var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: compressed == nil ? .store : .zstd)
+            var payload = compressed ?? Array(data)
+            if let keys { payload = try keys.sealFrame(payload, index: index, f) }
+            f.csize = UInt32(payload.count)
+            f.crc = Xiz.crc32c(payload)
+            f.offset = out.position
+            let header = Xiz.frameHeader(index: index, f)
+            try out.write(header)
+            try out.write(payload)
+            frames.append(f)
+            hashes.append(FrameHashes.hash(header: header, payload: payload))
+            return index
+        }
+
+        /// Frames written by someone else (XizWriter.writeData): hashed by reading them back.
+        func adopt(_ written: [Xiz.Frame]) throws {
+            try out.flush()
+            let r = try FileReader(path: out.tempPath)
+            for f in written {
+                let bytes = try r.read(at: f.offset, count: Xiz.frameHeaderSize + Int(f.csize))
+                hashes.append(FrameHashes.hash(header: Array(bytes[..<Xiz.frameHeaderSize]), payload: Array(bytes[Xiz.frameHeaderSize...])))
+                frames.append(f)
+            }
+        }
+
+        /// The "forensic/" folder: one frame holding every file.
+        func metadata(_ files: [(String, [UInt8])], mtime: Int64) throws -> [Xiz.Entry] {
+            let all = files.flatMap(\.1)
+            let frame = try all.withUnsafeBytes { try writeFrame($0, compressed: compress($0)) }
+            var entries = [Xiz.Entry(type: .directory, path: "forensic", mode: 0o755, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: 0,
+                                     link: "", xattrs: [], extents: [], sha256: nil)]
+            var at: UInt32 = 0
+            for (name, bytes) in files {
+                var d = XizContentDigest(keys: keys)
+                bytes.withUnsafeBytes { d.update($0) }
+                var e = Xiz.Entry(type: .file, path: name, mode: 0o444, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: UInt64(bytes.count),
+                                  link: "", xattrs: [], extents: bytes.isEmpty ? [] : [Xiz.Extent(frame: frame, offset: at, length: UInt32(bytes.count))],
+                                  sha256: d.finish())
+                e.proof = (XizLeaf.randomSalt(), Xiz.sha256(bytes))
+                entries.append(e)
+                at += UInt32(bytes.count)
+            }
+            return entries
+        }
+
+        func finish(entries: [Xiz.Entry], records: [Record], signer: XizSigner) throws -> Int64 {
+            let block = Block(segment: 0, records: [Record(.frameHashes, FrameHashes(first: 0, hashes: hashes).encoded)] + records).encode()
+            try XizWriter.writeDirectorySegment(groups: [(0, XizAccess.defaultGroup, [])], frames: frames, entries: [0: entries],
+                                                keys: keys.map { [0: $0] } ?? [:], archiveID: archiveID, segment: 0, previousFooter: 0,
+                                                signer: signer, previousSignature: [UInt8](repeating: 0, count: 32),
+                                                forensicBlock: block, to: out)
+            let written = out.position
+            try out.commit(overwrite: false)
+            return written
+        }
     }
 
     // MARK: acquisition of an image (from a file; devices go through the same path in xipper-forensic)
@@ -269,58 +374,12 @@ public enum XizForensic {
                 throw XipperError.invalidArgument("unreadable ranges must be inside the source and not overlap")
             }
         }
-
-        var archiveID = [UInt8](repeating: 0, count: 16)
-        arc4random_buf(&archiveID, 16)
-        var superblock = Xiz.Superblock(archiveID: archiveID)
-        superblock.required.formUnion([.directory, .forensic])
-        superblock.minor = 10
-        var policy = o.access ?? XizAccess()
-        guard policy.groups.isEmpty, !policy.erasable else { throw XipperError.invalidArgument("forensic images use no access groups and no erasable files") }
-        if let pw = o.password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(pw)), at: 0) }
-        let encrypted = !policy.recipients.isEmpty || !policy.thresholds.isEmpty
-        var keys: XizKeys?
-        var keysBlock: [UInt8] = []
-        if encrypted {
-            let k = SymmetricKey(size: .bits256)
-            keys = XizKeys(fileKey: k, archiveID: archiveID)
-            let stanzas = try XizAccessKeys.prepare(policy, groupIDs: [XizAccess.defaultGroup: 0], groupKeys: [0: k], archiveID: archiveID, kdf: .standard)
-            let n = XizAccessKeys.size(stanzas)
-            guard n <= Xiz.maxKeysBlock else { throw XipperError.limitExceeded("too many recipients for one XIZ archive") }
-            superblock.required.insert(.encrypted)
-            superblock.keysLength = UInt32(n)
-            keysBlock = try XizAccessKeys.seal(stanzas, superblock: superblock.encode())
-        }
-        if FileManager.default.fileExists(atPath: path) { throw XipperError.alreadyExists(path: path) }
-        let out = try OutputFile(path: path)
-        try out.write(superblock.encode())
-        if !keysBlock.isEmpty { try out.write(keysBlock) }
-
-        var frames: [Xiz.Frame] = []
-        var hashes: [[UInt8]] = []
-        func writeFrame(_ data: UnsafeRawBufferPointer, compressed: [UInt8]?) throws -> UInt32 {
-            let index = UInt32(frames.count)
-            var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: compressed == nil ? .store : .zstd)
-            var payload = compressed ?? Array(data)
-            if let keys { payload = try keys.sealFrame(payload, index: index, f) }
-            f.csize = UInt32(payload.count)
-            f.crc = Xiz.crc32c(payload)
-            f.offset = out.position
-            let header = Xiz.frameHeader(index: index, f)
-            try out.write(header)
-            try out.write(payload)
-            frames.append(f)
-            hashes.append(FrameHashes.hash(header: header, payload: payload))
-            return index
-        }
-        func compress(_ b: UnsafeRawBufferPointer) -> [UInt8]? {
-            o.level > 0 ? ZipWriter.zstdCompress(b, level: o.level) : nil
-        }
+        let w = try Writer(path: path, password: o.password, access: o.access, level: o.level)
 
         var md5 = o.md5 ? Insecure.MD5() : nil
         var sha1 = o.sha1 ? Insecure.SHA1() : nil
         var sha256 = SHA256()
-        var digest = XizContentDigest(keys: keys)
+        var digest = XizContentDigest(keys: w.keys)
         var extents: [Xiz.Extent] = []
         var zeroFrame: UInt32?
         var zeroBlocks = 0
@@ -354,7 +413,7 @@ public enum XizForensic {
             let packed = Mutex<[Int: [UInt8]]>([:])
             try parallelFor(count, workload: workload, cancel: cancel) { k in
                 guard !zero[k] else { return }
-                if let c = datas[k].withUnsafeBytes({ compress($0) }) { packed.withLock { $0[k] = c } }
+                if let c = datas[k].withUnsafeBytes({ w.compress($0) }) { packed.withLock { $0[k] = c } }
             }
             let p = packed.withLock { $0 }
             for k in 0..<count {
@@ -362,12 +421,12 @@ public enum XizForensic {
                 if zero[k] {
                     if zeroFrame == nil {
                         let zeros = [UInt8](repeating: 0, count: block)
-                        zeroFrame = try zeros.withUnsafeBytes { try writeFrame($0, compressed: compress($0)) }
+                        zeroFrame = try zeros.withUnsafeBytes { try w.writeFrame($0, compressed: w.compress($0)) }
                     }
                     extents.append(Xiz.Extent(frame: zeroFrame!, offset: 0, length: n))
                     zeroBlocks += 1
                 } else {
-                    let i = try datas[k].withUnsafeBytes { try writeFrame($0, compressed: p[k]) }
+                    let i = try datas[k].withUnsafeBytes { try w.writeFrame($0, compressed: p[k]) }
                     extents.append(Xiz.Extent(frame: i, offset: 0, length: n))
                 }
                 tracker.add(bytes: Int64(n))
@@ -392,47 +451,196 @@ public enum XizForensic {
         let logText = Array((log.joined(separator: "\n") + "\n").utf8)
         var device = o.device
         device["path"] = o.name
-        let files: [(String, [UInt8])] = [("forensic/case.json", json(o.caseInfo)), ("forensic/device.json", json(device)),
-                                          ("forensic/acquisition.json", json(acquisition)), ("forensic/log.jsonl", logText)]
-        let meta = files.flatMap(\.1)
-        let metaFrame = try meta.withUnsafeBytes { try writeFrame($0, compressed: compress($0)) }
-
         let mtime = Int64(finished.timeIntervalSince1970)
         var image = Xiz.Entry(type: .file, path: o.name, mode: 0o444, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: size,
                               link: "", xattrs: [], extents: extents, sha256: digest.finish())
         image.proof = (XizLeaf.randomSalt(), sourceSHA)
         image.image = Xiz.Image(logicalSector: o.logicalSector, physicalSector: o.physicalSector, flags: o.volume ? 1 : 0, offset: o.volumeOffset)
-        var entries = [image,
-                       Xiz.Entry(type: .directory, path: "forensic", mode: 0o755, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: 0,
-                                 link: "", xattrs: [], extents: [], sha256: nil)]
-        var at: UInt32 = 0
-        for (name, bytes) in files {
-            var d = XizContentDigest(keys: keys)
-            bytes.withUnsafeBytes { d.update($0) }
-            var e = Xiz.Entry(type: .file, path: name, mode: 0o444, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: UInt64(bytes.count),
-                              link: "", xattrs: [], extents: bytes.isEmpty ? [] : [Xiz.Extent(frame: metaFrame, offset: at, length: UInt32(bytes.count))],
-                              sha256: d.finish())
-            e.proof = (XizLeaf.randomSalt(), Xiz.sha256(bytes))
-            entries.append(e)
-            at += UInt32(bytes.count)
-        }
-
-        var records = [Record(.frameHashes, FrameHashes(first: 0, hashes: hashes).encoded),
-                       Record(.caseInfo, json(o.caseInfo)), Record(.device, json(device)),
+        let entries = try [image] + w.metadata([("forensic/case.json", json(o.caseInfo)), ("forensic/device.json", json(device)),
+                                                ("forensic/acquisition.json", json(acquisition)), ("forensic/log.jsonl", logText)], mtime: mtime)
+        var records = [Record(.caseInfo, json(o.caseInfo)), Record(.device, json(device)),
                        Record(.sourceHashes, SourceHashes(path: o.name, size: size, md5: md5Out, sha1: sha1Out, sha256: sourceSHA,
                                                           started: started, finished: finished).encoded)]
         if !ranges.isEmpty { records.append(Record(.unreadable, Unreadable(path: o.name, ranges: ranges).encoded)) }
         records += [Record(.acquisition, json(acquisition)), Record(.log, logText)]
-        let block0 = Block(segment: 0, records: records).encode()
-        try XizWriter.writeDirectorySegment(groups: [(0, XizAccess.defaultGroup, [])], frames: frames, entries: [0: entries],
-                                            keys: keys.map { [0: $0] } ?? [:], archiveID: archiveID, segment: 0, previousFooter: 0,
-                                            signer: signer, previousSignature: [UInt8](repeating: 0, count: 32),
-                                            forensicBlock: block0, to: out)
-        let written = out.position
-        try out.commit(overwrite: false)
+        let written = try w.finish(entries: entries, records: records, signer: signer)
         tracker.finish()
-        return ImageReport(size: size, archiveBytes: written, sha256: sourceSHA, md5: md5Out, sha1: sha1Out, frames: frames.count,
+        return ImageReport(size: size, archiveBytes: written, sha256: sourceSHA, md5: md5Out, sha1: sha1Out, frames: w.frames.count,
                            zeroBlocks: zeroBlocks, unreadableBytes: unreadableBytes)
+    }
+
+    // MARK: logical acquisition (folders and files)
+
+    public struct LogicalOptions: Sendable {
+        /// Archive folder the sources go into: "evidence/<name of each source>".
+        public var root = "evidence"
+        public var level = 3
+        public var password: String?
+        public var access: XizAccess?
+        public var caseInfo: [String: String] = [:]
+        public var device: [String: String] = [:]
+        public var acquisition: [String: String] = [:]
+        /// Extended attributes (quarantine, Finder tags, resource forks) are evidence too.
+        public var extendedAttributes = true
+        public var now: Date?
+        public init() {}
+    }
+
+    public struct LogicalReport: Sendable {
+        public var files: Int
+        public var folders: Int
+        public var links: Int
+        public var bytes: Int64
+        /// Not acquired: unreadable files and folders, sockets, FIFOs, devices.
+        public var skipped: [(path: String, reason: String)]
+        public var archiveBytes: Int64
+        /// SHA-256 of forensic/inventory.jsonl (in the signed acquisition record).
+        public var inventorySHA256: [UInt8]
+    }
+
+    /// One line of forensic/inventory.jsonl: every item found, acquired or not, with its file-system metadata.
+    struct InventoryItem {
+        var path: String
+        var source: String
+        var kind: String  // file, folder, link, socket, fifo, device, other
+        var st: stat
+        var status = "acquired"
+        var error: String?
+        var link: String?
+    }
+
+    static func scanForensic(_ sources: [URL], root: String) throws -> [InventoryItem] {
+        var out: [InventoryItem] = []
+        var tops = Set<String>()
+        func walk(_ path: String, _ name: String) {
+            var st = stat()
+            guard lstat(path, &st) == 0 else {
+                out.append(InventoryItem(path: name, source: path, kind: "other", st: stat(), status: "skipped", error: String(cString: strerror(errno))))
+                return
+            }
+            switch st.st_mode & S_IFMT {
+            case S_IFREG:
+                var item = InventoryItem(path: name, source: path, kind: "file", st: st)
+                let fd = open(path, O_RDONLY | O_CLOEXEC)
+                if fd < 0 { item.status = "unreadable"; item.error = String(cString: strerror(errno)) } else { close(fd) }
+                out.append(item)
+            case S_IFLNK:
+                var buf = [UInt8](repeating: 0, count: Int(PATH_MAX) + 1)
+                let n = readlink(path, &buf, buf.count - 1)
+                var item = InventoryItem(path: name, source: path, kind: "link", st: st)
+                if n < 0 { item.status = "unreadable"; item.error = String(cString: strerror(errno)) } else { item.link = String(decoding: buf[0..<n], as: UTF8.self) }
+                out.append(item)
+            case S_IFDIR:
+                var item = InventoryItem(path: name, source: path, kind: "folder", st: st)
+                guard let children = try? FileManager.default.contentsOfDirectory(atPath: path) else {
+                    item.status = "unreadable"; item.error = "cannot list the folder"
+                    out.append(item)
+                    return
+                }
+                out.append(item)
+                for c in children.sorted() { walk(path + "/" + c, name + "/" + c) }
+            default:
+                let kind = switch st.st_mode & S_IFMT { case S_IFSOCK: "socket"; case S_IFIFO: "fifo"; case S_IFCHR, S_IFBLK: "device"; default: "other" }
+                out.append(InventoryItem(path: name, source: path, kind: kind, st: st, status: "skipped", error: "special file"))
+            }
+        }
+        for u in sources {
+            let path = u.standardizedFileURL.path
+            let top = (path as NSString).lastPathComponent
+            guard tops.insert(top).inserted else { throw XipperError.invalidArgument("two sources are both named \"\(top)\"") }
+            var st = stat()
+            guard lstat(path, &st) == 0 else { throw XipperError.posix("stat", path) }
+            walk(path, root + "/" + top)
+        }
+        return out
+    }
+
+    static func inventoryLine(_ i: InventoryItem, sha256: [UInt8]?) -> String {
+        func t(_ s: timespec) -> String { timestamp(Date(timeIntervalSince1970: Double(s.tv_sec) + Double(s.tv_nsec) / 1e9)) }
+        var d: [String: String] = ["path": i.path, "kind": i.kind, "status": i.status]
+        if i.st.st_ino != 0 {
+            d["size"] = String(i.st.st_size); d["mode"] = String(i.st.st_mode & 0o7777, radix: 8)
+            d["uid"] = String(i.st.st_uid); d["gid"] = String(i.st.st_gid); d["inode"] = String(i.st.st_ino)
+            d["flags"] = String(i.st.st_flags, radix: 16); d["links"] = String(i.st.st_nlink)
+            d["mtime"] = t(i.st.st_mtimespec); d["ctime"] = t(i.st.st_ctimespec)
+            d["atime"] = t(i.st.st_atimespec); d["birthtime"] = t(i.st.st_birthtimespec)
+        }
+        if let s = sha256 { d["sha256"] = hex(s) }
+        if let e = i.error { d["error"] = e }
+        if let l = i.link { d["target"] = l }
+        return String(decoding: json(d), as: UTF8.self)
+    }
+
+    /// Writes a forensic XIZ holding `sources` (files and folders) under `options.root`, with
+    /// forensic/inventory.jsonl listing every item found (acquired or not) with its metadata and SHA-256.
+    public static func acquireLogical(_ sources: [URL], to path: String, options o: LogicalOptions, signer: XizSigner,
+                                      workload: Workload = .interactive, progress: ProgressHandler? = nil,
+                                      cancel: CancellationToken? = nil) throws -> LogicalReport {
+        guard !sources.isEmpty else { throw XipperError.invalidArgument("nothing to acquire") }
+        guard !o.root.isEmpty, o.root != "forensic", MountedArchive.normalize(o.root) == o.root else {
+            throw XipperError.invalidArgument("invalid root folder \(o.root)")
+        }
+        let started = o.now ?? Date()
+        let inventory = try scanForensic(sources, root: o.root)
+        let total = inventory.reduce(Int64(0)) { $0 + ($1.kind == "file" && $1.status == "acquired" ? Int64($1.st.st_size) : 0) }
+        let tracker = ProgressTracker(totalBytes: total, totalEntries: inventory.count, handler: progress)
+        var items: [ArchiveItem] = []
+        for i in inventory where i.status == "acquired" {
+            let modified = Date(timeIntervalSince1970: Double(i.st.st_mtimespec.tv_sec) + Double(i.st.st_mtimespec.tv_nsec) / 1e9)
+            let kind: ArchiveItem.Kind
+            switch i.kind {
+            case "file": kind = .file(size: Int64(i.st.st_size))
+            case "folder": kind = .directory
+            case "link": kind = .symlink(target: i.link ?? "")
+            default: continue
+            }
+            items.append(ArchiveItem(name: i.path, sourcePath: i.source, kind: kind, permissions: UInt16(i.st.st_mode & 0o7777),
+                                     modified: modified, uid: i.st.st_uid, gid: i.st.st_gid))
+        }
+        let w = try Writer(path: path, password: o.password, access: o.access, level: o.level)
+        let (frames, written) = try XizWriter.writeData(items, to: w.out, startFrame: 0, known: [:], keys: w.keys, group: 0, proofs: true,
+                                                        level: o.level, extendedAttributes: o.extendedAttributes, workload: workload,
+                                                        tracker: tracker, cancel: cancel)
+        try w.adopt(frames)
+        let finished = o.now ?? Date()
+        // Plain SHA-256 of each file from its proof data (§13.6), for the inventory.
+        var shaByPath: [String: [UInt8]] = [:]
+        for e in written where e.type == .file { if let p = e.proof { shaByPath[e.path] = p.sha256 } }
+        let lines = inventory.map { inventoryLine($0, sha256: $0.kind == "file" ? shaByPath[$0.path] : nil) }
+        let inventoryText = Array((lines.joined(separator: "\n") + "\n").utf8)
+        let inventorySHA = Xiz.sha256(inventoryText)
+        let skipped = inventory.filter { $0.status != "acquired" }.map { ($0.path, $0.error ?? $0.status) }
+        let files = inventory.filter { $0.kind == "file" && $0.status == "acquired" }.count
+        let folders = inventory.filter { $0.kind == "folder" && $0.status == "acquired" }.count
+        let links = inventory.filter { $0.kind == "link" && $0.status == "acquired" }.count
+
+        var acquisition = o.acquisition
+        acquisition["tool"] = acquisition["tool"] ?? "xipper-forensic"
+        acquisition["method"] = "logical"
+        acquisition["started"] = timestamp(started)
+        acquisition["finished"] = timestamp(finished)
+        acquisition["sources"] = sources.map(\.lastPathComponent).joined(separator: ", ")
+        acquisition["files"] = String(files)
+        acquisition["bytes"] = String(total)
+        acquisition["skipped"] = String(skipped.count)
+        acquisition["inventory_sha256"] = hex(inventorySHA)
+        var log = [logLine("acquisition started", ["sources": acquisition["sources"]!, "items": String(inventory.count)], at: started)]
+        for s in skipped { log.append(logLine("not acquired", ["path": s.0, "reason": s.1], at: finished)) }
+        log.append(logLine("acquisition finished", ["files": String(files), "bytes": String(total), "inventory_sha256": hex(inventorySHA)], at: finished))
+        let logText = Array((log.joined(separator: "\n") + "\n").utf8)
+        let mtime = Int64(finished.timeIntervalSince1970)
+        let meta = try w.metadata([("forensic/case.json", json(o.caseInfo)), ("forensic/device.json", json(o.device)),
+                                   ("forensic/acquisition.json", json(acquisition)), ("forensic/inventory.jsonl", inventoryText),
+                                   ("forensic/log.jsonl", logText)], mtime: mtime)
+        // Folders between the root and the sources ("evidence") are listed before their content.
+        let rootEntry = Xiz.Entry(type: .directory, path: o.root, mode: 0o755, uid: 0, gid: 0, mtimeSec: mtime, mtimeNsec: 0, size: 0,
+                                  link: "", xattrs: [], extents: [], sha256: nil)
+        let records = [Record(.caseInfo, json(o.caseInfo)), Record(.device, json(o.device)), Record(.acquisition, json(acquisition)),
+                       Record(.log, logText)]
+        let size = try w.finish(entries: [rootEntry] + written + meta, records: records, signer: signer)
+        tracker.finish()
+        return LogicalReport(files: files, folders: folders, links: links, bytes: total, skipped: skipped, archiveBytes: size,
+                             inventorySHA256: inventorySHA)
     }
 
     // MARK: segments
@@ -653,7 +861,7 @@ public enum XizForensic {
             for r in b.records(.unreadable) { if let u = try? Unreadable(r.value) { unreadable[u.path] = u } }
         }
         if sb.required.contains(.encrypted) && password == nil && XizCredentials.shared.passwords.isEmpty && XizCredentials.shared.identities.isEmpty {
-            add("images", .skipped, "encrypted: the content needs the password or a recipient key")
+            add("content", .skipped, "encrypted: images and files need the password or a recipient key")
         } else {
             do {
                 let a = try XizArchive(path: path, password: password)
@@ -664,8 +872,18 @@ public enum XizForensic {
                     if r.failures.isEmpty { lines.append("\(e.path): SHA-256 \(hex(r.sha256))") } else { fails += r.failures.map { "\(e.path): \($0)" } }
                     if let x = expectSHA256, x == r.sha256 { lines.append("\(e.path) matches the expected SHA-256") }
                 }
-                if images.isEmpty { add("images", .skipped, "no image (logical acquisition)") }
-                else { add("images", fails.isEmpty ? .passed : .failed, fails.isEmpty ? lines.joined(separator: "; ") : fails.joined(separator: "; ")) }
+                if !images.isEmpty {
+                    add("images", fails.isEmpty ? .passed : .failed, fails.isEmpty ? lines.joined(separator: "; ") : fails.joined(separator: "; "))
+                }
+                // Logical acquisitions: the inventory is the signed one, each file matches it.
+                let inventorySHA = blocks.flatMap { $0.records(.acquisition) }.compactMap { $0.json["inventory_sha256"] }.last
+                if let inventorySHA {
+                    let r = try checkInventory(a, signedSHA256: inventorySHA, workload: workload, cancel: cancel)
+                    add("files", r.failures.isEmpty ? .passed : .failed,
+                        r.failures.isEmpty ? "\(r.files) files match the signed inventory" : r.failures.prefix(10).joined(separator: "; "))
+                } else if images.isEmpty {
+                    add("files", .failed, "neither images nor a signed inventory")
+                }
                 if let x = expectSHA256 {
                     let ok = images.contains { sources[$0.path]?.sha256 == x }
                     add("expected SHA-256", ok ? .passed : .failed, ok ? hex(x) : "\(hex(x)) is not the SHA-256 of any image")
@@ -675,6 +893,48 @@ public enum XizForensic {
             }
         }
         return Report(checks: checks, signatures: sigs, blocks: blocks)
+    }
+
+    /// forensic/inventory.jsonl against the SHA-256 in the signed acquisition record, then every
+    /// acquired file's content against its line.
+    static func checkInventory(_ a: XizArchive, signedSHA256: String, workload: Workload,
+                               cancel: CancellationToken?) throws -> (files: Int, failures: [String]) {
+        guard let inv = a.catalog.entries.first(where: { $0.path == "forensic/inventory.jsonl" }) else { return (0, ["no forensic/inventory.jsonl"]) }
+        let cache = FrameCache(a, workload: workload, cancel: cancel)
+        func content(_ e: Xiz.Entry) throws -> (sha: [UInt8], bytes: [UInt8]?) {
+            var sha = SHA256()
+            var bytes: [UInt8]? = e.path == inv.path ? [] : nil
+            try XizExtractor.stream(e, from: a, cache: cache, window: 8, evictable: { _ in true }) { piece in
+                sha.update(bufferPointer: piece)
+                bytes?.append(contentsOf: piece)
+            }
+            return (Array(sha.finalize()), bytes)
+        }
+        let (invSHA, invBytes) = try content(inv)
+        guard hex(invSHA) == signedSHA256 else { return (0, ["forensic/inventory.jsonl differs from the signed inventory"]) }
+        var expected: [String: String] = [:]
+        for line in (invBytes ?? []).split(separator: UInt8(ascii: "\n")) {
+            guard let o = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: String] else { return (0, ["inventory line unreadable"]) }
+            if o["kind"] == "file", o["status"] == "acquired", let p = o["path"] { expected[p] = o["sha256"] ?? "" }
+        }
+        var failures: [String] = []
+        var files = 0
+        let entries = Dictionary(a.catalog.entries.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+        for (path, sha) in expected.sorted(by: { $0.key < $1.key }) {
+            try cancel?.check()
+            guard let e = entries[path], e.type == .file else { failures.append("\(path): listed but not in the archive"); continue }
+            do {
+                if try hex(content(e).sha) != sha { failures.append("\(path): SHA-256 differs from the inventory") }
+            } catch {
+                failures.append("\(path): \(error)")
+            }
+            files += 1
+        }
+        let listed = Set(expected.keys)
+        for e in a.catalog.entries where e.type == .file && !e.path.hasPrefix("forensic/") && !listed.contains(e.path) {
+            failures.append("\(e.path): in the archive but not in the inventory")
+        }
+        return (files, failures)
     }
 
     static func checkImage(_ e: Xiz.Entry, _ a: XizArchive, source: SourceHashes?, unreadable: Unreadable?,

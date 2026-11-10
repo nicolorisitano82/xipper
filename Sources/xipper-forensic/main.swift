@@ -1,16 +1,27 @@
 // xipper-forensic: acquisition, custody and verification of evidence in forensic XIZ archives
 // (XIZ 1.10 profile, docs/XIZ_SPEC.md §20; product study in docs/XIPPER_FORENSIC.md).
-// Alias: xfor. This first version acquires from image files; devices come with the helper (P4).
+// Alias: xfor. This version acquires image files and folders; devices come with the helper (P4).
+import ForensicKit
 import Foundation
 import XipperKit
 
-let version = "0.1.0-dev"
+let version = ForensicReport.toolVersion
 let usage = """
 xipper-forensic \(version) — evidence in forensic XIZ archives (XIZ 1.10)
 
 usage:
-  xipper-forensic acquire --image SOURCE -o OUT.xiz --sign KEY [options]
+  xipper-forensic case new DIR.xfcase --case N --sign KEY [--examiner NAME --organization NAME
+                                        --title T --court T --proceeding T --notes T]
+  xipper-forensic case show DIR.xfcase [--json]      the record, the evidence and the log
+  xipper-forensic case verify DIR.xfcase             log chain and signatures, case record, archives
+  xipper-forensic case note DIR.xfcase --text T --sign KEY
+
+  xipper-forensic acquire --image SOURCE (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
+  xipper-forensic acquire --logical PATH... (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
+      with --in the archive goes to DIR/evidence/R01/R01.xiz with a signed report, and every
+      step goes into the case log; the case record fills the case fields
       --name PATH            path of the image in the archive (default image.dd)
+      --no-xattrs            logical: leave extended attributes out
       --case N  --evidence N  --examiner NAME  --organization NAME  --location TEXT
       --description TEXT  --notes TEXT
       --device-model T  --device-serial T  --device-interface T  --write-blocker T
@@ -22,6 +33,9 @@ usage:
       --password-env VAR | --password-stdin   encrypt the archive
       --time ISO8601         fixed time (reproducible test vectors)
   xipper-forensic custody ARCHIVE --from NAME --to NAME --sign KEY [--reason T] [--seals T] [--notes T]
+  xipper-forensic custody --in DIR.xfcase --evidence-id R01 --from NAME --to NAME --sign KEY [...]
+  xipper-forensic report ARCHIVE [-o REPORT.json] [--sign KEY] [--password-env VAR | --password-stdin]
+  xipper-forensic report --check REPORT.json         the report's detached signature
   xipper-forensic verify ARCHIVE [--expect-sha256 HEX] [--password-env VAR | --password-stdin] [--json]
   xipper-forensic info ARCHIVE [--json]
 
@@ -111,53 +125,207 @@ if command == "help" || command == "--help" || command == "-h" { print(usage); e
 
 switch command {
 case "acquire":
-    guard let source = value("--image") else { fail("acquire needs --image SOURCE (devices come with xipper-forensic 1.0)", code: 2) }
-    guard let out = value("-o") ?? value("--output") else { fail("acquire needs -o OUT.xiz", code: 2) }
-    var o = XizForensic.ImageOptions()
-    o.name = value("--name") ?? o.name
+    let image = value("--image")
+    var logical: [String] = []
+    if flag("--logical") {
+        while let f = args.first, !f.hasPrefix("-") { logical.append(f); args.removeFirst() }
+        guard !logical.isEmpty else { fail("--logical needs at least one file or folder", code: 2) }
+    }
+    guard (image == nil) != logical.isEmpty else { fail("acquire needs --image SOURCE or --logical PATH... (devices come with xipper-forensic 1.0)", code: 2) }
+    let out = value("-o") ?? value("--output")
+    let caseDir = value("--in")
+    guard (out == nil) != (caseDir == nil) else { fail("acquire needs -o OUT.xiz or --in DIR.xfcase", code: 2) }
+    var caseInfo: [String: String] = [:], device: [String: String] = [:], acquisition: [String: String] = [:]
     let caseKeys = ["case": "case_number", "evidence": "evidence_number", "examiner": "examiner", "organization": "organization",
                     "location": "location", "description": "description", "notes": "notes"]
-    for (opt, key) in caseKeys { if let v = value("--" + opt) { o.caseInfo[key] = v } }
+    for (opt, key) in caseKeys { if let v = value("--" + opt) { caseInfo[key] = v } }
     let deviceKeys = ["device-model": "model", "device-serial": "serial", "device-interface": "interface", "write-blocker": "write_blocker"]
-    for (opt, key) in deviceKeys { if let v = value("--" + opt) { o.device[key] = v } }
-    if let v = value("--sector") { guard let n = UInt32(v) else { fail("--sector N", code: 2) }; o.logicalSector = n; o.physicalSector = n }
-    if let v = value("--physical-sector") { guard let n = UInt32(v) else { fail("--physical-sector N", code: 2) }; o.physicalSector = n }
-    if let v = value("--volume") { guard let n = UInt64(v) else { fail("--volume OFFSET", code: 2) }; o.volume = true; o.volumeOffset = n }
-    if let v = value("--level") { guard let n = Int(v), (0...19).contains(n) else { fail("--level 0…19", code: 2) }; o.level = n }
-    if flag("--no-md5") { o.md5 = false }
-    if flag("--no-sha1") { o.sha1 = false }
-    for r in values("--unreadable") {
-        let p = r.split(separator: ":")
-        guard p.count == 2, let off = UInt64(p[0]), let len = UInt64(p[1]) else { fail("--unreadable OFFSET:LENGTH", code: 2) }
-        o.unreadable.append(.init(offset: off, length: len))
+    for (opt, key) in deviceKeys { if let v = value("--" + opt) { device[key] = v } }
+    var level = 3
+    if let v = value("--level") { guard let n = Int(v), (0...19).contains(n) else { fail("--level 0…19", code: 2) }; level = n }
+    acquisition["tool_version"] = version
+    acquisition["os"] = ProcessInfo.processInfo.operatingSystemVersionString
+    let now = date(value("--time"))
+    let evidenceID = value("--evidence-id")
+    let forensicCase: ForensicCase? = caseDir.map { d in
+        do { return try ForensicCase(at: URL(fileURLWithPath: d)) } catch { fail("\(error)") }
     }
-    o.now = date(value("--time"))
-    o.password = password()
-    o.acquisition["tool_version"] = version
-    o.acquisition["os"] = ProcessInfo.processInfo.operatingSystemVersionString
-    let s = signer()
-    done()
-    do {
-        let r = try XizForensic.acquireImage(from: source, to: out, options: o, signer: s)
-        print("acquired \(r.size) bytes into \(out) (\(r.archiveBytes) bytes, \(r.frames) frames, \(r.zeroBlocks) zero blocks)")
-        print("SHA-256  \(XizForensic.hex(r.sha256))")
-        if let m = r.md5 { print("MD5      \(XizForensic.hex(m))") }
-        if let h = r.sha1 { print("SHA-1    \(XizForensic.hex(h))") }
-        if r.unreadableBytes > 0 { print("unreadable: \(r.unreadableBytes) bytes filled with zeros (listed in the archive)") }
-    } catch { fail("\(error)") }
+    if let image {
+        var o = XizForensic.ImageOptions()
+        o.caseInfo = caseInfo; o.device = device; o.acquisition = acquisition; o.level = level; o.now = now
+        o.name = value("--name") ?? o.name
+        if let v = value("--sector") { guard let n = UInt32(v) else { fail("--sector N", code: 2) }; o.logicalSector = n; o.physicalSector = n }
+        if let v = value("--physical-sector") { guard let n = UInt32(v) else { fail("--physical-sector N", code: 2) }; o.physicalSector = n }
+        if let v = value("--volume") { guard let n = UInt64(v) else { fail("--volume OFFSET", code: 2) }; o.volume = true; o.volumeOffset = n }
+        if flag("--no-md5") { o.md5 = false }
+        if flag("--no-sha1") { o.sha1 = false }
+        for r in values("--unreadable") {
+            let p = r.split(separator: ":")
+            guard p.count == 2, let off = UInt64(p[0]), let len = UInt64(p[1]) else { fail("--unreadable OFFSET:LENGTH", code: 2) }
+            o.unreadable.append(.init(offset: off, length: len))
+        }
+        o.password = password()
+        let s = signer()
+        done()
+        do {
+            let r: XizForensic.ImageReport
+            var target = out ?? ""
+            if let forensicCase {
+                let (e, rep) = try forensicCase.acquireImage(from: image, evidence: evidenceID ?? forensicCase.nextEvidenceID(), options: o, signer: s)
+                r = rep
+                target = e.archive.path
+            } else {
+                r = try XizForensic.acquireImage(from: image, to: target, options: o, signer: s)
+            }
+            print("acquired \(r.size) bytes into \(target) (\(r.archiveBytes) bytes, \(r.frames) frames, \(r.zeroBlocks) zero blocks)")
+            print("SHA-256  \(XizForensic.hex(r.sha256))")
+            if let m = r.md5 { print("MD5      \(XizForensic.hex(m))") }
+            if let h = r.sha1 { print("SHA-1    \(XizForensic.hex(h))") }
+            if r.unreadableBytes > 0 { print("unreadable: \(r.unreadableBytes) bytes filled with zeros (listed in the archive)") }
+        } catch { fail("\(error)") }
+    } else {
+        var o = XizForensic.LogicalOptions()
+        o.caseInfo = caseInfo; o.device = device; o.acquisition = acquisition; o.level = level; o.now = now
+        if flag("--no-xattrs") { o.extendedAttributes = false }
+        o.password = password()
+        let s = signer()
+        done()
+        let urls = logical.map { URL(fileURLWithPath: $0) }
+        do {
+            let r: XizForensic.LogicalReport
+            var target = out ?? ""
+            if let forensicCase {
+                let (e, rep) = try forensicCase.acquireLogical(urls, evidence: evidenceID ?? forensicCase.nextEvidenceID(), options: o, signer: s)
+                r = rep
+                target = e.archive.path
+            } else {
+                r = try XizForensic.acquireLogical(urls, to: target, options: o, signer: s)
+            }
+            print("acquired \(r.files) files, \(r.folders) folders, \(r.links) links, \(r.bytes) bytes into \(target) (\(r.archiveBytes) bytes)")
+            print("inventory SHA-256  \(XizForensic.hex(r.inventorySHA256))")
+            if !r.skipped.isEmpty {
+                print("not acquired: \(r.skipped.count) (listed in forensic/inventory.jsonl)")
+                for x in r.skipped.prefix(20) { print("  \(x.path): \(x.reason)") }
+            }
+        } catch { fail("\(error)") }
+    }
 
 case "custody":
-    guard let archive = args.first, !archive.hasPrefix("-") else { fail("custody needs the archive", code: 2) }
-    args.removeFirst()
+    var archive = ""
+    var forensicCase: ForensicCase?
+    if let d = value("--in") {
+        do { forensicCase = try ForensicCase(at: URL(fileURLWithPath: d)) } catch { fail("\(error)") }
+    } else {
+        guard let a = args.first, !a.hasPrefix("-") else { fail("custody needs the archive (or --in DIR.xfcase --evidence-id R01)", code: 2) }
+        args.removeFirst()
+        archive = a
+    }
+    let evidenceID = value("--evidence-id")
     guard let from = value("--from"), let to = value("--to") else { fail("custody needs --from and --to", code: 2) }
-    var c = ["from": from, "to": to]
+    var c: [String: String] = [:]
     for k in ["reason", "seals", "notes"] { if let v = value("--" + k) { c[k] = v } }
     let now = date(value("--time"))
+    let pw = password()
     let s = signer()
     done()
     do {
-        try XizForensic.appendCustody(to: archive, custody: c, signer: s, now: now)
+        if let forensicCase {
+            guard let id = evidenceID else { fail("custody --in needs --evidence-id", code: 2) }
+            try forensicCase.custody(evidence: id, from: from, to: to, fields: c, signer: s, password: pw, now: now)
+        } else {
+            try XizForensic.appendCustody(to: archive, custody: c.merging(["from": from, "to": to], uniquingKeysWith: { _, n in n }), signer: s, now: now)
+        }
         print("custody recorded: \(from) → \(to), signed by \(s.label)")
+    } catch { fail("\(error)") }
+
+case "case":
+    guard let sub = args.first else { fail("case new | show | verify | note", code: 2) }
+    args.removeFirst()
+    guard let dir = args.first, !dir.hasPrefix("-") else { fail("case \(sub) needs the case folder", code: 2) }
+    args.removeFirst()
+    let url = URL(fileURLWithPath: dir)
+    switch sub {
+    case "new":
+        var info: [String: String] = [:]
+        let keys = ["case": "case_number", "examiner": "examiner", "organization": "organization", "title": "title",
+                    "court": "court", "proceeding": "proceeding", "location": "location", "notes": "notes"]
+        for (opt, key) in keys { if let v = value("--" + opt) { info[key] = v } }
+        guard info["case_number"] != nil else { fail("case new needs --case NUMBER", code: 2) }
+        let now = date(value("--time"))
+        let s = signer()
+        done()
+        do {
+            _ = try ForensicCase.create(at: url, info: info, signer: s, now: now)
+            print("case \(info["case_number"]!) created in \(url.path)")
+        } catch { fail("\(error)") }
+    case "note":
+        guard let text = value("--text") else { fail("case note needs --text", code: 2) }
+        let now = date(value("--time"))
+        let s = signer()
+        done()
+        do { try ForensicCase(at: url).log("note", ["text": text], signer: s, now: now) } catch { fail("\(error)") }
+    case "show":
+        let json = flag("--json")
+        done()
+        do {
+            let c = try ForensicCase(at: url)
+            let info = try c.info, ev = try c.evidence(), log = try c.entries()
+            if json {
+                printJSON(["case": info, "evidence": ev.map { ["id": $0.id, "archive": $0.archive.path] },
+                           "log": log.map { ["seq": $0.seq, "t": $0.time, "event": $0.event, "by": $0.by, "fields": $0.fields] as [String: Any] }])
+            } else {
+                print("case " + info.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ", "))
+                for e in ev { print("evidence \(e.id): \(e.archive.lastPathComponent)") }
+                for l in log {
+                    print("  \(l.seq)  \(l.time)  \(l.by): \(l.event)  " + l.fields.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
+                }
+            }
+        } catch { fail("\(error)") }
+    case "verify":
+        done()
+        do {
+            let c = try ForensicCase(at: url)
+            let v = try c.verify()
+            print("log: \(v.entries) entries, signed by " + v.signers.values.sorted().joined(separator: ", "))
+            for p in v.problems { print("FAIL  \(p)") }
+            var ok = v.passed
+            for e in try c.evidence() {
+                let r = try XizForensic.verify(e.archive.path)
+                let sig = (try? ForensicReport.verifySignature(e.report))?.valid ?? false
+                print("\(r.passed ? "ok  " : "FAIL")  \(e.id): archive \(r.passed ? "verified" : "FAILED"), report signature \(sig ? "valid" : "INVALID or missing")")
+                ok = ok && r.passed && sig
+            }
+            print(ok ? "case verified" : "CASE VERIFICATION FAILED")
+            exit(ok ? 0 : 1)
+        } catch { fail("\(error)") }
+    default:
+        fail("unknown case command \(sub)", code: 2)
+    }
+
+case "report":
+    if let r = value("--check") {
+        done()
+        do {
+            let s = try ForensicReport.verifySignature(URL(fileURLWithPath: r))
+            print(s.valid ? "signature valid: \(s.signer) \(s.key)" : "SIGNATURE INVALID (\(s.signer) \(s.key))")
+            exit(s.valid ? 0 : 1)
+        } catch { fail("\(error)") }
+    }
+    guard let archive = args.first, !archive.hasPrefix("-") else { fail("report needs the archive", code: 2) }
+    args.removeFirst()
+    let out = value("-o") ?? value("--output")
+    let pw = password()
+    let s: XizSigner? = args.contains("--sign") ? signer() : nil
+    done()
+    do {
+        let u = URL(fileURLWithPath: archive)
+        if let out {
+            try ForensicReport.write(archive: u, to: URL(fileURLWithPath: out), password: pw, signer: s)
+            print("report written to \(out)\(s == nil ? "" : " (signed)")")
+        } else {
+            let o = try ForensicReport.build(archive: u, password: pw)
+            printJSON(o)
+        }
     } catch { fail("\(error)") }
 
 case "verify":

@@ -60,7 +60,7 @@ struct XizForensicTests {
         try XizForensic.appendCustody(to: out, custody: ["from": "Laboratorio", "to": "Tribunale"], signer: Self.courier)
         let blind = try XizForensic.verify(out)
         #expect(blind.passed, "\(blind.checks)")
-        #expect(status(blind, "images") == .skipped)
+        #expect(status(blind, "content") == .skipped)
         #expect(blind.signatures.map(\.label) == ["Esaminatore", "Corriere", "Corriere"])
         #expect(blind.signatures.allSatisfy { $0.valid && $0.chained })
         let full = try XizForensic.verify(out, password: "segreto")

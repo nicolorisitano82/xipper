@@ -33,6 +33,7 @@ let package = Package(
     products: [
         .library(name: "XipperKit", targets: ["XipperKit"]),
         .library(name: "XipperMCP", targets: ["XipperMCP"]),
+        .library(name: "ForensicKit", targets: ["ForensicKit"]),
         .executable(name: "xipper", targets: ["xipper"]),
         .executable(name: "xipper-forensic", targets: ["xipper-forensic"]),
     ],
@@ -168,9 +169,13 @@ let package = Package(
             dependencies: ["XipperKit", "XipperMCP"]
         ),
         // xipper-forensic (docs/XIPPER_FORENSIC.md): evidence in forensic XIZ archives (XIZ 1.10, §20).
+        .target(
+            name: "ForensicKit",
+            dependencies: ["XipperKit"]
+        ),
         .executableTarget(
             name: "xipper-forensic",
-            dependencies: ["XipperKit"]
+            dependencies: ["XipperKit", "ForensicKit"]
         ),
         // Sandboxed helper that runs the external decoders (RAR) for the app and the CLI (IsolatedDecoder.swift).
         .executableTarget(
@@ -184,7 +189,7 @@ let package = Package(
         ),
         .testTarget(
             name: "XipperKitTests",
-            dependencies: ["XipperKit", "XipperMCP", "CLZMA", "xipper-decoder"],
+            dependencies: ["XipperKit", "XipperMCP", "CLZMA", "xipper-decoder", "ForensicKit"],
             exclude: ["Fixtures"]
         ),
     ],
