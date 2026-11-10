@@ -300,7 +300,7 @@ Aggiornato il 02/11/2026, dallo studio [Algoritmi e funzioni per Xipper](reports
   - corretti testi che non passavano dalla traduzione (conteggi dei file, riepiloghi di estrazione e creazione) e pulsanti che andavano a capo con parole lunghe;
   - da fare: revisione delle traduzioni da madrelingua, frasi Siri delle scorciatoie nelle nuove lingue, prova con VoiceOver acceso.
 
-### 3.0 — post-quantum, versioni, codec Apple, documenti più piccoli, poco spazio
+### 3.0 — pubblicata il 10/11/2026 (v3.0.0): post-quantum, versioni, codec Apple, documenti più piccoli, poco spazio
 Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.7; il formato cresce per bit di feature (XIZ 1.7, 1.8, 1.9), così gli archivi che non usano le novità restano leggibili dalle versioni precedenti.
 
 **Verifiche fatte prima del piano** (SDK MacOSX27.0, Xcode 27):
@@ -372,8 +372,10 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
   - la cronologia del nuovo archivio (`xipper versions`) mostra un passo per ogni blocco.
 - **cancello, spostato alla 3.1 (decisione del 10/11/2026):** F esce nella 3.0 provata con `kill -9`. `kill -9` non perde ciò che il processo ha già passato al kernel, quindi verifica l'ordine di scritture, registro e rilasci, non un'interruzione di corrente. Per quella serve una VM macOS (Virtualization.framework) da spegnere di colpo molte volte, e serve scaricare l'immagine di macOS (IPSW, circa 18 GB).
 
-##### G. Rilascio
-- versione 3.0.0, note utente, DMG, release; prove a mano rimaste dalla 2.7 (RAR e 7z grandi, JPEG, VoiceOver).
+##### G. Rilascio — ✅ (10/11/2026)
+- ✅ versione 3.0.0, note utente (LEGGIMI, README), DMG self-signed, release su GitHub;
+- ✅ 329 test automatici, libxiz verde, 60 conversioni con poco spazio interrotte con `kill -9`;
+- da provare a mano dopo l'uscita: quelle rimaste dalla 2.7 (RAR e 7z grandi, JPEG, VoiceOver), più il foglio «Cambia formato» con poco spazio, il banner «Riprendi» e la sezione «Versioni».
 
 #### Decisioni da prendere
 1. ~~Rust o C++ per preflate~~: preflate in C++ (10/11/2026).

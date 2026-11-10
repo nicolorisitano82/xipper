@@ -1,4 +1,4 @@
-# Xipper 2.7
+# Xipper 3.0
 
 *[Italiano](LEGGIMI.md) · English*
 
@@ -25,7 +25,11 @@ Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 
 - **Mount as a volume:** the **Mount** button (or Finder › Xipper › Mount as a Volume). The archive appears in `/Volumes`; open and edit it in the Finder, and when you eject it Xipper asks whether to save the changes.
 - **Verify and repair:** **Verify** checks integrity without writing anything. **Create Recovery Data** (inspector) writes PAR2 files next to the archive; if the archive ever gets damaged, **Repair** rebuilds it, even when data was shifted by an insertion or a deletion. In XIZ archives the recovery data can live inside the archive (Settings › General › Recovery Data), with an optional monthly background check.
 - **Smaller photos:** with Settings › Formats › XIZ › «Smaller JPEG photos», JPEG files take about 20% less space and extract identical byte for byte (archives readable by Xipper 2.7 and later).
-- **XIZ for sensitive data:** with the XIZ format, the **Access** button sets reserved folders, who opens what (password or public key), groups of custodians (for example 2 of 3 must unlock together), erasable files and your signature. Your keys live in the Keychain (**Settings › Keys**, Touch ID). In an archive, the inspector shows the signed history; right-click a file for **Create Proof of Inclusion…** or **Erase Permanently…**; **File › Verify Proof of Inclusion…** checks a proof. The same from the command line: give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, sign every change so `xipper history` shows who changed what and when, prove that one file belongs to the archive without handing over the rest (`prove`, `verify-proof`), and erase a file for good (`erase`, in archives created as erasable; copies made before keep it). `xipper help` lists the options.
+- **Smaller PNGs, PDFs and documents:** with Settings › Formats › XIZ › «Smaller PNGs, PDFs and documents» Xipper recompresses the data inside PNG images, PDFs and Office and EPUB documents: on real files PNGs take about 30% less space, PDFs 17%, documents 13%, and they extract identical byte for byte (archives readable by Xipper 3.0 and later).
+- **Apple codecs:** on macOS 27, Settings › Formats › XIZ › «Apple codecs (LZRAVEN and LZMESH)» uses Apple's compressors: archives smaller than LZMA2 at the Maximum level, faster to open at the other levels. They can be read on macOS 27 only.
+- **Versions:** every change to a XIZ archive keeps its previous version. In the inspector, the **Versions** section opens the archive as it was, read-only; **Update from a Folder…** adds new or changed files and removes the ones that are gone (also from the command line: `xipper versions`, `xipper update`).
+- **Change format with little space:** from ZIP or 7z to XIZ, **Change Format…** offers «Convert with Little Free Space» when the disk cannot hold both archives: Xipper converts one batch at a time and frees the original's space as it goes; the original is deleted at the end. If it stops, even because of a power cut, reopening the original lets Xipper resume where it left off.
+- **XIZ for sensitive data:** with the XIZ format, the **Access** button sets reserved folders, who opens what (password or public key), groups of custodians (for example 2 of 3 must unlock together), erasable files and your signature. Your keys live in the Keychain (**Settings › Keys**, Touch ID); new identities are post-quantum (X-Wing: ML-KEM-768 + X25519), so an archive recorded today stays protected from future quantum computers. In an archive, the inspector shows the signed history; right-click a file for **Create Proof of Inclusion…** or **Erase Permanently…**; **File › Verify Proof of Inclusion…** checks a proof. The same from the command line: give each person access only to their folders (password or public key), require 2 of 3 custodians to open a part, sign every change so `xipper history` shows who changed what and when, prove that one file belongs to the archive without handing over the rest (`prove`, `verify-proof`), and erase a file for good (`erase`, in archives created as erasable; copies made before keep it). `xipper help` lists the options.
 - **Genomics:**
   - BGZF compatible with `bgzip`;
   - **CRAM 3.1**: open a `.cram` or `.bam` and use **Convert to BAM…** / **Convert to CRAM…** with the reference FASTA (CRAM is usually 30–50% smaller than BAM, and samtools reads it);
@@ -52,7 +56,7 @@ Finder actions always create new files next to the originals and never overwrite
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.
 
 ## Acknowledgements
-Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli): the licenses are in **Xipper › Acknowledgements**.
+Xipper includes open-source code (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli, preflate): the licenses are in **Xipper › Acknowledgements**.
 
 ## Updates
 Once a day Xipper asks GitHub whether there is a new version (also from **Xipper › Check for Updates…**). It downloads it only if you say so, checks its SHA-256 and opens the disk image: drag Xipper into **Applications** as the first time.
