@@ -28,6 +28,7 @@ enum PrefKey {
     static let xizLZMA2 = "xizLZMA2"
     static let xizAppleCodecs = "xizAppleCodecs"
     static let xizJPEG = "xizJPEG"
+    static let xizDocuments = "xizDocuments"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
@@ -102,6 +103,7 @@ enum Preferences {
             PrefKey.xizLZMA2: false,
             PrefKey.xizAppleCodecs: false,
             PrefKey.xizJPEG: false,
+            PrefKey.xizDocuments: false,
             PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,
@@ -140,6 +142,8 @@ enum Preferences {
         }
         // XIZ 1.6: JPEG photos recompressed with brunsli, at every level that compresses.
         if format == .xiz, defaults.bool(forKey: PrefKey.xizJPEG) { o.xizJPEG = true }
+        // XIZ 1.9: PNG, PDF and Office documents with their Deflate streams recompressed.
+        if format == .xiz, defaults.bool(forKey: PrefKey.xizDocuments) { o.xizDocuments = true }
         o.workload = workload
         return o
     }

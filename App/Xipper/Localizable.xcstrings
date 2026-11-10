@@ -17663,6 +17663,87 @@
         }
       }
     },
+    "Immagini PNG, PDF e documenti Office ed EPUB circa il 15% più piccoli senza perdere nulla: all'estrazione ogni file torna identico byte per byte. Compressione ed estrazione di questi file più lente. Si leggono solo con Xipper 3.0 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG-Bilder, PDFs sowie Office- und EPUB-Dokumente etwa 15 % kleiner, ohne Verlust: Beim Entpacken ist jede Datei Byte für Byte identisch. Langsameres Komprimieren und Entpacken dieser Dateien. Nur mit Xipper 3.0 oder neuer lesbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG images, PDFs and Office and EPUB documents about 15% smaller without losing anything: on extraction every file comes back identical byte for byte. Slower compression and extraction of these files. Readable only with Xipper 3.0 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imágenes PNG, PDF y documentos de Office y EPUB alrededor de un 15 % más pequeños sin perder nada: al extraer, cada archivo vuelve idéntico byte a byte. Compresión y extracción de estos archivos más lentas. Solo se leen con Xipper 3.0 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Images PNG, PDF et documents Office et EPUB environ 15 % plus petits sans rien perdre : à l'extraction, chaque fichier revient identique octet par octet. Compression et extraction de ces fichiers plus lentes. Lisibles uniquement avec Xipper 3.0 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG 画像、PDF、Office と EPUB の書類を、何も失わずに約15%小さくします。展開すると各ファイルはバイト単位で元どおりに戻ります。これらのファイルの圧縮と展開は遅くなります。Xipper 3.0 以降でのみ読み込めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG 图像、PDF 以及 Office 和 EPUB 文稿约缩小 15% 且不丢失任何内容：提取时每个文件都会逐字节完全还原。这些文件的压缩和提取速度较慢。只能用 Xipper 3.0 或更高版本读取。"
+          }
+        }
+      }
+    },
+    "Immagini PNG, PDF e documenti Office ed EPUB fino a un terzo più piccoli senza perdere nulla: all'estrazione ogni file torna identico byte per byte. Compressione più lenta. Si leggono solo con Xipper 3.0 o successivo." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG-Bilder, PDFs sowie Office- und EPUB-Dokumente bis zu einem Drittel kleiner, ohne Verlust: Beim Entpacken ist jede Datei Byte für Byte identisch. Langsamere Komprimierung. Nur mit Xipper 3.0 oder neuer lesbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG images, PDFs and Office and EPUB documents up to a third smaller without losing anything: on extraction every file comes back identical byte for byte. Slower compression. Readable only with Xipper 3.0 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imágenes PNG, PDF y documentos de Office y EPUB hasta un tercio más pequeños sin perder nada: al extraer, cada archivo vuelve idéntico byte a byte. Compresión más lenta. Solo se leen con Xipper 3.0 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Images PNG, PDF et documents Office et EPUB jusqu'à un tiers plus petits sans rien perdre : à l'extraction, chaque fichier revient identique octet par octet. Compression plus lente. Lisibles uniquement avec Xipper 3.0 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG 画像、PDF、Office と EPUB の書類を、何も失わずに最大3分の1小さくします。展開すると各ファイルはバイト単位で元どおりに戻ります。圧縮は遅くなります。Xipper 3.0 以降でのみ読み込めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG 图像、PDF 以及 Office 和 EPUB 文稿最多缩小三分之一且不丢失任何内容：提取时每个文件都会逐字节完全还原。压缩速度较慢。只能用 Xipper 3.0 或更高版本读取。"
+          }
+        }
+      }
+    },
     "Importa" : {
       "localizations" : {
         "de" : {
@@ -24187,6 +24268,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PAR2"
+          }
+        }
+      }
+    },
+    "PNG, PDF e documenti più piccoli" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere PNGs, PDFs und Dokumente"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smaller PNGs, PDFs and documents"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG, PDF y documentos más pequeños"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG, PDF et documents plus petits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG、PDF、書類をより小さく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更小的 PNG、PDF 和文稿"
           }
         }
       }

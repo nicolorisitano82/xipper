@@ -23,6 +23,8 @@ usage: xipper <command> [options]
           --lzraven        xiz: Apple LZRAVEN frames (XIZ 1.8: like LZMA2, opens ~3× faster; macOS 27+ and Xipper 3.0+ only)
           --lzmesh         xiz: Apple LZMESH frames (XIZ 1.8: zstd 9 ratio at zstd 3 speed; macOS 27+ and Xipper 3.0+ only)
           --jpeg           xiz: recompress JPEG photos losslessly (XIZ 1.6: ~20% smaller, rebuilt byte for byte; needs Xipper 2.7+)
+          --documents      xiz: recompress the Deflate streams of PNG, PDF and Office/EPUB files losslessly
+                           (XIZ 1.9, preflate: rebuilt byte for byte; needs Xipper 3.0+)
           --recovery N     xiz: append N percent of Reed–Solomon recovery data (XIZ 1.5, readable by any XIZ reader)
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
@@ -140,7 +142,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -341,6 +343,10 @@ case "create", "c":
     if flag("--jpeg") {
         if o.format != .xiz { fail("--jpeg needs the xiz format", code: 2) }
         o.xizJPEG = true
+    }
+    if flag("--documents") {
+        if o.format != .xiz { fail("--documents needs the xiz format", code: 2) }
+        o.xizDocuments = true
     }
     if flag("--lzma2") {
         if o.format != .xiz { fail("--lzma2 needs the xiz format", code: 2) }

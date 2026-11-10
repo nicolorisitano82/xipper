@@ -148,6 +148,9 @@ public struct CreateOptions: Sendable {
     /// XIZ 1.6: JPEG files recompressed with brunsli, about 20% smaller and rebuilt byte for byte,
     /// at about 15–20 MB/s per core each way; readers before Xipper 2.7 refuse it.
     public var xizJPEG = false
+    /// XIZ 1.9: PNG, PDF and ZIP-based documents (DOCX, XLSX, PPTX, ODF, EPUB) with their Deflate
+    /// streams split by preflate and recompressed, rebuilt byte for byte; readers before Xipper 3.0 refuse it.
+    public var xizDocuments = false
     /// XIZ 1.5: percent of Reed–Solomon recovery data appended to the archive (§15); 0 = none.
     public var xizRecovery: Double = 0
     /// XIZ: train a zstd dictionary for the small files when there are enough of them (1.2).
@@ -312,7 +315,7 @@ public enum Xipper {
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
             var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2, appleCodec: options.xizCodec.appleFrameCodec,
-                                       jpeg: options.xizJPEG, password: options.password, kdf: options.xizKDF,
+                                       jpeg: options.xizJPEG, deflate: options.xizDocuments, password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        access: options.xizAccess, signer: options.xizSigner,

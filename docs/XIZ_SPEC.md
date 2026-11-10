@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.8
+# XIZ archive format, version 1.9
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -8,7 +8,8 @@ branch filter (§14). **1.5** (2026-11-03, Xipper 2.7) adds an optional recovery
 file (§15), which every reader since 1.1 skips. **1.6** (2026-11-03, Xipper 2.7) adds JPEG files
 recompressed losslessly with brunsli, one per frame (§16). **1.7** (2026-11-09, Xipper 3.0) adds
 post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which older readers skip. **1.8**
-(2026-11-10, Xipper 3.0) adds frames compressed with Apple's LZRAVEN and LZMESH (§18), macOS 27 only. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+(2026-11-10, Xipper 3.0) adds frames compressed with Apple's LZRAVEN and LZMESH (§18), macOS 27 only. **1.9** (2026-11-10, Xipper
+3.0) adds PNG, PDF and ZIP-based documents with their Deflate streams recompressed losslessly (§19). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -48,7 +49,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–8) |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–9) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -68,6 +69,7 @@ There are no gaps and no overlaps. The footer ends the file.
 | 5 | lzma2 | 1.4: frames with codec 2 (LZMA2) or 3 (ARM64 + LZMA2) (§14) |
 | 6 | jpeg | 1.6: frames with codec 4 (a JPEG file recompressed with brunsli) (§16) |
 | 7 | apple | 1.8: frames with codec 5 or 6 (Apple's LZRAVEN, LZMESH) (§18) |
+| 8 | deflate | 1.9: frames with codec 7 (a document with its Deflate streams split by preflate) (§19) |
 | 7–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
@@ -84,7 +86,7 @@ written as standard **PAR2** files next to the archive (`name.xiz.par2`, `name.x
 | Offset | Size | Field |
 |---:|---:|---|
 | 0 | 4 | magic `XFR1` |
-| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14), 4 = brunsli JPEG (needs `jpeg`, §16), 5 = LZRAVEN, 6 = LZMESH (need `apple`, §18) |
+| 4 | 1 | codec: 0 = store, 1 = zstd, 2 = LZMA2, 3 = ARM64 + LZMA2 (2 and 3 need `lzma2`, §14), 4 = brunsli JPEG (needs `jpeg`, §16), 5 = LZRAVEN, 6 = LZMESH (need `apple`, §18), 7 = preflate document (needs `deflate`, §19) |
 | 5 | 1 | flags: bit 0 = dictionary frame (§12); other bits zero |
 | 6 | 2 | dictionary id: 0, or the dictionary defined (bit 0 set) or used (§12) |
 | 8 | 4 | frame index (0, 1, 2, …) |
@@ -749,3 +751,58 @@ Xipper writes them only when asked (`--lzraven`, `--lzmesh`, «Codec di Apple» 
 27). On 481 MB of compiler binaries and libraries (M3 Max, all cores): LZRAVEN 98.3 MB against 105.4
 MB for LZMA2 (§14), verified in 0.23 s against 0.37 s; LZMESH 133 MB against 136 MB for zstd 12 and
 151 MB for zstd 3, written in 0.75 s against 1.7 s and 0.55 s (docs/BENCHMARK.md).
+
+## 19. Version 1.9: Deflate streams recompressed
+
+An archive with frames of codec 7 sets the required feature `deflate` (superblock bit 8,
+`version_minor = 9`); readers without it refuse the archive, and a frame with codec 7 in an archive
+without the bit is invalid. Like a JPEG frame (§16), a codec 7 frame holds **one whole file** of up to
+64 MiB, with no zstd dictionary.
+
+Deflate is weak next to zstd and LZMA2, and PNG images, PDF files and ZIP-based documents (DOCX,
+XLSX, PPTX, ODF, EPUB) are made mostly of Deflate streams. A codec 7 frame stores such a file
+"split": the bytes outside the streams as they are, each stream's uncompressed data, and the
+reconstruction information computed by [preflate](https://github.com/deus-libri/preflate) (Apache-2.0;
+Xipper uses commit `609eefa`, version 0.3.5), which rebuilds the original stream bit for bit from the
+uncompressed data. The split form compresses much better than the file.
+
+**Payload** (before encryption): `inner u8 ‖ split_size u32 ‖ compressed split form`, where `inner`
+is 1 for one zstd frame (§4.2) or 2 for an LZMA2 payload as in §14 (without the ARM64 filter), and the
+compressed data decodes to exactly `split_size` bytes. Readers **must** refuse `split_size` above
+256 MiB.
+
+**Split form**, little-endian:
+
+```
+"XPF1" ‖ count u32 ‖ count × segment ‖ data area ‖ reconstruction area
+segment = 0 ‖ length u32                                    bytes kept as they are
+        | 1 ‖ unpacked u32 ‖ diff u32                        a raw Deflate stream
+        | 2 ‖ chunks u32 ‖ chunks × length u32 ‖ zlib_header[2] ‖ trailer u32 ‖ unpacked u32 ‖ diff u32
+                                                             the IDAT chunks of a PNG
+```
+
+The data area holds, in segment order, the literal bytes, each stream's uncompressed data, and for
+type 2 the `trailer` bytes (the zlib Adler-32 and anything after the stream) followed by the
+uncompressed data; the reconstruction area holds each stream's preflate record (`diff` bytes), in the
+same order. The two areas must add up exactly to the rest of the split form.
+
+**Rebuilding** the file appends, in order: literal bytes; for type 1 the stream that
+`preflate_reencode(record, data)` gives; for type 2 the zlib stream `zlib_header ‖ preflate_reencode(record,
+data) ‖ trailer`, cut into IDAT chunks of the given lengths, each written as
+`length u32be ‖ "IDAT" ‖ data ‖ CRC-32(type ‖ data) u32be`. The result must be exactly `usize` bytes.
+
+- Readers decode untrusted records: they **should** run preflate isolated from the rest of the process
+  (Xipper uses its sandboxed `xipper-decoder` helper). The entry digests (§5) still check every file.
+- Writers keep a split only after rebuilding the file from it and comparing; Xipper finds the streams
+  of a PNG (consecutive IDAT chunks holding one zlib stream), of a PDF (`stream` followed by a zlib
+  stream) and of a ZIP (deflated, unencrypted entries from the local headers), and stores the file as
+  usual when nothing can be split or the frame would not be at least 3% smaller than the file
+  compressed as usual. It uses LZMA2 for the split form at «Massimo» and zstd at the archive's level
+  otherwise.
+- Appending to an archive with `deflate` may write frames of any codec; appending to one without it
+  never writes codec 7.
+
+On real files (docs/BENCHMARK.md) the archive shrinks by 31% for PNG images, 17% for PDF files and 13%
+for Office and EPUB documents against LZMA2 on the files as they are, at 10–28 MB/s each way; every
+file was rebuilt identical. Xipper writes codec 7 only when asked (`xipper create --documents`,
+«PNG, PDF e documenti più piccoli» in Settings).

@@ -1829,6 +1829,215 @@
    }
   },
   {
+   "name": "preflate",
+   "version": "0.3.5",
+   "upstream": "https://github.com/deus-libri/preflate",
+   "ref": "609eefaa96ac6c51d7b1a3fb29e0ed94d0f3623e",
+   "files": {
+    "preflate/LICENSE": {
+     "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "preflate/README.md": {
+     "sha256": "78e5ca7744399347755dd9050889ffd944089e97a0e29e80fc0779e4c3f59785"
+    },
+    "preflate/include/module.modulemap": {
+     "sha256": "466c659531c8b75cf214693da8d9a313a6ec83addc514918fc724738ddd67c4f",
+     "ours": true
+    },
+    "preflate/include/xpf.h": {
+     "sha256": "28196eda5ebab31b1d72c36dd77aef3b5a91cc49b76a45bcd96b07b5201d4d54",
+     "ours": true
+    },
+    "preflate/shim/xpf.cpp": {
+     "sha256": "a877cee11bfadefc64c6b0b3dce05f3fdbcd40bdd784a044bcb41f4a641fa97b",
+     "ours": true
+    },
+    "preflate/src/preflate.h": {
+     "sha256": "aa5c8d788b7e4f00d2cd9d7a3a7db73539b8e746a969b9d8502802858970cbc8"
+    },
+    "preflate/src/preflate_block_decoder.cpp": {
+     "sha256": "28c7b8705282a15875b21fae8ce806a1fb34ee5c9330065cffce3439c4df226d"
+    },
+    "preflate/src/preflate_block_decoder.h": {
+     "sha256": "4debd9190c637f5007b290e561a7644b2dd8571e8b814c8eb0c9be9af6c07c66"
+    },
+    "preflate/src/preflate_block_reencoder.cpp": {
+     "sha256": "2653607825461eaf6407ad5354cba7af8ca40c8139f41f269f98c936f0d66136"
+    },
+    "preflate/src/preflate_block_reencoder.h": {
+     "sha256": "408339ed9268adf1d9919474d547098ccc06ee61f732fc217832e0849c43b94d"
+    },
+    "preflate/src/preflate_block_trees.cpp": {
+     "sha256": "4a56fa582ccd64e3567452ec90c2b2b0781add0028b02d04a1da932db79b2181"
+    },
+    "preflate/src/preflate_block_trees.h": {
+     "sha256": "5aac3d41d67a2a137dc41c75699f61ebf8d6c6784fcbd3b4f4483f01dd826da4"
+    },
+    "preflate/src/preflate_complevel_estimator.cpp": {
+     "sha256": "3141fc7dc65b0b0e0c892669f304e93965f4855cd020f6a41575ab3c84336487"
+    },
+    "preflate/src/preflate_complevel_estimator.h": {
+     "sha256": "3985cbd9d54e028162dab1391eec0ae7adf32693073e123e2ddebf8e0fa2c1b3"
+    },
+    "preflate/src/preflate_constants.cpp": {
+     "sha256": "b277e0ecb21777dd686e57d0f38a2238302b891ec4a161b064df5490e8b0fca5"
+    },
+    "preflate/src/preflate_constants.h": {
+     "sha256": "bed877b3eed57357661ec82f9a879bdbc9966d6b170bc670ca906dfbaafcf89a"
+    },
+    "preflate/src/preflate_decoder.cpp": {
+     "sha256": "5bfacaf5a5cc2beb906e24bfdd143db46a3a069457aaf0d43b188e34bd7b1095"
+    },
+    "preflate/src/preflate_decoder.h": {
+     "sha256": "3fd6c47af648d686ecce3f4007336287d045dc7f84a16a0b6394b8f3e89deef2"
+    },
+    "preflate/src/preflate_hash_chain.cpp": {
+     "sha256": "bc3392db0e43966da7859d49739eda5c2626de91d2e35627278fdeb622b4e2d8"
+    },
+    "preflate/src/preflate_hash_chain.h": {
+     "sha256": "3282b480d80ba23edae50792e0d25ae3dbd8ca9374966bbe40928d9c1a998bb8"
+    },
+    "preflate/src/preflate_info.cpp": {
+     "sha256": "fc63736a90b57baa40d020f33e737773d01f9a4d2a58e0f7d0d147812516413a"
+    },
+    "preflate/src/preflate_info.h": {
+     "sha256": "99af40a7808c055e0d50bf1c80bec9f5447a8f3e18608c905482fd53e881e2b1"
+    },
+    "preflate/src/preflate_input.h": {
+     "sha256": "11d86ef08424b28f6969b296199bc3280e8e26d33c7aea9e17e0f97c572ade7f"
+    },
+    "preflate/src/preflate_parameter_estimator.cpp": {
+     "sha256": "2e034022a5a1442a3bc187b951046b0ec597a389ead091a80f5aca84cfb57e64"
+    },
+    "preflate/src/preflate_parameter_estimator.h": {
+     "sha256": "0f1b64c43e192bfd83687d41a2dae25c3a6e06484a1e911fd7e116872235d10b"
+    },
+    "preflate/src/preflate_parser_config.cpp": {
+     "sha256": "0d8b0ccf9dc3ff0e8924673f7a5f98165ba2efa1ea28ffdc1107af10eed85c43"
+    },
+    "preflate/src/preflate_parser_config.h": {
+     "sha256": "b2b883de8811538f19906eb6a7d7c7418a4fac77441ee956b9ca13c9a08757ff"
+    },
+    "preflate/src/preflate_predictor_state.cpp": {
+     "sha256": "b16292e253a29755d70be0123e47abf5b08b1dd85aa947027fd5f64bad783d77"
+    },
+    "preflate/src/preflate_predictor_state.h": {
+     "sha256": "5438c63a6fb73928e1015c082fe5215cdab394117514cbabc3c1d6e94baa874c"
+    },
+    "preflate/src/preflate_reencoder.cpp": {
+     "sha256": "50d6d91d322f0ccfc0c6720246434f77b24893b08e899a9285d37c473f1607d3"
+    },
+    "preflate/src/preflate_reencoder.h": {
+     "sha256": "10a6eb6a83dc9e3542830b58bf4d92abf6707cbc413d7e2ba1c21611c670a994"
+    },
+    "preflate/src/preflate_seq_chain.cpp": {
+     "sha256": "3ea024d801246a59c7212e28b80d28b6ede4d64dba2d19be74a65643bf26fc09"
+    },
+    "preflate/src/preflate_seq_chain.h": {
+     "sha256": "75e32743fb55329bf63fc23b5127d34a01c59b2de50b8528693013e9262b71f3"
+    },
+    "preflate/src/preflate_statistical_codec.cpp": {
+     "sha256": "850b846a1e1b5c21f35458b58ecb3e29e96e8deb21e20c0da9ce2b26474b36c3"
+    },
+    "preflate/src/preflate_statistical_codec.h": {
+     "sha256": "00b85e71b537c3f239f1c72e296f44e21d931c8ba9ae8066aea885cc3fe4ebcb"
+    },
+    "preflate/src/preflate_statistical_model.cpp": {
+     "sha256": "1fd9ab4770ac254396143baf45c0a9fe8e0b368f3350acd2b12a23d6c7bf82bd"
+    },
+    "preflate/src/preflate_statistical_model.h": {
+     "sha256": "bf391e5e650fcec3b9713f98095601de7e3315b52adce1591c77c0c06a3be709"
+    },
+    "preflate/src/preflate_token.cpp": {
+     "sha256": "c89eaa4ed8204e6d7bda6e45bbb0da3c4832261665d250e9a1472ab91d07f669"
+    },
+    "preflate/src/preflate_token.h": {
+     "sha256": "6a02aa1b2b0cfcb8b7bfa5fb3b4388b235d7f023f045b10ad572d5ec54eb3c5e"
+    },
+    "preflate/src/preflate_token_predictor.cpp": {
+     "sha256": "94493dc5260ae7d91c826f0d760815d9d10422613ec00f2145357f239ea5543e"
+    },
+    "preflate/src/preflate_token_predictor.h": {
+     "sha256": "6661fbc4ab431c59fbe2ba5f6fe2882f92bfd679d7ea8543ffc8d57c781581d9"
+    },
+    "preflate/src/preflate_tree_predictor.cpp": {
+     "sha256": "820e38fd378081b9c271ec105459d8217f8c7cbeeb104d098bb1b935b4a9d57a"
+    },
+    "preflate/src/preflate_tree_predictor.h": {
+     "sha256": "f74b7a3aaf12eee799aca56969ad27d80aa551c17949997fd431f4625110a700"
+    },
+    "preflate/src/support/arithmetic_coder.cpp": {
+     "sha256": "f286f31dab1c76fb3c17e7bbc7ca1cdcfa57d707b86927ba0788e46635d57745"
+    },
+    "preflate/src/support/arithmetic_coder.h": {
+     "sha256": "724b23ac4551708a9cfa93ee963e99fcb90d7c0fb7765bf1dd9f4c84c5beda21"
+    },
+    "preflate/src/support/array_helper.cpp": {
+     "sha256": "8710e04a7e0d8f2143e32782c52813d02c15a674cc253a0d3bae67aaabd37b50"
+    },
+    "preflate/src/support/array_helper.h": {
+     "sha256": "e6ccb912ee10a4336876a51d7b6d2f1d2d5d84be9126b34f72fa4128141209b9"
+    },
+    "preflate/src/support/bit_helper.cpp": {
+     "sha256": "797a1e2bc3cc4985b4fcb9d5a36527f345bee9daf6045dbfca1d8ffcd8c67c26"
+    },
+    "preflate/src/support/bit_helper.h": {
+     "sha256": "e5993ade8df6e19e1d839141d15e98977e28e180f4695b17b6b7bf70de1f9c6b"
+    },
+    "preflate/src/support/bitstream.cpp": {
+     "sha256": "8b10f1e55afad43b1c56e27f6c8d17b42a65f4ad7d9fa1f9542165458fa90d67"
+    },
+    "preflate/src/support/bitstream.h": {
+     "sha256": "674ac5efca5a1ccf2cd46a770b340427090f9618fe3066cc617bb31bf5936618"
+    },
+    "preflate/src/support/const_division.cpp": {
+     "sha256": "58eb1d050f1bf4cc041b82f14ca889bebadf81cdd77e55b481a02699df54f883"
+    },
+    "preflate/src/support/const_division.h": {
+     "sha256": "e48c15fafeff4ca45617f2f1f1b480f40f83014a9455e78cf8589ac83fda7012"
+    },
+    "preflate/src/support/huffman_decoder.cpp": {
+     "sha256": "66e74e9971e73dab55356706c5d914d35b36bf05eb6ec74d83716986de8d6f87"
+    },
+    "preflate/src/support/huffman_decoder.h": {
+     "sha256": "1fcb6a3db64176e6f91a1d67a7d2ca930cbfbc1069819fd88d4b9796c0dd899a"
+    },
+    "preflate/src/support/huffman_encoder.cpp": {
+     "sha256": "6403668f2e5423f865798fee4ceb1ab70878a5c61f4ce442b89ce6b417dfd0a3"
+    },
+    "preflate/src/support/huffman_encoder.h": {
+     "sha256": "ab797e741828915480e727a0cb96bf2b2cc2828d8b3e022eeba0dfce1ceef491"
+    },
+    "preflate/src/support/huffman_helper.cpp": {
+     "sha256": "29243169f129e15b502b7b87bbb685d48140dc9aba72ad4cfa6921fe52dbd25b"
+    },
+    "preflate/src/support/huffman_helper.h": {
+     "sha256": "0e9a2cc8939de98c0f1010418a1cea23fde781384ec23e86da12a52bb86a2835"
+    },
+    "preflate/src/support/memstream.cpp": {
+     "sha256": "6766815c896c1bf54b0d072f9f36ed41a8d825e8b189bbde07b6bc35466d3176"
+    },
+    "preflate/src/support/memstream.h": {
+     "sha256": "3d195a7fb8dbbe04c7f8799b51babc9f898d1f7e9cefaa4a83f1959a8de13926"
+    },
+    "preflate/src/support/outputcachestream.cpp": {
+     "sha256": "21f878c4336c86599e97a6ea2cc2a29ead43f9345ea4ff4c0b3039b556d89d18"
+    },
+    "preflate/src/support/outputcachestream.h": {
+     "sha256": "fa6f7acde24d07b80cfa87e3793606f3509d50172d642891474572ed159a2b35"
+    },
+    "preflate/src/support/stream.h": {
+     "sha256": "855f0a614c9a02d316aa3fa7ce07f19a1cb88d0bdc02976188f7937e04b27e23"
+    },
+    "preflate/src/support/task_pool.cpp": {
+     "sha256": "2e07b68f11c48d15d01f985d852572eb206ad3c225628195e73932f695950880"
+    },
+    "preflate/src/support/task_pool.h": {
+     "sha256": "8e1dfe776b50c957ba8b60ebaba9cf09a07ed59551e06b2b7ad22df323485c32"
+    }
+   }
+  },
+  {
    "name": "argon2",
    "version": "20190702",
    "upstream": "https://github.com/P-H-C/phc-winner-argon2",

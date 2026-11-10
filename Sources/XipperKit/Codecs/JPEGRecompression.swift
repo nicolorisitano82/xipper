@@ -84,13 +84,14 @@ enum JPEGRecompression {
     }
 }
 
-/// Helpers in JPEG mode, shared by the whole process: one per JPEG coded at the same time, reused.
+/// Helpers in recompression mode (brunsli for JPEG, preflate for Deflate streams), shared by the
+/// whole process: one per file coded at the same time, reused.
 final class JPEGCoderPool: @unchecked Sendable {
     static let shared: JPEGCoderPool? = IsolatedDecoder.helperPath.map(JPEGCoderPool.init)
     private let helper: String
     private let idle = Mutex<[DecoderProcess]>([])
-    /// Requests and results: at most a frame, with room for the brunsli overhead.
-    static let maxPayload = Xiz.maxFrameData + (2 << 20)
+    /// Requests and results: at most a frame with room for the brunsli overhead, or a preflate split form.
+    static let maxPayload = max(Xiz.maxFrameData + (2 << 20), DeflateRecompression.maxSplit + 16)
     static let chunk = 1 << 20
 
     init(helper: String) { self.helper = helper }
@@ -134,7 +135,7 @@ final class JPEGCoderPool: @unchecked Sendable {
 
     // MARK: helper side
 
-    /// The JPEG loop of `xipper-decoder`: encode or decode one JPEG per request.
+    /// The recompression loop of `xipper-decoder`: one JPEG or one Deflate document per request.
     static func serve(input: Int32, output: Int32) -> Int32 {
         guard IsolatedDecoder.frame(output, IsolatedDecoder.Reply.opened.rawValue) else { return 1 }
         while let (op, n) = IsolatedDecoder.readHeader(input) {
@@ -151,6 +152,14 @@ final class JPEGCoderPool: @unchecked Sendable {
                     let size = Int(UInt32(b[0]) | UInt32(b[1]) << 8 | UInt32(b[2]) << 16 | UInt32(b[3]) << 24)
                     guard size <= Xiz.maxFrameData else { throw XipperError.corrupt("decoder helper: malformed request") }
                     result = try b.withUnsafeBytes { try JPEGRecompression.decodeInProcess(UnsafeRawBufferPointer(rebasing: $0[4...]), size: size) }
+                case .deflateSplit?:
+                    guard let k = b.first.flatMap(DeflateRecompression.kind(code:)) else { throw XipperError.corrupt("decoder helper: malformed request") }
+                    result = DeflateRecompression.splitInProcess(Array(b[1...]), kind: k)
+                case .deflateRebuild?:
+                    guard b.count >= 4 else { throw XipperError.corrupt("decoder helper: malformed request") }
+                    let size = Int(UInt32(b[0]) | UInt32(b[1]) << 8 | UInt32(b[2]) << 16 | UInt32(b[3]) << 24)
+                    guard size <= Xiz.maxFrameData else { throw XipperError.corrupt("decoder helper: malformed request") }
+                    result = try DeflateRecompression.rebuild(Array(b[4...]), size: size)
                 case .crash?:
                     abort()
                 default:

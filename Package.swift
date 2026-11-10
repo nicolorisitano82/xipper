@@ -136,6 +136,16 @@ let package = Package(
             publicHeadersPath: "c/include",
             cxxSettings: [.define("NDEBUG", .when(configuration: .release))]
         ),
+        // preflate (Apache-2.0): splits deflate streams into data + reconstruction information and
+        // rebuilds them bit for bit, for PNG, PDF and Office documents in XIZ 1.9. Run in the
+        // xipper-decoder helper. shim/ and include/ are Xipper's C interface.
+        .target(
+            name: "CPreflate",
+            path: "Vendor/preflate",
+            sources: ["src", "shim"],
+            publicHeadersPath: "include",
+            cxxSettings: [.headerSearchPath("src"), .define("NDEBUG", .when(configuration: .release))]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -144,7 +154,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli", "CPreflate"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.
@@ -164,7 +174,7 @@ let package = Package(
         // Developer tool: codec bench on local corpora (docs/BENCHMARK.md). Not part of the app.
         .executableTarget(
             name: "xipper-bench",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLZ4", "CBrunsli"]
+            dependencies: ["XipperKit", "CZstd", "CDeflate", "CLZMA", "CLZ4", "CBrunsli"]
         ),
         .testTarget(
             name: "XipperKitTests",

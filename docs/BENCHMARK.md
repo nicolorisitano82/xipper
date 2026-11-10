@@ -281,3 +281,23 @@ LZRAVEN 153,5 MB contro 154,6 di LZMA2 e 159,2 di zstd 12. LZRAVEN è il miglior
 LZMA2 sui binari, e si apre 1,6 volte più in fretta; LZMESH sta tra zstd 3 e zstd 12 per tempo e sotto
 zstd 12 per dimensione. Restano opzioni: si aprono solo su macOS 27.
 
+### XIZ 1.9: flussi Deflate ricompressi con preflate (10/11/2026)
+
+`xipper-bench --deflate` sugli stessi file veri della fase A (Documenti, Download, Scrivania; solo i
+totali). Per ogni file: LZMA sul file com'è (quello che fa XIZ oggi) contro LZMA sulla forma scomposta
+(parti fuori dai flussi, dati dei flussi decompressi, dati di ricostruzione di preflate). Ogni file è
+stato ricostruito e confrontato: nessuno diverso.
+
+| Tipo | File | MB | LZMA oggi | LZMA dopo | Guadagno | Scomposizione | Ricostruzione |
+|---|---|---|---|---|---|---|---|
+| PNG | 244 | 916,2 | 99,5% | 68,7% | **−31,0%** | 19,9 MB/s | 27,9 MB/s |
+| PDF | 313 | 275,7 | 85,5% | 71,1% | **−16,8%** | 13,3 MB/s | 21,2 MB/s |
+| DOCX, XLSX, PPTX, EPUB, ODF | 95 | 59,5 | 60,9% | 53,0% | **−12,9%** | 10,2 MB/s | 11,8 MB/s |
+
+- I guadagni confermano la stima della fase A (PNG −33%, PDF −21,5%, Office −15,5%), al netto dei dati
+  di ricostruzione che la stima non contava.
+- preflate lavora a meta-blocchi da 1 MiB sul suo pool di thread: con un solo meta-blocco per flusso i
+  PNG andavano a 1 MB/s e guadagnavano solo il 12,6% (8 PNG grandi: −19,2% e 12,8 MB/s con i meta-blocchi).
+- Le velocità sono per file, con tutti i core su quel file; nell'archivio i file si elaborano anche in
+  parallelo tra loro.
+

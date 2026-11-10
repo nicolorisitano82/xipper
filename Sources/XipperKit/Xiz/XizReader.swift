@@ -463,6 +463,8 @@ final class XizArchive: @unchecked Sendable {
             return try JPEGRecompression.decode(payload, size: Int(f.usize))
         case .lzraven, .lzmesh:
             return try payload.withUnsafeBytes { try Xiz.appleDecompress($0, size: Int(f.usize), codec: f.codec) }
+        case .preflate:
+            return try DeflateRecompression.decode(payload, size: Int(f.usize))
         }
     }
 

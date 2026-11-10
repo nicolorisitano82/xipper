@@ -14,6 +14,7 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 | [libarchive](https://github.com/libarchive/libarchive) | 3.8.11 (`03036ff`) | BSD-2-Clause (`libarchive/COPYING`; BLAKE2 files CC0/Apache-2.0) | `libarchive/libarchive`: 32 sources (read core, RAR and RAR5 formats, PPMd H, BLAKE2sp, entry/string utilities) and their headers | RAR 1.5–4.x and RAR5 reading (Xipper never writes RAR) |
 | [LZ4](https://github.com/lz4/lz4) | 1.10.0 | BSD-2-Clause (`lz4/LICENSE`) | `lz4/lib` (`lz4.c`, `lz4hc.c`, `lz4frame.c`, `xxhash.c` and headers) | creating tar.lz4 and .lz4 (decoding is Xipper's own) |
 | [Brotli](https://github.com/google/brotli) | 1.2.1 (CVE-2026-111497 fixed) | MIT (`brotli/LICENSE`) | `brotli/c/common`, `brotli/c/enc`, `brotli/c/dec`, `brotli/c/include` | creating tar.br and .br (decoding them is Apple's Compression framework); the decoder serves brunsli |
+| [preflate](https://github.com/deus-libri/preflate) | 0.3.5 (`609eefa`, 2018-09-29) | Apache-2.0 (`preflate/LICENSE`) | `preflate/src`, `preflate/shim`, `preflate/include` (C++17) | XIZ 1.9: Deflate streams of PNG, PDF and Office/EPUB files split into data and reconstruction information, rebuilt bit for bit; run in the sandboxed `xipper-decoder` helper |
 | [brunsli](https://github.com/google/brunsli) | `c18b962` (2026-09-10; last release v0.1) | MIT (`brunsli/LICENSE`) | `brunsli/c/common`, `brunsli/c/dec`, `brunsli/c/enc`, `brunsli/c/include` (C++17) | XIZ 1.6: lossless JPEG recompression (about −20%, rebuilt byte for byte), run in the sandboxed `xipper-decoder` helper because its internal checks `abort()` |
 | [Argon2](https://github.com/P-H-C/phc-winner-argon2) (PHC reference) | 20190702 (`62358ba`) | CC0 1.0 or Apache-2.0 (`argon2/LICENSE`) | `argon2/include`, `argon2/src` (portable `ref.c`, BLAKE2b, threads) | Argon2id password KDF of encrypted XIZ archives |
 
@@ -26,6 +27,7 @@ fails when a file differs from it. After updating a library, check the diff and 
 
 ## Local modifications
 - Only library sources are kept (no CLI tools, tests, build scripts, x86/RISC-V assembly).
+- `preflate/shim/xpf.cpp`, `preflate/include/xpf.h` and `preflate/include/module.modulemap` are Xipper's C interface to preflate. `main.cpp`, `main2.cpp`, `preflate_checker.*`, `preflate_statistical_debug.cpp`, `support/support_tests.*` and `support/filestream.*` (Windows-only file API, unused) are not kept; the library sources are under `src/`.
 - `brunsli/c/include/brunsli/brunsli_export.h` stands in for the header brunsli's CMake build generates (static library: `BRUNSLI_EXPORT` is empty); `brunsli/c/include/module.modulemap` exposes the C API (`encode.h`, `decode.h`). `c/common/nothing.cc`, `c/experimental`, tests and tools are not kept.
 - `zstd/include/CZstd.h`, `libdeflate/include/CDeflate.h`: umbrella headers for SwiftPM (`CZstd.h` defines `ZSTD_STATIC_LINKING_ONLY` for `ZSTD_getFrameProgression`).
 - `xz/src/liblzma/api/module.modulemap`: exposes only `lzma.h` (the `lzma/*.h` headers must not be included directly).

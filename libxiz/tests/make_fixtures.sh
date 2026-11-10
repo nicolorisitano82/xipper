@@ -138,4 +138,32 @@ find "$work/jpeg/photos" -exec touch -h -t 202601020304.05 {} +
 "$X" create -q -f xiz --jpeg "$out/jpeg.xiz" "$work/jpeg/photos"
 printf '%s\n' "$pw" | "$X" create -q -f xiz --jpeg --password-stdin "$out/password-jpeg.xiz" "$work/jpeg/photos"
 
+# ---------------------------------------------------------------- 1.9 documents (preflate, §19)
+# A PNG made by sips (zlib), a PDF with zlib content streams (python's zlib), a DOCX-like ZIP by zip.
+mkdir -p "$work/docs/docs/word"
+sips -s format png "$work/jpeg/p1.bmp" --out "$work/docs/docs/image.png" > /dev/null
+python3 -I - "$work/docs/docs/report.pdf" <<'PY'
+import sys, zlib, random
+random.seed(7)
+words = "archivio flusso Xipper documento pagina immagine dati ricostruzione byte identico compressione".split()
+out = b"%PDF-1.4\n"
+for p in range(6):
+    text = "\n".join("BT /F1 10 Tf 40 %d Td (%s) Tj ET" % (800 - l * 11, " ".join(random.choice(words) for _ in range(12))) for l in range(70))
+    s = zlib.compress(text.encode(), 6)
+    out += b"%d 0 obj\n<< /Length %d /Filter /FlateDecode >>\nstream\n" % (p + 1, len(s)) + s + b"\nendstream\nendobj\n"
+open(sys.argv[1], "wb").write(out + b"trailer\n<< >>\n%%EOF\n")
+PY
+python3 -I - "$work/docs/docs/word" <<'PY'
+import sys, random
+random.seed(8)
+words = "paragrafo testo tabella cartella file versione riga numero valore colonna rapporto misura".split()
+for i in range(4):
+    body = "".join("<w:p><w:r><w:t>%s</w:t></w:r></w:p>" % " ".join(random.choice(words) for _ in range(15)) for _ in range(400))
+    open("%s/part%d.xml" % (sys.argv[1], i), "w").write('<?xml version="1.0"?><w:document>' + body + "</w:document>")
+PY
+(cd "$work/docs/docs" && zip -q -r -X letter.docx word && rm -r word)
+find "$work/docs/docs" -exec touch -h -t 202601020304.05 {} +
+"$M" "$work/docs" > "$out/docs.manifest"
+"$X" create -q -f xiz -l 12 --documents "$out/docs.xiz" "$work/docs/docs"
+
 ls -l "$out"

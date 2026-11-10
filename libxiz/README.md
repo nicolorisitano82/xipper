@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ 1.8** di Xipper, scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ 1.9** di Xipper (fino alla 1.8 in lettura), scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -32,6 +32,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
 | 1.7: destinatari post-quantum X-Wing (§17) | saltati: si apre con le altre credenziali |
 | 1.8: frame LZRAVEN e LZMESH (§18) | lettura su macOS 27 (framework Compression), rifiutati altrove |
+| 1.9: documenti con i flussi Deflate ricompressi (§19) | non ancora: rifiutati con un errore chiaro (bit 0x0100) |
 
 ## Build
 

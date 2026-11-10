@@ -341,11 +341,14 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - Xipper 2.7 e libxiz fuori da macOS 27 rifiutano gli archivi con un errore chiaro; libxiz su macOS 27 li apre con il framework Compression (`xiz_has_apple_codecs()`);
 - test: andata e ritorno per i due codec, cifratura e modifica, 300 flussi manomessi per codec (solo errori), dimensioni sbagliate.
 
-##### E. Documenti, PNG e audio più piccoli (XIZ 1.9) — grande, con go/no-go dopo A
-- **flussi Deflate** dentro DOCX/XLSX/PPTX, EPUB, ODF, PNG e PDF: si decomprimono e si ricomprimono con zstd o LZMA2, insieme ai dati per ricostruire il Deflate originale bit per bit (preflate-rs, Apache-2.0);
-- **WAV e AIFF** in FLAC (libFLAC, BSD-3), intestazioni e chunk extra conservati a parte;
-- stesse regole del JPEG: il writer ricostruisce il file e lo confronta, altrimenti frame normale; parser e codifica nel helper isolato `xipper-decoder`; opzione facoltativa;
-- i file iWork restano fuori: usano Snappy, e non esiste un ricostruttore bit-exact.
+##### E. Documenti, PNG e audio più piccoli (XIZ 1.9) — ✅ fatto per PNG, PDF e documenti (10/11/2026)
+- preflate in C++ (Apache-2.0, `Vendor/preflate`, decisione 1) con un'interfaccia C di Xipper; codec di frame 7 con il bit richiesto `deflate` (bit 8), `version_minor = 9`: spec [§19](XIZ_SPEC.md);
+- un file per frame: le parti fuori dai flussi, i dati dei flussi decompressi e i dati di ricostruzione, compressi con LZMA2 a «Massimo» e con zstd agli altri livelli. Flussi trovati nei PNG (IDAT), nei PDF (`stream` zlib) e negli ZIP (DOCX, XLSX, PPTX, ODF, EPUB);
+- sui file veri: PNG **−31%**, PDF **−16,8%**, Office ed EPUB **−12,9%**, tutti ricostruiti identici, 10–28 MB/s per file ([BENCHMARK.md](BENCHMARK.md)); con meta-blocchi da 1 MiB preflate usa tutti i core ed è anche più efficace;
+- scomposizione e ricostruzione nel helper isolato `xipper-decoder`; il writer ricostruisce e confronta ogni file, altrimenti frame normale (anche sotto il 3% di guadagno);
+- `xipper create --documents`, «PNG, PDF e documenti più piccoli» in Impostazioni › Formati › XIZ;
+- libxiz legge i frame 7 (opzione `XIZ_PREFLATE`, `xiz_has_preflate()`), con il fixture `docs.xiz` e 300 payload manomessi senza abort sotto ASan e UBSan; verde su macOS e Linux;
+- **non fatto:** FLAC per WAV e AIFF (nessun audio non compresso tra i file veri: resta in fondo alla lista); i file iWork restano fuori (Snappy).
 
 ##### F. «Cambia formato» v2 con poco spazio libero — grande, con un cancello
 - registro delle operazioni, `F_PUNCHHOLE` sull'originale, ripresa dopo un'interruzione, ritorno all'originale prima del primo punching;
@@ -356,7 +359,7 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - versione 3.0.0, note utente, DMG, release; prove a mano rimaste dalla 2.7 (RAR e 7z grandi, JPEG, VoiceOver).
 
 #### Decisioni da prendere
-1. **Rust nella build** per preflate-rs, oppure preflate in C++ (l'originale, Apache-2.0), che ha già lo stesso tipo di build di brunsli.
+1. ~~Rust o C++ per preflate~~: preflate in C++ (10/11/2026).
 2. ~~Chiave post-quantum predefinita~~: sì, nell'app (09/11/2026); la CLI la crea con `--pq`.
 3. **F nella 3.0** anche se slitta, oppure spostata subito alla 3.1.
 

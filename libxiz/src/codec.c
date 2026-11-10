@@ -1,5 +1,6 @@
 /* Frame codecs: zstd (with dictionaries, §12), LZMA2 / ARM64 + LZMA2 (§14), brunsli JPEG (§16,
- * when built with XIZ_JPEG) and Apple's LZRAVEN / LZMESH (§18, macOS 27 or later). Every decoder
+ * when built with XIZ_JPEG), Apple's LZRAVEN / LZMESH (§18, macOS 27 or later) and documents with
+ * their Deflate streams split by preflate (§19, when built with XIZ_PREFLATE). Every decoder
  * writes into a buffer of exactly the declared size and rejects any other length (§4.2). */
 #include "internal.h"
 
@@ -11,6 +12,9 @@
 #endif
 #ifdef __APPLE__
 #include <compression.h>
+#endif
+#ifdef XIZ_HAVE_PREFLATE
+#include <xpf.h>
 #endif
 
 int zstd_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, const void *ddict, xiz_error *err) {
@@ -205,5 +209,139 @@ int xiz_has_apple_codecs(void) { return 0; }
 int apple_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, int codec, xiz_error *err) {
     (void)src; (void)n; (void)dst; (void)usize; (void)codec;
     return FAIL(XIZ_E_UNSUPPORTED, "LZRAVEN and LZMESH frames exist only on macOS 27 or later");
+}
+#endif
+
+/* ------------------------------------------------------------------ preflate documents (§19) */
+
+#define XPF_MAX_SPLIT ((size_t)256 << 20)
+
+#ifdef XIZ_HAVE_PREFLATE
+int xiz_has_preflate(void) { return 1; }
+
+static uint32_t crc32_iso(uint32_t crc, const uint8_t *p, size_t n) {
+    static uint32_t table[256];
+    static int ready;
+    if (!ready) {
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            table[i] = c;
+        }
+        ready = 1;
+    }
+    crc = ~crc;
+    while (n--) crc = table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+    return ~crc;
+}
+
+typedef struct { uint8_t *dst; size_t cap, len; } out_t;
+
+static int put(out_t *o, const uint8_t *p, size_t n) {
+    if (n > o->cap - o->len) return 0;
+    if (n) memcpy(o->dst + o->len, p, n);
+    o->len += n;
+    return 1;
+}
+
+static int put_be32(out_t *o, uint32_t v) {
+    uint8_t b[4] = {(uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v};
+    return put(o, b, 4);
+}
+
+/* Rebuilds the file from its split form (§19) into dst (exactly usize bytes). */
+static int rebuild(const uint8_t *s, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+#define BAD() FAIL(XIZ_E_CORRUPT, "damaged Deflate recompression data")
+    if (n < 8 || memcmp(s, "XPF1", 4) != 0) return BAD();
+    size_t count = rd32(s + 4), at = 8;
+    if (count > n / 5) return BAD();
+    /* First pass: sizes of the two areas. */
+    size_t data = 0, diff = 0, p = at;
+    for (size_t i = 0; i < count; i++) {
+        if (p + 1 > n) return BAD();
+        uint8_t type = s[p++];
+        if (type == 0) { if (p + 4 > n) return BAD(); data += rd32(s + p); p += 4; }
+        else if (type == 1) { if (p + 8 > n) return BAD(); data += rd32(s + p); diff += rd32(s + p + 4); p += 8; }
+        else if (type == 2) {
+            if (p + 4 > n) return BAD();
+            size_t c = rd32(s + p); p += 4;
+            if (c < 1 || c > (n - p) / 4) return BAD();
+            p += 4 * c;
+            if (p + 14 > n) return BAD();
+            data += (size_t)rd32(s + p + 2) + rd32(s + p + 6); diff += rd32(s + p + 10); p += 14;
+        } else return BAD();
+        if (data > n || diff > n) return BAD();
+    }
+    if (data + diff != n - p) return BAD();
+    size_t d = p, r = p + data;
+    out_t o = {dst, usize, 0};
+    p = at;
+    for (size_t i = 0; i < count; i++) {
+        uint8_t type = s[p++];
+        if (type == 0) {
+            size_t l = rd32(s + p); p += 4;
+            if (!put(&o, s + d, l)) return BAD();
+            d += l;
+        } else if (type == 1) {
+            size_t u = rd32(s + p), k = rd32(s + p + 4); p += 8;
+            xpf_buffer b = {NULL, 0};
+            if (!xpf_reencode(s + r, k, s + d, u, &b)) return BAD();
+            int ok = put(&o, b.data, b.size);
+            xpf_free(&b);
+            if (!ok) return BAD();
+            d += u; r += k;
+        } else {
+            size_t c = rd32(s + p); p += 4;
+            const uint8_t *lens = s + p; p += 4 * c;
+            const uint8_t *hdr = s + p;
+            size_t t = rd32(s + p + 2), u = rd32(s + p + 6), k = rd32(s + p + 10); p += 14;
+            xpf_buffer b = {NULL, 0};
+            if (!xpf_reencode(s + r, k, s + d + t, u, &b)) return BAD();
+            /* The zlib stream: header, rebuilt Deflate, trailer; cut into IDAT chunks. */
+            size_t zlen = 2 + b.size + t, total = 0;
+            for (size_t j = 0; j < c; j++) total += rd32(lens + 4 * j);
+            uint8_t *z = total == zlen ? malloc(zlen) : NULL;
+            if (!z) { xpf_free(&b); return BAD(); }
+            memcpy(z, hdr, 2); memcpy(z + 2, b.data, b.size); memcpy(z + 2 + b.size, s + d, t);
+            xpf_free(&b);
+            size_t zat = 0;
+            int ok = 1;
+            for (size_t j = 0; j < c && ok; j++) {
+                uint32_t len = rd32(lens + 4 * j);
+                uint32_t crc = crc32_iso(crc32_iso(0, (const uint8_t *)"IDAT", 4), z + zat, len);
+                ok = put_be32(&o, len) && put(&o, (const uint8_t *)"IDAT", 4) && put(&o, z + zat, len) && put_be32(&o, crc);
+                zat += len;
+            }
+            free(z);
+            if (!ok) return BAD();
+            d += t + u; r += k;
+        }
+    }
+    if (o.len != usize) return FAIL(XIZ_E_CORRUPT, "preflate frame rebuilds %zu bytes, %zu declared", o.len, usize);
+    return XIZ_OK;
+#undef BAD
+}
+
+/* brunsli-like caveat: preflate decodes untrusted records in this process (§19 recommends isolation). */
+int preflate_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    if (n <= 5) return FAIL(XIZ_E_CORRUPT, "preflate frame too short");
+    size_t split = rd32(src + 1);
+    if (split > XPF_MAX_SPLIT) return FAIL(XIZ_E_LIMIT, "preflate split form of %zu bytes (limit 256 MiB)", split);
+    uint8_t *buf = malloc(split ? split : 1);
+    if (!buf) return FAIL(XIZ_E_NOMEM, "out of memory");
+    int rc;
+    if (src[0] == 1) rc = zstd_decode_frame(src + 5, n - 5, buf, split, NULL, err);
+    else if (src[0] == 2) rc = lzma2_decode_frame(src + 5, n - 5, buf, split, 0, err);
+    else rc = FAIL(XIZ_E_CORRUPT, "preflate frame: inner codec %u", src[0]);
+    if (rc == XIZ_OK) rc = rebuild(buf, split, dst, usize, err);
+    free(buf);
+    return rc;
+}
+#else
+int xiz_has_preflate(void) { return 0; }
+
+int preflate_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    (void)src; (void)n; (void)dst; (void)usize;
+    return FAIL(XIZ_E_UNSUPPORTED, "preflate frames: this libxiz was built without XIZ_PREFLATE");
 }
 #endif

@@ -28,6 +28,7 @@ section() {  # title, source, license file
     section "LZ4 1.10.0 (Yann Collet)" "https://github.com/lz4/lz4" Vendor/lz4/LICENSE
     section "Brotli 1.2.1" "https://github.com/google/brotli" Vendor/brotli/LICENSE
     section "brunsli (Google LLC; lossless JPEG recompression)" "https://github.com/google/brunsli" Vendor/brunsli/LICENSE
+    section "preflate (Dirk Steinke; Deflate stream reconstruction)" "https://github.com/deus-libri/preflate" Vendor/preflate/LICENSE
     section "Argon2 (reference implementation, used under CC0 1.0)" "https://github.com/P-H-C/phc-winner-argon2" Vendor/argon2/LICENSE
     print -r -- "================================================================================"
     print -r -- "LZMA SDK 26.05 (Igor Pavlov; PPMd by Dmitry Shkarin)"

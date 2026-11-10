@@ -53,7 +53,9 @@ enum Xiz {
         static let jpeg = Required(rawValue: 1 << 6)
         /// 1.8: frames compressed with Apple's LZRAVEN or LZMESH (§18), readable on macOS 27 only.
         static let apple = Required(rawValue: 1 << 7)
-        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple]
+        /// 1.9: PNG, PDF and ZIP-based documents with their Deflate streams recompressed (§19).
+        static let deflate = Required(rawValue: 1 << 8)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple, .deflate]
     }
 
     /// Features a reader may ignore.
@@ -70,6 +72,8 @@ enum Xiz {
         case jpeg = 4
         /// 1.8: Apple's LZRAVEN and LZMESH, macOS 27 and later only (§18).
         case lzraven = 5, lzmesh = 6
+        /// 1.9: one whole PNG, PDF or ZIP-based document with its Deflate streams split by preflate (§19).
+        case preflate = 7
 
         /// Whether the superblock declares the feature this codec needs.
         func isDeclared(by required: Required) -> Bool {
@@ -78,6 +82,7 @@ enum Xiz {
             case .lzma2, .lzma2ARM64: required.contains(.lzma2)
             case .jpeg: required.contains(.jpeg)
             case .lzraven, .lzmesh: required.contains(.apple)
+            case .preflate: required.contains(.deflate)
             }
         }
     }

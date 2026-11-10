@@ -9,6 +9,7 @@ option(XIZ_SANITIZE "Address and undefined-behaviour sanitizers (default in Debu
 option(XIZ_FUZZ "Build the libFuzzer targets (clang)" OFF)
 option(XIZ_TESTS "Build and register the tests" ON)
 option(XIZ_JPEG "Decode brunsli JPEG frames (XIZ 1.6, §16); needs a C++17 compiler" ON)
+option(XIZ_PREFLATE "Decode documents with recompressed Deflate streams (XIZ 1.9, §19); needs a C++17 compiler" ON)
 set(XIZ_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Vendor" CACHE PATH "Xipper's Vendor directory")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -73,6 +74,20 @@ if(XIZ_JPEG)
   set_target_properties(xiz_brunsli PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   list(APPEND XIZ_DEPS xiz_brunsli)
 endif()
+# preflate (C++), with Xipper's C interface: only for codec 7 (§19).
+if(XIZ_PREFLATE)
+  enable_language(CXX)
+  set(PREFLATE_DIR "${XIZ_VENDOR_DIR}/preflate")
+  file(GLOB PREFLATE_SOURCES "${PREFLATE_DIR}/src/*.cpp" "${PREFLATE_DIR}/src/support/*.cpp" "${PREFLATE_DIR}/shim/*.cpp")
+  add_library(xiz_preflate OBJECT ${PREFLATE_SOURCES})
+  target_include_directories(xiz_preflate SYSTEM PUBLIC "${PREFLATE_DIR}/include" PRIVATE "${PREFLATE_DIR}/src")
+  target_compile_definitions(xiz_preflate PRIVATE NDEBUG)
+  if(NOT MSVC)
+    target_compile_options(xiz_preflate PRIVATE -include cstdint)  # preflate_seq_chain.h uses uint16_t without it (gcc 13+)
+  endif()
+  set_target_properties(xiz_preflate PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  list(APPEND XIZ_DEPS xiz_preflate)
+endif()
 
 foreach(dep ${XIZ_DEPS})
   set_target_properties(${dep} PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 99 C_EXTENSIONS ON)
@@ -116,12 +131,17 @@ add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
   src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
-  $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>>)
+  $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>> $<$<BOOL:${XIZ_PREFLATE}>:$<TARGET_OBJECTS:xiz_preflate>>)
 target_include_directories(xiz PUBLIC include PRIVATE src)
 target_link_libraries(xiz PRIVATE ${XIZ_DEPS})
 if(XIZ_JPEG)
-  # The static library carries C++ objects: whoever links it needs the C++ runtime.
   target_compile_definitions(xiz PRIVATE XIZ_HAVE_JPEG)
+endif()
+if(XIZ_PREFLATE)
+  target_compile_definitions(xiz PRIVATE XIZ_HAVE_PREFLATE)
+endif()
+if(XIZ_JPEG OR XIZ_PREFLATE)
+  # The static library carries C++ objects: whoever links it needs the C++ runtime.
   set_target_properties(xiz PROPERTIES LINKER_LANGUAGE CXX)
 endif()
 target_compile_options(xiz PRIVATE ${XIZ_WARNINGS} ${XIZ_SAN_FLAGS})

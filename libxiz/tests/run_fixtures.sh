@@ -64,6 +64,15 @@ else
     grep -q 'built without brunsli' "$W/jpeg-info.log" && pass jpeg-refused-cleanly || fail "jpeg: $(tail -1 "$W/jpeg-info.log")"
 fi
 
+# 1.9: documents with their Deflate streams split by preflate (PNG, PDF, DOCX: three preflate frames)
+if "$XIZ" info "$F/docs.xiz" > "$W/docs-info.log" 2>&1; then
+    extract_cmp docs docs.xiz docs.manifest
+    expect_code test-docs 0 "$XIZ" test "$F/docs.xiz"
+    grep -q 'preflate 3)' "$W/docs-info.log" && pass codec-preflate || fail "codec-preflate: $(grep frames "$W/docs-info.log")"
+else
+    grep -q 'built without preflate' "$W/docs-info.log" && pass docs-refused-cleanly || fail "docs: $(tail -1 "$W/docs-info.log")"
+fi
+
 # cat
 "$XIZ" cat "$F/plain.xiz" tree/docs/a.md > "$W/a.md" && grep -q 'Line 199 of a document about nothing' "$W/a.md" && pass cat || fail cat
 "$XIZ" cat --password-env PW "$F/password.xiz" tree/link-to-a | grep -qx 'docs/a.md' && pass cat-symlink || fail cat-symlink

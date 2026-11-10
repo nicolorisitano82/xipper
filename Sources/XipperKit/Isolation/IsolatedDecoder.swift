@@ -13,7 +13,7 @@ import Foundation
 /// build without it; `XIPPER_IN_PROCESS_DECODERS=1`) the same reader runs in process.
 enum IsolatedDecoder {
     /// Request frames, app → helper.
-    enum Op: UInt8 { case open = 1, next = 2, data = 3, sevenZip = 4, folder = 5, jpeg = 6, jpegEncode = 7, jpegDecode = 8, crash = 0xFF }
+    enum Op: UInt8 { case open = 1, next = 2, data = 3, sevenZip = 4, folder = 5, jpeg = 6, jpegEncode = 7, jpegDecode = 8, deflateSplit = 9, deflateRebuild = 10, crash = 0xFF }
     /// Response frames, helper → app.
     enum Reply: UInt8 { case opened = 0x4F, entry = 0x45, end = 0x4E, chunk = 0x44, dataEnd = 0x5A, error = 0x58 }
 

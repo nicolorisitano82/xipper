@@ -11,6 +11,7 @@ import CLZMA
 import CZstd
 import Compression
 import Foundation
+import XipperKit
 
 struct Codec {
     let name: String
@@ -167,6 +168,67 @@ func jpegBench(_ paths: [String]) {
     print(String(format: "brunsli %.2f%% of the original (zstd -19: %.2f%%), encode %.1f MB/s, decode %.1f MB/s (one core, recompressed files)",
                  Double(output) / Double(input) * 100, Double(zstdOut) / Double(input) * 100,
                  Double(okBytes) / 1e6 / max(encTime, 1e-9), Double(okBytes) / 1e6 / max(decTime, 1e-9)))
+}
+
+/// preflate on every PNG, PDF and Office/EPUB file under the arguments: split form compressed with
+/// LZMA against the file compressed with LZMA (about what XIZ's LZMA2 does today), and the round trip.
+func deflateBench(_ paths: [String]) {
+    let exts: Set = ["png", "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "epub"]
+    var files: [String] = []
+    for p in paths {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: p, isDirectory: &isDir)
+        if !isDir.boolValue { files.append(p); continue }
+        for f in (FileManager.default.subpaths(atPath: p) ?? []).sorted() where exts.contains((f as NSString).pathExtension.lowercased()) {
+            files.append(p + "/" + f)
+        }
+    }
+    struct Row { var files = 0, split = 0, bad = 0, input = 0, before = 0, after = 0; var splitT = 0.0, rebuildT = 0.0, splitBytes = 0 }
+    var rows: [String: Row] = [:]
+    func lzma2(_ b: [UInt8]) -> Int {
+        var n = 0, i = 0
+        while i < b.count {
+            let c = Array(b[i..<min(b.count, i + (4 << 20))])
+            var o = [UInt8](repeating: 0, count: c.count)  // LZMA (xz, Compression framework) as a stand-in for XIZ's LZMA2
+            let k = compression_encode_buffer(&o, o.count, c, c.count, nil, COMPRESSION_LZMA)
+            n += k == 0 ? c.count : k
+            i += 4 << 20
+        }
+        return n
+    }
+    for f in files {
+        guard let data = try? [UInt8](Data(contentsOf: URL(fileURLWithPath: f))), data.count >= 4096, data.count <= 64 << 20 else { continue }
+        let ext = (f as NSString).pathExtension.lowercased()
+        let kind = ext == "png" ? "png" : ext == "pdf" ? "pdf" : "office/epub"
+        var row = rows[kind] ?? Row()
+        row.files += 1
+        row.input += data.count
+        let before = lzma2(data)
+        row.before += before
+        let r = DeflateRecompressionProbe.run(data, name: f)
+        if let s = r.split, r.identical {
+            row.split += 1
+            row.after += min(before, lzma2(s))
+            row.splitT += r.splitSeconds
+            row.rebuildT += r.rebuildSeconds
+            row.splitBytes += data.count
+        } else {
+            if r.split != nil { row.bad += 1 }
+            row.after += before
+        }
+        rows[kind] = row
+    }
+    for (k, r) in rows.sorted(by: { $0.key < $1.key }) {
+        print(String(format: "%-12@ %4d files %8.1f MB: LZMA %.1f%% → %.1f%% (%.1f%% smaller), split %d, not identical %d, split %.1f MB/s, rebuild %.1f MB/s",
+                     k as NSString, r.files, Double(r.input) / 1e6, Double(r.before) / Double(r.input) * 100, Double(r.after) / Double(r.input) * 100,
+                     (1 - Double(r.after) / Double(r.before)) * 100, r.split, r.bad,
+                     Double(r.splitBytes) / 1e6 / max(r.splitT, 1e-9), Double(r.splitBytes) / 1e6 / max(r.rebuildT, 1e-9)))
+    }
+}
+
+if args.contains("--deflate") {
+    deflateBench(args.filter { $0 != "--deflate" })
+    exit(0)
 }
 
 if jpegMode {

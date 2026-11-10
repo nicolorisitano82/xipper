@@ -167,8 +167,8 @@ static void test_structure(void) {
 
     xiz_archive *a;
     xiz_error e;
-    /* Unknown required feature bits (bit 2 is reserved, 8–15 unknown). */
-    k.required = 0x0100;
+    /* Unknown required feature bits (bit 2 is reserved, 9–15 unknown). */
+    k.required = 0x0200;
     b = forge(basic, 3, &k);
     CHECK(open_mem(&b, &a, &e) == XIZ_E_UNSUPPORTED);
     wb_free(&b);
@@ -372,6 +372,71 @@ static void test_jpeg(const char *dir) {
     free(b);
 }
 
+/* preflate frames (§19): the first codec 7 frame of docs.xiz, forged and mutated like test_jpeg. */
+static void test_preflate(const char *dir) {
+    char path[1024];
+    snprintf(path, sizeof path, "%s/docs.xiz", dir);
+    size_t n;
+    uint8_t *b = slurp(path, &n);
+    CHECK(b != NULL);
+    if (!b) return;
+    if (!xiz_has_preflate()) {
+        CHECK(open_test(b, n) == XIZ_E_UNSUPPORTED);
+        free(b);
+        return;
+    }
+    CHECK(open_test(b, n) == XIZ_OK);
+    xiz_source src;
+    xiz_source_memory(&src, b, n);
+    xiz_archive *a;
+    xiz_error e;
+    CHECK(xiz_open(&a, &src, NULL, &e) == XIZ_OK);
+    const frame_rec *pf = NULL;
+    for (uint32_t i = 0; i < a->cat.n_frames && !pf; i++)
+        if (a->cat.frames[i].codec == CODEC_PREFLATE) pf = &a->cat.frames[i];
+    CHECK(pf != NULL);
+    if (!pf) { xiz_close(a); free(b); return; }
+    size_t pl = pf->csize;
+    uint32_t usize = pf->usize;
+    uint8_t *p = malloc(pl);
+    memcpy(p, b + pf->offset + 32, pl);
+    xiz_close(a);
+    knobs k = {0};
+    k.codec = CODEC_PREFLATE;
+    k.payload = p;
+    k.payload_len = pl;
+    k.usize_override = usize;
+    wbuf w = forge(basic, 3, &k);  /* codec 7 without the feature bit */
+    CHECK(open_test(w.p, w.n) == XIZ_E_CORRUPT);
+    wb_free(&w);
+    k.required = XIZ_FEATURE_DEFLATE;
+    uint32_t seed = 4242;
+    int ok = 0;
+    for (int round = 0; round < 300; round++) {
+        uint8_t *m = malloc(pl);
+        memcpy(m, p, pl);
+        size_t ml = pl;
+        seed = seed * 1103515245u + 12345u;
+        if (round % 3 == 0) {
+            ml = 1 + (seed >> 8) % (pl - 1);
+        } else {
+            for (int j = 0; j < 1 + round % 8; j++) {
+                seed = seed * 1103515245u + 12345u;
+                m[(seed >> 8) % pl] ^= (uint8_t)(1 + (seed >> 3) % 255);
+            }
+        }
+        k.payload = m;
+        k.payload_len = ml;
+        w = forge(basic, 3, &k);
+        if (open_test(w.p, w.n) == XIZ_OK) ok++;
+        wb_free(&w);
+        free(m);
+    }
+    CHECK(ok == 0);
+    free(p);
+    free(b);
+}
+
 /* ------------------------------------------------------------------ extraction */
 
 static int exists(const char *p) {
@@ -556,6 +621,7 @@ int main(int argc, char **argv) {
     test_structure();
     test_lzma2();
     test_jpeg(argv[1]);
+    test_preflate(argv[1]);
     test_extraction(argv[2]);
     test_fixture_flips(argv[1]);
     test_erased_slot(argv[1]);

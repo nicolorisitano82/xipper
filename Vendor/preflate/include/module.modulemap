@@ -1,0 +1,4 @@
+module CPreflate {
+    header "xpf.h"
+    export *
+}
