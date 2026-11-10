@@ -399,7 +399,8 @@ Conseguenze:
 - i record forensi stanno in un **blocco forense** per segmento, coperto dalla firma tramite la directory versione 3;
 - i **segmenti di custodia** ripetono cataloghi e foglie del segmento precedente: si aggiungono e si firmano senza la chiave del contenuto;
 - libxiz verifica SHA-256 ma non MD5 e SHA-1 (la BearSSL inclusa non li ha) né le marche temporali;
-- P2: libxiz verifica le acquisizioni logiche solo con i digest dei file (`xiz test`), non ancora contro l'inventario firmato (serve un parser JSON in C);
+- prova su NIST CFReDS (10/11/2026): 4 immagini, hash di NIST riprodotti esattamente; CFReDS non pubblica SHA-256;
+- libxiz verifica anche le acquisizioni logiche contro l'inventario firmato (parser JSON piatto in C, con test su input ostili); gli orari della sorgente sono in millisecondi;
 - un troncamento agli ultimi segmenti resta valido per costruzione: lo chiude solo l'hash del verbale (`--expect-sha256`) o il numero di passaggi di custodia annotato fuori.
 
 
@@ -409,7 +410,7 @@ Si appoggia alle fasi F0–F8 di FORENSE_3.1 §6, riordinate per il prodotto.
 |---|---|---|
 | P0 ✅ | Questo studio e decisioni D1–D8 | decise il 10/11/2026 (§6) |
 | P1 ✅ | Spec del profilo forense (XIZ 1.10, [XIZ_SPEC.md §20](XIZ_SPEC.md)) + vettori di prova; libxiz li legge | fatta il 10/11/2026: `XizForensic.swift`, CLI `xipper-forensic` (acquire da file immagine, custody, verify, info), 7 test Swift; libxiz legge 1.10 e verifica con `xiz forensic`; vettori in `libxiz/tests/fixtures/forensic*` verificati da entrambi |
-| P2 ✅ | ForensicKit: caso, log, acquisizione logica e da file immagine, verifica, report JSON | fatta il 10/11/2026: cartella `.xfcase` con registro JSON Lines firmato a catena (Ed25519, `prev` = SHA-256 della riga prima); acquisizione logica con `forensic/inventory.jsonl` (ogni elemento trovato, anche illeggibile o speciale, con metadati e SHA-256) il cui hash è nel record firmato; report JSON firmato a parte (`.sig`); CLI `case new/show/verify/note`, `acquire --logical`, `acquire --in`, `custody --in`, `report`; 10 test Swift; `scripts/forensic-hashes.sh`: SHA-256, SHA-1 e MD5 uguali a `shasum`/`md5` da 0 byte a 13 MiB. Manca la prova su CFReDS (da scaricare) |
+| P2 ✅ | ForensicKit: caso, log, acquisizione logica e da file immagine, verifica, report JSON | fatta il 10/11/2026: cartella `.xfcase` con registro JSON Lines firmato a catena (Ed25519, `prev` = SHA-256 della riga prima); acquisizione logica con `forensic/inventory.jsonl` (ogni elemento trovato, anche illeggibile o speciale, con metadati e SHA-256) il cui hash è nel record firmato; report JSON firmato a parte (`.sig`); CLI `case new/show/verify/note`, `acquire --logical`, `acquire --in`, `custody --in`, `report`; 10 test Swift; `scripts/forensic-hashes.sh`: SHA-256, SHA-1 e MD5 uguali a `shasum`/`md5` da 0 byte a 13 MiB; `scripts/cfreds-check.sh`: MD5 e SHA-1 uguali a quelli pubblicati da NIST CFReDS su 4 immagini (Rhino Hunt 260 MB, Basic Mac 103 MB, Data Leakage RM#3 108 MB e RM#2 4 GB), immagine riletta da libxiz identica. Il PC del Data Leakage (21 GB) non è stato provato per lo spazio su disco |
 | P3 | App: caso, reperti, procedura guidata, avanzamento, verifica, custodia, report PDF | prova a mano su cartelle e su un file immagine |
 | P3b | Rilascio 0.9 anteprima (D7): DMG proprio, release `forensic-v0.9.0` | prova a mano completa: Mac via «Condividi disco», cartelle, immagine da file |
 | P4 | Dispositivi: helper, Disk Arbitration, IOKit, settori illeggibili | FORENSE F3 |

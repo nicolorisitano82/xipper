@@ -139,6 +139,20 @@ struct XizForensicTests {
         #expect(v.signatures.map(\.label) == ["Esaminatore", "Corriere"])
         #expect(try XizForensic.verify(f + "/forensic-password.xiz", password: "correct horse battery staple").passed)
         #expect(!(try XizForensic.verify(f + "/forensic-damaged.xiz")).passed)
+        let logical = try XizForensic.verify(f + "/forensic-logical.xiz")
+        #expect(logical.passed && status(logical, "files") == .passed, "\(logical.checks)")
+    }
+
+    @Test func sourceTimesKeepMilliseconds() throws {
+        let t = TempDir()
+        let (src, _) = image(t)
+        let out = t.path + "/r.xiz"
+        let when = Date(timeIntervalSince1970: 1_794_301_200.123)
+        _ = try XizForensic.acquireImage(from: src, to: out, options: options { $0.now = when }, signer: Self.examiner)
+        let r = try #require(try XizForensic.blocks(out)[0].records(.sourceHashes).first)
+        let s = try XizForensic.SourceHashes(r.value)
+        #expect(abs(s.started.timeIntervalSince1970 - 1_794_301_200.123) < 0.0005)
+        #expect(abs(s.finished.timeIntervalSince1970 - 1_794_301_200.123) < 0.0005)
     }
 
     @Test func blockRefusesUnknownCriticalRecords() throws {

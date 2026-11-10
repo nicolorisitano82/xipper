@@ -15,6 +15,128 @@ typedef struct {
     directory d;
 } seg_t;
 
+/* ------------------------------------------------------------------ flat JSON (§20.2 records, inventory) */
+
+static size_t json_ws(const uint8_t *s, size_t n, size_t i) {
+    while (i < n && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) i++;
+    return i;
+}
+
+static int hex4(const uint8_t *p, uint32_t *v) {
+    *v = 0;
+    for (int k = 0; k < 4; k++) {
+        uint8_t c = p[k];
+        uint32_t d = c >= '0' && c <= '9' ? (uint32_t)(c - '0') : c >= 'a' && c <= 'f' ? (uint32_t)(c - 'a' + 10)
+                   : c >= 'A' && c <= 'F' ? (uint32_t)(c - 'A' + 10) : 16;
+        if (d > 15) return 0;
+        *v = *v << 4 | d;
+    }
+    return 1;
+}
+
+/* Decodes the string starting after the opening quote at s[*i]; *i ends after the closing quote.
+ * `out` has room for n bytes (escapes never grow). Rejects control characters and \u0000. */
+static int json_string(const uint8_t *s, size_t n, size_t *i, char *out, size_t *len) {
+    size_t o = 0, k = *i;
+    for (;;) {
+        if (k >= n) return 0;
+        uint8_t c = s[k++];
+        if (c == '"') break;
+        if (c < 0x20) return 0;
+        if (c != '\\') { out[o++] = (char)c; continue; }
+        if (k >= n) return 0;
+        uint8_t e = s[k++];
+        switch (e) {
+        case '"': case '\\': case '/': out[o++] = (char)e; break;
+        case 'b': out[o++] = '\b'; break;
+        case 'f': out[o++] = '\f'; break;
+        case 'n': out[o++] = '\n'; break;
+        case 'r': out[o++] = '\r'; break;
+        case 't': out[o++] = '\t'; break;
+        case 'u': {
+            uint32_t cp;
+            if (k + 4 > n || !hex4(s + k, &cp)) return 0;
+            k += 4;
+            if (cp >= 0xD800 && cp <= 0xDBFF) {
+                uint32_t lo;
+                if (k + 6 > n || s[k] != '\\' || s[k + 1] != 'u' || !hex4(s + k + 2, &lo) || lo < 0xDC00 || lo > 0xDFFF) return 0;
+                k += 6;
+                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+            } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                return 0;
+            }
+            if (cp == 0) return 0;
+            if (cp < 0x80) out[o++] = (char)cp;
+            else if (cp < 0x800) { out[o++] = (char)(0xC0 | cp >> 6); out[o++] = (char)(0x80 | (cp & 0x3F)); }
+            else if (cp < 0x10000) {
+                out[o++] = (char)(0xE0 | cp >> 12); out[o++] = (char)(0x80 | ((cp >> 6) & 0x3F)); out[o++] = (char)(0x80 | (cp & 0x3F));
+            } else {
+                out[o++] = (char)(0xF0 | cp >> 18); out[o++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+                out[o++] = (char)(0x80 | ((cp >> 6) & 0x3F)); out[o++] = (char)(0x80 | (cp & 0x3F));
+            }
+            break;
+        }
+        default: return 0;
+        }
+    }
+    out[o] = 0;
+    *len = o;
+    *i = k;
+    return 1;
+}
+
+int json_flat_parse(const uint8_t *s, size_t n, json_kv_fn cb, void *ctx) {
+    char *key = malloc(n + 1), *val = malloc(n + 1);
+    int ok = 0;
+    if (!key || !val) goto out;
+    size_t i = json_ws(s, n, 0);
+    if (i >= n || s[i++] != '{') goto out;
+    i = json_ws(s, n, i);
+    if (i < n && s[i] == '}') { i++; ok = 1; goto end; }
+    for (;;) {
+        size_t klen, vlen;
+        if (i >= n || s[i++] != '"' || !json_string(s, n, &i, key, &klen)) goto out;
+        i = json_ws(s, n, i);
+        if (i >= n || s[i++] != ':') goto out;
+        i = json_ws(s, n, i);
+        if (i >= n) goto out;
+        if (s[i] == '"') {
+            i++;
+            if (!json_string(s, n, &i, val, &vlen)) goto out;
+        } else {
+            /* number, true, false, null: kept as text */
+            size_t start = i;
+            while (i < n && (s[i] == '-' || s[i] == '+' || s[i] == '.' || (s[i] >= '0' && s[i] <= '9') || s[i] == 'e' || s[i] == 'E' ||
+                             (s[i] >= 'a' && s[i] <= 'z')))
+                i++;
+            vlen = i - start;
+            if (vlen == 0) goto out;  /* objects and arrays are not flat */
+            memcpy(val, s + start, vlen);
+            val[vlen] = 0;
+            int lit = (vlen == 4 && !memcmp(val, "true", 4)) || (vlen == 5 && !memcmp(val, "false", 5)) || (vlen == 4 && !memcmp(val, "null", 4));
+            if (!lit) {
+                if (val[0] != '-' && (val[0] < '0' || val[0] > '9')) goto out;
+                char *endp;
+                (void)strtod(val, &endp);
+                if (*endp) goto out;
+            }
+        }
+        if (cb(ctx, key, klen, val, vlen)) goto out;
+        i = json_ws(s, n, i);
+        if (i >= n) goto out;
+        if (s[i] == ',') { i = json_ws(s, n, i + 1); continue; }
+        if (s[i++] != '}') goto out;
+        ok = 1;
+        break;
+    }
+end:
+    if (json_ws(s, n, i) != n) ok = 0;
+out:
+    free(key);
+    free(val);
+    return ok ? 0 : -1;
+}
+
 static int known_critical(uint16_t t) { return t == REC_FRAME_HASHES || t == REC_SOURCE_HASHES || t == REC_UNREADABLE; }
 
 /* Every segment, oldest first: footer and directory (version 3). */
@@ -190,6 +312,196 @@ static const xiz_forensic_record *record_for(const xiz_forensic_record *recs, si
         if (pl == path_len && 2 + pl <= r->length && memcmp(r->value + 2, path, pl) == 0) found = r;
     }
     return found;
+}
+
+/* ------------------------------------------------------------------ inventory (logical acquisitions) */
+
+typedef struct {
+    char *value;
+    const char *want;
+} kv_find;
+
+static int find_key(void *vctx, const char *key, size_t klen, const char *val, size_t vlen) {
+    kv_find *f = vctx;
+    if (strlen(f->want) == klen && memcmp(key, f->want, klen) == 0) {
+        free(f->value);
+        f->value = malloc(vlen + 1);
+        if (!f->value) return 1;
+        memcpy(f->value, val, vlen + 1);
+    }
+    return 0;
+}
+
+typedef struct {
+    char *path, *kind, *status, *sha256;
+} inv_line;
+
+static int inv_kv(void *vctx, const char *key, size_t klen, const char *val, size_t vlen) {
+    inv_line *l = vctx;
+    char **slot = klen == 4 && !memcmp(key, "path", 4) ? &l->path : klen == 4 && !memcmp(key, "kind", 4) ? &l->kind
+                : klen == 6 && !memcmp(key, "status", 6) ? &l->status : klen == 6 && !memcmp(key, "sha256", 6) ? &l->sha256 : NULL;
+    if (!slot) return 0;
+    if (*slot) return 1;  /* a key twice: ambiguous, refused */
+    *slot = malloc(vlen + 1);
+    if (!*slot) return 1;
+    memcpy(*slot, val, vlen + 1);
+    return 0;
+}
+
+static int cmp_str(const void *x, const void *y) { return strcmp(*(char *const *)x, *(char *const *)y); }
+
+/* Entries sorted by path, for lookups in O(log n) (xiz_find is linear). */
+static const xiz_archive *sort_archive;
+static int cmp_entry(const void *x, const void *y) {
+    const entry_rec *a = &sort_archive->cat.entries[*(const size_t *)x], *b = &sort_archive->cat.entries[*(const size_t *)y];
+    size_t n = a->path_len < b->path_len ? a->path_len : b->path_len;
+    int c = memcmp(a->path, b->path, n);
+    return c ? c : (a->path_len > b->path_len) - (a->path_len < b->path_len);
+}
+
+static int find_sorted(const xiz_archive *a, const size_t *order, const char *path, size_t *index) {
+    size_t lo = 0, hi = a->cat.n_entries, n = strlen(path);
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        const entry_rec *e = &a->cat.entries[order[mid]];
+        size_t m = e->path_len < n ? e->path_len : n;
+        int c = memcmp(e->path, path, m);
+        if (!c) c = (e->path_len > n) - (e->path_len < n);
+        if (!c) { *index = order[mid]; return 1; }
+        if (c < 0) lo = mid + 1;
+        else hi = mid;
+    }
+    return 0;
+}
+
+static int sha_sink(void *vctx, const void *data, size_t len) {
+    sha256_update(vctx, data, len);
+    return 0;
+}
+
+static int hex_to(const char *h, uint8_t out[32]) {
+    if (!h || strlen(h) != 64) return 0;
+    for (int i = 0; i < 32; i++) {
+        uint32_t v;
+        uint8_t pair[4] = {'0', '0', (uint8_t)h[2 * i], (uint8_t)h[2 * i + 1]};
+        if (!hex4(pair, &v)) return 0;
+        out[i] = (uint8_t)v;
+    }
+    return 1;
+}
+
+static int check_inventory(xiz_archive *a, const xiz_forensic_record *recs, size_t nrec, xiz_problem_fn problem, void *ctx,
+                           xiz_forensic_report *rep, xiz_error *err) {
+    /* The inventory's SHA-256 from the latest acquisition record that names one (signed). */
+    char *signed_hex = NULL;
+    for (size_t k = 0; k < nrec; k++) {
+        if (recs[k].type != 0x0008u) continue;
+        kv_find f = {NULL, "inventory_sha256"};
+        if (json_flat_parse(recs[k].value, recs[k].length, find_key, &f) == 0 && f.value) { free(signed_hex); signed_hex = f.value; }
+        else free(f.value);
+    }
+    if (!signed_hex) return XIZ_OK;  /* an image, no inventory */
+    rep->has_inventory = 1;
+    uint8_t want[32];
+    if (!hex_to(signed_hex, want)) {
+        free(signed_hex);
+        problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "acquisition record: inventory SHA-256 malformed");
+        rep->inventory_failed++;
+        return XIZ_OK;
+    }
+    free(signed_hex);
+    if (a->structure_only) return XIZ_OK;  /* the inventory is content: it needs the keys */
+    size_t idx;
+    uint8_t *inv = NULL;
+    size_t inv_len = 0;
+    xiz_error rerr;
+    if (xiz_find(a, "forensic/inventory.jsonl", &idx) != XIZ_OK ||
+        xiz_read_entry_alloc(a, idx, (uint64_t)1 << 30, &inv, &inv_len, &rerr) != XIZ_OK) {
+        problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "forensic/inventory.jsonl missing or unreadable");
+        rep->inventory_failed++;
+        return XIZ_OK;
+    }
+    uint8_t h[32];
+    sha256(inv, inv_len, h);
+    if (!ct_equal(h, want, 32)) {
+        problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "forensic/inventory.jsonl differs from the signed inventory");
+        rep->inventory_failed++;
+        xiz_free(inv);
+        return XIZ_OK;
+    }
+    rep->inventory_ok = 1;
+    size_t *order = malloc((a->cat.n_entries + 1) * sizeof *order);
+    if (!order) { xiz_free(inv); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+    for (size_t k = 0; k < a->cat.n_entries; k++) order[k] = k;
+    sort_archive = a;
+    qsort(order, a->cat.n_entries, sizeof *order, cmp_entry);
+    char **listed = NULL;
+    size_t nlisted = 0, cap = 0;
+    int rc = XIZ_OK;
+    size_t start = 0, line_no = 0;
+    while (start < inv_len && rc == XIZ_OK) {
+        size_t end = start;
+        while (end < inv_len && inv[end] != '\n') end++;
+        line_no++;
+        if (end > start) {
+            inv_line l = {0};
+            if (json_flat_parse(inv + start, end - start, inv_kv, &l) != 0 || !l.path || !l.kind || !l.status) {
+                problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "inventory line %zu unreadable", line_no);
+                rep->inventory_failed++;
+            } else if (!strcmp(l.kind, "file") && !strcmp(l.status, "acquired")) {
+                uint8_t sha[32], got[32];
+                size_t ei;
+                rep->inventory_files++;
+                if (!hex_to(l.sha256, sha)) {
+                    problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "%s: no SHA-256 in the inventory", l.path);
+                    rep->inventory_failed++;
+                } else if (!find_sorted(a, order, l.path, &ei)) {
+                    problem_at(problem, ctx, -1, -1, XIZ_E_CORRUPT, "%s: listed but not in the archive", l.path);
+                    rep->inventory_failed++;
+                } else {
+                    sha256_ctx c;
+                    sha256_init(&c);
+                    if (xiz_read_entry(a, ei, sha_sink, &c, &rerr) != XIZ_OK) {
+                        problem_at(problem, ctx, -1, (long)ei, rerr.code, "%s: %s", l.path, rerr.message);
+                        rep->inventory_failed++;
+                    } else {
+                        sha256_final(&c, got);
+                        if (!ct_equal(got, sha, 32)) {
+                            problem_at(problem, ctx, -1, (long)ei, XIZ_E_CORRUPT, "%s: SHA-256 differs from the inventory", l.path);
+                            rep->inventory_failed++;
+                        }
+                    }
+                }
+                if (nlisted == cap) {
+                    size_t nc = cap ? cap * 2 : 256;
+                    char **nl = realloc(listed, nc * sizeof *listed);
+                    if (!nl) rc = FAIL(XIZ_E_NOMEM, "out of memory");
+                    else { listed = nl; cap = nc; }
+                }
+                if (rc == XIZ_OK) { listed[nlisted++] = l.path; l.path = NULL; }
+            }
+            free(l.path); free(l.kind); free(l.status); free(l.sha256);
+        }
+        start = end + 1;
+    }
+    /* Files in the archive the inventory does not list (besides forensic/). */
+    if (rc == XIZ_OK) {
+        if (nlisted) qsort(listed, nlisted, sizeof *listed, cmp_str);
+        for (size_t ei = 0; ei < a->cat.n_entries; ei++) {
+            const entry_rec *e = &a->cat.entries[ei];
+            if (e->type != 0 || (e->path_len >= 9 && !memcmp(e->path, "forensic/", 9))) continue;
+            const char *key = e->path;
+            if (!nlisted || !bsearch(&key, listed, nlisted, sizeof *listed, cmp_str)) {
+                problem_at(problem, ctx, -1, (long)ei, XIZ_E_CORRUPT, "%s: in the archive but not in the inventory", e->path);
+                rep->inventory_failed++;
+            }
+        }
+    }
+    for (size_t k = 0; k < nlisted; k++) free(listed[k]);
+    free(listed);
+    free(order);
+    xiz_free(inv);
+    return rc;
 }
 
 int xiz_forensic_verify(xiz_archive *a, xiz_problem_fn problem, void *ctx, xiz_forensic_report *rep, xiz_error *err) {
@@ -389,6 +701,8 @@ int xiz_forensic_verify(xiz_archive *a, xiz_problem_fn problem, void *ctx, xiz_f
         rep->images_checked++;
         if (bad) rep->images_failed++;
     }
+    /* 4. Logical acquisitions: the inventory is the signed one, every acquired file matches it. */
+    if (rc == XIZ_OK) rc = check_inventory(a, recs, nrec, problem, ctx, rep, err);
     rep->profile_ok = profile_ok;
     free(segs);
     free(recs);

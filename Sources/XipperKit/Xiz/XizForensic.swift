@@ -138,9 +138,12 @@ public enum XizForensic {
             w.u64(size)
             w.u8((md5 == nil ? 0 : 1) | (sha1 == nil ? 0 : 2) | 4)
             w.append(md5 ?? [UInt8](repeating: 0, count: 16)); w.append(sha1 ?? [UInt8](repeating: 0, count: 20)); w.append(sha256)
-            w.u64(UInt64(bitPattern: Int64(started.timeIntervalSince1970))); w.u64(UInt64(bitPattern: Int64(finished.timeIntervalSince1970)))
+            w.u64(UInt64(bitPattern: Self.millis(started))); w.u64(UInt64(bitPattern: Self.millis(finished)))
             return w.bytes
         }
+
+        /// Milliseconds since 1970 UTC, rounded (§20.2).
+        static func millis(_ d: Date) -> Int64 { Int64((d.timeIntervalSince1970 * 1000).rounded()) }
 
         init(path: String, size: UInt64, md5: [UInt8]?, sha1: [UInt8]?, sha256: [UInt8], started: Date, finished: Date) {
             self.path = path; self.size = size; self.md5 = md5; self.sha1 = sha1; self.sha256 = sha256
@@ -156,7 +159,7 @@ public enum XizForensic {
                 let s = Int64(bitPattern: try r.u64()), f = Int64(bitPattern: try r.u64())
                 guard r.remaining == 0, which & 4 != 0 else { throw XipperError.corrupt("XIZ source hashes") }
                 return SourceHashes(path: path, size: size, md5: which & 1 != 0 ? md5 : nil, sha1: which & 2 != 0 ? sha1 : nil, sha256: sha256,
-                                    started: Date(timeIntervalSince1970: Double(s)), finished: Date(timeIntervalSince1970: Double(f)))
+                                    started: Date(timeIntervalSince1970: Double(s) / 1000), finished: Date(timeIntervalSince1970: Double(f) / 1000))
             }
         }
     }

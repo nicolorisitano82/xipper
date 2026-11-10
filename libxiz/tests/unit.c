@@ -6,6 +6,20 @@
 static int failures;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); failures++; } } while (0)
 
+typedef struct { char k[64], v[256]; int n; } kv_last;
+static int kv_cb(void *ctx, const char *key, size_t klen, const char *val, size_t vlen) {
+    kv_last *l = ctx;
+    if (klen >= sizeof l->k || vlen >= sizeof l->v) return 1;
+    memcpy(l->k, key, klen + 1);
+    memcpy(l->v, val, vlen + 1);
+    l->n++;
+    return 0;
+}
+static int json(const char *s, kv_last *l) {
+    memset(l, 0, sizeof *l);
+    return json_flat_parse((const uint8_t *)s, strlen(s), kv_cb, l);
+}
+
 static void unhex(const char *s, uint8_t *out) {
     for (size_t i = 0; s[2 * i]; i++) {
         unsigned v;
@@ -141,6 +155,21 @@ int main(void) {
         CHECK(xiz_recovery_remove(path, &removed, &err) == XIZ_OK && !removed);
         free(data); free(orig); free(bad);
         remove(path);
+    }
+    /* Flat JSON (forensic records and inventory lines, §20.2): untrusted input. */
+    {
+        kv_last l;
+        CHECK(json("{}", &l) == 0 && l.n == 0);
+        CHECK(json(" { \"a\" : \"b\" , \"size\":12 } ", &l) == 0 && l.n == 2 && !strcmp(l.k, "size") && !strcmp(l.v, "12"));
+        CHECK(json("{\"p\":\"citt\\u00e0\\/x\\n\"}", &l) == 0 && !strcmp(l.v, "citt\xc3\xa0/x\n"));
+        CHECK(json("{\"p\":\"\\ud83d\\ude00\"}", &l) == 0 && !strcmp(l.v, "\xf0\x9f\x98\x80"));
+        CHECK(json("{\"t\":true,\"f\":false,\"n\":null,\"x\":-1.5e3}", &l) == 0 && l.n == 4);
+        const char *bad[] = {"", "{", "}", "[]", "{\"a\"}", "{\"a\":}", "{\"a\":\"b\"", "{\"a\":\"b\",}", "{\"a\":\"b\"} x",
+                             "{\"a\":{}}", "{\"a\":[1]}", "{\"a\":\"\\u0000\"}", "{\"a\":\"\\ud800\"}", "{\"a\":\"\\udc00\"}",
+                             "{\"a\":\"\\q\"}", "{\"a\":\"\x01\"}", "{\"a\":inf}", "{\"a\":nan}", "{\"a\":\"\\u12\"}", "{a:\"b\"}"};
+        for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+            if (json(bad[i], &l) == 0) { fprintf(stderr, "FAIL json accepted: %s\n", bad[i]); failures++; }
+        }
     }
     if (failures) { fprintf(stderr, "%d failures\n", failures); return 1; }
     printf("unit: all passed\n");

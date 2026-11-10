@@ -886,7 +886,7 @@ block with an unknown critical type and skip unknown other types. JSON values ar
 | 0x8001 | frame hashes | `first u32`, `count u32`, `count` × SHA-256 of (frame header ‖ payload as written), `root[32]` | exactly once in each normal segment, for the frames it writes |
 | 0x0002 | case | JSON: `case_number`, `evidence_number`, `examiner`, `organization`, `location`, `description`, `notes` | first segment, once |
 | 0x0003 | device | JSON: `path` (the entry), `model`, `serial`, `firmware`, `capacity`, `interface`, `bridge`, `encryption`, `smart`, `write_blocker` | once per acquired device |
-| 0x8004 | source hashes | `path_length u16`, `path`, `size u64`, `which u8` (bit 0 MD5, 1 SHA-1, 2 SHA-256), `md5[16]`, `sha1[20]`, `sha256[32]`, `started i64`, `finished i64` (seconds since 1970 UTC) | once per image entry (§20.3) |
+| 0x8004 | source hashes | `path_length u16`, `path`, `size u64`, `which u8` (bit 0 MD5, 1 SHA-1, 2 SHA-256), `md5[16]`, `sha1[20]`, `sha256[32]`, `started i64`, `finished i64` (milliseconds since 1970 UTC) | once per image entry (§20.3) |
 | 0x8005 | unreadable sectors | `path_length u16`, `path`, `count u32`, `count` × (`offset u64`, `length u64`, `error i32`, `attempts u16`, `reserved u16`) | once per image entry with read errors |
 | 0x0006 | log | JSON Lines: one object per event, with `t` (UTC, RFC 3339) and `event` | any segment |
 | 0x0007 | custody | JSON: `from`, `to`, `reason`, `seals`, `notes`, `time` | custody segments, any segment |
@@ -929,9 +929,13 @@ that the bytes at a given offset are found without the catalog and verified fram
   reference. No other deduplication happens inside an image;
 - the entry carries `digest` (§5.2) and `proof` (§13.6), and a source hashes record (§20.2).
 
-Logical acquisitions (folders, mailboxes) are ordinary entries without `image`; the forensic block
-then holds the case, acquisition and log records, and each file's `digest` and `proof` make it
-verifiable on its own.
+Logical acquisitions (folders, mailboxes) are ordinary entries without `image`, under one folder
+(xipper-forensic: `evidence/`). The file `forensic/inventory.jsonl` lists, one JSON object per line,
+**every** item found in the sources, acquired or not (`path`, `kind`: file, folder, link, socket, fifo,
+device, other; `status`: acquired, unreadable, skipped; `sha256` of acquired files; file-system metadata
+such as `size`, `mode`, `uid`, `gid`, `inode`, `flags`, `mtime`, `ctime`, `atime`, `birthtime`;
+`error`, `target`), and the acquisition record carries its SHA-256 as `inventory_sha256`. Since the
+record is signed, the inventory is too, and through it the SHA-256 of every acquired file.
 
 ### 20.4 Verification
 
@@ -942,6 +946,8 @@ A verifier reports each check separately, never a single "valid":
 3. every segment: directory version 3, forensic block hash and CRC, signature, chain (§13.5),
    time-stamp; custody segments: catalogs, leaves and counts equal to the previous segment's;
 4. every image: layout (§20.3), content SHA-256 equal to the source SHA-256, unreadable sectors listed;
+   every logical acquisition: the inventory's SHA-256 equal to `inventory_sha256`, each acquired file
+   equal to its line, no file outside `forensic/` missing from the inventory;
 5. optionally, the SHA-256 the user copied from the acquisition report: a truncated archive (its last
    segments removed) or one rebuilt and re-signed by the key holder can only be told apart by such an
    external reference.

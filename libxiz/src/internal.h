@@ -375,6 +375,10 @@ int footer_at(const xiz_archive *a, uint64_t at, footer *f);
 #define XIZ_DIR_ERASABLE 1u
 #define XIZ_DIR_CUSTODY 2u
 #define XIZ_MAX_FORENSIC_BLOCK (64u << 20)
+/* A flat JSON object (forensic records, inventory lines): string values decoded, numbers and
+ * literals as text, nested values refused. 0 when the whole input is one valid object. */
+typedef int (*json_kv_fn)(void *ctx, const char *key, size_t klen, const char *val, size_t vlen);
+int json_flat_parse(const uint8_t *s, size_t n, json_kv_fn cb, void *ctx);
 /* Decoded frame `i`, checked (header, CRC, AEAD, size). Owned by the cache; valid until the
  * next frame_get. */
 int frame_get(xiz_archive *a, uint32_t i, const uint8_t **data, size_t *len, xiz_error *err);

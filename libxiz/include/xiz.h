@@ -241,6 +241,12 @@ typedef struct xiz_forensic_report {
     uint32_t images_failed;
     int profile_ok;              /* blocks, custody segments, frame hash records and roots, case record */
     uint8_t last_image_sha256[32];
+    /* Logical acquisitions: forensic/inventory.jsonl against the SHA-256 in the signed acquisition
+     * record, then every acquired file against its line (both need the keys when encrypted). */
+    int has_inventory;
+    int inventory_ok;            /* the inventory is the signed one */
+    uint32_t inventory_files;    /* acquired files it lists, each checked */
+    uint32_t inventory_failed;   /* problems: content differs, missing, unlisted, unreadable lines */
 } xiz_forensic_report;
 
 /* Every forensic record, oldest segment first; free the array (not the values) with xiz_free.

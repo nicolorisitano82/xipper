@@ -30,7 +30,7 @@ common="--sign $out/signing.key --signer Esaminatore --case 2026-117 --evidence 
 "$XF" custody "$out/forensic.xiz" --from Esaminatore --to Laboratorio --seals "sigillo 4471" \
     --sign "$out/signing.key" --signer Corriere --time 2026-11-10T12:00:00Z > /dev/null
 mkdir -p "$work/x"
-"$X" extract -q -d "$work/x" --into "$out/forensic.xiz"
+"$X" extract -q -d "$work/x" --into "$out/forensic.xiz" > /dev/null
 "$M" "$work/x" > "$out/forensic.manifest"
 
 pw='correct horse battery staple'
@@ -38,6 +38,22 @@ pw='correct horse battery staple'
 printf '%s\n' "$pw" | "$XF" acquire --image "$img" -o "$out/forensic-password.xiz" --password-stdin $common > /dev/null
 "$XF" custody "$out/forensic-password.xiz" --from Esaminatore --to Corriere \
     --sign "$out/signing.key" --signer Corriere --time 2026-11-10T12:00:00Z > /dev/null
+
+# A logical acquisition (folders): the inventory lists every item, the unreadable and special ones too.
+lt=$work/logical/Utente
+mkdir -p "$lt/Mail/INBOX" "$lt/Documenti/città"
+for i in 1 2 3; do printf 'Messaggio %d, sintetico.\n' "$i" > "$lt/Mail/INBOX/$i.eml"; done
+printf 'documento\n' > "$lt/Documenti/città/è.txt"
+head -c 300000 "$img" > "$lt/Documenti/dati.bin"
+ln -s ../Mail "$lt/Documenti/posta"
+printf 'non leggibile\n' > "$lt/Documenti/chiuso.txt"; chmod 000 "$lt/Documenti/chiuso.txt"
+mkfifo "$lt/Documenti/pipe"
+find "$lt" -exec touch -h -t 202601020304.05 {} +
+"$XF" acquire --logical "$lt" -o "$out/forensic-logical.xiz" $common > "$work/logical.log"
+chmod 600 "$lt/Documenti/chiuso.txt"
+mkdir -p "$work/xl"
+"$X" extract -q -d "$work/xl" --into "$out/forensic-logical.xiz" > /dev/null
+"$M" "$work/xl" > "$out/forensic-logical.manifest"
 
 # One byte of the first frame's payload flipped (the frame's CRC and its signed hash no longer match).
 cp "$out/forensic.xiz" "$out/forensic-damaged.xiz"

@@ -163,6 +163,10 @@ if [ -f "$F/forensic.xiz" ]; then
     expect_code forensic-password 0 "$XIZ" forensic --password-env PW "$F/forensic-password.xiz"
     "$XIZ" forensic --password-env PW "$F/forensic-password.xiz" | grep -q 'images: 1 checked' && pass forensic-password-image || fail forensic-password-image
     expect_code forensic-damaged 1 "$XIZ" forensic "$F/forensic-damaged.xiz"
+    expect_code forensic-logical 0 "$XIZ" forensic "$F/forensic-logical.xiz"
+    "$XIZ" forensic "$F/forensic-logical.xiz" | grep -q 'files: 5 checked against the signed inventory, 0 problems' && pass forensic-inventory || fail forensic-inventory
+    "$XIZ" cat "$F/forensic-logical.xiz" forensic/inventory.jsonl | grep -q '"status":"unreadable"' && pass forensic-inventory-unreadable || fail forensic-inventory-unreadable
+    extract_cmp forensic-logical forensic-logical.xiz forensic-logical.manifest
     cp "$F/forensic.xiz" "$W/f.xiz"
     expect_code forensic-append-refused 1 "$XIZ" append "$W/f.xiz" --mkdir x
     cmp -s "$W/f.xiz" "$F/forensic.xiz" && pass forensic-append-untouched || fail forensic-append-untouched

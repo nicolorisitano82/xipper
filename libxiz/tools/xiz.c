@@ -414,7 +414,12 @@ static int cmd_forensic(int argc, char **argv) {
         for (int i = 0; i < 32; i++) printf("%02x", rep.last_image_sha256[i]);
         printf(")\n");
     }
-    int failed = bad || !rep.profile_ok || rep.frames_altered || rep.frames_unhashed || sig_bad || rep.images_failed;
+    if (rep.has_inventory) {
+        if (!rep.inventory_ok && !rep.inventory_failed) printf("skip  files: the inventory needs the password or a key\n");
+        else printf("%s  files: %u checked against the signed inventory, %u problems\n", rep.inventory_failed ? "FAIL" : "ok  ",
+                    rep.inventory_files, rep.inventory_failed);
+    }
+    int failed = bad || rep.inventory_failed || !rep.profile_ok || rep.frames_altered || rep.frames_unhashed || sig_bad || rep.images_failed;
     printf(failed ? "VERIFICATION FAILED\n" : "verified\n");
     xiz_close(a);
     return failed ? 1 : 0;

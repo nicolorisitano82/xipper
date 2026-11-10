@@ -1,0 +1,18 @@
+evidence	d 0755 1794301200
+evidence/Utente	d 0755 1767319445
+evidence/Utente/Documenti	d 0755 1767319445
+evidence/Utente/Documenti/città	d 0755 1767319445
+evidence/Utente/Documenti/città/è.txt	f 0644 1767319445 208a9201105efef5b9df13536a826362a9dc4bbd9138d5429a70864a7d2acd6e
+evidence/Utente/Documenti/dati.bin	f 0644 1767319445 c31564a579e558aadfde3f3ada70881f8741bba9843c62a71455c508c878afd3
+evidence/Utente/Documenti/posta	l - - ../Mail
+evidence/Utente/Mail	d 0755 1767319445
+evidence/Utente/Mail/INBOX	d 0755 1767319445
+evidence/Utente/Mail/INBOX/1.eml	f 0644 1767319445 8cd3b1aaabc9caa85ae3c4fa7686b482f0e5eb55367faaaa47910f9f1ed30c59
+evidence/Utente/Mail/INBOX/2.eml	f 0644 1767319445 cb386a3ce70816940b51dc00a474f639aec551f7a9cc5881627fffa19cdcc758
+evidence/Utente/Mail/INBOX/3.eml	f 0644 1767319445 af2b5a88c275e2e38fcd955d33310b42f02ae3a5a036b2ec62bca42412b34ce4
+forensic	d 0755 1794301200
+forensic/acquisition.json	f 0444 1794301200 7ba719e7de67af7a8730e8959ce55ed2d7367c4873ba33f2f0c11fa0a0d3e2cf
+forensic/case.json	f 0444 1794301200 71690b33f380c6e212803fade77e9873a699b8ed962d4a4aef92efbc75f8c2dc
+forensic/device.json	f 0444 1794301200 814ebbcc7e6bb0e360571782aa2fc89314e6a8107355e4bef9fff8c8774350a8
+forensic/inventory.jsonl	f 0444 1794301200 7fd5a246b4a2ae41848818d88ac68d455febacd188e8066c931851932944f8ec
+forensic/log.jsonl	f 0444 1794301200 f6bc51465dd0347753c5340a13a1e25860950edded1ceaf545229e4af4c6f5e7
