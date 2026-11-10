@@ -590,7 +590,7 @@ enum XizWriter {
                                       entries: [UInt16: [Xiz.Entry]], keys: [UInt16: XizKeys], archiveID: [UInt8], segment: UInt32,
                                       previousFooter: UInt64, signer: XizSigner?, previousSignature: [UInt8],
                                       newSlots: [[UInt8]] = [], olderSlotTables: [XizDirectory.SlotTable] = [], erasable: Bool = false,
-                                      to out: XizOutput) throws {
+                                      forensicBlock: [UInt8]? = nil, to out: XizOutput) throws {
         var directory = XizDirectory(flags: erasable ? XizDirectory.erasableFlag : 0, groups: [])
         directory.slotTables = olderSlotTables
         if !newSlots.isEmpty {
@@ -628,6 +628,13 @@ enum XizWriter {
         directory.leafCount = UInt32(leaves.count)
         directory.merkleRoot = MerkleTree.root(leaves[...])
         for l in leaves { try out.write(l) }
+        if let forensicBlock {  // 1.10 (§20.1): the forensic block, between the leaves and the directory
+            directory.version = 3
+            directory.forensicOffset = out.position
+            directory.forensicLength = UInt32(forensicBlock.count)
+            directory.forensicSHA256 = Xiz.sha256(forensicBlock)
+            try out.write(forensicBlock)
+        }
         if let signer {
             let record = try XizSignature.sign(signer, archiveID: archiveID, segment: segment, directory: directory,
                                                previousFooter: previousFooter, previous: previousSignature)
@@ -637,7 +644,7 @@ enum XizWriter {
         var footer = Xiz.Footer(catalogOffset: out.position, catalogCSize: Int64(dir.count), catalogUSize: Int64(dir.count),
                                 frameCount: UInt32(frames.count), entryCount: UInt32(entryCount), totalBytes: totalBytes,
                                 catalogSHA256: Xiz.sha256(dir))
-        footer.minor = 3
+        footer.minor = forensicBlock == nil ? 3 : 10
         footer.previousFooter = previousFooter
         try out.write(dir)
         try out.write(footer.encode())

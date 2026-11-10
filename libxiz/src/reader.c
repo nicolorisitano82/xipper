@@ -12,7 +12,7 @@ int src_read(const xiz_archive *a, uint64_t off, void *buf, size_t n, xiz_error 
     return XIZ_OK;
 }
 
-static int read_alloc(const xiz_archive *a, uint64_t off, uint64_t n, uint8_t **out, xiz_error *err) {
+int read_alloc(const xiz_archive *a, uint64_t off, uint64_t n, uint8_t **out, xiz_error *err) {
     if (n > SIZE_MAX - 1) return FAIL(XIZ_E_LIMIT, "region too large");
     if (off > a->src.size || n > a->src.size - off) return FAIL(XIZ_E_CORRUPT, "region past the end of the archive");
     uint8_t *b = malloc(n ? (size_t)n : 1);
@@ -25,7 +25,7 @@ static int read_alloc(const xiz_archive *a, uint64_t off, uint64_t n, uint8_t **
 
 /* ------------------------------------------------------------------ footer */
 
-static int footer_at(const xiz_archive *a, uint64_t at, footer *f) {
+int footer_at(const xiz_archive *a, uint64_t at, footer *f) {
     uint8_t b[XIZ_FOOTER];
     if (src_read(a, at, b, XIZ_FOOTER, NULL) != XIZ_OK) return 0;
     if (footer_parse(b, f, NULL) != XIZ_OK) return 0;
@@ -137,6 +137,8 @@ static int check_frames(xiz_archive *a, const gaps_t *gs, uint64_t frame_end, in
             if (f->flags & XIZ_FLAG_DICTIONARY || f->dict) return FAIL(XIZ_E_CORRUPT, "brunsli frame %u with a dictionary", i);
         }
         if (f->flags & XIZ_FLAG_ENTRY_KEY && !a->encrypted) return FAIL(XIZ_E_CORRUPT, "entry-key frame %u, not encrypted", i);
+        if ((a->sb.required & XIZ_FEATURE_FORENSIC) && (f->flags || f->dict || (f->codec != CODEC_STORE && f->codec != CODEC_ZSTD)))
+            return FAIL(XIZ_E_CORRUPT, "forensic profile: frame %u codec %u not allowed", i, f->codec);
         if ((f->flags & XIZ_FLAG_DICTIONARY || f->dict) && !allow_dicts)
             return FAIL(XIZ_E_CORRUPT, "frame %u: dictionary not allowed here", i);
         next = f->offset + XIZ_FRAME_HEADER + f->csize;
@@ -297,8 +299,19 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
     buf = NULL;
     if (rc) return rc;
     const directory *d = &a->dir;
+    /* Forensic profile (§20): directory version 3 everywhere, and nothing else uses it. */
+    const int forensic = (a->sb.required & XIZ_FEATURE_FORENSIC) != 0;
+    if (forensic != (d->version == 3)) return FAIL(XIZ_E_CORRUPT, "forensic profile: directory version %u", d->version);
+    if (forensic && ((d->flags & XIZ_DIR_ERASABLE) ||
+                     (a->sb.required & (XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_LZMA2 | XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE))))
+        return FAIL(XIZ_E_CORRUPT, "forensic profile: feature not allowed");
+    const int custody = (d->flags & XIZ_DIR_CUSTODY) != 0;
+    footer pft;
+    directory pd;
+    int have_prev = 0;
 
-    /* Earlier segments: from their slot table (or first catalog) to the end of their footer. */
+    /* Earlier segments: from their slot table (or first catalog; the forensic block of a custody
+     * segment) to the end of their footer. */
     uint32_t segment = 0;
     uint64_t prev = ft->previous, bound = ft->cat_offset;
     while (prev != 0) {
@@ -316,14 +329,20 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
         if ((rc = directory_parse(buf, (size_t)older.cat_csize, &od, &a->ar, err))) goto out;
         free(buf);
         buf = NULL;
+        if (forensic != (od.version == 3)) { rc = FAIL(XIZ_E_CORRUPT, "forensic profile: directory version"); goto out; }
+        if (!have_prev) { pft = older; pd = od; have_prev = 1; }
         uint64_t start = od.groups[0].offset;
-        for (uint16_t i = 0; i < od.n_groups; i++)
-            if (od.groups[i].offset < start) start = od.groups[i].offset;
-        for (uint16_t i = 0; i < od.n_slots; i++)
-            if (od.slots[i].count && od.slots[i].offset + (uint64_t)od.slots[i].count * XIZ_SLOT_SIZE == start) {
-                start = od.slots[i].offset;
-                break;
-            }
+        if (od.flags & XIZ_DIR_CUSTODY) {
+            start = od.forensic_offset;
+        } else {
+            for (uint16_t i = 0; i < od.n_groups; i++)
+                if (od.groups[i].offset < start) start = od.groups[i].offset;
+            for (uint16_t i = 0; i < od.n_slots; i++)
+                if (od.slots[i].count && od.slots[i].offset + (uint64_t)od.slots[i].count * XIZ_SLOT_SIZE == start) {
+                    start = od.slots[i].offset;
+                    break;
+                }
+        }
         if (start < a->data_start || start > older.cat_offset) { rc = FAIL(XIZ_E_CORRUPT, "segment chain region"); goto out; }
         if ((rc = gap_add(&gs, start, prev + XIZ_FOOTER, err))) goto out;
         bound = start;
@@ -332,8 +351,32 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
     }
     a->segments = segment + 1;
 
+    /* A custody segment (§20.1) repeats the previous segment's catalogs, leaves and counts. */
+    if (custody) {
+        int same = have_prev && pd.n_groups == d->n_groups && pd.n_slots == 0 && d->n_slots == 0 &&
+                   pd.leaf_offset == d->leaf_offset && pd.leaf_count == d->leaf_count && memcmp(pd.root, d->root, 32) == 0 &&
+                   pft.frame_count == ft->frame_count && pft.entry_count == ft->entry_count && pft.total_bytes == ft->total_bytes &&
+                   d->forensic_offset == ft->previous + XIZ_FOOTER;
+        for (uint16_t i = 0; same && i < d->n_groups; i++)
+            same = pd.groups[i].group == d->groups[i].group && pd.groups[i].segment == d->groups[i].segment &&
+                   pd.groups[i].offset == d->groups[i].offset && pd.groups[i].csize == d->groups[i].csize &&
+                   pd.groups[i].usize == d->groups[i].usize && memcmp(pd.groups[i].sha, d->groups[i].sha, 32) == 0;
+        if (!same) { rc = FAIL(XIZ_E_CORRUPT, "custody segment does not repeat the previous segment"); goto out; }
+    }
+    if (forensic) {
+        if (d->forensic_length > XIZ_MAX_FORENSIC_BLOCK || d->forensic_offset + d->forensic_length != ft->cat_offset) {
+            rc = FAIL(XIZ_E_CORRUPT, "forensic block out of place");
+            goto out;
+        }
+        if ((rc = read_alloc(a, d->forensic_offset, d->forensic_length, &buf, err))) goto out;
+        sha256(buf, d->forensic_length, h);
+        free(buf);
+        buf = NULL;
+        if (!ct_equal(h, d->forensic_sha, 32)) { rc = FAIL(XIZ_E_CORRUPT, "forensic block altered"); goto out; }
+    }
+
     /* This segment's slot table, then the group catalogs, in order, with no gaps. */
-    uint64_t next = d->groups[0].offset, frame_end = next;
+    uint64_t next = d->groups[0].offset, frame_end = custody ? d->forensic_offset : next;
     for (uint16_t i = 0; i < d->n_slots; i++) {
         if (d->slots[i].segment != segment) continue;
         if (d->slots[i].offset + (uint64_t)d->slots[i].count * XIZ_SLOT_SIZE != next)
@@ -356,7 +399,8 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
         group_state *gs_ = &a->groups[gi];
         memset(gs_, 0, sizeof *gs_);
         gs_->id = g->group;
-        if (g->offset != next || g->csize == 0 || g->usize == 0 || g->segment != segment || g->csize > XIZ_MAX_CATALOG + 65536) {
+        if ((custody ? g->segment >= segment : (g->offset != next || g->segment != segment)) || g->csize == 0 || g->usize == 0 ||
+            g->csize > XIZ_MAX_CATALOG + 65536) {
             rc = FAIL(XIZ_E_CORRUPT, "group catalog %u out of place", g->group);
             break;
         }
@@ -406,9 +450,10 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
         total_entries += c->n_entries;
         if (gi == 0 && c->n_prefixes) { rc = FAIL(XIZ_E_CORRUPT, "group 0 with prefixes"); break; }
     }
-    if (rc == XIZ_OK) {
+    if (rc == XIZ_OK && !custody) {
+        uint64_t leaves_end = forensic ? d->forensic_offset : ft->cat_offset;
         if (d->version >= 2) {
-            if (d->leaf_offset != next || next + (uint64_t)d->leaf_count * 32 != ft->cat_offset || d->leaf_count > ft->entry_count)
+            if (d->leaf_offset != next || next + (uint64_t)d->leaf_count * 32 != leaves_end || d->leaf_count > ft->entry_count)
                 rc = FAIL(XIZ_E_CORRUPT, "leaf table out of place");
         } else if (next != ft->cat_offset) {
             rc = FAIL(XIZ_E_CORRUPT, "group catalogs do not reach the directory");
@@ -673,6 +718,7 @@ int xiz_get_entry(const xiz_archive *a, size_t index, xiz_entry *o) {
     memcpy(o->digest, e->digest, 32);
     o->group = e->group;
     o->erasable = e->has_slot;
+    o->is_image = e->has_image;
     o->has_proof = entry_proof_data(a, e, o->proof_salt, o->proof_sha256);
     o->xattr_count = e->n_xattrs;
     o->extent_count = e->n_ext;

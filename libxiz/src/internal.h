@@ -34,7 +34,7 @@ enum { CODEC_STORE = 0, CODEC_ZSTD = 1, CODEC_LZMA2 = 2, CODEC_LZMA2_ARM64 = 3, 
 enum {
     TAG_SIZE = 0x8001, TAG_EXTENTS = 0x8002, TAG_LINK = 0x8003,
     TAG_MODE = 0x0004, TAG_OWNER = 0x0005, TAG_MTIME = 0x0006, TAG_XATTR = 0x0007, TAG_DIGEST = 0x0008,
-    TAG_PROOF = 0x0009, TAG_KEY_SLOT = 0x800A, TAG_SEALED_PROOF = 0x000B
+    TAG_PROOF = 0x0009, TAG_KEY_SLOT = 0x800A, TAG_SEALED_PROOF = 0x000B, TAG_IMAGE = 0x000C
 };
 
 extern const uint8_t XIZ_SUPER_MAGIC[8];
@@ -184,6 +184,9 @@ typedef struct {
     uint8_t sealed_proof[76];
     uint8_t secret[32];          /* entry key from its slot (erasable entries) */
     uint16_t group;
+    int has_image;               /* 1.10 forensic image (§20.3) */
+    uint32_t image_block, image_logical, image_physical, image_flags;
+    uint64_t image_offset;
 } entry_rec;
 
 typedef struct {
@@ -304,6 +307,9 @@ typedef struct {
     uint64_t leaf_offset;
     uint32_t leaf_count;
     uint8_t root[32];
+    uint64_t forensic_offset;    /* version 3 (§20.1) */
+    uint32_t forensic_length;
+    uint8_t forensic_sha[32];
     const uint8_t *signature;
     uint32_t signature_len;
     size_t signed_len;           /* bytes before signature_length */
@@ -364,6 +370,11 @@ struct xiz_archive {
 };
 
 int src_read(const xiz_archive *a, uint64_t off, void *buf, size_t n, xiz_error *err);
+int read_alloc(const xiz_archive *a, uint64_t off, uint64_t n, uint8_t **out, xiz_error *err);
+int footer_at(const xiz_archive *a, uint64_t at, footer *f);
+#define XIZ_DIR_ERASABLE 1u
+#define XIZ_DIR_CUSTODY 2u
+#define XIZ_MAX_FORENSIC_BLOCK (64u << 20)
 /* Decoded frame `i`, checked (header, CRC, AEAD, size). Owned by the cache; valid until the
  * next frame_get. */
 int frame_get(xiz_archive *a, uint32_t i, const uint8_t **data, size_t *len, xiz_error *err);

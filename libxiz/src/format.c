@@ -23,6 +23,8 @@ int superblock_parse(const uint8_t b[XIZ_SUPERBLOCK], superblock *s, int allow_b
         return FAIL(XIZ_E_UNSUPPORTED, "required feature bits 0x%04x not implemented (archive made by a newer writer)",
                     unknown);
     }
+    if ((s->required & XIZ_FEATURE_FORENSIC) && !(s->required & XIZ_FEATURE_DIRECTORY))
+        return FAIL(XIZ_E_CORRUPT, "forensic profile without a directory (§20)");
     if ((s->required & XIZ_FEATURE_JPEG) && !xiz_has_jpeg())
         return FAIL(XIZ_E_UNSUPPORTED, "required feature jpeg (0x0040): this libxiz was built without brunsli (XIZ_JPEG=OFF)");
     if ((s->required & XIZ_FEATURE_APPLE) && !xiz_has_apple_codecs())
@@ -294,6 +296,15 @@ int catalog_parse(const uint8_t *b, size_t n, catalog *c, arena *ar, int allow_b
                 if (x->value_len && !x->value) return FAIL(XIZ_E_NOMEM, "out of memory");
                 break;
             }
+            case TAG_IMAGE:
+                if (len != 24) return FAIL(XIZ_E_CORRUPT, "entry %u: image field length %u", i, len);
+                e->has_image = 1;
+                e->image_block = rd32(v);
+                e->image_logical = rd32(v + 4);
+                e->image_physical = rd32(v + 8);
+                e->image_flags = rd32(v + 12);
+                e->image_offset = rd64(v + 16);
+                break;
             case TAG_DIGEST:
                 if (len != 32) return FAIL(XIZ_E_CORRUPT, "entry %u: digest field length %u", i, len);
                 memcpy(e->digest, v, 32);
@@ -362,9 +373,10 @@ int directory_parse(const uint8_t *b, size_t n, directory *d, arena *ar, xiz_err
     rb_init(&r, d->raw, n - 4);
     r.at = 4;
     d->version = rb_u16(&r);
-    if (d->version != 1 && d->version != 2) return FAIL(XIZ_E_UNSUPPORTED, "directory version %u", d->version);
+    if (d->version < 1 || d->version > 3) return FAIL(XIZ_E_UNSUPPORTED, "directory version %u", d->version);
     if (d->version >= 2) d->flags = rb_u16(&r);
-    if (d->flags & ~1u) return FAIL(XIZ_E_UNSUPPORTED, "directory flags 0x%04x", d->flags);
+    if (d->flags & ~(d->version >= 3 ? (XIZ_DIR_ERASABLE | XIZ_DIR_CUSTODY) : XIZ_DIR_ERASABLE))
+        return FAIL(XIZ_E_UNSUPPORTED, "directory flags 0x%04x", d->flags);
     d->n_groups = rb_u16(&r);
     if (r.bad || d->n_groups < 1) return FAIL(XIZ_E_CORRUPT, "directory without groups");
     if (d->n_groups > rb_left(&r) / 62) return FAIL(XIZ_E_CORRUPT, "directory group count");
@@ -400,6 +412,13 @@ int directory_parse(const uint8_t *b, size_t n, directory *d, arena *ar, xiz_err
         const uint8_t *root = rb_take(&r, 32);
         if (!root) return FAIL(XIZ_E_CORRUPT, "directory truncated");
         memcpy(d->root, root, 32);
+    }
+    if (d->version >= 3) {  /* forensic profile (§20.1) */
+        d->forensic_offset = rb_u64(&r);
+        d->forensic_length = rb_u32(&r);
+        const uint8_t *fh = rb_take(&r, 32);
+        if (!fh) return FAIL(XIZ_E_CORRUPT, "directory truncated");
+        memcpy(d->forensic_sha, fh, 32);
     }
     d->signed_len = r.at;
     d->signature_len = rb_u32(&r);

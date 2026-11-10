@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.9
+# XIZ archive format, version 1.10
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -9,7 +9,9 @@ file (§15), which every reader since 1.1 skips. **1.6** (2026-11-03, Xipper 2.7
 recompressed losslessly with brunsli, one per frame (§16). **1.7** (2026-11-09, Xipper 3.0) adds
 post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which older readers skip. **1.8**
 (2026-11-10, Xipper 3.0) adds frames compressed with Apple's LZRAVEN and LZMESH (§18), macOS 27 only. **1.9** (2026-11-10, Xipper
-3.0) adds PNG, PDF and ZIP-based documents with their Deflate streams recompressed losslessly (§19). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+3.0) adds PNG, PDF and ZIP-based documents with their Deflate streams recompressed losslessly (§19). **1.10**
+(draft, 2026-11-10, xipper-forensic) adds the **forensic profile** (§20): disk images, source hashes, a
+cryptographic hash of every frame, unreadable-sector maps, case and custody records. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -49,7 +51,7 @@ There are no gaps and no overlaps. The footer ends the file.
 |---:|---:|---|---|
 | 0 | 8 | magic | `58 49 5A 00 0D 0A 1A 0A` ("XIZ\0\r\n\x1A\n") |
 | 8 | 2 | version_major | 1 |
-| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–9) |
+| 10 | 2 | version_minor | the highest minor version whose features the archive uses (0–10) |
 | 12 | 2 | required_features | bit set, see below |
 | 14 | 2 | optional_features | bit set, see below |
 | 16 | 16 | archive_id | random, unique per archive |
@@ -70,7 +72,8 @@ There are no gaps and no overlaps. The footer ends the file.
 | 6 | jpeg | 1.6: frames with codec 4 (a JPEG file recompressed with brunsli) (§16) |
 | 7 | apple | 1.8: frames with codec 5 or 6 (Apple's LZRAVEN, LZMESH) (§18) |
 | 8 | deflate | 1.9: frames with codec 7 (a document with its Deflate streams split by preflate) (§19) |
-| 7–15 | — | reserved, zero |
+| 9 | forensic | 1.10: forensic profile: directory version 3 with a forensic block in every segment (§20) |
+| 10–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
 the recovery record (§15) can be added to an existing archive, whose superblock is never rewritten,
@@ -806,3 +809,142 @@ On real files (docs/BENCHMARK.md) the archive shrinks by 31% for PNG images, 17%
 for Office and EPUB documents against LZMA2 on the files as they are, at 10–28 MB/s each way; every
 file was rebuilt identical. Xipper writes codec 7 only when asked (`xipper create --documents`,
 «PNG, PDF e documenti più piccoli» in Settings).
+
+## 20. Version 1.10: forensic profile
+
+Status: **draft** (xipper-forensic, docs/XIPPER_FORENSIC.md); it may still change before xipper-forensic 0.9.
+
+An archive made as digital evidence sets the required feature `forensic` (superblock bit 9,
+`version_minor = 10`) together with `directory` (§13); readers without it refuse the archive. The
+profile adds what a court copy needs and a plain archive lacks: the hashes of the **source** as it was
+read, a cryptographic hash of **every frame** (so a random read is verified, not only a full one),
+the map of **unreadable sectors**, the **case**, **device** and **acquisition** records, the
+acquisition **log**, and **custody** records that anyone in the chain can append without the keys to
+the content. Everything the profile adds is plaintext and covered by the segment's signature, so it
+can be checked without any key.
+
+Rules for an archive with `forensic`:
+
+- codecs 0 and 1 only; the features `dictionaries`, `lzma2`, `jpeg`, `apple` and `deflate` are clear;
+- no erasable entries: directory flag `erasable` clear, no frame with flags bit 1 (§13.7);
+- every segment's directory has version 3 (§20.1) and a forensic block (§20.2);
+- every segment **must** be signed (§13.5). A reader that only extracts may read an unsigned segment;
+  a verifier reports it as a failure of the profile.
+
+### 20.1 Directory version 3 and custody segments
+
+Version 3 of the directory (§13.1) adds, after `merkle_root`, in the signed part:
+
+```
+forensic_offset   u64   position of this segment's forensic block
+forensic_length   u32   its length
+forensic_sha256   [32]  SHA-256 of the block as written
+```
+
+and flags bit 1, `custody`. Version 3 is used only with `forensic`, and `forensic` only with version 3.
+
+A **normal segment** is laid out as in §13.1 with the forensic block between the leaf table and the
+directory:
+
+```
+frames · group catalogs · leaf table · forensic block · directory · footer
+```
+
+A **custody segment** (flags bit 1) adds nothing to the content. It is only
+
+```
+forensic block · directory · footer
+```
+
+right after the previous footer. Its directory repeats the previous directory's group records byte for
+byte (same `segment` numbers, offsets and hashes: the catalogs stay those of the segment that wrote
+them, and keep their nonces), its leaf fields, and its footer repeats the previous footer's
+`frame_count`, `entry_count` and `total_bytes`. A custody segment can therefore be written, and
+signed, by someone who holds no key to the content: a courier, a court clerk, an expert for the other
+party. Its forensic block holds custody records (§20.2), not frame hashes.
+
+The region an earlier segment occupies between frames (§11, §13.1) runs from its first own group
+catalog, or from its forensic block for a custody segment, to the end of its footer.
+
+### 20.2 Forensic block
+
+```
+magic          "XFOR"
+version        u16 = 1
+segment        u32       the segment it belongs to (0 for the first)
+record_count   u32
+records        record_count × (type u16, length u32, value[length])
+crc            u32       CRC32C of everything before it
+```
+
+The block is at most 64 MiB. Bit 15 of a record type marks it **critical**: a reader **must** refuse a
+block with an unknown critical type and skip unknown other types. JSON values are UTF-8 objects
+(RFC 8259); readers ignore keys they do not know.
+
+| Type | Name | Value | Where |
+|---|---|---|---|
+| 0x8001 | frame hashes | `first u32`, `count u32`, `count` × SHA-256 of (frame header ‖ payload as written), `root[32]` | exactly once in each normal segment, for the frames it writes |
+| 0x0002 | case | JSON: `case_number`, `evidence_number`, `examiner`, `organization`, `location`, `description`, `notes` | first segment, once |
+| 0x0003 | device | JSON: `path` (the entry), `model`, `serial`, `firmware`, `capacity`, `interface`, `bridge`, `encryption`, `smart`, `write_blocker` | once per acquired device |
+| 0x8004 | source hashes | `path_length u16`, `path`, `size u64`, `which u8` (bit 0 MD5, 1 SHA-1, 2 SHA-256), `md5[16]`, `sha1[20]`, `sha256[32]`, `started i64`, `finished i64` (seconds since 1970 UTC) | once per image entry (§20.3) |
+| 0x8005 | unreadable sectors | `path_length u16`, `path`, `count u32`, `count` × (`offset u64`, `length u64`, `error i32`, `attempts u16`, `reserved u16`) | once per image entry with read errors |
+| 0x0006 | log | JSON Lines: one object per event, with `t` (UTC, RFC 3339) and `event` | any segment |
+| 0x0007 | custody | JSON: `from`, `to`, `reason`, `seals`, `notes`, `time` | custody segments, any segment |
+| 0x0008 | acquisition | JSON: `tool`, `tool_version`, `os`, `hardware`, `method` (`physical`, `volume`, `logical`), `started`, `finished`, `operator`, `notes` | segments that acquire |
+
+- **Frame hashes**: `first` is the index of the first frame the segment writes and `count` how many it
+  writes (frames are numbered across segments, §11). The hash covers the 32-byte frame header and the
+  payload exactly as written (ciphertext and tag when encrypted), so it is checked without the
+  password. `root` is the Merkle root (RFC 6962 §2.1, as in §13.6) over leaves whose data is
+  `u32(frame index) ‖ frame hash`, in index order; it lets a later proof show that one frame (a range
+  of sectors) belongs to the signed archive. Every frame of the archive is covered by exactly one
+  record. The signature covers the directory, which holds `forensic_sha256`: a frame changed, even
+  with its CRC corrected, no longer matches a signed hash.
+- **Source hashes** are computed while reading the source, before compression. They are not the
+  archive's digests: `sha256` must equal the SHA-256 of the entry's content (for an image whose
+  unreadable sectors were filled with zeros, of the content with those zeros); MD5 and SHA-1, when
+  present, are for comparison with other tools and reports. Unused hashes are zeros.
+- **Unreadable sectors**: ranges sorted, not overlapping, inside the entry. Their bytes in the entry
+  are zeros that did not come from the source.
+
+### 20.3 Image entries
+
+A disk or volume image is a file entry (§5.2) with the non-critical field `0x000C image` (24 bytes):
+
+```
+block_size        u32   4,194,304
+logical_sector    u32   the source's logical sector size (512, 4096)
+physical_sector   u32   its physical sector size
+flags             u32   bit 0: volume (a partition), 0: whole device
+offset            u64   the volume's byte offset in its device, 0 for a whole device
+```
+
+Readers that ignore the field see an ordinary file: the raw image. The profile adds a fixed layout so
+that the bytes at a given offset are found without the catalog and verified frame by frame:
+
+- the entry has `⌈size / block_size⌉` extents; extent *i* holds stream bytes `[i·B, min((i+1)·B, size))`
+  with offset 0 in its frame;
+- its frame is either a frame of its own (holding block *i* only, referenced by no other extent), or
+  the archive's **zero frame**: one frame of `B` zero bytes that only blocks made entirely of zeros
+  reference. No other deduplication happens inside an image;
+- the entry carries `digest` (§5.2) and `proof` (§13.6), and a source hashes record (§20.2).
+
+Logical acquisitions (folders, mailboxes) are ordinary entries without `image`; the forensic block
+then holds the case, acquisition and log records, and each file's `digest` and `proof` make it
+verifiable on its own.
+
+### 20.4 Verification
+
+A verifier reports each check separately, never a single "valid":
+
+1. structure (§8) and, when present, the recovery record (§15);
+2. every frame against its frame hash, every frame hash record against its Merkle root;
+3. every segment: directory version 3, forensic block hash and CRC, signature, chain (§13.5),
+   time-stamp; custody segments: catalogs, leaves and counts equal to the previous segment's;
+4. every image: layout (§20.3), content SHA-256 equal to the source SHA-256, unreadable sectors listed;
+5. optionally, the SHA-256 the user copied from the acquisition report: a truncated archive (its last
+   segments removed) or one rebuilt and re-signed by the key holder can only be told apart by such an
+   external reference.
+
+Reading the content needs the password or a recipient key when the archive is encrypted; checks 2, 3
+and the source hashes do not.

@@ -33,6 +33,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | 1.7: destinatari post-quantum X-Wing (§17) | saltati: si apre con le altre credenziali |
 | 1.8: frame LZRAVEN e LZMESH (§18) | lettura su macOS 27 (framework Compression), rifiutati altrove |
 | 1.9: documenti con i flussi Deflate ricompressi (§19) | non ancora: rifiutati con un errore chiaro (bit 0x0100) |
+| 1.10: profilo forense (§20): directory v3, blocchi forensi, segmenti di custodia, immagini | lettura e verifica (`xiz forensic`): hash firmati di ogni frame, Merkle, custodia, immagine contro lo SHA-256 della sorgente; MD5 e SHA-1 non verificati |
 
 ## Build
 

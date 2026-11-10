@@ -597,6 +597,8 @@ struct XizDirectory {
 
     static let magic: [UInt8] = Array("XDIR".utf8)
     static let erasableFlag: UInt16 = 1
+    /// Version 3 (§20.1): a custody segment, which reuses the previous segment's catalogs and leaves.
+    static let custodyFlag: UInt16 = 2
     var version: UInt16 = 2
     /// Version 2: bit 0, erasable (files added later get key slots too).
     var flags: UInt16 = 0
@@ -607,7 +609,13 @@ struct XizDirectory {
     var leafOffset: Int64 = 0
     var leafCount: UInt32 = 0
     var merkleRoot = [UInt8](repeating: 0, count: 32)
+    /// Version 3 (§20.1): this segment's forensic block.
+    var forensicOffset: Int64 = 0
+    var forensicLength: UInt32 = 0
+    var forensicSHA256 = [UInt8](repeating: 0, count: 32)
     var signature: [UInt8] = []
+
+    var isCustody: Bool { flags & Self.custodyFlag != 0 }
 
     /// Everything before `signature_length`: what a segment signature covers.
     var signedPart: [UInt8] {
@@ -623,6 +631,7 @@ struct XizDirectory {
             for t in slotTables { w.u32(t.segment); w.u64(UInt64(t.offset)); w.u32(t.count) }
             w.u64(UInt64(leafOffset)); w.u32(leafCount); w.append(merkleRoot)
         }
+        if version >= 3 { w.u64(UInt64(forensicOffset)); w.u32(forensicLength); w.append(forensicSHA256) }
         return w.bytes
     }
 
@@ -640,9 +649,9 @@ struct XizDirectory {
         return try b.withUnsafeBytes { raw in
             var r = ByteReader(UnsafeRawBufferPointer(rebasing: raw[..<(raw.count - 4)]), at: 4)
             let version = try r.u16()
-            guard version == 1 || version == 2 else { throw XipperError.unsupported("XIZ directory version") }
+            guard (1...3).contains(version) else { throw XipperError.unsupported("XIZ directory version") }
             let flags = version >= 2 ? try r.u16() : 0
-            guard flags & ~Self.erasableFlag == 0 else { throw XipperError.unsupported("XIZ directory flags \(flags)") }
+            guard flags & ~(version >= 3 ? Self.erasableFlag | Self.custodyFlag : Self.erasableFlag) == 0 else { throw XipperError.unsupported("XIZ directory flags \(flags)") }
             let n = Int(try r.u16())
             guard n >= 1 else { throw XipperError.corrupt("XIZ directory without groups") }
             var d = XizDirectory(version: version, flags: flags, groups: [])
@@ -660,6 +669,9 @@ struct XizDirectory {
                     d.slotTables.append(t)
                 }
                 d.leafOffset = Int64(bitPattern: try r.u64()); d.leafCount = try r.u32(); d.merkleRoot = Array(try r.bytes(32))
+            }
+            if version >= 3 {
+                d.forensicOffset = Int64(bitPattern: try r.u64()); d.forensicLength = try r.u32(); d.forensicSHA256 = Array(try r.bytes(32))
             }
             let sl = Int(try r.u32())
             d.signature = Array(try r.bytes(sl))

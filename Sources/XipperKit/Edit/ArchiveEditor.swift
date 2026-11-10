@@ -41,6 +41,9 @@ extension Xipper {
             throw XipperError.unsupported("\(format.rawValue) archives cannot be edited (Xipper does not write them as archives)")
         }
         let path = archive.standardizedFileURL.path
+        if format == .xiz, try XizArchive.isForensic(path) {
+            throw XipperError.unsupported("forensic XIZ archives (evidence) are never edited: only custody records are appended, with xipper-forensic")
+        }
         let originals = try list(archive, password: password).filter { !$0.isAppleDoubleMetadata || format != .zip }
         let tree = try EditTree(originals, changes: changes, archivePath: path, scan: options.scan)
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("Xipper-edit-\(UUID().uuidString)", isDirectory: true)

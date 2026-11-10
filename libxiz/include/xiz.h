@@ -121,8 +121,9 @@ XIZ_API void xiz_close(xiz_archive *a);
 #define XIZ_FEATURE_JPEG         0x0040u  /* brunsli frames (§16): needs a build with XIZ_JPEG */
 #define XIZ_FEATURE_APPLE        0x0080u  /* LZRAVEN / LZMESH frames (§18): macOS 27 or later only */
 #define XIZ_FEATURE_DEFLATE      0x0100u  /* documents with recompressed Deflate streams (§19): XIZ_PREFLATE */
+#define XIZ_FEATURE_FORENSIC     0x0200u  /* forensic profile (§20): images, frame hashes, custody */
 #define XIZ_FEATURES_KNOWN       (XIZ_FEATURE_ENCRYPTED | XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_DIRECTORY | XIZ_FEATURE_LZMA2 | \
-                                  XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE)
+                                  XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE | XIZ_FEATURE_FORENSIC)
 
 /* 1 when this build decodes JPEG frames (codec 4, §16), 0 when it refuses them. */
 XIZ_API int xiz_has_jpeg(void);
@@ -181,6 +182,7 @@ typedef struct xiz_entry {
     uint8_t proof_sha256[32];
     size_t xattr_count;
     uint32_t extent_count;
+    int is_image;               /* 1.10: a disk or volume image (§20.3) */
 } xiz_entry;
 
 XIZ_API size_t xiz_entry_count(const xiz_archive *a);
@@ -217,6 +219,37 @@ typedef void (*xiz_problem_fn)(void *ctx, long frame, long entry, int code, cons
  * every file's digest. Returns XIZ_OK when nothing failed. */
 XIZ_API int xiz_test(xiz_archive *a, int frames_only, xiz_problem_fn problem, void *ctx, xiz_test_report *report,
                      xiz_error *err);
+
+/* ------------------------------------------------------------------ forensic profile (§20) */
+
+/* One record of a segment's forensic block. `value` is NUL-terminated (JSON records are text). */
+typedef struct xiz_forensic_record {
+    uint32_t segment;
+    uint16_t type;               /* 0x8001 frame hashes, 0x0002 case, 0x0003 device, 0x8004 source hashes,
+                                    0x8005 unreadable sectors, 0x0006 log, 0x0007 custody, 0x0008 acquisition */
+    const uint8_t *value;        /* owned by the archive */
+    size_t length;
+} xiz_forensic_record;
+
+typedef struct xiz_forensic_report {
+    uint32_t segments, custody_segments;
+    uint32_t frames_checked;     /* every frame, against its signed SHA-256 (no key needed) */
+    uint32_t frames_altered;
+    uint32_t frames_unhashed;
+    uint32_t images;             /* image entries this reader can see */
+    uint32_t images_checked;     /* content read (needs the keys) and compared with the source SHA-256 */
+    uint32_t images_failed;
+    int profile_ok;              /* blocks, custody segments, frame hash records and roots, case record */
+    uint8_t last_image_sha256[32];
+} xiz_forensic_report;
+
+/* Every forensic record, oldest segment first; free the array (not the values) with xiz_free.
+ * XIZ_E_UNSUPPORTED for an archive without the forensic profile. */
+XIZ_API int xiz_forensic_records(xiz_archive *a, xiz_forensic_record **records, size_t *count, xiz_error *err);
+/* Checks the profile (§20.4) except signatures (xiz_get_signature) and MD5/SHA-1: segments, frame
+ * hashes, and, when the archive was opened with keys (or is not encrypted), each image against the
+ * source SHA-256. Problems go to `problem`; the return value is an error only when checking could not run. */
+XIZ_API int xiz_forensic_verify(xiz_archive *a, xiz_problem_fn problem, void *ctx, xiz_forensic_report *report, xiz_error *err);
 
 /* ------------------------------------------------------------------ recovery record (§15) */
 

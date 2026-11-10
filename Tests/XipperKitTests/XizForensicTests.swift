@@ -1,0 +1,150 @@
+import CryptoKit
+import Foundation
+import Testing
+@testable import XipperKit
+
+/// XIZ 1.10 forensic profile (§20): images with source hashes and frame hashes, custody segments
+/// without keys, verification point by point, tampering detected, editing refused.
+@Suite("XIZ forensic profile")
+struct XizForensicTests {
+    static let examiner = XizSigner(key: XizSigningKey(), label: "Esaminatore")
+    static let courier = XizSigner(key: XizSigningKey(), label: "Corriere")
+
+    /// 4 MiB of noise, 4 MiB of zeros, some text, a zero tail shorter than a block.
+    func image(_ t: TempDir) -> (String, [UInt8]) {
+        var d = sampleData(XizForensic.blockSize, seed: 7)
+        d += [UInt8](repeating: 0, count: XizForensic.blockSize)
+        d += Array((0..<40_000).map { "settore \($0)\n" }.joined().utf8)
+        d += [UInt8](repeating: 0, count: 100_000)
+        return (t.write("disk.img", d), d)
+    }
+
+    func options(_ f: (inout XizForensic.ImageOptions) -> Void = { _ in }) -> XizForensic.ImageOptions {
+        var o = XizForensic.ImageOptions()
+        o.caseInfo = ["case_number": "2026-117", "evidence_number": "R01"]
+        o.device = ["model": "Test", "serial": "SN1"]
+        f(&o)
+        return o
+    }
+
+    func status(_ r: XizForensic.Report, _ name: String) -> XizForensic.Check.Status? { r.checks.first { $0.name == name }?.status }
+
+    @Test func imageRoundTripsAndVerifies() throws {
+        let t = TempDir()
+        let (src, data) = image(t)
+        let out = t.path + "/r.xiz"
+        let r = try XizForensic.acquireImage(from: src, to: out, options: options(), signer: Self.examiner)
+        #expect(r.sha256 == Array(SHA256.hash(data: data)))
+        #expect(r.md5 == Array(Insecure.MD5.hash(data: data)))
+        #expect(r.zeroBlocks == 1)
+        let v = try XizForensic.verify(out, expectSHA256: r.sha256)
+        #expect(v.passed, "\(v.checks)")
+        #expect(status(v, "frame hashes") == .passed)
+        #expect(status(v, "expected SHA-256") == .passed)
+        // Any XIZ reader sees an ordinary file.
+        let x = try Xipper.extract(URL(fileURLWithPath: out), to: t.url(""), options: ExtractOptions())
+        #expect(FileManager.default.contents(atPath: x.destination.path + "/image.dd") == Data(data))
+        #expect(FileManager.default.fileExists(atPath: x.destination.path + "/forensic/case.json"))
+        // Layout (§20.3): one extent per block, the zero block points at the zero frame.
+        let a = try XizArchive(path: out)
+        let e = try #require(a.catalog.entries.first { $0.image != nil })
+        #expect(e.extents.count == 3 && e.extents.allSatisfy { $0.offset == 0 })
+    }
+
+    @Test func custodyNeedsNoKeyAndIsSigned() throws {
+        let t = TempDir()
+        let (src, _) = image(t)
+        let out = t.path + "/r.xiz"
+        _ = try XizForensic.acquireImage(from: src, to: out, options: options { $0.password = "segreto" }, signer: Self.examiner)
+        try XizForensic.appendCustody(to: out, custody: ["from": "Esaminatore", "to": "Laboratorio"], signer: Self.courier)
+        try XizForensic.appendCustody(to: out, custody: ["from": "Laboratorio", "to": "Tribunale"], signer: Self.courier)
+        let blind = try XizForensic.verify(out)
+        #expect(blind.passed, "\(blind.checks)")
+        #expect(status(blind, "images") == .skipped)
+        #expect(blind.signatures.map(\.label) == ["Esaminatore", "Corriere", "Corriere"])
+        #expect(blind.signatures.allSatisfy { $0.valid && $0.chained })
+        let full = try XizForensic.verify(out, password: "segreto")
+        #expect(full.passed && status(full, "images") == .passed, "\(full.checks)")
+        #expect(try XizForensic.blocks(out).last?.records(.custody).first?.json["to"] == "Tribunale")
+        _ = try XizArchive(path: out, password: "segreto")  // the reader follows the custody segments
+    }
+
+    @Test func unreadableRangesAreZerosAndListed() throws {
+        let t = TempDir()
+        let (src, data) = image(t)
+        let out = t.path + "/r.xiz"
+        let ranges = [XizForensic.Unreadable.Range(offset: 1000, length: 512), .init(offset: 9_000_000, length: 4096)]
+        let r = try XizForensic.acquireImage(from: src, to: out, options: options { $0.unreadable = ranges }, signer: Self.examiner)
+        var zeroed = data
+        for x in ranges { for i in Int(x.offset)..<Int(x.offset + x.length) { zeroed[i] = 0 } }
+        #expect(r.sha256 == Array(SHA256.hash(data: zeroed)))
+        #expect(r.unreadableBytes == 4608)
+        let v = try XizForensic.verify(out)
+        #expect(v.passed, "\(v.checks)")
+        let u = try #require(try XizForensic.blocks(out)[0].records(.unreadable).first)
+        #expect(try XizForensic.Unreadable(u.value).ranges == ranges)
+    }
+
+    @Test func tamperingIsDetected() throws {
+        let t = TempDir()
+        let (src, _) = image(t)
+        let out = t.path + "/r.xiz"
+        _ = try XizForensic.acquireImage(from: src, to: out, options: options(), signer: Self.examiner)
+        let original = try Data(contentsOf: URL(fileURLWithPath: out))
+
+        // A byte of frame 0's payload, with the frame's CRC corrected: only the frame hash sees it.
+        var d = [UInt8](original)
+        let csize = Int(d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 64 + 12, as: UInt32.self).littleEndian })
+        d[64 + 32 + 10] ^= 0x40
+        let crc = Xiz.crc32c(Array(d[(64 + 32)..<(64 + 32 + csize)]))
+        withUnsafeBytes(of: crc.littleEndian) { for i in 0..<4 { d[64 + 20 + i] = $0[i] } }
+        try Data(d).write(to: t.url("frame.xiz"))
+        let v1 = try XizForensic.verify(t.path + "/frame.xiz")
+        #expect(!v1.passed && status(v1, "frame hashes") == .failed)
+
+        // A byte of the forensic block (the case record).
+        var c = [UInt8](original)
+        let at = try #require(c.indices.first { c[$0...].starts(with: Array("2026-117".utf8)) && $0 > csize })
+        c[at] = UInt8(ascii: "9")
+        try Data(c).write(to: t.url("case.xiz"))
+        #expect(!(try XizForensic.verify(t.path + "/case.xiz")).passed)
+
+        // The expected SHA-256 from the report does not match another image.
+        let other = try XizForensic.verify(out, expectSHA256: [UInt8](repeating: 1, count: 32))
+        #expect(status(other, "expected SHA-256") == .failed)
+    }
+
+    @Test func forensicArchivesAreNeverEdited() throws {
+        let t = TempDir()
+        let (src, _) = image(t)
+        let out = t.path + "/r.xiz"
+        _ = try XizForensic.acquireImage(from: src, to: out, options: options(), signer: Self.examiner)
+        #expect(throws: XipperError.self) {
+            try Xipper.edit(URL(fileURLWithPath: out), changes: [.makeDirectory("nuova")])
+        }
+        #expect(try XizForensic.verify(out).passed)
+    }
+
+    /// The test vectors libxiz checks (libxiz/tests/make_forensic_fixtures.sh) verify here too.
+    @Test func libxizVectorsVerify() throws {
+        let f = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("libxiz/tests/fixtures").path
+        let sha = try String(contentsOfFile: f + "/forensic.sha256", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let expected = stride(from: 0, to: sha.count, by: 2).map { i -> UInt8 in
+            let a = sha.index(sha.startIndex, offsetBy: i)
+            return UInt8(sha[a..<sha.index(a, offsetBy: 2)], radix: 16)!
+        }
+        let v = try XizForensic.verify(f + "/forensic.xiz", expectSHA256: expected)
+        #expect(v.passed && status(v, "expected SHA-256") == .passed, "\(v.checks)")
+        #expect(v.signatures.map(\.label) == ["Esaminatore", "Corriere"])
+        #expect(try XizForensic.verify(f + "/forensic-password.xiz", password: "correct horse battery staple").passed)
+        #expect(!(try XizForensic.verify(f + "/forensic-damaged.xiz")).passed)
+    }
+
+    @Test func blockRefusesUnknownCriticalRecords() throws {
+        let ok = XizForensic.Block(segment: 0, records: [.init(type: 0x0F00, value: [1, 2])]).encode()
+        #expect(try XizForensic.Block.decode(ok).records.count == 1)
+        let critical = XizForensic.Block(segment: 0, records: [.init(type: 0x8F00, value: [1])]).encode()
+        #expect(throws: XipperError.self) { try XizForensic.Block.decode(critical) }
+    }
+}

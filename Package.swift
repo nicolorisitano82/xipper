@@ -34,6 +34,7 @@ let package = Package(
         .library(name: "XipperKit", targets: ["XipperKit"]),
         .library(name: "XipperMCP", targets: ["XipperMCP"]),
         .executable(name: "xipper", targets: ["xipper"]),
+        .executable(name: "xipper-forensic", targets: ["xipper-forensic"]),
     ],
     targets: [
         // MARK: vendored codecs (permissive licenses, compiled in; see Vendor/README.md)
@@ -165,6 +166,11 @@ let package = Package(
         .executableTarget(
             name: "xipper",
             dependencies: ["XipperKit", "XipperMCP"]
+        ),
+        // xipper-forensic (docs/XIPPER_FORENSIC.md): evidence in forensic XIZ archives (XIZ 1.10, §20).
+        .executableTarget(
+            name: "xipper-forensic",
+            dependencies: ["XipperKit"]
         ),
         // Sandboxed helper that runs the external decoders (RAR) for the app and the CLI (IsolatedDecoder.swift).
         .executableTarget(

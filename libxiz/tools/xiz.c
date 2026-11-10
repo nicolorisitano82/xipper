@@ -22,6 +22,8 @@ static const char *usage =
     "          [--no-permissions] [--no-times] [--continue] <archive> [entry...]\n"
     "  cat     <archive> <entry>               write one entry to standard output\n"
     "  history <archive>                       segment signatures (XIZ 1.3)\n"
+    "  forensic [--records] <archive>          forensic profile (XIZ 1.10): segments, frame hashes,\n"
+    "                                         signatures, images against the source SHA-256\n"
     "  verify-proof <proof.json> <file>        check an xiz-proof-1 against a file\n"
     "  create  [-l LEVEL] [--frame-size MiB] [--overwrite] <archive> <file|folder>...\n"
     "  append  <archive> [--add FILE[:PATH]]... [--delete PATH]... [--mkdir PATH]...\n"
@@ -362,6 +364,62 @@ static int cmd_history(int argc, char **argv) {
     return bad;
 }
 
+static void forensic_problem(void *ctx, long frame, long entry, int code, const char *message) {
+    (void)frame; (void)entry; (void)code;
+    ++*(int *)ctx;
+    printf("FAIL  %s\n", message);
+}
+
+static int cmd_forensic(int argc, char **argv) {
+    int records = 0;
+    if (argc >= 1 && !strcmp(argv[0], "--records")) { records = 1; argc--; argv++; }
+    if (argc < 1) die("forensic: archive missing");
+    xiz_archive *a = open_archive_flags(argv[0], XIZ_OPEN_NO_KEYS);  /* opens with keys when credentials were given */
+    xiz_error err;
+    int bad = 0;
+    if (records) {
+        xiz_forensic_record *r = NULL;
+        size_t n = 0;
+        if (xiz_forensic_records(a, &r, &n, &err)) { fprintf(stderr, "xiz: %s\n", err.message); xiz_close(a); return 1; }
+        for (size_t i = 0; i < n; i++) {
+            int text = !(r[i].type & 0x8000u);
+            printf("segment %u  0x%04x  %zu bytes%s%s\n", r[i].segment, r[i].type, r[i].length, text ? "  " : "",
+                   text ? (const char *)r[i].value : "");
+        }
+        xiz_free(r);
+        xiz_close(a);
+        return 0;
+    }
+    xiz_forensic_report rep;
+    if (xiz_forensic_verify(a, forensic_problem, &bad, &rep, &err)) { fprintf(stderr, "xiz: %s\n", err.message); xiz_close(a); return 1; }
+    printf("%s  segments: %u (%u of custody)\n", rep.profile_ok ? "ok  " : "FAIL", rep.segments, rep.custody_segments);
+    printf("%s  frame hashes: %u frames checked, %u altered, %u without hash\n",
+           rep.frames_altered || rep.frames_unhashed ? "FAIL" : "ok  ", rep.frames_checked, rep.frames_altered, rep.frames_unhashed);
+    uint32_t n;
+    xiz_signature_count(a, &n);
+    int sig_bad = 0;
+    for (uint32_t s = 0; s < n; s++) {
+        xiz_signature sg;
+        if (xiz_get_signature(a, s, &sg, &err) || !sg.is_signed || !sg.valid || !sg.chained) sig_bad = 1;
+    }
+    printf("%s  signatures: %u segments%s\n", sig_bad ? "FAIL" : "ok  ", n, sig_bad ? ", unsigned, invalid or chain broken" : " signed, chain ok");
+    xiz_info info;
+    xiz_get_info(a, &info);
+    if (rep.images_checked == 0 && (rep.images || (info.encrypted && info.visible_entries == 0)))
+        printf("skip  images: the content needs the password or a key\n");
+    else if (rep.images_failed)
+        printf("FAIL  images: %u checked, %u failed\n", rep.images_checked, rep.images_failed);
+    else if (rep.images) {
+        printf("ok    images: %u checked, SHA-256 equal to the source's (last: ", rep.images_checked);
+        for (int i = 0; i < 32; i++) printf("%02x", rep.last_image_sha256[i]);
+        printf(")\n");
+    }
+    int failed = bad || !rep.profile_ok || rep.frames_altered || rep.frames_unhashed || sig_bad || rep.images_failed;
+    printf(failed ? "VERIFICATION FAILED\n" : "verified\n");
+    xiz_close(a);
+    return failed ? 1 : 0;
+}
+
 static uint8_t *slurp(const char *path, size_t *len) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
@@ -543,6 +601,7 @@ int main(int argc, char **argv) {
     if (!strcmp(c, "extract") || !strcmp(c, "x")) return cmd_extract(n, v);
     if (!strcmp(c, "cat")) return cmd_cat(n, v);
     if (!strcmp(c, "history")) return cmd_history(n, v);
+    if (!strcmp(c, "forensic")) return cmd_forensic(n, v);
     if (!strcmp(c, "verify-proof")) return cmd_verify_proof(n, v);
     if (!strcmp(c, "create")) return cmd_create(n, v);
     if (!strcmp(c, "append")) return cmd_append(n, v);

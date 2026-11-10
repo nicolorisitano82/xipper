@@ -55,7 +55,9 @@ enum Xiz {
         static let apple = Required(rawValue: 1 << 7)
         /// 1.9: PNG, PDF and ZIP-based documents with their Deflate streams recompressed (§19).
         static let deflate = Required(rawValue: 1 << 8)
-        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple, .deflate]
+        /// 1.10: forensic profile (§20): directory version 3 with a forensic block in every segment.
+        static let forensic = Required(rawValue: 1 << 9)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple, .deflate, .forensic]
     }
 
     /// Features a reader may ignore.
@@ -130,8 +132,21 @@ enum Xiz {
         var sealedProof: [UInt8]?
         /// 1.3 erasable entries, when read: the entry key from its slot (not stored in the catalog).
         var secret: SymmetricKey?
+        /// 1.10 forensic profile (§20.3): the entry is a disk or volume image.
+        var image: Image?
 
         var modified: Date { Date(timeIntervalSince1970: Double(mtimeSec) + Double(mtimeNsec) / 1e9) }
+    }
+
+    /// Field 0x000C (§20.3): layout and geometry of a disk or volume image.
+    struct Image: Equatable {
+        var blockSize: UInt32 = UInt32(frameData)
+        var logicalSector: UInt32 = 512
+        var physicalSector: UInt32 = 512
+        /// Bit 0: a volume (partition) rather than a whole device.
+        var flags: UInt32 = 0
+        /// The volume's byte offset in its device.
+        var offset: UInt64 = 0
     }
 
     struct Catalog {
@@ -182,6 +197,9 @@ enum Xiz {
                 let unknown = s.required.subtracting(.understood)
                 guard unknown.isEmpty else { throw XipperError.unsupported("XIZ feature 0x\(String(unknown.rawValue, radix: 16)) (made by a newer Xipper)") }
                 guard s.major == 1 || (s.required.isEmpty && s.keysLength == 0) else { throw XipperError.corrupt("XIZ 0.x superblock") }
+                guard !s.required.contains(.forensic) || s.required.contains(.directory) else {
+                    throw XipperError.corrupt("XIZ forensic profile without a directory")
+                }
                 guard s.required.contains(.encrypted) == (s.keysLength > 0), s.keysLength <= UInt32(maxKeysBlock) else {
                     throw XipperError.corrupt("XIZ keys block")
                 }
@@ -260,7 +278,7 @@ enum Xiz {
         static let critical: UInt16 = 0x8000
         case size = 0x8001, extents = 0x8002, link = 0x8003
         case mode = 0x0004, owner = 0x0005, mtime = 0x0006, xattr = 0x0007, digest = 0x0008
-        case proof = 0x0009, keySlot = 0x800A, sealedProof = 0x000B
+        case proof = 0x0009, keySlot = 0x800A, sealedProof = 0x000B, image = 0x000C
     }
 
     static func encodeCatalog(_ c: Catalog) -> [UInt8] {
@@ -297,6 +315,7 @@ enum Xiz {
             if let p = e.proof { field(.proof) { $0.append(p.salt); $0.append(p.sha256) } }
             if let s = e.slot { field(.keySlot) { $0.u32(s.segment); $0.u32(s.index); $0.append(s.sha256) } }
             if let p = e.sealedProof { field(.sealedProof) { $0.append(p) } }
+            if let m = e.image { field(.image) { $0.u32(m.blockSize); $0.u32(m.logicalSector); $0.u32(m.physicalSector); $0.u32(m.flags); $0.u64(m.offset) } }
             w.u16(UInt16(fields.count))
             for (tag, bytes) in fields { w.u16(tag.rawValue); w.u32(UInt32(bytes.count)); w.append(bytes) }
         }
@@ -370,6 +389,9 @@ enum Xiz {
                     case .sealedProof?:
                         guard len == 76 else { throw XipperError.corrupt("XIZ sealed proof field") }
                         e.sealedProof = Array(body)
+                    case .image?:
+                        guard len == 24 else { throw XipperError.corrupt("XIZ image field") }
+                        e.image = Image(blockSize: try f.u32(), logicalSector: try f.u32(), physicalSector: try f.u32(), flags: try f.u32(), offset: try f.u64())
                     case nil:
                         // Unknown field: skipped, unless marked critical (a newer Xipper needs it understood).
                         if tag & Tag.critical != 0 { throw XipperError.unsupported("XIZ field 0x\(String(tag, radix: 16)) (made by a newer Xipper)") }

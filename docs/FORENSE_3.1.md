@@ -456,7 +456,7 @@ Da sottoporre a un avvocato penalista e a un consulente tecnico forense:
 
 ### 5.6 Altre domande aperte
 
-- Nome e posizione del bit: `forensic` come bit richiesto o come profilo dichiarato in un campo?
+- ~~Nome e posizione del bit~~: deciso il 10/11/2026, bit richiesto `forensic` (vedi [XIPPER_FORENSIC.md](XIPPER_FORENSIC.md) §6, D6).
 - Le note riservate del caso vanno cifrate per il solo esaminatore o per un gruppo?
 - Serve la suddivisione in più file (come `.E01`, `.E02`) per i supporti FAT32 o per i limiti di upload?
 - Hash aggiuntivi (BLAKE3, SHA-3) previsti nello strumento di hash della 2.6: utili o solo rumore?
@@ -470,7 +470,7 @@ Le fasi presuppongono la 2.7 (recovery record dentro XIZ) e usano il banco di mi
 | Fase | Contenuto | Criteri di accettazione |
 |---|---|---|
 | F0 — Revisione | Questo documento rivisto dal proprietario; domande §5.5 inviate a un esperto | Decisioni scritte sui punti §5.6 |
-| F1 — Spec | Profilo forense in XIZ_SPEC.md (§15): voce `image`, extent `zero run`, tabella hash dei frame, mappa settori, record, segmento di custodia | Vettori di prova pubblicati; un lettore 1.4 rifiuta i file nuovi con messaggio chiaro |
+| F1 — Spec ✅ (10/11/2026, XIZ 1.10, XIZ_SPEC.md §20) | Profilo forense in XIZ_SPEC.md (§15): voce `image`, extent `zero run`, tabella hash dei frame, mappa settori, record, segmento di custodia | Vettori di prova pubblicati; un lettore 1.4 rifiuta i file nuovi con messaggio chiaro |
 | F2 — Acquisizione da file | `xipper acquire` su un file raw (nessun dispositivo) | Hash MD5/SHA-1/SHA-256 identici a `md5`, `shasum -a 1`, `shasum -a 256` sui dataset CFReDS e su immagini sintetiche; export raw identico byte per byte |
 | F3 — Acquisizione da dispositivo | `/dev/rdiskN`, Disk Arbitration, IOKit, settori illeggibili | Su chiavette e dischi di prova: hash uguali a dc3dd ed ewfacquire (stessa sorgente, stesso istante); nessuna scrittura sulla sorgente (verifica con write-blocker hardware e confronto prima/dopo); disco con settori guasti simulati (o dispositivo `dm-flakey` in VM Linux, letto via rete) con mappa uguale al log di dc3dd |
 | F4 — Firma, marca, custodia | Firma con certificato, TSA con autenticazione, `xipper custody` | Marca di una TSA qualificata verificata; catena di 5 passaggi di mano verificata; manomissione di un byte, troncatura e rifirma rilevate (le ultime due con l'hash del verbale) |

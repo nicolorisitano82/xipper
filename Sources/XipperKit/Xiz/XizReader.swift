@@ -48,6 +48,12 @@ final class XizArchive: @unchecked Sendable {
         return try Xiz.Superblock.decode(try r.read(at: 0, count: Xiz.superblockSize)).required.contains(.directory)
     }
 
+    /// XIZ 1.10 forensic profile (§20): evidence, never edited.
+    static func isForensic(_ path: String) throws -> Bool {
+        let r = try FileReader(path: path)
+        return try Xiz.Superblock.decode(try r.read(at: 0, count: Xiz.superblockSize)).required.contains(.forensic)
+    }
+
     /// `passwordRequired` for an encrypted archive opened without a password, `wrongPassword` when it does not fit.
     /// `limit`: read the file as if it ended there, i.e. as the version whose footer ends at `limit`.
     init(path: String, password: String? = nil, limit: Int64? = nil) throws {
@@ -220,12 +226,22 @@ final class XizArchive: @unchecked Sendable {
         let dirBytes = try reader.read(at: footer.catalogOffset, count: Int(footer.catalogCSize))
         guard Xiz.sha256(dirBytes) == footer.catalogSHA256 else { throw XipperError.corrupt("XIZ directory hash mismatch") }
         let directory = try XizDirectory.decode(dirBytes)
+        let forensic = sb.required.contains(.forensic)
+        // Forensic profile (§20): directory version 3 everywhere, nothing else uses it.
+        guard forensic == (directory.version == 3) else { throw XipperError.corrupt("XIZ forensic profile: directory version") }
+        if forensic {
+            guard directory.flags & XizDirectory.erasableFlag == 0, sb.required.isDisjoint(with: [.dictionaries, .lzma2, .jpeg, .apple, .deflate]) else {
+                throw XipperError.corrupt("XIZ forensic profile: feature not allowed")
+            }
+        }
 
-        // Earlier segments: from their first group catalog to the end of their footer is a declared gap.
+        // Earlier segments: from their first group catalog (their forensic block for a custody
+        // segment) to the end of their footer is a declared gap.
         var gaps: [Int64: Int64] = [:]
         var segment: UInt32 = 0
         var prev = Int64(bitPattern: footer.previousFooter)
         var bound = footer.catalogOffset
+        var previous: (footer: Xiz.Footer, directory: XizDirectory)?
         while prev != 0 {
             guard prev >= dataStart, prev + Int64(Xiz.footerSize) <= bound, segment < 65535 else { throw XipperError.corrupt("XIZ segment chain") }
             let older = try Xiz.Footer.decode(try reader.read(at: prev, count: Xiz.footerSize))
@@ -233,27 +249,53 @@ final class XizArchive: @unchecked Sendable {
                 throw XipperError.corrupt("XIZ segment chain")
             }
             let od = try XizDirectory.decode(try reader.read(at: older.catalogOffset, count: Int(older.catalogCSize)))
-            var start = od.groups.map(\.offset).min()!
-            // Its own slot table, if it wrote one, ends right where its first catalog starts.
-            if let t = od.slotTables.first(where: { $0.offset + Int64($0.count) * Int64(XizSlots.size) == start && $0.count > 0 }) { start = t.offset }
+            guard forensic == (od.version == 3) else { throw XipperError.corrupt("XIZ forensic profile: directory version") }
+            if previous == nil { previous = (older, od) }
+            var start: Int64
+            if od.isCustody {
+                start = od.forensicOffset
+            } else {
+                start = od.groups.map(\.offset).min()!
+                // Its own slot table, if it wrote one, ends right where its first catalog starts.
+                if let t = od.slotTables.first(where: { $0.offset + Int64($0.count) * Int64(XizSlots.size) == start && $0.count > 0 }) { start = t.offset }
+            }
             guard start >= dataStart, start <= older.catalogOffset else { throw XipperError.corrupt("XIZ segment chain") }
             gaps[start] = prev + Int64(Xiz.footerSize)
             bound = start
             prev = Int64(bitPattern: older.previousFooter)
             segment += 1
         }
+        // A custody segment (§20.1) repeats the previous segment's catalogs, leaves and counts.
+        let custody = directory.isCustody
+        if custody {
+            guard let p = previous, p.directory.groups == directory.groups, p.directory.slotTables == directory.slotTables,
+                  p.directory.leafOffset == directory.leafOffset, p.directory.leafCount == directory.leafCount,
+                  p.directory.merkleRoot == directory.merkleRoot, p.footer.frameCount == footer.frameCount,
+                  p.footer.entryCount == footer.entryCount, p.footer.totalBytes == footer.totalBytes,
+                  directory.forensicOffset == Int64(footer.previousFooter) + Int64(Xiz.footerSize) else {
+                throw XipperError.corrupt("XIZ custody segment does not repeat the previous segment")
+            }
+        }
+        if forensic {
+            guard directory.forensicOffset + Int64(directory.forensicLength) == footer.catalogOffset,
+                  directory.forensicLength <= UInt32(XizForensic.maxBlock),
+                  Xiz.sha256(try reader.read(at: directory.forensicOffset, count: Int(directory.forensicLength))) == directory.forensicSHA256 else {
+                throw XipperError.corrupt("XIZ forensic block out of place or altered")
+            }
+        }
 
         // This segment's slot table (if it wrote one) ends where the catalogs start.
         var next = directory.groups[0].offset
         let currentSlots = directory.slotTables.first { $0.segment == segment }
         if let t = currentSlots, t.offset + Int64(t.count) * Int64(XizSlots.size) != next { throw XipperError.corrupt("XIZ key slots out of place") }
-        let frameEnd = currentSlots?.offset ?? next
+        let frameEnd = custody ? directory.forensicOffset : currentSlots?.offset ?? next
         var frames: [Xiz.Frame]?
         var entries: [Xiz.Entry] = []
         var info: [UInt16: (name: String, prefixes: [String])] = [:]
         var hidden = 0
         for g in directory.groups {
-            guard g.offset == next, g.csize > 0, g.usize > 0, g.usize <= Int64(Xiz.maxCatalog), g.segment == segment else {
+            guard custody ? g.segment < segment : g.offset == next && g.segment == segment, g.csize > 0, g.usize > 0,
+                  g.usize <= Int64(Xiz.maxCatalog) else {
                 throw XipperError.corrupt("XIZ group catalogs out of place")
             }
             next = g.offset + g.csize
@@ -275,8 +317,11 @@ final class XizArchive: @unchecked Sendable {
             for i in c.entries.indices { c.entries[i].group = g.group }
             entries += c.entries
         }
-        if directory.version >= 2 {
-            guard directory.leafOffset == next, next + Int64(directory.leafCount) * 32 == footer.catalogOffset,
+        if custody {
+            // Checked against the previous segment above.
+        } else if directory.version >= 2 {
+            let leavesEnd = forensic ? directory.forensicOffset : footer.catalogOffset
+            guard directory.leafOffset == next, next + Int64(directory.leafCount) * 32 == leavesEnd,
                   directory.leafCount <= footer.entryCount else { throw XipperError.corrupt("XIZ leaf table out of place") }
         } else {
             guard next == footer.catalogOffset else { throw XipperError.corrupt("XIZ group catalogs do not reach the directory") }
@@ -317,6 +362,7 @@ final class XizArchive: @unchecked Sendable {
                 guard f.offset == at, f.usize <= UInt32(Xiz.maxFrameData), f.csize <= UInt32(Xiz.maxFrameData) + 4096,
                       f.codec != .store || f.csize == f.usize + overhead, f.csize >= overhead, f.dictionary == 0,
                       f.flags & ~Xiz.entryKeyFrame == 0, f.flags == 0 || sb.required.contains(.encrypted),
+                      !forensic || (f.flags == 0 && (f.codec == .store || f.codec == .zstd)),
                       directory.groups.contains(where: { $0.group == f.group }) else {
                     throw XipperError.corrupt("XIZ frames overlap or leave gaps (possible bomb)")
                 }

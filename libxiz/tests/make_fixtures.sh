@@ -166,4 +166,7 @@ find "$work/docs/docs" -exec touch -h -t 202601020304.05 {} +
 "$M" "$work/docs" > "$out/docs.manifest"
 "$X" create -q -f xiz -l 12 --documents "$out/docs.xiz" "$work/docs/docs"
 
+# ---------------------------------------------------------------- 1.10 forensic profile (§20)
+sh "$here/make_forensic_fixtures.sh" "$X" "$(dirname "$X")/xipper-forensic" "$M"
+
 ls -l "$out"

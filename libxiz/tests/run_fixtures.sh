@@ -151,5 +151,22 @@ if [ -n "${XIPPER:-}" ] && [ -x "$XIPPER" ]; then
     expect_code xiz-reads-xipper-append 0 "$XIZ" test "$W/l2.xiz"
 fi
 
+# ---------------------------------------------------------------- 1.10 forensic profile (§20)
+if [ -f "$F/forensic.xiz" ]; then
+    expect_code forensic-verify 0 "$XIZ" forensic "$F/forensic.xiz"
+    extract_cmp forensic forensic.xiz forensic.manifest
+    "$XIZ" forensic "$F/forensic.xiz" | grep -q "$(cat "$F/forensic.sha256")" && pass forensic-source-sha256 || fail forensic-source-sha256
+    "$XIZ" forensic "$F/forensic.xiz" | grep -q 'segments: 2 (1 of custody)' && pass forensic-custody || fail forensic-custody
+    [ "$("$XIZ" history "$F/forensic.xiz" | grep -c 'signature valid, chain ok')" = 2 ] && pass forensic-signatures || fail forensic-signatures
+    "$XIZ" forensic --records "$F/forensic.xiz" | grep -q '"seals":"sigillo 4471"' && pass forensic-records || fail forensic-records
+    expect_code forensic-password-without-key 0 "$XIZ" forensic "$F/forensic-password.xiz"
+    expect_code forensic-password 0 "$XIZ" forensic --password-env PW "$F/forensic-password.xiz"
+    "$XIZ" forensic --password-env PW "$F/forensic-password.xiz" | grep -q 'images: 1 checked' && pass forensic-password-image || fail forensic-password-image
+    expect_code forensic-damaged 1 "$XIZ" forensic "$F/forensic-damaged.xiz"
+    cp "$F/forensic.xiz" "$W/f.xiz"
+    expect_code forensic-append-refused 1 "$XIZ" append "$W/f.xiz" --mkdir x
+    cmp -s "$W/f.xiz" "$F/forensic.xiz" && pass forensic-append-untouched || fail forensic-append-untouched
+fi
+
 [ $fails = 0 ] && echo "fixtures: all passed" || echo "fixtures: $fails failed"
 [ $fails = 0 ]

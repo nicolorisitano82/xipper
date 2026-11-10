@@ -16,3 +16,4 @@ spike/webdav/.build/
 
 # libxiz: CMake build folders (README: cmake -B libxiz/build)
 libxiz/build*/
+spike/forensic-helper/build/
