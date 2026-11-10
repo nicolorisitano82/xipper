@@ -7,7 +7,7 @@ import XipperKit
 /// (`REPORT.sig`). The PDF for the written record is generated from this JSON (P3).
 public enum ForensicReport {
     public static let format = "xipper-forensic-report-1"
-    public static let toolVersion = "0.2.0-dev"
+    public static let toolVersion = "0.9.0-dev"
 
     /// The report as a JSON object (string keys; values are strings, numbers, booleans, arrays, objects).
     public static func build(archive: URL, password: String? = nil, expectSHA256: [UInt8]? = nil, now: Date? = nil) throws -> [String: Any] {
@@ -77,11 +77,13 @@ public enum ForensicReport {
     }
 
     /// Writes the report and, with a signer, `REPORT.sig` next to it.
-    public static func write(archive: URL, to report: URL, password: String? = nil, signer: XizSigner?, now: Date? = nil) throws {
+    @discardableResult
+    public static func write(archive: URL, to report: URL, password: String? = nil, signer: XizSigner?, now: Date? = nil) throws -> [String: Any] {
         let object = try build(archive: archive, password: password, now: now)
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try data.write(to: report, options: .withoutOverwriting)
         if let signer { try sign(report, signer: signer) }
+        return object
     }
 
     static func signatureURL(_ report: URL) -> URL { URL(fileURLWithPath: report.path + ".sig") }

@@ -404,6 +404,16 @@ Conseguenze:
 - un troncamento agli ultimi segmenti resta valido per costruzione: lo chiude solo l'hash del verbale (`--expect-sha256`) o il numero di passaggi di custodia annotato fuori.
 
 
+**Note sulla P3 (10/11/2026).**
+- App `Xipper Forensic.app` (`app.xipper.forensic`): target SwiftPM `XipperForensic` in `App/XipperForensic/Sources`, impacchettata e firmata «Xipper Self-Signed» da `scripts/build-forensic-app.sh` (CLI inclusa in `Contents/Helpers`). Non tocca il progetto Xcode di Xipper.
+- Finestre: benvenuto (nuovo caso, apri caso, verifica archivio, casi recenti), caso (riepilogo modificabile, registro con note, reperti), reperto (stato a tappe, hash con copia, custodia, verifica di nuovo, report PDF, cronologia), verifica di un `.xiz` qualunque (hash dal verbale, password facoltativa, esportazione PDF/JSON), impostazioni (operatore, chiave di firma nel Portachiavi, lingua dei report, TSA o modalità offline).
+- Procedura guidata in sei passi: reperto · sorgente (file e cartelle, file immagine, Mac via «Condividi disco» montato con NetFS `MNT_RDONLY|MNT_NOEXEC|MNT_NOSUID|MNT_NODEV`, rifiutato se non risulta in sola lettura) · opzioni · controlli ✔/⚠/⛔ con conferma dell'operatore scrivendo il nome (controlli e conferma entrano nel registro) · avanzamento con pausa e interruzione motivata · esito a tre stati. Durante l'acquisizione il Mac non va in stop.
+- Report PDF A4 (`ForensicPDF`, CoreText, senza AppKit) generato dallo stesso JSON, in italiano o inglese; ogni pagina porta caso, archivio, SHA-256 e «pagina n di N». Scritto e firmato (`.pdf.sig`) a ogni acquisizione e custodia; il suo hash è nel registro, quindi `case verify` si accorge se viene sostituito. CLI: `report --pdf FILE --lang it|en`, `--lang` anche per `acquire --in` e `custody --in`.
+- Stringhe: 226, italiano completo (`scripts/forensic-strings.py` lo controlla). I dettagli dei controlli che arrivano da XipperKit restano in inglese.
+- Le build debug hanno `--snapshot DIR CASO` che disegna ogni schermata in PNG: così le schermate sono state controllate senza clic.
+- Prova a mano del proprietario (10/11/2026): emerso e corretto un difetto, la chiave di firma appena creata non sbloccava «Nuovo caso» finché l'app non veniva riaperta.
+- Non provato: «Condividi disco» (serve un secondo Mac in recoveryOS), rimandato alla P3b.
+
 Si appoggia alle fasi F0–F8 di FORENSE_3.1 §6, riordinate per il prodotto.
 
 | Fase | Contenuto | Fatto quando |
@@ -411,7 +421,7 @@ Si appoggia alle fasi F0–F8 di FORENSE_3.1 §6, riordinate per il prodotto.
 | P0 ✅ | Questo studio e decisioni D1–D8 | decise il 10/11/2026 (§6) |
 | P1 ✅ | Spec del profilo forense (XIZ 1.10, [XIZ_SPEC.md §20](XIZ_SPEC.md)) + vettori di prova; libxiz li legge | fatta il 10/11/2026: `XizForensic.swift`, CLI `xipper-forensic` (acquire da file immagine, custody, verify, info), 7 test Swift; libxiz legge 1.10 e verifica con `xiz forensic`; vettori in `libxiz/tests/fixtures/forensic*` verificati da entrambi |
 | P2 ✅ | ForensicKit: caso, log, acquisizione logica e da file immagine, verifica, report JSON | fatta il 10/11/2026: cartella `.xfcase` con registro JSON Lines firmato a catena (Ed25519, `prev` = SHA-256 della riga prima); acquisizione logica con `forensic/inventory.jsonl` (ogni elemento trovato, anche illeggibile o speciale, con metadati e SHA-256) il cui hash è nel record firmato; report JSON firmato a parte (`.sig`); CLI `case new/show/verify/note`, `acquire --logical`, `acquire --in`, `custody --in`, `report`; 10 test Swift; `scripts/forensic-hashes.sh`: SHA-256, SHA-1 e MD5 uguali a `shasum`/`md5` da 0 byte a 13 MiB; `scripts/cfreds-check.sh`: MD5 e SHA-1 uguali a quelli pubblicati da NIST CFReDS su 4 immagini (Rhino Hunt 260 MB, Basic Mac 103 MB, Data Leakage RM#3 108 MB e RM#2 4 GB), immagine riletta da libxiz identica. Il PC del Data Leakage (21 GB) non è stato provato per lo spazio su disco |
-| P3 | App: caso, reperti, procedura guidata, avanzamento, verifica, custodia, report PDF | prova a mano su cartelle e su un file immagine |
+| P3 ✅ | App: caso, reperti, procedura guidata, avanzamento, verifica, custodia, report PDF | fatta il 10/11/2026 (note sotto), prova a mano del proprietario; «Condividi disco» resta da provare nella P3b |
 | P3b | Rilascio 0.9 anteprima (D7): DMG proprio, release `forensic-v0.9.0` | prova a mano completa: Mac via «Condividi disco», cartelle, immagine da file |
 | P4 | Dispositivi: helper, Disk Arbitration, IOKit, settori illeggibili | FORENSE F3 |
 | P5 | Firma con certificato, TSA autenticata, export/import E01, consegna | FORENSE F4, F6 |

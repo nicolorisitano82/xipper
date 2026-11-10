@@ -10,11 +10,13 @@ import XipperKit
 /// 2026-117.xfcase/
 ///   case.json            the case record (its SHA-256 is in the log at every change)
 ///   case.log             JSON Lines, append-only: seq, t, event, by, key, prev, …, sig
-///   evidence/R01/R01.xiz, R01.report.json, R01.report.json.sig
+///   evidence/R01/R01.xiz, R01.report.json, R01.report.pdf (each report with its .sig)
 /// ```
 public struct ForensicCase: Sendable {
     public let url: URL
     public static let fileExtension = "xfcase"
+    /// The language of the printable reports this case writes.
+    public var reportLanguage: ForensicPDF.Language = .it
 
     var caseFile: URL { url.appendingPathComponent("case.json") }
     var logFile: URL { url.appendingPathComponent("case.log") }
@@ -113,7 +115,7 @@ public struct ForensicCase: Sendable {
     }
 
     /// Checks the log (sequence, chain, signatures), the case record against its last logged hash,
-    /// and every archive the log names against the SHA-256 logged when it was written.
+    /// and every archive and report the log names against the SHA-256 logged when it was written.
     public func verify() throws -> Verification {
         var problems: [String] = []
         var signers: [String: String] = [:]
@@ -138,7 +140,7 @@ public struct ForensicCase: Sendable {
                 problems.append("line \(i + 1): unsigned")
             }
             if let s = o["case_sha256"] { caseSHA = s }
-            if let a = o["archive"], let s = o["archive_sha256"] { archives[a] = s }
+            for k in ["archive", "report", "pdf"] { if let a = o[k], let s = o[k + "_sha256"] { archives[a] = s } }
             prev = Self.hex(Array(SHA256.hash(data: bytes)))
         }
         if lines.isEmpty { problems.append("empty log") }
@@ -163,6 +165,8 @@ public struct ForensicCase: Sendable {
         public var folder: URL
         public var archive: URL
         public var report: URL
+        /// The printable report next to the JSON one, rendered from it.
+        public var pdf: URL { URL(fileURLWithPath: String(report.path.dropLast(5)) + ".pdf") }
     }
 
     public func evidence() throws -> [Evidence] {
@@ -241,9 +245,21 @@ public struct ForensicCase: Sendable {
         f["archive"] = relative(e.archive)
         f["archive_sha256"] = try Self.fileSHA256(e.archive)
         try log("acquisition finished", f, signer: signer, now: now)
-        try ForensicReport.write(archive: e.archive, to: e.report, password: password, signer: signer, now: now)
-        try log("report written", ["evidence": e.id, "report": relative(e.report), "report_sha256": try Self.fileSHA256(e.report)],
-                signer: signer, now: now)
+        try writeReports(e, password: password, signer: signer, now: now)
+    }
+
+    /// The JSON report and the PDF rendered from it, both with a detached signature, replacing
+    /// earlier ones; their hashes go into the log.
+    public func writeReports(_ e: Evidence, password: String? = nil, signer: XizSigner, now: Date? = nil) throws {
+        for u in [e.report, e.pdf] {
+            try? FileManager.default.removeItem(at: u)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: u.path + ".sig"))
+        }
+        let object = try ForensicReport.write(archive: e.archive, to: e.report, password: password, signer: signer, now: now)
+        try ForensicPDF.render(object, language: reportLanguage).write(to: e.pdf, options: .withoutOverwriting)
+        try ForensicReport.sign(e.pdf, signer: signer)
+        try log("report written", ["evidence": e.id, "report": relative(e.report), "report_sha256": try Self.fileSHA256(e.report),
+                                   "pdf": relative(e.pdf), "pdf_sha256": try Self.fileSHA256(e.pdf)], signer: signer, now: now)
     }
 
     /// Records a hand-over in the archive (custody segment) and in the case log, and refreshes the report.
@@ -259,11 +275,7 @@ public struct ForensicCase: Sendable {
         l["archive"] = relative(e.archive)
         l["archive_sha256"] = try Self.fileSHA256(e.archive)
         try log("custody", l, signer: signer, now: now)
-        try? FileManager.default.removeItem(at: e.report)
-        try? FileManager.default.removeItem(at: URL(fileURLWithPath: e.report.path + ".sig"))
-        try ForensicReport.write(archive: e.archive, to: e.report, password: password, signer: signer, now: now)
-        try log("report written", ["evidence": id, "report": relative(e.report), "report_sha256": try Self.fileSHA256(e.report)],
-                signer: signer, now: now)
+        try writeReports(e, password: password, signer: signer, now: now)
     }
 
     // MARK: helpers

@@ -68,6 +68,15 @@ public struct ProgressSnapshot: Sendable {
     /// Seconds since the job started.
     public var elapsed: Double
 
+    public init(completedBytes: Int64, totalBytes: Int64, completedEntries: Int, totalEntries: Int, currentEntry: String?, elapsed: Double) {
+        self.completedBytes = completedBytes
+        self.totalBytes = totalBytes
+        self.completedEntries = completedEntries
+        self.totalEntries = totalEntries
+        self.currentEntry = currentEntry
+        self.elapsed = elapsed
+    }
+
     public var fraction: Double { totalBytes > 0 ? min(1, Double(completedBytes) / Double(totalBytes)) : 0 }
     public var bytesPerSecond: Double { elapsed > 0 ? Double(completedBytes) / elapsed : 0 }
 }

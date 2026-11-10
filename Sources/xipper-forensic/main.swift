@@ -34,8 +34,10 @@ usage:
       --time ISO8601         fixed time (reproducible test vectors)
   xipper-forensic custody ARCHIVE --from NAME --to NAME --sign KEY [--reason T] [--seals T] [--notes T]
   xipper-forensic custody --in DIR.xfcase --evidence-id R01 --from NAME --to NAME --sign KEY [...]
-  xipper-forensic report ARCHIVE [-o REPORT.json] [--sign KEY] [--password-env VAR | --password-stdin]
-  xipper-forensic report --check REPORT.json         the report's detached signature
+  xipper-forensic report ARCHIVE [-o REPORT.json] [--pdf REPORT.pdf [--lang it|en]] [--sign KEY]
+                         [--password-env VAR | --password-stdin]
+  xipper-forensic report --check REPORT.json|REPORT.pdf   a report's detached signature
+      with --in DIR.xfcase, acquire and custody write REPORT.json and REPORT.pdf (--lang it|en)
   xipper-forensic verify ARCHIVE [--expect-sha256 HEX] [--password-env VAR | --password-stdin] [--json]
   xipper-forensic info ARCHIVE [--json]
 
@@ -77,6 +79,12 @@ var args = Array(CommandLine.arguments.dropFirst())
         return line
     }
     return nil
+}
+/// --lang it|en: the language of the printable report (default it).
+@MainActor func language() -> ForensicPDF.Language {
+    guard let v = value("--lang") else { return .it }
+    guard let l = ForensicPDF.Language(rawValue: v) else { fail("--lang it or en", code: 2) }
+    return l
 }
 @MainActor func signer() -> XizSigner {
     guard let spec = value("--sign") else { fail("--sign KEY is required: every segment of a forensic archive is signed", code: 2) }
@@ -147,8 +155,9 @@ case "acquire":
     acquisition["os"] = ProcessInfo.processInfo.operatingSystemVersionString
     let now = date(value("--time"))
     let evidenceID = value("--evidence-id")
+    let lang = language()
     let forensicCase: ForensicCase? = caseDir.map { d in
-        do { return try ForensicCase(at: URL(fileURLWithPath: d)) } catch { fail("\(error)") }
+        do { var c = try ForensicCase(at: URL(fileURLWithPath: d)); c.reportLanguage = lang; return c } catch { fail("\(error)") }
     }
     if let image {
         var o = XizForensic.ImageOptions()
@@ -214,7 +223,7 @@ case "custody":
     var archive = ""
     var forensicCase: ForensicCase?
     if let d = value("--in") {
-        do { forensicCase = try ForensicCase(at: URL(fileURLWithPath: d)) } catch { fail("\(error)") }
+        do { forensicCase = try ForensicCase(at: URL(fileURLWithPath: d)); forensicCase?.reportLanguage = language() } catch { fail("\(error)") }
     } else {
         guard let a = args.first, !a.hasPrefix("-") else { fail("custody needs the archive (or --in DIR.xfcase --evidence-id R01)", code: 2) }
         args.removeFirst()
@@ -314,12 +323,24 @@ case "report":
     guard let archive = args.first, !archive.hasPrefix("-") else { fail("report needs the archive", code: 2) }
     args.removeFirst()
     let out = value("-o") ?? value("--output")
+    let pdf = value("--pdf")
+    let lang = language()
     let pw = password()
     let s: XizSigner? = args.contains("--sign") ? signer() : nil
     done()
     do {
         let u = URL(fileURLWithPath: archive)
-        if let out {
+        if let pdf {
+            let o = try ForensicReport.build(archive: u, password: pw)
+            if let out {
+                let data = try JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+                try data.write(to: URL(fileURLWithPath: out), options: .withoutOverwriting)
+                if let s { try ForensicReport.sign(URL(fileURLWithPath: out), signer: s) }
+            }
+            try ForensicPDF.render(o, language: lang).write(to: URL(fileURLWithPath: pdf), options: .withoutOverwriting)
+            if let s { try ForensicReport.sign(URL(fileURLWithPath: pdf), signer: s) }
+            print("report written to \(pdf)\(out.map { " and \($0)" } ?? "")\(s == nil ? "" : " (signed)")")
+        } else if let out {
             try ForensicReport.write(archive: u, to: URL(fileURLWithPath: out), password: pw, signer: s)
             print("report written to \(out)\(s == nil ? "" : " (signed)")")
         } else {

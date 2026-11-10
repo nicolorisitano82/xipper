@@ -1,6 +1,7 @@
 import CryptoKit
 import ForensicKit
 import Foundation
+import PDFKit
 import Testing
 @testable import XipperKit
 
@@ -96,5 +97,28 @@ struct ForensicCaseTests {
         try FileManager.default.removeItem(at: e1.archive)
         try FileManager.default.copyItem(at: e2.archive, to: e1.archive)
         #expect(try c.verify().problems.contains("evidence/R01/R01.xiz: SHA-256 differs from the last one logged"))
+    }
+
+    @Test func printableReportInBothLanguages() throws {
+        let t = TempDir()
+        t.write("disk.img", sampleData(3_000_000, seed: 4))
+        var c = try ForensicCase.create(at: t.url("c.xfcase"), info: ["case_number": "2026/3", "examiner": "E"], signer: Self.examiner)
+        c.reportLanguage = .en
+        let (e, img) = try c.acquireImage(from: t.path + "/disk.img", evidence: "R01", options: XizForensic.ImageOptions(), signer: Self.examiner)
+        // The PDF is next to the JSON, signed, its hash in the log; every page names case and archive.
+        let doc = try #require(PDFDocument(url: e.pdf))
+        let text = doc.string ?? ""
+        #expect(doc.pageCount >= 1)
+        #expect(text.contains("Forensic acquisition report") && text.contains("2026/3") && text.contains(XizForensic.hex(img.sha256)))
+        #expect(text.contains("Page 1 of \(doc.pageCount)"))
+        #expect(try ForensicReport.verifySignature(e.pdf).valid)
+        #expect(try c.verify().passed)
+        // Italian, from the same JSON.
+        let report = try ForensicReport.build(archive: e.archive)
+        let it = try #require(PDFDocument(data: ForensicPDF.render(report, language: .it)))
+        #expect((it.string ?? "").contains("Rapporto di acquisizione forense") && (it.string ?? "").contains("Pagina 1 di"))
+        // A replaced PDF no longer matches the log.
+        try ForensicPDF.render(report, language: .it).write(to: e.pdf)
+        #expect(try c.verify().problems.contains("evidence/R01/R01.report.pdf: SHA-256 differs from the last one logged"))
     }
 }

@@ -36,6 +36,7 @@ let package = Package(
         .library(name: "ForensicKit", targets: ["ForensicKit"]),
         .executable(name: "xipper", targets: ["xipper"]),
         .executable(name: "xipper-forensic", targets: ["xipper-forensic"]),
+        .executable(name: "XipperForensic", targets: ["XipperForensic"]),
     ],
     targets: [
         // MARK: vendored codecs (permissive licenses, compiled in; see Vendor/README.md)
@@ -176,6 +177,14 @@ let package = Package(
         .executableTarget(
             name: "xipper-forensic",
             dependencies: ["XipperKit", "ForensicKit"]
+        ),
+        // The xipper-forensic app (docs/XIPPER_FORENSIC.md §4); scripts/build-forensic-app.sh wraps it
+        // in "Xipper Forensic.app" with App/XipperForensic/Resources and signs it.
+        .executableTarget(
+            name: "XipperForensic",
+            dependencies: ["XipperKit", "ForensicKit"],
+            path: "App/XipperForensic/Sources",
+            linkerSettings: [.linkedFramework("NetFS"), .linkedFramework("IOKit")]
         ),
         // Sandboxed helper that runs the external decoders (RAR) for the app and the CLI (IsolatedDecoder.swift).
         .executableTarget(
