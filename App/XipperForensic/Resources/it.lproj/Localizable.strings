@@ -254,7 +254,7 @@
 "Open Login Items…" = "Apri Elementi login…";
 "Partition %@ only, at %@ from the start of the disk" = "Solo la partizione %1$@, a %2$@ dall'inizio del disco";
 "Physical acquisition: the whole disk or one partition, read sector by sector without mounting it. Connect the evidence through a hardware write blocker when you have one." = "Acquisizione fisica: il disco intero o una partizione, letti settore per settore senza montarli. Se hai un write blocker hardware, collega il reperto attraverso quello.";
-"Preview — disks and partitions, files and folders, image files, Mac via Share Disk. Apple silicon only." = "Anteprima — dischi e partizioni, file e cartelle, file immagine, Mac via «Condividi disco». Solo Mac con Apple silicon.";
+"Disks and partitions, files and folders, image files and E01, Mac via Share Disk. Apple silicon only." = "Dischi e partizioni, file e cartelle, file immagine ed E01, Mac via «Condividi disco». Solo Mac con Apple silicon.";
 "Read errors" = "Errori di lettura";
 "Read errors: %@" = "Errori di lettura: %@";
 "Refresh" = "Aggiorna";

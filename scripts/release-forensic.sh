@@ -2,7 +2,8 @@
 # Xipper Forensic release (docs/XIPPER_FORENSIC.md §7, P3b): release build signed with the
 # self-signed identity (scripts/build-forensic-app.sh), DMG with the Xipper background, an
 # Applications link and the user notes (docs/forensic), SHA-256 checksum.
-#   scripts/release-forensic.sh [suffix]   → dist/XipperForensic-0.9.0[-suffix].dmg
+#   scripts/release-forensic.sh [suffix]   → dist/XipperForensic-VERSION[-suffix].dmg, plus the portable
+#   xiz readers (scripts/build-xiz-portable.sh) in dist/xiz-VERSION/
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SUFFIX="${1:-}"
@@ -18,6 +19,8 @@ ditto ".build/forensic-app/Xipper Forensic.app" "$DIST/$NAME/Xipper Forensic.app
 codesign --verify --deep --strict "$DIST/$NAME/Xipper Forensic.app"
 cp docs/forensic/LEGGIMI.md "$DIST/$NAME/LEGGIMI.md"
 cp docs/forensic/README.en.md "$DIST/$NAME/README.md"
+[ -f docs/forensic/VALIDAZIONE.md ] && cp docs/forensic/VALIDAZIONE.md "$DIST/$NAME/VALIDAZIONE.md"
+[ -f "$DIST/validation-$VERSION/RESULTS.md" ] || { echo "run scripts/forensic-validation.sh first"; exit 1; }
 ln -s /Applications "$DIST/$NAME/Applicazioni"
 mkdir -p "$DIST/$NAME/.background"
 BG="docs/design/sprites/dmg-background.png"
@@ -48,6 +51,12 @@ tell application "Finder"
         set position of item "Applicazioni" of container window to {576, 230}
         set position of item "LEGGIMI.md" of container window to {300, 392}
         set position of item "README.md" of container window to {468, 392}
+        try
+            set position of item "VALIDAZIONE.md" of container window to {636, 392}
+            set position of item "LEGGIMI.md" of container window to {200, 392}
+            set position of item "README.md" of container window to {384, 392}
+            set position of item "VALIDAZIONE.md" of container window to {568, 392}
+        end try
         close
         open
         update without registering applications
@@ -64,3 +73,4 @@ rm -f "$DIST/$NAME-rw.dmg"
 (cd "$DIST" && shasum -a 256 "$NAME.dmg" > "$NAME.dmg.sha256")
 echo "==> $DIST/$NAME.dmg ($(du -h "$DIST/$NAME.dmg" | cut -f1))"
 cat "$DIST/$NAME.dmg.sha256"
+scripts/build-xiz-portable.sh "$VERSION" | tail -6

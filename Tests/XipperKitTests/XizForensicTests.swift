@@ -162,3 +162,28 @@ struct XizForensicTests {
         #expect(throws: XipperError.self) { try XizForensic.Block.decode(critical) }
     }
 }
+
+/// The SHA-256 in the written record is usually the archive file's (as the app tells the examiner),
+/// taken at acquisition or at a hand-over: it must match the file as it was then, and expose a cut.
+@Suite("XIZ forensic: SHA-256 from the record")
+struct XizRecordHashTests {
+    @Test func archiveHashAtAnySegment() throws {
+        let t = TempDir()
+        let signer = XizSigner(key: XizSigningKey(), label: "E")
+        let out = t.path + "/r.xiz"
+        _ = try XizForensic.acquireImage(from: t.write("d.img", sampleData(2 << 20, seed: 1)), to: out, options: .init(), signer: signer)
+        let atAcquisition = Array(SHA256.hash(data: try Data(contentsOf: URL(fileURLWithPath: out))))
+        let original = try Data(contentsOf: URL(fileURLWithPath: out))
+        try XizForensic.appendCustody(to: out, custody: ["from": "E", "to": "T"], signer: signer)
+        let atHandOver = Array(SHA256.hash(data: try Data(contentsOf: URL(fileURLWithPath: out))))
+        let a = try XizForensic.verify(out, expectSHA256: atAcquisition)
+        #expect(a.passed && a.checks.last?.detail.contains("at segment 0") == true, "\(a.checks)")
+        let b = try XizForensic.verify(out, expectSHA256: atHandOver)
+        #expect(b.passed && b.checks.last?.detail.contains("as recorded") == true)
+        // Cut back to the first segment: the hand-over's hash exposes it.
+        try original.write(to: URL(fileURLWithPath: out))
+        let c = try XizForensic.verify(out, expectSHA256: atHandOver)
+        #expect(!c.passed && c.checks.last?.status == .failed)
+        #expect(try XizForensic.verify(out, expectSHA256: atAcquisition).passed)
+    }
+}

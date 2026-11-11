@@ -37,6 +37,8 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 
 ## Build
 
+Eseguibili pronti di `xiz` per Linux (x86_64, arm64, statici), Windows (x86_64) e macOS (arm64) sono nei rilasci di Xipper Forensic; si costruiscono con `scripts/build-xiz-portable.sh` (compilazione incrociata con zig).
+
 Serve CMake ≥ 3.16, un compilatore C99 e, per i frame JPEG, un compilatore C++17. Le dipendenze
 vengono compilate dai sorgenti già in `../Vendor` (zstd, liblzma, Argon2, brunsli e il decoder
 Brotli) e da `third_party/` (crittografia).

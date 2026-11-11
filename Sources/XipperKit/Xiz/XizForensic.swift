@@ -726,6 +726,25 @@ public enum XizForensic {
         return (sb, out)
     }
 
+    /// SHA-256 of the file's first `ends[i]` bytes, for every i (ascending ends), in one pass.
+    static func prefixHashes(_ reader: FileReader, ends: [Int64], cancel: CancellationToken?) throws -> [[UInt8]] {
+        var h = SHA256()
+        var out: [[UInt8]] = []
+        var pos: Int64 = 0
+        var buf = [UInt8](repeating: 0, count: 8 << 20)
+        for end in ends {
+            while pos < end {
+                try cancel?.check()
+                let n = Int(min(Int64(buf.count), end - pos))
+                try buf.withUnsafeMutableBytes { try reader.read(at: pos, into: $0.baseAddress!, count: n) }
+                buf.withUnsafeBytes { h.update(bufferPointer: UnsafeRawBufferPointer(rebasing: $0[0..<n])) }
+                pos += Int64(n)
+            }
+            out.append(Array(h.finalize()))
+        }
+        return out
+    }
+
     /// The forensic blocks of every segment, oldest first.
     public static func blocks(_ path: String) throws -> [Block] {
         try segments(try FileReader(path: path)).1.map(\.block)
@@ -937,12 +956,25 @@ public enum XizForensic {
                 } else if images.isEmpty {
                     add("files", .failed, "neither images nor a signed inventory")
                 }
-                if let x = expectSHA256 {
-                    let ok = images.contains { sources[$0.path]?.sha256 == x }
-                    add("expected SHA-256", ok ? .passed : .failed, ok ? hex(x) : "\(hex(x)) is not the SHA-256 of any image")
-                }
             } catch {
                 add("images", .failed, "\(error)")
+            }
+        }
+        // 5. The SHA-256 from the written record: of the archive file as it was at the end of some segment
+        // (written at acquisition or at a hand-over: later segments are custody appended since), or of an
+        // image's source. Needs no key.
+        if let x = expectSHA256 {
+            let ends = segs.map { $0.footerOffset + Int64(Xiz.footerSize) }
+            let prefixes = (try? prefixHashes(reader, ends: ends, cancel: cancel)) ?? []
+            if let i = prefixes.firstIndex(of: x) {
+                let later = segs.count - 1 - i
+                add("expected SHA-256", .passed, i == segs.count - 1
+                    ? "the archive file, as recorded: \(hex(x))"
+                    : "the archive file as it was at segment \(i) (\(later) custody segment\(later == 1 ? "" : "s") appended since): \(hex(x))")
+            } else if let s = sources.values.first(where: { $0.sha256 == x }) {
+                add("expected SHA-256", .passed, "the source of \(s.path): \(hex(x))")
+            } else {
+                add("expected SHA-256", .failed, "\(hex(x)) is neither the archive file's (at any segment) nor an image's: the file was changed, cut or is another one")
             }
         }
         return Report(checks: checks, signatures: sigs, blocks: blocks)

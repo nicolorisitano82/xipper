@@ -7,7 +7,7 @@ import XipperKit
 /// (`REPORT.sig`). The PDF for the written record is generated from this JSON (P3).
 public enum ForensicReport {
     public static let format = "xipper-forensic-report-1"
-    public static let toolVersion = "0.9.0"
+    public static let toolVersion = "1.0.0"
 
     /// The report as a JSON object (string keys; values are strings, numbers, booleans, arrays, objects).
     public static func build(archive: URL, password: String? = nil, expectSHA256: [UInt8]? = nil, now: Date? = nil,

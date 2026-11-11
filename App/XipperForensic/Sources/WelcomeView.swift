@@ -18,8 +18,8 @@ struct WelcomeView: View {
                 Text("Xipper Forensic").font(.largeTitle.bold())
                 Text("Acquisition, verification and chain of custody of digital evidence, in signed XIZ archives.")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Text("Preview — disks and partitions, files and folders, image files, Mac via Share Disk. Apple silicon only.")
-                    .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                Text("Disks and partitions, files and folders, image files and E01, Mac via Share Disk. Apple silicon only.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if !prefs.ready {
                     GroupBox {
