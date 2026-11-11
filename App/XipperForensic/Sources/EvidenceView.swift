@@ -9,6 +9,7 @@ struct EvidenceView: View {
     let item: EvidenceItem
     @Environment(\.openWindow) private var openWindow
     @State private var custody = false
+    @State private var delivering = false
 
     var body: some View {
         ScrollView {
@@ -50,6 +51,16 @@ struct EvidenceView: View {
 
                 HStack {
                     Button { custody = true } label: { Label("Hand-over…", systemImage: "person.2") }
+                    Button { delivering = true } label: { Label("Deliver a Copy…", systemImage: "shippingbox") }
+                    if item.method != "logical" {
+                        Menu {
+                            Button("Raw Image (.dd)…") { export(e01: false) }
+                            Button("E01 (EnCase)…") { export(e01: true) }
+                        } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                        .fixedSize()
+                    }
+                }
+                HStack {
                     Button { Task { await model.reverify(item.id) } } label: { Label("Verify Again", systemImage: "checkmark.shield") }
                         .disabled(model.verifying)
                     Button { NSWorkspace.shared.open(item.evidence.pdf) } label: { Label("Report (PDF)", systemImage: "doc.richtext") }
@@ -58,6 +69,7 @@ struct EvidenceView: View {
                     Button { NSWorkspace.shared.activateFileViewerSelecting([item.evidence.archive]) } label: { Label("Show in Finder", systemImage: "folder") }
                 }
                 if model.verifying { ProgressView().controlSize(.small) }
+                if let b = model.busy { HStack { ProgressView().controlSize(.small); Text(b).foregroundStyle(.secondary) } }
 
                 Text("History").font(.title3.bold()).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 6) {
@@ -74,6 +86,15 @@ struct EvidenceView: View {
             .frame(maxWidth: 860, alignment: .leading)
         }
         .sheet(isPresented: $custody) { CustodySheet(model: model, id: item.id) }
+        .sheet(isPresented: $delivering) { DeliverySheet(model: model, item: item) }
+    }
+
+    func export(e01: Bool) {
+        let p = NSSavePanel()
+        p.nameFieldStringValue = item.id + (e01 ? ".E01" : ".dd")
+        p.message = e01 ? String(localized: "E01 segments of about 1.5 GB each, with the case fields, MD5 and SHA-1") : String(localized: "The image as raw bytes, checked against the source hash while written")
+        guard p.runModal() == .OK, let u = p.url else { return }
+        Task { _ = await model.export(item.id, raw: e01 ? nil : u, e01: e01 ? u : nil) }
     }
 
     func summary(_ e: ForensicCase.LogEntry) -> String {
@@ -81,6 +102,8 @@ struct EvidenceView: View {
         case "custody": [e.fields["from"], e.fields["to"]].compactMap { $0 }.joined(separator: " → ")
         case "evidence verified": e.fields["passed"] == "true" ? String(localized: "passed") : String(localized: "FAILED: ") + (e.fields["failed"] ?? "")
         case "acquisition failed", "acquisition interrupted": e.fields["reason"] ?? e.fields["error"] ?? ""
+        case "evidence delivered": (e.fields["recipient"] ?? "") + " · " + (e.fields["format"] ?? "")
+        case "evidence exported": (e.fields["format"] ?? "") + " · " + (e.fields["files"] ?? "")
         default: ""
         }
     }
@@ -165,5 +188,128 @@ struct CustodySheet: View {
         }
         .frame(width: 500)
         .onAppear { from = prefs.examiner }
+    }
+}
+
+
+/// A copy for someone (§4.7): format, access, the files of a logical acquisition; receipt and custody follow.
+struct DeliverySheet: View {
+    let model: CaseModel
+    let item: EvidenceItem
+    @Environment(\.dismiss) private var dismiss
+    @State private var recipient = ""
+    @State private var format = Delivery.Format.xiz
+    @State private var protect = 0  // 0 key, 1 password, 2 none
+    @State private var key = ""
+    @State private var password = ""
+    @State private var password2 = ""
+    @State private var files: [String] = []
+    @State private var chosen: Set<String> = []
+    @State private var reason = ""
+    @State private var notes = ""
+    @State private var working = false
+    @State private var done: URL?
+
+    var image: Bool { item.method != "logical" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(String(format: String(localized: "Copy of %@ for…"), item.id)).font(.title2.bold()).padding()
+            Form {
+                TextField("Recipient", text: $recipient, prompt: Text("e.g. Procura di Milano, dott. Rossi"))
+                Picker("Format", selection: $format) {
+                    Text(image ? "XIZ (new archive for the recipient)" : "XIZ (the archive as acquired)").tag(Delivery.Format.xiz)
+                    if image {
+                        Text("Raw image + hashes").tag(Delivery.Format.raw)
+                        Text("E01 (EnCase)").tag(Delivery.Format.e01)
+                    } else {
+                        Text("Some files, each with its proof").tag(Delivery.Format.files)
+                    }
+                }
+                if format == .xiz && image {
+                    Picker("Protection", selection: $protect) {
+                        Text("Recipient's public key").tag(0)
+                        Text("Password told separately").tag(1)
+                        Text("None").tag(2)
+                    }
+                    if protect == 0 {
+                        LabeledContent("Public key") {
+                            TextField("", text: $key, prompt: Text("xizpk1… or xizpq1…")).font(.system(.body, design: .monospaced)).labelsHidden()
+                        }
+                    }
+                    if protect == 1 {
+                        SecureField("Password (at least 8 characters)", text: $password)
+                        SecureField("Repeat password", text: $password2)
+                    }
+                }
+                if format == .files {
+                    List(files, id: \.self, selection: $chosen) { Text($0).lineLimit(1).truncationMode(.middle) }
+                        .frame(minHeight: 140)
+                }
+                TextField("Reason", text: $reason)
+                TextField("Notes", text: $notes, axis: .vertical).lineLimit(2...3)
+                Text(note).font(.caption).foregroundStyle(.secondary)
+                if let done {
+                    Label(String(format: String(localized: "Delivered: %@"), done.lastPathComponent), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                if working { ProgressView().controlSize(.small); Text(model.busy ?? "").foregroundStyle(.secondary) }
+                Spacer()
+                if let done {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([done]) }
+                    Button("Close") { dismiss() }.keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                    Button("Make the Copy") { start() }.keyboardShortcut(.defaultAction).disabled(!ready || working)
+                }
+            }
+            .padding()
+        }
+        .frame(width: 560)
+        .task {
+            guard !image else { return }
+            let url = item.evidence.archive
+            files = (try? await Task.detached { try Xipper.list(url).filter { $0.kind == .file && !$0.path.hasPrefix("forensic/") }.map(\.path) }.value) ?? []
+        }
+    }
+
+    var note: String {
+        let what: String = switch format {
+        case .xiz: image ? String(localized: "A new forensic archive with the same image and hashes, signed by you, for this recipient only.") : String(localized: "The archive as acquired, with all its signatures.")
+        case .raw: String(localized: "The image as raw bytes and a text file with its SHA-256, MD5 and SHA-1.")
+        case .e01: String(localized: "E01 segments with the case fields, MD5 and SHA-1, for tools that do not read XIZ.")
+        case .files: String(localized: "Only the chosen files, each with a proof that it belongs to the signed archive: the rest stays private.")
+        }
+        return what + " " + String(localized: "A signed receipt goes with the copy, and the original gains a hand-over to the recipient.")
+    }
+
+    var ready: Bool {
+        guard !recipient.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if format == .files { return !chosen.isEmpty }
+        if format == .xiz && image {
+            if protect == 0 { return key.hasPrefix("xizpk1") || key.hasPrefix("xizpq1") }
+            if protect == 1 { return password.count >= 8 && password == password2 }
+        }
+        return true
+    }
+
+    func start() {
+        var o = Delivery.Options(recipient: recipient.trimmingCharacters(in: .whitespaces))
+        o.format = format
+        if format == .xiz && image {
+            if protect == 0 { o.recipientKeys = [key.trimmingCharacters(in: .whitespacesAndNewlines)] }
+            if protect == 1 { o.password = password }
+        }
+        o.files = Array(chosen).sorted()
+        o.reason = reason
+        o.notes = notes
+        working = true
+        Task {
+            done = await model.deliver(item.id, o)
+            working = false
+            password = ""; password2 = ""
+        }
     }
 }

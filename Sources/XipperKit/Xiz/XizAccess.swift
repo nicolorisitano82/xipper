@@ -179,10 +179,21 @@ public struct XizSigner: Sendable {
     public var key: XizSigningKey
     public var label: String
     public var timestampURL: URL?
-    public init(key: XizSigningKey, label: String, timestampURL: URL? = nil) {
+    /// Set: segments are signed with this certificate's key (algorithm 2 or 3) instead of `key`.
+    public var certificate: XizCertificateSigner?
+    /// HTTP Basic credentials for an authority that wants them (user, password).
+    public var timestampCredentials: (user: String, password: String)?
+    public init(key: XizSigningKey, label: String, timestampURL: URL? = nil, certificate: XizCertificateSigner? = nil) {
         self.key = key
         self.label = label
         self.timestampURL = timestampURL
+        self.certificate = certificate
+    }
+
+    /// Signs `message` with the certificate's key when there is one, else with the Ed25519 key.
+    public func sign(_ message: [UInt8]) throws -> [UInt8] {
+        if let c = certificate { return try c.sign(message) }
+        return Array(try key.privateKey.signature(for: message))
     }
 }
 
@@ -215,7 +226,15 @@ public struct XizSegmentSignature: Sendable {
     public var timestamp: XizTimestamp?
     /// Signed Apple Archive: the P-256 key that signed it, PEM, for `aea decrypt -sign-pub`.
     public var aeaPublicKeyPEM: String?
-    public var publicKeyText: String { publicKey.isEmpty ? "" : XizSigningKey.publicText(publicKey) }
+    /// 1 Ed25519, 2 ECDSA P-256 with a certificate, 3 RSA with a certificate.
+    public var algorithm: UInt8 = 1
+    /// The signer certificate (algorithms 2 and 3) and its chain, DER.
+    public var chain: [[UInt8]] = []
+    public var certificate: XizCertificateInfo?
+    public var publicKeyText: String {
+        if let c = certificate { return "x509:" + c.fingerprint }
+        return publicKey.isEmpty ? "" : XizSigningKey.publicText(publicKey)
+    }
 }
 
 public struct XizTimestamp: Sendable {
@@ -226,6 +245,10 @@ public struct XizTimestamp: Sendable {
     public var valid: Bool
     /// The authority's certificate chains to a trusted root of this Mac.
     public var trusted: Bool
+    /// The certificate that signed the token (DER): to look the authority up in a trusted list.
+    public var certificate: [UInt8] = []
+    /// The other certificates carried in the token (issuers), DER.
+    public var issuers: [[UInt8]] = []
 }
 
 enum Base64URL {
@@ -724,32 +747,66 @@ struct XizGroupMap {
 
 enum XizSignature {
     struct Record {
+        var algorithm: UInt8 = 1
+        /// Ed25519 public key (algorithm 1); empty for certificates.
         var publicKey: [UInt8]
+        /// DER certificates, signer first (algorithms 2, 3).
+        var chain: [[UInt8]] = []
         var label: String
         var time: Int64
         var previous: [UInt8]
         var signature: [UInt8]
         var token: [UInt8]
 
+        /// What the message and the record carry as the key: the public key, or the chain as
+        /// u16(count) ‖ (u32(length) ‖ DER)….
+        var keyMaterial: [UInt8] {
+            guard algorithm != 1 else { return publicKey }
+            var w = ByteWriter(capacity: 2 + chain.reduce(0) { $0 + 4 + $1.count })
+            w.u16(UInt16(chain.count))
+            for c in chain { w.u32(UInt32(c.count)); w.append(c) }
+            return w.bytes
+        }
+
         func encode() -> [UInt8] {
-            var w = ByteWriter(capacity: 180 + token.count)
-            w.u8(1); w.append(publicKey); w.append(XizAccessKeys.label(label)); w.u64(UInt64(bitPattern: time))
-            w.append(previous); w.append(signature); w.u32(UInt32(token.count)); w.append(token)
+            var w = ByteWriter(capacity: 180 + token.count + keyMaterial.count + signature.count)
+            w.u8(algorithm); w.append(keyMaterial); w.append(XizAccessKeys.label(label)); w.u64(UInt64(bitPattern: time))
+            w.append(previous)
+            if algorithm != 1 { w.u16(UInt16(signature.count)) }
+            w.append(signature); w.u32(UInt32(token.count)); w.append(token)
             return w.bytes
         }
 
         static func decode(_ b: [UInt8]) throws -> Record {
             try b.withUnsafeBytes { raw in
                 var r = ByteReader(raw)
-                guard try r.u8() == 1 else { throw XipperError.unsupported("XIZ signature algorithm") }
-                let pk = Array(try r.bytes(32))
+                let alg = try r.u8()
+                var pk: [UInt8] = [], chain: [[UInt8]] = []
+                switch alg {
+                case 1: pk = Array(try r.bytes(32))
+                case 2, 3:
+                    let n = Int(try r.u16())
+                    guard n >= 1, n <= 16 else { throw XipperError.corrupt("XIZ signature chain") }
+                    for _ in 0..<n {
+                        let len = Int(try r.u32())
+                        guard len <= 65536 else { throw XipperError.corrupt("XIZ signature certificate") }
+                        chain.append(Array(try r.bytes(len)))
+                    }
+                default: throw XipperError.unsupported("XIZ signature algorithm \(alg)")
+                }
                 let label = String(decoding: try r.bytes(Int(try r.u8())), as: UTF8.self)
                 let time = Int64(bitPattern: try r.u64())
-                let prev = Array(try r.bytes(32)), sig = Array(try r.bytes(64))
+                let prev = Array(try r.bytes(32))
+                let sig = Array(try r.bytes(alg == 1 ? 64 : Int(try r.u16())))
                 let token = Array(try r.bytes(Int(try r.u32())))
                 guard r.remaining == 0 else { throw XipperError.corrupt("XIZ signature trailing data") }
-                return Record(publicKey: pk, label: label, time: time, previous: prev, signature: sig, token: token)
+                return Record(algorithm: alg, publicKey: pk, chain: chain, label: label, time: time, previous: prev, signature: sig, token: token)
             }
+        }
+
+        func verify(_ message: [UInt8]) -> Bool {
+            if algorithm == 1 { return (try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey))?.isValidSignature(signature, for: message) ?? false }
+            return XizCertificateSigner.verify(algorithm: algorithm, chain: chain, message: message, signature: signature)
         }
     }
 
@@ -757,7 +814,7 @@ enum XizSignature {
         var w = ByteWriter(capacity: 256)
         w.append(Array("XIZ13sign".utf8)); w.append(archiveID); w.u32(segment)
         w.append(Xiz.sha256(directory.signedPart)); w.u64(previousFooter); w.u64(UInt64(bitPattern: r.time))
-        w.append(r.previous); w.u8(1); w.append(r.publicKey); w.append(XizAccessKeys.label(r.label))
+        w.append(r.previous); w.u8(r.algorithm); w.append(r.keyMaterial); w.append(XizAccessKeys.label(r.label))
         return w.bytes
     }
 
@@ -804,11 +861,18 @@ enum XizSignature {
                 continue
             }
             let m = message(archiveID: sb.archiveID, segment: UInt32(i), directory: d, previousFooter: f.previousFooter, r)
-            let valid = (try? Curve25519.Signing.PublicKey(rawRepresentation: r.publicKey))?.isValidSignature(r.signature, for: m) ?? false
+            let valid = r.verify(m)
             let ts = r.token.isEmpty ? nil : try? RFC3161.verify(r.token, imprint: Xiz.sha256(r.signature))
-            out.append(XizSegmentSignature(segment: i, signed: true, label: r.label, publicKey: r.publicKey,
-                                           time: Date(timeIntervalSince1970: Double(r.time)), valid: valid, chained: r.previous == previous,
-                                           timestamp: ts))
+            var s = XizSegmentSignature(segment: i, signed: true, label: r.label, publicKey: r.publicKey,
+                                        time: Date(timeIntervalSince1970: Double(r.time)), valid: valid, chained: r.previous == previous,
+                                        timestamp: ts)
+            if r.algorithm != 1 {
+                s.algorithm = r.algorithm
+                s.chain = r.chain
+                // Trust and validity at the time-stamp's time when there is one, else at the signer's clock.
+                s.certificate = XizCertificateInfo(r.chain[0], chain: r.chain, at: ts?.time ?? s.time)
+            }
+            out.append(s)
             previous = chainDigest(m, r.signature)
         }
         return out
@@ -819,9 +883,10 @@ enum XizSignature {
                      previous: [UInt8]) throws -> Record {
         var r = Record(publicKey: signer.key.publicKey, label: signer.label, time: Int64(Date().timeIntervalSince1970),
                        previous: previous, signature: [], token: [])
+        if let c = signer.certificate { r.algorithm = c.algorithm; r.chain = c.chain; r.publicKey = [] }
         let m = message(archiveID: archiveID, segment: segment, directory: directory, previousFooter: previousFooter, r)
-        r.signature = Array(try signer.key.privateKey.signature(for: m))
-        if let url = signer.timestampURL { r.token = try RFC3161.request(url, imprint: Xiz.sha256(r.signature)) }
+        r.signature = try signer.sign(m)
+        if let url = signer.timestampURL { r.token = try RFC3161.request(url, imprint: Xiz.sha256(r.signature), credentials: signer.timestampCredentials) }
         return r
     }
 }
@@ -837,7 +902,7 @@ enum RFC3161 {
     }
 
     /// Asks `url` to time-stamp `imprint`; returns the TimeStampToken (DER).
-    static func request(_ url: URL, imprint: [UInt8]) throws -> [UInt8] {
+    static func request(_ url: URL, imprint: [UInt8], credentials: (user: String, password: String)? = nil) throws -> [UInt8] {
         var nonce = [UInt8](repeating: 0, count: 8)
         arc4random_buf(&nonce, 8)
         nonce[0] &= 0x7F
@@ -845,11 +910,18 @@ enum RFC3161 {
         req.httpMethod = "POST"
         req.setValue("application/timestamp-query", forHTTPHeaderField: "Content-Type")
         req.httpBody = Data(requestDER(imprint: imprint, nonce: nonce))
+        if let c = credentials {
+            // Qualified authorities usually want an account: HTTP Basic, over https only.
+            guard url.scheme == "https" else { throw XipperError.invalidArgument("time-stamp credentials need an https address") }
+            req.setValue("Basic " + Data("\(c.user):\(c.password)".utf8).base64EncodedString(), forHTTPHeaderField: "Authorization")
+        }
         let done = DispatchSemaphore(value: 0)
         nonisolated(unsafe) var result: Result<Data, Error> = .failure(XipperError.io("time-stamp request", path: url.absoluteString, errno: ETIMEDOUT))
         URLSession.shared.dataTask(with: req) { data, response, error in
             if let error { result = .failure(error) }
-            else if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            else if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
+                result = .failure(XipperError.io("time-stamp authority refused the credentials (HTTP \(http.statusCode))", path: url.absoluteString, errno: EACCES))
+            } else if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                 result = .failure(XipperError.io("time-stamp authority answered HTTP \(http.statusCode)", path: url.absoluteString, errno: EPROTO))
             } else { result = .success(data ?? Data()) }
             done.signal()
@@ -944,8 +1016,13 @@ enum RFC3161 {
                 trusted = SecTrustEvaluateWithError(trust, nil)
             }
         }
-        return XizTimestamp(time: time, authority: authority,
-                            valid: signatureOK && signedDigest == contentDigest && hashed == imprint, trusted: trusted)
+        var t = XizTimestamp(time: time, authority: authority,
+                             valid: signatureOK && signedDigest == contentDigest && hashed == imprint, trusted: trusted)
+        if let certificate {
+            t.certificate = Array(SecCertificateCopyData(certificate) as Data)
+            t.issuers = (certs ?? []).filter { $0.tag == 0x30 && $0.raw != t.certificate }.map(\.raw)
+        }
+        return t
     }
 }
 

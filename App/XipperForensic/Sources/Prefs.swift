@@ -1,6 +1,7 @@
 import AppKit
 import ForensicKit
 import Foundation
+import Security
 import SwiftUI
 import XipperKit
 
@@ -17,6 +18,12 @@ final class Prefs {
     var reportLanguage: ForensicPDF.Language { didSet { d.set(reportLanguage.rawValue, forKey: "reportLanguage") } }
     /// An RFC 3161 authority; empty is offline mode (no network at all, declared in the report).
     var timestampURL: String { didSet { d.set(timestampURL, forKey: "timestampURL") } }
+    /// An account at the authority (qualified ones want it); the password is in the Keychain.
+    var timestampUser: String { didSet { d.set(timestampUser, forKey: "timestampUser") } }
+    /// A certificate identity (Keychain or smart card) that signs instead of the Xipper key; empty: none.
+    var certificateName: String { didSet { d.set(certificateName, forKey: "certificateName") } }
+    /// EU trusted list to check time-stamps against (e.g. "IT"); empty: no check (no network for it).
+    var trustedListCountry: String { didSet { d.set(trustedListCountry, forKey: "trustedListCountry") } }
 
     private init() {
         examiner = d.string(forKey: "examiner") ?? NSFullUserName()
@@ -25,6 +32,9 @@ final class Prefs {
         let preferred = Locale.preferredLanguages.first ?? "it"
         reportLanguage = ForensicPDF.Language(rawValue: d.string(forKey: "reportLanguage") ?? "") ?? (preferred.hasPrefix("it") ? .it : .en)
         timestampURL = d.string(forKey: "timestampURL") ?? ""
+        timestampUser = d.string(forKey: "timestampUser") ?? ""
+        certificateName = d.string(forKey: "certificateName") ?? ""
+        trustedListCountry = d.string(forKey: "trustedListCountry") ?? ""
         keys = XizKeychain.list(.signing)
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { Prefs.shared.reloadKeys() }
@@ -36,31 +46,76 @@ final class Prefs {
 
     func reloadKeys() { keys = XizKeychain.list(.signing) }
 
-    var ready: Bool { !examiner.trimmingCharacters(in: .whitespaces).isEmpty && keys.contains { $0.name == keyName } }
+    var ready: Bool {
+        !examiner.trimmingCharacters(in: .whitespaces).isEmpty && (keys.contains { $0.name == keyName } || !certificateName.isEmpty)
+    }
+
+    /// Certificate identities, by name, from the certificates only (listing never touches a private key).
+    func identityNames() -> [String] { XizCertificateSigner.identities().map(\.name) }
 
     var publicKey: String? { keys.first { $0.name == keyName }?.publicKey }
 
     enum Problem: LocalizedError {
-        case noKey, badURL
+        case noKey, badURL, noCertificate(String)
         var errorDescription: String? {
             switch self {
             case .noKey: String(localized: "No signing key: choose or create one in Settings.")
             case .badURL: String(localized: "The time-stamp authority address is not a valid http(s) URL.")
+            case .noCertificate(let n): String(format: String(localized: "The certificate “%@” is not available: insert the smart card or choose another in Settings."), n)
             }
         }
     }
 
+    static let tsaService = "app.xipper.forensic.tsa"
+
+    /// The authority's password, in the Keychain under the user name.
+    func timestampPassword() -> String? {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: Self.tsaService,
+                                kSecAttrAccount as String: timestampUser, kSecReturnData as String: true]
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
+        return String(decoding: d, as: UTF8.self)
+    }
+
+    func setTimestampPassword(_ p: String) {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: Self.tsaService,
+                                kSecAttrAccount as String: timestampUser]
+        SecItemDelete(q as CFDictionary)
+        guard !p.isEmpty else { return }
+        var a = q
+        a[kSecValueData as String] = Data(p.utf8)
+        SecItemAdd(a as CFDictionary, nil)
+    }
+
+    /// The trusted list, when the check is on (fetched once a day, cached).
+    func trustedList() throws -> TrustedList? {
+        trustedListCountry.isEmpty ? nil : try TrustedList.load(country: trustedListCountry)
+    }
+
     /// Reads the key from the Keychain (macOS may ask for the login password).
     func signer() throws -> XizSigner {
-        guard !keyName.isEmpty, let text = XizKeychain.secret(.signing, name: keyName) else { throw Problem.noKey }
-        let key = try XizSigningKey(secretText: text)
+        var certificate: XizCertificateSigner?
+        if !certificateName.isEmpty {
+            guard let id = XizCertificateSigner.identity(named: certificateName) else { throw Problem.noCertificate(certificateName) }
+            certificate = try XizCertificateSigner(identity: id)
+        }
+        let key: XizSigningKey
+        if !keyName.isEmpty, let text = XizKeychain.secret(.signing, name: keyName) {
+            key = try XizSigningKey(secretText: text)
+        } else if certificate != nil {
+            key = XizSigningKey()  // unused: the certificate signs
+        } else {
+            throw Problem.noKey
+        }
         var url: URL?
         let t = timestampURL.trimmingCharacters(in: .whitespaces)
         if !t.isEmpty {
             guard let u = URL(string: t), u.scheme == "https" || u.scheme == "http" else { throw Problem.badURL }
             url = u
         }
-        return XizSigner(key: key, label: examiner, timestampURL: url)
+        var s = XizSigner(key: key, label: examiner, timestampURL: url, certificate: certificate)
+        if !timestampUser.isEmpty, let p = timestampPassword() { s.timestampCredentials = (timestampUser, p) }
+        return s
     }
 
     func createKey(named name: String) throws {
@@ -74,6 +129,7 @@ struct SettingsView: View {
     @Environment(Prefs.self) private var prefs
     @State private var newKey = ""
     @State private var error: String?
+    @State private var tsaPassword = ""
 
     var body: some View {
         @Bindable var p = prefs
@@ -100,13 +156,27 @@ struct SettingsView: View {
                 Text("Every archive segment, case log line and report is signed with this key. Give the public key to whoever has to check your signatures.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            CertificateSection()
             Section("Reports") {
                 Picker("Language of printed reports", selection: $p.reportLanguage) {
                     Text("Italian").tag(ForensicPDF.Language.it)
                     Text("English").tag(ForensicPDF.Language.en)
                 }
                 TextField("Time-stamp authority (RFC 3161)", text: $p.timestampURL, prompt: Text("empty: offline"))
-                Text("Offline mode: with no authority, nothing goes on the network; the report says so.")
+                if !prefs.timestampURL.isEmpty {
+                    TextField("Account (if the authority wants one)", text: $p.timestampUser)
+                    if !prefs.timestampUser.isEmpty {
+                        SecureField("Password (kept in the Keychain)", text: $tsaPassword)
+                            .onSubmit { prefs.setTimestampPassword(tsaPassword); tsaPassword = "" }
+                        Text(prefs.timestampPassword() == nil ? "No password saved: type it and press Return." : "Password saved in the Keychain.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Picker("Check time-stamps against the EU trusted list", selection: $p.trustedListCountry) {
+                    Text("No").tag("")
+                    Text("Italy (AgID)").tag("IT")
+                }
+                Text("Offline mode: with no authority, nothing goes on the network; the report says so. The trusted list, when chosen, is downloaded once a day to say whether each time-stamp is qualified (eIDAS).")
                     .font(.caption).foregroundStyle(.secondary)
             }
             HelperSection()
@@ -162,5 +232,43 @@ struct HelperSection: View {
         }
         .onAppear { status = DeviceAccess.helperStatus }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in status = DeviceAccess.helperStatus }
+    }
+}
+
+
+/// Signing with a certificate (smart card, Keychain, Secure Enclave) instead of the Xipper key: the
+/// signature then names a person through their certificate authority.
+struct CertificateSection: View {
+    @Environment(Prefs.self) private var prefs
+    @State private var names: [String] = []
+    @State private var check: String?
+
+    var body: some View {
+        @Bindable var p = prefs
+        Section {
+            Picker("Sign with", selection: $p.certificateName) {
+                Text("The Xipper key above").tag("")
+                ForEach(names, id: \.self) { Text($0).tag($0) }
+                if !prefs.certificateName.isEmpty && !names.contains(prefs.certificateName) {
+                    Text(prefs.certificateName + " " + String(localized: "(not available now)")).tag(prefs.certificateName)
+                }
+            }
+            if !prefs.certificateName.isEmpty {
+                HStack {
+                    Button("Try the Certificate") {
+                        do {
+                            let s = try prefs.signer()
+                            check = String(format: String(localized: "Works: %@ (%@)"), s.certificate?.subject ?? "", s.certificate?.algorithm == 2 ? "ECDSA P-256" : "RSA")
+                        } catch { check = error.localizedDescription }
+                    }
+                    if let check { Text(check).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+            Button("Refresh") { names = prefs.identityNames() }
+        } header: { Text("Certificate") } footer: {
+            Text("Certificates with a private key from the Keychain or an inserted smart card (PIV; other cards need their maker's driver). ECDSA P-256 or RSA. The card asks for its PIN when signing.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .onAppear { names = prefs.identityNames() }
     }
 }

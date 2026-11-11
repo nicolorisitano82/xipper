@@ -91,7 +91,13 @@ final class CaseModel {
         guard let c = forensicCase else { return false }
         do {
             let s = try Prefs.shared.signer()
-            try await Task.detached { try work(c, s) }.value
+            let country = Prefs.shared.trustedListCountry
+            try await Task.detached {
+                var c = c
+                // Reports say whether time-stamps are qualified; a list that cannot be fetched only leaves that out.
+                if !country.isEmpty { c.trustedList = try? TrustedList.load(country: country) }
+                try work(c, s)
+            }.value
             reload()
             return true
         } catch {
@@ -130,6 +136,25 @@ final class CaseModel {
         }
     }
 
+    var busy: String?
+
+    /// Raw or E01 export of an image, logged.
+    func export(_ id: String, raw: URL?, e01: URL?) async -> Bool {
+        busy = String(localized: "Exporting…")
+        defer { busy = nil }
+        return await signed { c, s in _ = try c.export(evidence: id, raw: raw, e01: e01, signer: s) }
+    }
+
+    /// A delivery copy, its receipt and the custody segment; the copy's folder on success.
+    func deliver(_ id: String, _ o: Delivery.Options) async -> URL? {
+        busy = String(localized: "Preparing the copy…")
+        defer { busy = nil }
+        final class Box: @unchecked Sendable { var url: URL? }
+        let box = Box()
+        let ok = await signed { c, s in box.url = try c.deliver(evidence: id, options: o, signer: s).folder }
+        return ok ? box.url : nil
+    }
+
     func custody(_ id: String, from: String, to: String, fields: [String: String]) async -> Bool {
         await signed { c, s in try c.custody(evidence: id, from: from, to: to, fields: fields, signer: s) }
     }
@@ -150,6 +175,9 @@ enum Words {
         case "custody": String(localized: "Hand-over")
         case "evidence verified": String(localized: "Verified again")
         case "source checks": String(localized: "Checks before starting")
+        case "evidence exported": String(localized: "Exported")
+        case "evidence delivered": String(localized: "Copy delivered")
+        case "import failed": String(localized: "Import failed")
         case "share mounted": String(localized: "Shared disk connected read-only")
         case "disk unmounted": String(localized: "Disk volumes unmounted")
         case "mounts refused": String(localized: "Mounts refused during the acquisition")
@@ -160,6 +188,8 @@ enum Words {
     static func method(_ m: String) -> String {
         switch m {
         case "logical": String(localized: "logical (files and folders)")
+        case "E01 import": String(localized: "E01 imported")
+        case "delivery copy": String(localized: "delivery copy")
         case "physical": String(localized: "physical (disk image)")
         case "volume": String(localized: "volume")
         default: m
@@ -177,6 +207,8 @@ enum Words {
         case "files": String(localized: "Files: signed inventory")
         case "expected SHA-256": String(localized: "SHA-256 from the written record")
         case "content": String(localized: "Content")
+        case "certificates": String(localized: "Signer certificates")
+        case "qualified time-stamps": String(localized: "Qualified time-stamps (EU trusted list)")
         default: c
         }
     }

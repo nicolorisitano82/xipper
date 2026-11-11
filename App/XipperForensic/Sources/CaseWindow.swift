@@ -57,6 +57,7 @@ struct CaseWindow: View {
             ToolbarItem(placement: .status) {
                 Label("Sources are never written", systemImage: "lock.shield")
                     .labelStyle(.titleAndIcon).foregroundStyle(.green).font(.callout)
+                    .padding(.horizontal, 12)
                     .help("Xipper Forensic only reads the sources: files and folders are opened read-only and nothing is written next to them.")
             }
             ToolbarItem {

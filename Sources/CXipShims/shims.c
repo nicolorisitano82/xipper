@@ -112,3 +112,28 @@ size_t xs_bzip2_compress(const uint8_t *in, size_t inLen, int level, uint8_t *ou
     if (BZ2_bzBuffToBuffCompress((char *)out, &n, (char *)in, (unsigned)inLen, level, 0, 0) != BZ_OK) return 0;
     return n;
 }
+
+uint32_t xs_adler32(uint32_t adler, const uint8_t *data, size_t len) {
+    uLong a = adler;
+    while (len > 0) {
+        uInt n = len > 0x40000000 ? 0x40000000 : (uInt)len;
+        a = adler32(a, data, n);
+        data += n; len -= n;
+    }
+    return (uint32_t)a;
+}
+
+size_t xs_zlib_bound(size_t n) { return compressBound((uLong)n); }
+
+size_t xs_zlib_compress(const uint8_t *in, size_t n, uint8_t *out, size_t cap, int level) {
+    uLongf outLen = (uLongf)cap;
+    if (compress2(out, &outLen, in, (uLong)n, level) != Z_OK) return 0;
+    return (size_t)outLen;
+}
+
+long xs_zlib_uncompress(const uint8_t *in, size_t n, uint8_t *out, size_t cap) {
+    uLongf outLen = (uLongf)cap;
+    int rc = uncompress(out, &outLen, in, (uLong)n);
+    if (rc != Z_OK) return -1;
+    return (long)outLen;
+}

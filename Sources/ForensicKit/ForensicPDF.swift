@@ -106,10 +106,27 @@ public enum ForensicPDF {
                 line += " · " + (g["signer"] as? String ?? "")
                 s.line(line)
                 s.line("  " + (g["key"] as? String ?? ""), style: .mono)
+                if let c = g["certificate"] as? [String: Any] {
+                    var cl = "  " + t["certificate"] + ": " + (c["subject"] as? String ?? "") + " · " + t["issuer"] + " " + (c["issuer"] as? String ?? "")
+                    if let a = c["not_after"] as? String { cl += " · " + t["until"] + " " + time(a, language) }
+                    s.line(cl, style: .small)
+                    var notes: [String] = []
+                    if !(c["trusted"] as? Bool ?? false) { notes.append(t["cert.untrusted"]) }
+                    if !(c["valid_at_signing"] as? Bool ?? false) { notes.append(t["cert.expired"]) }
+                    if !notes.isEmpty { s.line("  ⚠ " + notes.joined(separator: "; "), style: .small) }
+                }
                 if let ts = g["timestamp"] as? [String: Any] {
                     s.line("  " + t["timestamp"] + " " + time(ts["time"] as? String, language) + " · " + (ts["authority"] as? String ?? "")
                            + ((ts["trusted"] as? Bool ?? false) ? "" : " (" + t["untrusted"] + ")"), style: .small)
+                    if let q = ts["qualified"] as? [String: Any] {
+                        s.line("  ✔ " + t["qualified"] + ": " + (q["provider"] as? String ?? "") + " (" + t["list"] + " " + (q["list"] as? String ?? "") + ")", style: .small)
+                    } else if ts["qualified"] as? Bool == false {
+                        s.line("  ⚠ " + t["not.qualified"], style: .small)
+                    }
                 }
+            }
+            if let tl = report["trusted_list"] as? [String: String] {
+                s.line(String(format: t["tl"], tl["country"] ?? "", tl["sequence"] ?? "", time(tl["issued"], language), tl["sha256"] ?? ""), style: .small)
             }
         }
 
@@ -198,6 +215,11 @@ public enum ForensicPDF {
             "section.limits": "Limiti",
             "archive.note": "Riportare questo SHA-256 nel verbale: è il riferimento esterno che rende evidente ogni modifica successiva, compresa la rimozione degli ultimi segmenti.",
             "segment": "Segmento", "timestamp": "Marca temporale", "untrusted": "autorità non verificata",
+            "certificate": "Certificato", "issuer": "rilasciato da", "until": "valido fino al",
+            "cert.untrusted": "catena non riconosciuta da questo Mac", "cert.expired": "certificato non valido alla data della firma",
+            "qualified": "marca qualificata", "list": "elenco di fiducia", "not.qualified": "marca non presente tra i servizi qualificati dell'elenco di fiducia",
+            "tl": "Stato qualificato verificato sull'elenco di fiducia %@ n. %@ del %@ (SHA-256 %@); la firma XML dell'elenco non è verificata da questa versione.",
+            "c.certificates": "Certificati dei firmatari", "c.qualified time-stamps": "Marche qualificate (elenco di fiducia UE)",
             "custody.none": "Nessun passaggio di mano registrato.",
             "verify.intro": "Chiunque riceva l'archivio può ripetere la verifica con questi comandi; xiz (libxiz) è un'implementazione indipendente del formato.",
             "limits.1": "XIZ rende evidente la manomissione, non la impedisce: confrontare lo SHA-256 dell'archivio con quello del verbale.",
@@ -217,6 +239,7 @@ public enum ForensicPDF {
             "f.time": "Ora", "f.from": "Da", "f.to": "A", "f.reason": "Motivo", "f.seals": "Sigilli", "f.segment": "Segmento",
             "f.description_device": "Descrizione", "f.seals_found": "Sigilli trovati", "f.operator": "Operatore",
             "m.logical": "logica (file e cartelle)", "m.physical": "fisica (immagine del disco)", "m.volume": "volume",
+            "m.E01 import": "importazione da E01", "m.delivery copy": "copia di consegna",
         ]
         static let en: [String: String] = [
             "title": "Forensic acquisition report",
@@ -231,6 +254,11 @@ public enum ForensicPDF {
             "section.limits": "Limits",
             "archive.note": "Write this SHA-256 into the written record: it is the outside reference that makes any later change evident, removing the last segments included.",
             "segment": "Segment", "timestamp": "Time-stamp", "untrusted": "authority not verified",
+            "certificate": "Certificate", "issuer": "issued by", "until": "valid until",
+            "cert.untrusted": "chain not trusted by this Mac", "cert.expired": "certificate not valid at the signing time",
+            "qualified": "qualified time-stamp", "list": "trusted list", "not.qualified": "time-stamp not from a qualified service of the trusted list",
+            "tl": "Qualified status checked against the %@ trusted list no. %@ of %@ (SHA-256 %@); the list's XML signature is not verified by this version.",
+            "c.certificates": "Signer certificates", "c.qualified time-stamps": "Qualified time-stamps (EU trusted list)",
             "custody.none": "No hand-over recorded.",
             "verify.intro": "Anyone who receives the archive can repeat the verification with these commands; xiz (libxiz) is an independent implementation of the format.",
             "limits.1": "XIZ makes tampering evident, not impossible: compare the archive's SHA-256 with the one in the written record.",
@@ -250,6 +278,7 @@ public enum ForensicPDF {
             "f.time": "Time", "f.from": "From", "f.to": "To", "f.reason": "Reason", "f.seals": "Seals", "f.segment": "Segment",
             "f.seals_found": "Seals found", "f.operator": "Operator",
             "m.logical": "logical (files and folders)", "m.physical": "physical (disk image)", "m.volume": "volume",
+            "m.E01 import": "imported from E01", "m.delivery copy": "delivery copy",
         ]
     }
 

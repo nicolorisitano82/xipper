@@ -173,7 +173,7 @@ let package = Package(
         // xipper-forensic (docs/XIPPER_FORENSIC.md): evidence in forensic XIZ archives (XIZ 1.10, §20).
         .target(
             name: "ForensicKit",
-            dependencies: ["XipperKit"],
+            dependencies: ["XipperKit", "CXipShims"],
             linkerSettings: [.linkedFramework("DiskArbitration"), .linkedFramework("IOKit"), .linkedFramework("ServiceManagement")]
         ),
         .executableTarget(

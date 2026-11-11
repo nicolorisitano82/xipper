@@ -174,13 +174,15 @@ Né CryptoKit né CommonCrypto: tutto è portabile e compilato dai sorgenti.
 |---|---|---|
 | SHA-256, HMAC-SHA-256, HKDF | [BearSSL](https://bearssl.org) 0.6, `sha2small.c`, `hmac.c`, `hkdf.c` | MIT |
 | AES-256-GCM | BearSSL 0.6, `aes_ct64*` (AES bitsliced a tempo costante) + `ghash_ctmul64` + `gcm.c` | MIT |
+| ECDSA P-256, RSA PKCS#1 v1.5 (verifica), certificato X.509 (chiave pubblica) | BearSSL 0.6, `ec_p256_m31`, `ecdsa_i31_vrfy_*`, `rsa_i31_pkcs1_vrfy`, `rsa_i31_pub`, `x509_decoder` e gli `i31_*` che servono | MIT |
 | X25519, Ed25519 (SHA-512) | [Monocypher](https://monocypher.org) 4.0.2, `monocypher.c` e `optional/monocypher-ed25519.c` | BSD-2-Clause o CC0 |
 | Argon2id | PHC reference (`../Vendor/argon2`, già usata da Xipper) | CC0 o Apache-2.0 |
 | CRC-32C | proprio (tabelle slice-by-8; istruzioni CRC su ARMv8) | MIT |
 | Shamir GF(2⁸) | proprio, senza tabelle indicizzate dal segreto | MIT |
 
 BearSSL è stata scelta perché le sue versioni "ct" sono a tempo costante senza istruzioni
-specifiche della CPU e il sottoinsieme necessario è piccolo (16 file); Monocypher perché è un solo
+specifiche della CPU e il sottoinsieme necessario è piccolo (16 file, 43 con le firme a certificato
+del §13.5, aggiunte l'11/11/2026 dallo stesso archivio); Monocypher perché è un solo
 file per X25519/Ed25519, verificato e senza dipendenze. Archivi scaricati da bearssl.org e
 monocypher.org il 02/11/2026; SHA-256 degli archivi:
 

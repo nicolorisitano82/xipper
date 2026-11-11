@@ -39,6 +39,15 @@ extension XizForensic {
         let fd: Int32
         /// Tests only: an error for a read of (offset, length), or nil to read for real.
         var fault: (@Sendable (UInt64, Int) -> Int32?)?
+        /// A source that is not a descriptor (an E01 being imported): reads into the buffer, nil or an errno.
+        let reader: (@Sendable (UInt64, UnsafeMutableRawPointer, Int) -> Int32?)?
+
+        /// A source read by `read` (offset, buffer, count → nil or an errno), e.g. the image inside an E01.
+        public init(name: String, size: UInt64, logicalSector: UInt32 = 512, physicalSector: UInt32 = 512,
+                    read: @escaping @Sendable (UInt64, UnsafeMutableRawPointer, Int) -> Int32?) {
+            self.name = name; self.size = size; self.logicalSector = logicalSector; self.physicalSector = physicalSector
+            isDevice = false; fd = -1; reader = read
+        }
 
         /// Opens `path` read-only.
         public convenience init(path: String) throws {
@@ -58,6 +67,7 @@ extension XizForensic {
             guard fstat(fd, &st) == 0 else { let e = XipperError.posix("fstat", name); close(fd); throw e }
             self.fd = fd
             self.name = name
+            reader = nil
             let kind = st.st_mode & S_IFMT
             isDevice = kind == S_IFCHR || kind == S_IFBLK
             if isDevice {
@@ -76,7 +86,7 @@ extension XizForensic {
             }
         }
 
-        deinit { close(fd) }
+        deinit { if fd >= 0 { close(fd) } }
 
         /// Errors that mean the source has gone (cable pulled, disk ejected): stop, do not map them as sectors.
         static let gone: Set<Int32> = [ENXIO, ENODEV, EBADF, ENOENT]
@@ -84,6 +94,7 @@ extension XizForensic {
         /// One plain read of the whole piece; the errno on failure (EIO for a short read inside the source).
         func readOnce(at offset: UInt64, into dst: UnsafeMutableRawPointer, count: Int) -> Int32? {
             if let f = fault, let e = f(offset, count) { return e }
+            if let reader { return reader(offset, dst, count) }
             var done = 0
             while done < count {
                 let n = pread(fd, dst + done, count - done, off_t(offset) + off_t(done))

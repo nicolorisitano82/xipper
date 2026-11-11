@@ -3,6 +3,7 @@
 // Alias: xfor. Disks are opened by the app's helper, or directly with sudo.
 import ForensicKit
 import Foundation
+import Security
 import XipperKit
 
 let version = ForensicReport.toolVersion
@@ -24,6 +25,9 @@ usage:
       --confirm-serial SN    required for an internal disk: its serial number
       --errors fast|standard|exhaustive   read errors: 1 try and 64 KiB lost per error, or down
                              to the sector with 2 or 8 tries (default standard)
+  xipper-forensic acquire --e01 FILE.E01 (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
+      archives an existing E01 (all its segments): MD5 and SHA-1 must equal those stored in it;
+      its case fields, segment hashes and unreadable sectors go into the records
   xipper-forensic acquire --image SOURCE (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
   xipper-forensic acquire --logical PATH... (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
       with --in the archive goes to DIR/evidence/R01/R01.xiz with a signed report, and every
@@ -40,6 +44,16 @@ usage:
       --unreadable OFF:LEN   treat this range as unreadable (zeros + map); repeatable (tests)
       --password-env VAR | --password-stdin   encrypt the archive
       --time ISO8601         fixed time (reproducible test vectors)
+  xipper-forensic export ARCHIVE (--raw FILE|- | --e01 BASE [--segment-size MB]) [--password-env VAR | --password-stdin]
+  xipper-forensic export --in DIR.xfcase --evidence-id R01 (--raw FILE | --e01 BASE) --sign KEY
+      the image as raw bytes (checked against the source hash while written) or as E01 (EnCase 6
+      layout: case fields, MD5, SHA-1, unreadable sectors); with --in the export is logged
+  xipper-forensic deliver --in DIR.xfcase --evidence-id R01 --to NAME --sign KEY [--format xiz|raw|e01|files]
+                         [--recipient-key xizpk1…]... [--copy-password-env VAR] [--file PATH]... [-o FOLDER]
+                         [--reason T] [--notes T]
+      a copy for someone, in its own folder with a signed receipt (delivery.json); the original gains a
+      custody segment. xiz: an image is copied into a new archive for the recipient's keys or a password
+      (same image hashes); files: some files of a logical acquisition, each with its inclusion proof
   xipper-forensic custody ARCHIVE --from NAME --to NAME --sign KEY [--reason T] [--seals T] [--notes T]
   xipper-forensic custody --in DIR.xfcase --evidence-id R01 --from NAME --to NAME --sign KEY [...]
   xipper-forensic report ARCHIVE [-o REPORT.json] [--pdf REPORT.pdf [--lang it|en]] [--sign KEY]
@@ -49,8 +63,16 @@ usage:
   xipper-forensic verify ARCHIVE [--expect-sha256 HEX] [--password-env VAR | --password-stdin] [--json]
   xipper-forensic info ARCHIVE [--json]
 
+  xipper-forensic trusted-list [--country IT]       qualified time-stamp services (QTST) in an EU trusted list
+  xipper-forensic identities                         certificates with a private key (Keychain, smart cards)
+
   KEY: a signing key file (xipper keygen --signing) or keychain:NAME; --signer NAME labels it
-  (default: the user's full name); --timestamp URL asks an RFC 3161 authority.
+  (default: the user's full name); --timestamp URL asks an RFC 3161 authority, with
+  --timestamp-user U --timestamp-password-env VAR when it wants an account (https only).
+  --trusted-list CC (report, acquire/custody --in): say in the reports whether each time-stamp comes
+  from a qualified service of that EU trusted list (network: the list is fetched, cached a day).
+  --certificate NAME signs with a certificate identity instead (ECDSA P-256 or RSA; a smart card
+  asks for its PIN): the archive, the case log and the reports carry the certificate.
 
 exit codes: 0 ok, 1 verification failed or error, 2 usage
 """
@@ -94,8 +116,39 @@ var args = Array(CommandLine.arguments.dropFirst())
     guard let l = ForensicPDF.Language(rawValue: v) else { fail("--lang it or en", code: 2) }
     return l
 }
+/// --trusted-list CC: check time-stamps against that EU trusted list (fetched over https, cached a day).
+@MainActor func trustedList() -> TrustedList? {
+    guard let c = value("--trusted-list") else { return nil }
+    do { return try TrustedList.load(country: c.uppercased()) } catch { fail(describe(error)) }
+}
 @MainActor func signer() -> XizSigner {
-    guard let spec = value("--sign") else { fail("--sign KEY is required: every segment of a forensic archive is signed", code: 2) }
+    // A certificate identity (Keychain, smart card): segments, log and reports are signed with its key.
+    var certificate: XizCertificateSigner?
+    if let name = value("--certificate") {
+        guard let id = XizCertificateSigner.identity(named: name) else {
+            fail("no identity \"\(name)\" in the Keychain or on a smart card (see xipper-forensic identities)")
+        }
+        do { certificate = try XizCertificateSigner(identity: id) } catch { fail("\(name): \(describe(error))") }
+    }
+    var url: URL?
+    if let t = value("--timestamp") {
+        guard let u = URL(string: t), u.scheme == "https" || u.scheme == "http" else { fail("invalid time-stamp URL \(t)", code: 2) }
+        url = u
+    }
+    var credentials: (user: String, password: String)?
+    if let user = value("--timestamp-user") {
+        guard let v = value("--timestamp-password-env"), let p = ProcessInfo.processInfo.environment[v] else {
+            fail("--timestamp-user needs --timestamp-password-env VAR", code: 2)
+        }
+        credentials = (user, p)
+    }
+    let label = value("--signer") ?? certificate.map { $0.subject } ?? NSFullUserName()
+    guard let spec = value("--sign") else {
+        guard let certificate else { fail("--sign KEY or --certificate NAME is required: every segment of a forensic archive is signed", code: 2) }
+        var s = XizSigner(key: XizSigningKey(), label: label, timestampURL: url, certificate: certificate)
+        s.timestampCredentials = credentials
+        return s
+    }
     let text: String
     if spec.hasPrefix("keychain:") {
         guard let t = XizKeychain.secret(.signing, name: String(spec.dropFirst(9))) else { fail("no signing key \"\(spec.dropFirst(9))\" in the Keychain") }
@@ -106,12 +159,9 @@ var args = Array(CommandLine.arguments.dropFirst())
     }
     let key: XizSigningKey
     do { key = try XizSigningKey(secretText: text) } catch { fail("\(spec): \(error)") }
-    var url: URL?
-    if let t = value("--timestamp") {
-        guard let u = URL(string: t), u.scheme == "https" || u.scheme == "http" else { fail("invalid time-stamp URL \(t)", code: 2) }
-        url = u
-    }
-    return XizSigner(key: key, label: value("--signer") ?? NSFullUserName(), timestampURL: url)
+    var s = XizSigner(key: key, label: label, timestampURL: url, certificate: certificate)
+    s.timestampCredentials = credentials
+    return s
 }
 @MainActor func date(_ s: String?) -> Date? {
     guard let s else { return nil }
@@ -128,6 +178,8 @@ var args = Array(CommandLine.arguments.dropFirst())
     }
     return out
 }
+/// A LocalizedError's own text, else the error's description (XipperError is CustomStringConvertible).
+func describe(_ e: Error) -> String { (e as? LocalizedError)?.errorDescription ?? "\(e)" }
 @MainActor func done() { if let extra = args.first { fail("unexpected argument \(extra)", code: 2) } }
 @MainActor func printJSON(_ o: Any) {
     let d = (try? JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])) ?? Data()
@@ -140,6 +192,34 @@ if command == "--version" || command == "version" { print("xipper-forensic \(ver
 if command == "help" || command == "--help" || command == "-h" { print(usage); exit(0) }
 
 switch command {
+case "trusted-list":
+    let c = (value("--country") ?? "IT").uppercased()
+    done()
+    do {
+        let tl = try TrustedList.load(country: c)
+        print("\(c) trusted list no. \(tl.sequence), issued \(tl.issued.map { ISO8601DateFormatter().string(from: $0) } ?? "?"), SHA-256 \(tl.sha256)")
+        print("\(tl.url)")
+        for sv in tl.services {
+            let now = sv.status(at: Date()) == TrustedList.granted ? "granted" : (sv.status(at: Date())?.components(separatedBy: "/").last ?? "?")
+            print("  \(now.padding(toLength: 10, withPad: " ", startingAt: 0)) \(sv.provider) — \(sv.name) (\(sv.certificates.count) cert.)")
+        }
+    } catch { fail(describe(error)) }
+
+case "identities":
+    done()
+    let ids = XizCertificateSigner.identities()
+    if ids.isEmpty { print("no certificate identities (import a .p12, or insert a smart card)") }
+    for (name, id) in ids {
+        var cert: SecCertificate?
+        SecIdentityCopyCertificate(id, &cert)
+        let info = cert.map { XizCertificateInfo(Array(SecCertificateCopyData($0) as Data)) }
+        // From the certificate only: listing must not use (or unlock) anyone's private key.
+        let attrs = cert.flatMap { SecCertificateCopyKey($0) }.flatMap { SecKeyCopyAttributes($0) as? [String: Any] } ?? [:]
+        let type = attrs[kSecAttrKeyType as String] as? String, bits = attrs[kSecAttrKeySizeInBits as String] as? Int ?? 0
+        let usable = (type == (kSecAttrKeyTypeECSECPrimeRandom as String) && bits == 256) || (type == (kSecAttrKeyTypeRSA as String) && bits >= 2048)
+        print("\(name)  issuer \(info?.issuer ?? "?")  until \(info?.notAfter.map { ISO8601DateFormatter().string(from: $0) } ?? "?")\(usable ? "" : "  (not usable: key type)")")
+    }
+
 case "disks":
     let json = flag("--json")
     done()
@@ -175,13 +255,14 @@ case "disks":
 case "acquire":
     let image = value("--image")
     let deviceName = value("--device")
+    let e01Source = value("--e01")
     var logical: [String] = []
     if flag("--logical") {
         while let f = args.first, !f.hasPrefix("-") { logical.append(f); args.removeFirst() }
         guard !logical.isEmpty else { fail("--logical needs at least one file or folder", code: 2) }
     }
-    guard [image != nil, !logical.isEmpty, deviceName != nil].filter({ $0 }).count == 1 else {
-        fail("acquire needs one of --device diskN, --image SOURCE, --logical PATH...", code: 2)
+    guard [image != nil, !logical.isEmpty, deviceName != nil, e01Source != nil].filter({ $0 }).count == 1 else {
+        fail("acquire needs one of --device diskN, --image SOURCE, --e01 FILE.E01, --logical PATH...", code: 2)
     }
     let out = value("-o") ?? value("--output")
     let caseDir = value("--in")
@@ -200,9 +281,9 @@ case "acquire":
     let evidenceID = value("--evidence-id")
     let lang = language()
     let forensicCase: ForensicCase? = caseDir.map { d in
-        do { var c = try ForensicCase(at: URL(fileURLWithPath: d)); c.reportLanguage = lang; return c } catch { fail("\(error)") }
+        do { var c = try ForensicCase(at: URL(fileURLWithPath: d)); c.reportLanguage = lang; c.trustedList = trustedList(); return c } catch { fail("\(error)") }
     }
-    if image != nil || deviceName != nil {
+    if image != nil || deviceName != nil || e01Source != nil {
         var o = XizForensic.ImageOptions()
         o.caseInfo = caseInfo; o.device = device; o.acquisition = acquisition; o.level = level; o.now = now
         o.name = value("--name") ?? o.name
@@ -247,11 +328,20 @@ case "acquire":
                 try? forensicCase?.log("disk unmounted", ["disk": whole.bsd, "volumes": mounted.map(\.mountPoint).joined(separator: ", ")], signer: s)
             }
             let route: DeviceAccess.Route
-            do { (opened, route) = try DeviceAccess.open(target.devicePath) } catch { fail(error.localizedDescription) }
+            do { (opened, route) = try DeviceAccess.open(target.devicePath) } catch { fail(describe(error)) }
             o.device = target.record.merging(device, uniquingKeysWith: { _, cli in cli })
             if !target.whole { o.device["whole_disk"] = whole.bsd; o.volume = true; o.volumeOffset = target.offset }
             o.acquisition["device_access"] = route.rawValue
             if o.name == "image.dd" { o.name = "\(target.bsd).dd" }
+        }
+        var e01: EWF.Reader?
+        if let e01Source {
+            do {
+                let (r, src) = try ForensicExport.openE01(URL(fileURLWithPath: e01Source))
+                e01 = r
+                opened = src
+                o = try ForensicExport.importOptions(r, base: o)
+            } catch { fail(describe(error)) }
         }
         do {
             let reader = try opened ?? XizForensic.ImageSource(path: image!)
@@ -263,6 +353,14 @@ case "acquire":
                 target = e.archive.path
             } else {
                 r = try XizForensic.acquireImage(from: reader, to: target, options: o, signer: s)
+            }
+            if let e01 {
+                do { try ForensicExport.checkImport(e01, r) } catch {
+                    if forensicCase == nil { try? FileManager.default.removeItem(atPath: target) }
+                    try? forensicCase?.log("import failed", ["archive": target, "error": error.localizedDescription], signer: s)
+                    fail(describe(error))
+                }
+                print("E01 hashes match: MD5 and SHA-1 equal to those stored in \(e01.info.segments.count) segment(s)")
             }
             if let blocker {
                 blocker.stop()
@@ -304,11 +402,81 @@ case "acquire":
         } catch { fail("\(error)") }
     }
 
+case "export":
+    let caseDir = value("--in")
+    let id = value("--evidence-id")
+    let raw = value("--raw")
+    let e01 = value("--e01")
+    var segment = EWF.defaultSegmentSize
+    if let v = value("--segment-size") { guard let n = UInt64(v), n >= 8 else { fail("--segment-size MB (at least 8)", code: 2) }; segment = n << 20 }
+    guard (raw == nil) != (e01 == nil) else { fail("export needs --raw FILE|- or --e01 BASE", code: 2) }
+    let pw = password()
+    if let caseDir {
+        guard let id else { fail("--in needs --evidence-id", code: 2) }
+        let s = signer()
+        done()
+        do {
+            let c = try ForensicCase(at: URL(fileURLWithPath: caseDir))
+            let r = try c.export(evidence: id, raw: raw.map { URL(fileURLWithPath: $0) }, e01: e01.map { URL(fileURLWithPath: $0) }, password: pw, signer: s)
+            for f in r.files { print(f.path) }
+            print("SHA-256  \(XizForensic.hex(r.sha256))")
+            if let m = r.md5 { print("MD5      \(XizForensic.hex(m))") }
+            if let h = r.sha1 { print("SHA-1    \(XizForensic.hex(h))") }
+        } catch { fail(describe(error)) }
+    } else {
+        guard let archive = args.first else { fail("export ARCHIVE …", code: 2) }
+        args.removeFirst()
+        done()
+        do {
+            if let e01 {
+                let r = try ForensicExport.e01(archive, to: URL(fileURLWithPath: e01), password: pw, segmentSize: segment)
+                for f in r.files { print(f.path) }
+                print("SHA-256  \(XizForensic.hex(r.sha256))")
+                if let m = r.md5 { print("MD5      \(XizForensic.hex(m))") }
+                if let h = r.sha1 { print("SHA-1    \(XizForensic.hex(h))") }
+            } else {
+                let toStdout = raw == "-"
+                let r = try ForensicExport.raw(archive, to: toStdout ? nil : URL(fileURLWithPath: raw!), password: pw)
+                if !toStdout { print("\(r.bytes) bytes  SHA-256 \(XizForensic.hex(r.sha256))") }
+            }
+        } catch { fail(describe(error)) }
+    }
+
+case "deliver":
+    guard let caseDir = value("--in"), let id = value("--evidence-id"), let to = value("--to") else {
+        fail("deliver needs --in DIR.xfcase --evidence-id R01 --to NAME", code: 2)
+    }
+    var o = Delivery.Options(recipient: to)
+    if let f = value("--format") { guard let x = Delivery.Format(rawValue: f) else { fail("--format xiz|raw|e01|files", code: 2) }; o.format = x }
+    o.recipientKeys = values("--recipient-key")
+    o.files = values("--file")
+    if let v = value("--copy-password-env") {
+        guard let p = ProcessInfo.processInfo.environment[v], !p.isEmpty else { fail("\(v) is not set", code: 2) }
+        o.password = p
+    }
+    if let d = value("-o") { o.destination = URL(fileURLWithPath: d) }
+    o.reason = value("--reason") ?? ""
+    o.notes = value("--notes") ?? ""
+    let lang = language()
+    let tl = trustedList()
+    let pw = password()
+    let s = signer()
+    done()
+    do {
+        var c = try ForensicCase(at: URL(fileURLWithPath: caseDir))
+        c.reportLanguage = lang
+        c.trustedList = tl
+        let r = try c.deliver(evidence: id, options: o, signer: s, password: pw)
+        print("delivered \(id) to \(to) in \(r.folder.path)")
+        for (f, h) in r.files { print("  \(h)  \(f.lastPathComponent)") }
+        print("receipt \(r.receipt.lastPathComponent) (signed); custody segment added to the original")
+    } catch { fail(describe(error)) }
+
 case "custody":
     var archive = ""
     var forensicCase: ForensicCase?
     if let d = value("--in") {
-        do { forensicCase = try ForensicCase(at: URL(fileURLWithPath: d)); forensicCase?.reportLanguage = language() } catch { fail("\(error)") }
+        do { forensicCase = try ForensicCase(at: URL(fileURLWithPath: d)); forensicCase?.reportLanguage = language(); forensicCase?.trustedList = trustedList() } catch { fail("\(error)") }
     } else {
         guard let a = args.first, !a.hasPrefix("-") else { fail("custody needs the archive (or --in DIR.xfcase --evidence-id R01)", code: 2) }
         args.removeFirst()
@@ -411,12 +579,14 @@ case "report":
     let pdf = value("--pdf")
     let lang = language()
     let pw = password()
-    let s: XizSigner? = args.contains("--sign") ? signer() : nil
+    let tl = trustedList()
+    let s: XizSigner? = args.contains("--sign") || args.contains("--certificate") ? signer() : nil
     done()
     do {
         let u = URL(fileURLWithPath: archive)
         if let pdf {
-            let o = try ForensicReport.build(archive: u, password: pw)
+            var o = try ForensicReport.build(archive: u, password: pw, trustedList: tl)
+            if let tl { o["trusted_list"] = tl.record }
             if let out {
                 let data = try JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
                 try data.write(to: URL(fileURLWithPath: out), options: .withoutOverwriting)
@@ -426,10 +596,11 @@ case "report":
             if let s { try ForensicReport.sign(URL(fileURLWithPath: pdf), signer: s) }
             print("report written to \(pdf)\(out.map { " and \($0)" } ?? "")\(s == nil ? "" : " (signed)")")
         } else if let out {
-            try ForensicReport.write(archive: u, to: URL(fileURLWithPath: out), password: pw, signer: s)
+            try ForensicReport.write(archive: u, to: URL(fileURLWithPath: out), password: pw, signer: s, trustedList: tl)
             print("report written to \(out)\(s == nil ? "" : " (signed)")")
         } else {
-            let o = try ForensicReport.build(archive: u, password: pw)
+            var o = try ForensicReport.build(archive: u, password: pw, trustedList: tl)
+            if let tl { o["trusted_list"] = tl.record }
             printJSON(o)
         }
     } catch { fail("\(error)") }

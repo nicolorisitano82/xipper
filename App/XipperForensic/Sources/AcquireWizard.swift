@@ -215,8 +215,16 @@ final class Acquisition {
     }
 
     /// Signing key, time-stamp, power, encryption: the same for every source.
+    #if DEBUG
+    /// Snapshots must not touch the Keychain (a new build would wait for the user's permission).
+    nonisolated(unsafe) static var snapshotMode = false
+    #endif
+
     func common(_ out: inout [Check]) {
         do {
+            #if DEBUG
+            if Self.snapshotMode { throw Prefs.Problem.noKey }
+            #endif
             _ = try Prefs.shared.signer()
             out.append(Check(state: .passed, text: String(format: String(localized: "Signing key “%@” unlocked"), Prefs.shared.keyName)))
         } catch {
@@ -306,7 +314,8 @@ final class Acquisition {
     // MARK: acquisition
 
     func start() {
-        guard let c = model.forensicCase else { return }
+        guard let c0 = model.forensicCase else { return }
+        let country = Prefs.shared.trustedListCountry
         let signer: XizSigner
         do { signer = try Prefs.shared.signer() } catch { self.error = error.localizedDescription; return }
         step = .running
@@ -334,6 +343,9 @@ final class Acquisition {
         let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Forensic acquisition")
         Task {
             defer { ProcessInfo.processInfo.endActivity(activity) }
+            // Reports say whether time-stamps are qualified (the list is fetched off the main thread, cached a day).
+            let tl = country.isEmpty ? nil : await Task.detached { try? TrustedList.load(country: country) }.value
+            let c = { var x = c0; x.trustedList = tl; return x }()
             // A disk: macOS must not mount it while it is read, its volumes go away first, then it is opened read-only.
             var blocker: MountBlocker?
             defer { blocker?.stop() }
@@ -371,6 +383,12 @@ final class Acquisition {
                         o.name = srcs[0].lastPathComponent
                         o.md5 = md5; o.sha1 = sha1; o.level = level; o.password = pw
                         o.caseInfo = caseFields; o.device = deviceFields; o.acquisition = acquisition
+                        // An E01 is imported: its own hashes checked, its fields kept.
+                        if srcs[0].pathExtension.uppercased() == "E01" {
+                            o.name = "image.dd"
+                            let (e, _) = try c.importE01(srcs[0], evidence: id, options: o, signer: signer, progress: progress, cancel: token)
+                            return e.pdf
+                        }
                         let (e, _) = try c.acquireImage(from: srcs[0].path, evidence: id, options: o, signer: signer, progress: progress, cancel: token)
                         return e.pdf
                     } else {
@@ -569,9 +587,10 @@ struct SourceStep: View {
                 Text("Disk").tag(Acquisition.Kind.disk)
                 Text("Files and folders").tag(Acquisition.Kind.files)
                 Text("Image file").tag(Acquisition.Kind.image)
-                Text("Mac via Share Disk").tag(Acquisition.Kind.share)
+                Text("Share Disk").tag(Acquisition.Kind.share)
             }
             .pickerStyle(.segmented).labelsHidden()
+            .frame(maxWidth: .infinity)
             .onChange(of: a.kind) { a.files = []; a.image = nil; a.selected = nil }
 
             switch a.kind {
@@ -579,12 +598,12 @@ struct SourceStep: View {
                 DiskPicker(a: a)
             case .files:
                 Text("Logical acquisition: every file and folder found is listed in a signed inventory with its metadata, including what cannot be read.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 fileList
                 Button("Add Files or Folders…") { add(at: nil) }
             case .image:
-                Text("A raw image (.dd, .img, .raw, .001…) acquired as it is: MD5, SHA-1 and SHA-256 of the whole image, and a hash for every 4 MiB block.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text("A raw image (.dd, .img, .raw, .001…) acquired as it is: MD5, SHA-1 and SHA-256 of the whole image, and a hash for every 4 MiB block. An E01 (with its .E02… segments next to it) is imported: its MD5 and SHA-1 must match.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if let i = a.image {
                     Label(i.path, systemImage: "doc").lineLimit(1).truncationMode(.middle)
                 }
@@ -607,6 +626,8 @@ struct SourceStep: View {
                         SecureField("Password", text: $a.sharePassword)
                     }
                     .formStyle(.grouped)
+                    .scrollDisabled(true)
+                    .frame(height: 150)
                     HStack {
                         Button("Connect Read-Only") { Task { await a.mountShare() } }.disabled(a.mounting)
                         if a.mounting { ProgressView().controlSize(.small) }
@@ -615,6 +636,7 @@ struct SourceStep: View {
             }
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding()
     }
 

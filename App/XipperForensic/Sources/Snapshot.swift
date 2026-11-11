@@ -22,9 +22,11 @@ enum Snapshot {
 
     static func shoot(out: URL, caseURL: URL) async {
         let prefs = Prefs.shared
+        Acquisition.snapshotMode = true
         let model = CaseModel(url: caseURL)
         await model.verifyCase()
         await render(WelcomeView(), CGSize(width: 700, height: 540), out, "1-welcome")
+        await render(ScrollView { SettingsView() }, CGSize(width: 540, height: 1500), out, "0-settings")
         await render(NewCaseView(), CGSize(width: 520, height: 620), out, "2-new-case")
         await render(CaseWindow(url: caseURL), CGSize(width: 1100, height: 720), out, "3-case")
         await render(CaseSummaryView(model: model), CGSize(width: 860, height: 640), out, "4-summary")
@@ -34,6 +36,7 @@ enum Snapshot {
         }
         if let first = model.items.first {
             await render(CustodySheet(model: model, id: first.id), CGSize(width: 500, height: 460), out, "7-custody")
+            await render(DeliverySheet(model: model, item: first), CGSize(width: 560, height: 640), out, "7-delivery")
             await render(VerifyView(archive: first.evidence.archive), CGSize(width: 760, height: 640), out, "8-verify", wait: 2.5)
         }
         // The wizard, step by step, with sample answers (nothing is acquired).
@@ -62,6 +65,17 @@ enum Snapshot {
                 a.finish()
             }
             await render(WizardSnapshot(a: a), CGSize(width: 720, height: 600), out, "9-wizard-\(step.rawValue + 1)")
+        }
+        // Every source tab and the options for each kind.
+        for kind in Acquisition.Kind.allCases {
+            let a = Acquisition(model: model)
+            a.kind = kind
+            if kind == .image { a.image = URL(fileURLWithPath: "/Volumes/Prove/chiavetta-sandisk-64GB.E01") }
+            if kind == .files { a.files = model.items.first.map { [$0.evidence.folder, $0.evidence.archive] } ?? [] }
+            for step in [Acquisition.Step.source, .options] {
+                a.step = step
+                await render(WizardSnapshot(a: a), CGSize(width: 720, height: 600), out, "10-\(kind.rawValue)-\(step == .source ? "source" : "options")")
+            }
         }
         _ = prefs
     }

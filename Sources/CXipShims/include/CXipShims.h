@@ -108,3 +108,11 @@ void xs_xxh3_update(void *s, const void *data, size_t len);
 uint64_t xs_xxh3_64(void *s);
 void xs_xxh3_128(void *s, uint64_t *high, uint64_t *low);
 void xs_xxh3_free(void *s);
+
+/* zlib streams with header (EWF/E01 chunks and sections) */
+uint32_t xs_adler32(uint32_t adler, const uint8_t *data, size_t len);
+size_t xs_zlib_bound(size_t n);
+/* 0 on failure, else the compressed size */
+size_t xs_zlib_compress(const uint8_t *in, size_t n, uint8_t *out, size_t cap, int level);
+/* -1 on failure, else the decompressed size */
+long xs_zlib_uncompress(const uint8_t *in, size_t n, uint8_t *out, size_t cap);

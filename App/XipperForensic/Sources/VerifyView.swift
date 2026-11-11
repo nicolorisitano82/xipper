@@ -89,6 +89,15 @@ struct VerifyView: View {
                                 Text(s.publicKeyText).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                                     .textSelection(.enabled)
                             }
+                            if let c = s.certificate {
+                                HStack(spacing: 6) {
+                                    StatusIcon(c.trusted && c.validAtSigning ? .passed : .warning)
+                                    Text(String(format: String(localized: "Certificate: %@, issued by %@"), c.subject, c.issuer)).font(.callout)
+                                    if !c.trusted { Text("(chain not trusted by this Mac)").font(.caption).foregroundStyle(.orange) }
+                                    if !c.validAtSigning { Text("(not valid at the signing time)").font(.caption).foregroundStyle(.orange) }
+                                }
+                                .padding(.leading, 24)
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 import XipperKit
 
 /// A case folder (`NAME.xfcase`, docs/XIPPER_FORENSIC.md §3.2): the case record, a signed,
@@ -17,6 +18,8 @@ public struct ForensicCase: Sendable {
     public static let fileExtension = "xfcase"
     /// The language of the printable reports this case writes.
     public var reportLanguage: ForensicPDF.Language = .it
+    /// When set, reports say whether each time-stamp comes from a qualified service of this list.
+    public var trustedList: TrustedList?
 
     var caseFile: URL { url.appendingPathComponent("case.json") }
     var logFile: URL { url.appendingPathComponent("case.log") }
@@ -86,10 +89,10 @@ public struct ForensicCase: Sendable {
         d["t"] = Self.timestamp(now ?? Date())
         d["event"] = event
         d["by"] = signer.label
-        d["key"] = signer.key.publicText
+        d["key"] = Self.keyText(signer)
         d["prev"] = prev
         let body = Self.json(d)
-        let sig = try signer.key.privateKey.signature(for: body)
+        let sig = try signer.sign(body)
         let line = Array(body.dropLast()) + Array(",\"sig\":\"\(Self.base64url(Array(sig)))\"}\n".utf8)
         if !existing.isEmpty && existing.last != UInt8(ascii: "\n") { try handle.write(contentsOf: Data([UInt8(ascii: "\n")])) }
         try handle.seekToEnd()
@@ -131,11 +134,10 @@ public struct ForensicCase: Sendable {
             if o["seq"] != String(i + 1) { problems.append("line \(i + 1): sequence \(o["seq"] ?? "?")") }
             if o["prev"] != prev { problems.append("line \(i + 1): chain broken (a line was removed, changed or inserted before it)") }
             let marker = Array(",\"sig\":\"".utf8)
-            if let at = Self.lastRange(of: marker, in: bytes), let sig = o["sig"].flatMap(Self.unbase64url),
-               let pub = o["key"].flatMap(Self.publicKey), let key = try? Curve25519.Signing.PublicKey(rawRepresentation: pub) {
+            if let at = Self.lastRange(of: marker, in: bytes), let sig = o["sig"].flatMap(Self.unbase64url), let key = o["key"] {
                 let body = Array(bytes[..<at]) + [UInt8(ascii: "}")]
-                if !key.isValidSignature(sig, for: body) { problems.append("line \(i + 1): signature invalid") }
-                signers[o["key"]!] = o["by"] ?? ""
+                if !Self.verifySignature(key: key, message: body, signature: sig) { problems.append("line \(i + 1): signature invalid") }
+                signers[Self.keyID(key)] = o["by"] ?? ""
             } else {
                 problems.append("line \(i + 1): unsigned")
             }
@@ -265,7 +267,8 @@ public struct ForensicCase: Sendable {
             try? FileManager.default.removeItem(at: u)
             try? FileManager.default.removeItem(at: URL(fileURLWithPath: u.path + ".sig"))
         }
-        let object = try ForensicReport.write(archive: e.archive, to: e.report, password: password, signer: signer, now: now)
+        let object = try ForensicReport.write(archive: e.archive, to: e.report, password: password, signer: signer, now: now,
+                                              trustedList: trustedList)
         try ForensicPDF.render(object, language: reportLanguage).write(to: e.pdf, options: .withoutOverwriting)
         try ForensicReport.sign(e.pdf, signer: signer)
         try log("report written", ["evidence": e.id, "report": relative(e.report), "report_sha256": try Self.fileSHA256(e.report),
@@ -307,7 +310,7 @@ public struct ForensicCase: Sendable {
 
     static func hex(_ b: [UInt8]) -> String { b.map { String(format: "%02x", $0) }.joined() }
 
-    static func fileSHA256(_ u: URL) throws -> String {
+    public static func fileSHA256(_ u: URL) throws -> String {
         let h = try FileHandle(forReadingFrom: u)
         defer { try? h.close() }
         var sha = SHA256()
@@ -327,6 +330,36 @@ public struct ForensicCase: Sendable {
     }
 
     /// `xizsig1…` → the 32-byte Ed25519 public key.
+    /// The signer as written next to a signature: `xizsig1…` (Ed25519) or `x509:` + the certificate (DER, base64url).
+    public static func keyText(_ signer: XizSigner) -> String {
+        if let c = signer.certificate, let leaf = c.chain.first { return "x509:" + base64url(leaf) }
+        return signer.key.publicText
+    }
+
+    /// A short, stable name for a key text: the Ed25519 key itself, or `x509:` + the certificate's SHA-256.
+    public static func keyID(_ text: String) -> String {
+        guard text.hasPrefix("x509:"), let der = unbase64url(String(text.dropFirst(5))) else { return text }
+        return "x509:" + hex(Array(SHA256.hash(data: der)))
+    }
+
+    /// The certificate behind a key text, when it is one.
+    public static func certificate(_ text: String) -> XizCertificateInfo? {
+        guard text.hasPrefix("x509:"), let der = unbase64url(String(text.dropFirst(5))) else { return nil }
+        return XizCertificateInfo(der)
+    }
+
+    /// Checks a detached signature made by `keyText` (Ed25519, or the certificate's ECDSA P-256 / RSA key).
+    public static func verifySignature(key text: String, message: [UInt8], signature: [UInt8]) -> Bool {
+        if let pub = publicKey(text), let k = try? Curve25519.Signing.PublicKey(rawRepresentation: pub) {
+            return k.isValidSignature(signature, for: message)
+        }
+        guard text.hasPrefix("x509:"), let der = unbase64url(String(text.dropFirst(5))),
+              let cert = SecCertificateCreateWithData(nil, Data(der) as CFData), let key = SecCertificateCopyKey(cert),
+              let attrs = SecKeyCopyAttributes(key) as? [String: Any], let type = attrs[kSecAttrKeyType as String] as? String else { return false }
+        let alg: SecKeyAlgorithm = type == (kSecAttrKeyTypeECSECPrimeRandom as String) ? .ecdsaSignatureMessageX962SHA256 : .rsaSignatureMessagePKCS1v15SHA256
+        return SecKeyVerifySignature(key, alg, Data(message) as CFData, Data(signature) as CFData, nil)
+    }
+
     static func publicKey(_ text: String) -> [UInt8]? {
         guard text.hasPrefix("xizsig1"), let k = unbase64url(String(text.dropFirst(7))), k.count == 32 else { return nil }
         return k

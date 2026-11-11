@@ -350,14 +350,17 @@ XIZ_API int xiz_get_stanza(const xiz_archive *a, size_t i, xiz_stanza *out);
 typedef struct xiz_signature {
     uint32_t segment;
     int is_signed;
-    int valid;                   /* Ed25519 signature verifies over the segment (§13.5) */
+    int valid;                   /* the signature verifies over the segment (§13.5) */
     int chained;                 /* `previous` equals the previous segment's chained digest */
     char label[256];
-    uint8_t public_key[32];
+    uint8_t public_key[32];      /* algorithm 1: the Ed25519 key */
     int64_t time;
     int has_timestamp;           /* an RFC 3161 token is present (not verified by libxiz) */
     uint32_t timestamp_length;
     uint8_t chained_digest[32];
+    int algorithm;               /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509 */
+    uint8_t certificate_sha256[32]; /* algorithms 2, 3: SHA-256 of the signer certificate (DER) */
+    uint32_t chain_count;        /* certificates in the record; the chain is not validated by libxiz */
 } xiz_signature;
 
 /* Signatures of every segment, oldest first. Needs no key. For archives without a directory,
@@ -378,9 +381,10 @@ typedef struct xiz_proof_result {
     int in_tree;
     int is_signed;               /* signature present and valid */
     char signer[256];
-    uint8_t signer_key[32];
+    uint8_t signer_key[32];      /* Ed25519 key, or SHA-256 of the signer certificate (algorithms 2, 3) */
     int64_t signed_at;
     uint32_t segment;
+    int algorithm;
 } xiz_proof_result;
 
 /* Verifies an `xiz-proof-1` JSON proof against a file's content (or a symlink target given as

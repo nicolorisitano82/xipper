@@ -10,7 +10,8 @@ public enum ForensicReport {
     public static let toolVersion = "0.9.0"
 
     /// The report as a JSON object (string keys; values are strings, numbers, booleans, arrays, objects).
-    public static func build(archive: URL, password: String? = nil, expectSHA256: [UInt8]? = nil, now: Date? = nil) throws -> [String: Any] {
+    public static func build(archive: URL, password: String? = nil, expectSHA256: [UInt8]? = nil, now: Date? = nil,
+                             trustedList: TrustedList? = nil) throws -> [String: Any] {
         let path = archive.path
         let verification = try XizForensic.verify(path, password: password, expectSHA256: expectSHA256)
         let blocks = verification.blocks
@@ -42,7 +43,20 @@ public enum ForensicReport {
                                     "signature_valid": s.valid, "chain_ok": s.chained]
             if let t = s.time { d["time"] = ForensicCase.timestamp(t) }
             if let ts = s.timestamp {
-                d["timestamp"] = ["time": ForensicCase.timestamp(ts.time), "authority": ts.authority, "trusted": ts.trusted] as [String: Any]
+                var td: [String: Any] = ["time": ForensicCase.timestamp(ts.time), "authority": ts.authority, "trusted": ts.trusted]
+                if let tl = trustedList {
+                    if let q = tl.qualified(ts) { td["qualified"] = ["provider": q.provider, "service": q.name, "list": tl.country] }
+                    else { td["qualified"] = false }
+                }
+                d["timestamp"] = td
+            }
+            if let c = s.certificate {
+                var cd: [String: Any] = ["subject": c.subject, "issuer": c.issuer, "serial": c.serial, "sha256": c.fingerprint,
+                                         "trusted": c.trusted, "valid_at_signing": c.validAtSigning,
+                                         "algorithm": s.algorithm == 2 ? "ECDSA P-256 SHA-256" : "RSA PKCS#1 v1.5 SHA-256"]
+                if let a = c.notBefore { cd["not_before"] = ForensicCase.timestamp(a) }
+                if let b = c.notAfter { cd["not_after"] = ForensicCase.timestamp(b) }
+                d["certificate"] = cd
             }
             return d
         }
@@ -66,7 +80,7 @@ public enum ForensicReport {
             "unreadable": unreadable,
             "custody": json(.custody),
             "segments": segments,
-            "checks": verification.checks.map { ["name": $0.name, "status": $0.status.rawValue, "detail": $0.detail] },
+            "checks": verification.checks.map { ["name": $0.name, "status": $0.status.rawValue, "detail": $0.detail] } + qualifiedCheck(verification, trustedList),
             "passed": verification.passed,
             "how_to_verify": commands,
             "limits": [
@@ -77,9 +91,23 @@ public enum ForensicReport {
     }
 
     /// Writes the report and, with a signer, `REPORT.sig` next to it.
+    /// "qualified time-stamps": every time-stamp from a service granted in the trusted list at its time.
+    static func qualifiedCheck(_ v: XizForensic.Report, _ tl: TrustedList?) -> [[String: String]] {
+        guard let tl else { return [] }
+        let stamped = v.signatures.compactMap(\.timestamp)
+        guard !stamped.isEmpty else { return [] }
+        let q = stamped.compactMap { tl.qualified($0) }
+        let names = Array(Set(q.map { "\($0.provider): \($0.name)" })).sorted().joined(separator: "; ")
+        return [["name": "qualified time-stamps", "status": q.count == stamped.count ? "passed" : "warning",
+                 "detail": "\(q.count) of \(stamped.count) from qualified services in the \(tl.country) trusted list no. \(tl.sequence)"
+                    + (names.isEmpty ? "" : " (\(names))")]]
+    }
+
     @discardableResult
-    public static func write(archive: URL, to report: URL, password: String? = nil, signer: XizSigner?, now: Date? = nil) throws -> [String: Any] {
-        let object = try build(archive: archive, password: password, now: now)
+    public static func write(archive: URL, to report: URL, password: String? = nil, signer: XizSigner?, now: Date? = nil,
+                             trustedList: TrustedList? = nil) throws -> [String: Any] {
+        var object = try build(archive: archive, password: password, now: now, trustedList: trustedList)
+        if let tl = trustedList { object["trusted_list"] = tl.record }
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try data.write(to: report, options: .withoutOverwriting)
         if let signer { try sign(report, signer: signer) }
@@ -91,9 +119,9 @@ public enum ForensicReport {
     /// A detached signature: `{"file","sha256","signer","key","signature"}`.
     public static func sign(_ file: URL, signer: XizSigner) throws {
         let bytes = try Data(contentsOf: file)
-        let sig = try signer.key.privateKey.signature(for: bytes)
+        let sig = try signer.sign(Array(bytes))
         let d = ["file": file.lastPathComponent, "sha256": ForensicCase.hex(Array(SHA256.hash(data: bytes))), "signer": signer.label,
-                 "key": signer.key.publicText, "signature": ForensicCase.base64url(Array(sig))]
+                 "key": ForensicCase.keyText(signer), "signature": ForensicCase.base64url(Array(sig))]
         try Data(ForensicCase.json(d)).write(to: signatureURL(file), options: .atomic)
     }
 
@@ -101,15 +129,16 @@ public enum ForensicReport {
         public var valid: Bool
         public var signer: String
         public var key: String
+        public var certificate: XizCertificateInfo?
     }
 
     public static func verifySignature(_ file: URL) throws -> Signature {
         let d = try ForensicCase.object(Array(Data(contentsOf: signatureURL(file))))
         let bytes = try Data(contentsOf: file)
-        guard let key = d["key"].flatMap(ForensicCase.publicKey), let sig = d["signature"].flatMap(ForensicCase.unbase64url),
-              let pub = try? Curve25519.Signing.PublicKey(rawRepresentation: key) else {
+        guard let key = d["key"], let sig = d["signature"].flatMap(ForensicCase.unbase64url) else {
             return Signature(valid: false, signer: d["signer"] ?? "", key: d["key"] ?? "")
         }
-        return Signature(valid: pub.isValidSignature(sig, for: bytes), signer: d["signer"] ?? "", key: d["key"] ?? "")
+        return Signature(valid: ForensicCase.verifySignature(key: key, message: Array(bytes), signature: sig), signer: d["signer"] ?? "",
+                         key: ForensicCase.keyID(key), certificate: ForensicCase.certificate(key))
     }
 }

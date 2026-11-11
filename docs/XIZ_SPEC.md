@@ -487,19 +487,29 @@ complete and rewritten in the new segment. (Holders of some groups only read.)
 ### 13.5 Signed segments
 
 ```
-algorithm        u8 = 1 (Ed25519)
-public_key       [32]
+algorithm        u8: 1 Ed25519; 2 ECDSA P-256 with SHA-256 and an X.509 certificate;
+                 3 RSA PKCS#1 v1.5 with SHA-256 and an X.509 certificate
+key              algorithm 1: public_key [32]
+                 algorithms 2, 3: chain = u16 count (1–16), then per certificate u32 length (≤ 65536)
+                 + DER; the signer's certificate first, then its issuers as far as the writer knows
 label            u8 length + UTF-8 (the signer's name, visible)
 time             i64: seconds since 1970 UTC, by the signer's clock
 previous         [32]: the chained digest of the previous segment's signature, zeros if the previous
                  segment is unsigned or there is none
-signature        [64]
+signature        algorithm 1: [64]; algorithms 2, 3: u16 length + bytes (ECDSA: DER
+                 `Ecdsa-Sig-Value`; RSA: the modulus-sized signature)
 token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
 ```
 
 - The signed message is
   `"XIZ13sign" ‖ archive_id ‖ u32(segment) ‖ SHA-256(directory bytes before signature_length) ‖
-  u64(previous_footer) ‖ i64(time) ‖ previous ‖ algorithm ‖ public_key ‖ label`.
+  u64(previous_footer) ‖ i64(time) ‖ previous ‖ algorithm ‖ key ‖ label`, where `key` is the
+  field as stored (the public key, or the encoded chain).
+- Algorithms 2 and 3 (XIZ 1.10) bind the signature to a person through a certificate (a key on a smart
+  card, in the Keychain or in the Secure Enclave). The signature is checked with the first certificate's
+  key; whether the chain reaches a trusted root, and whether the certificate was valid at the signing
+  time (the time-stamp's when there is one), is the reader's to evaluate and report. A reader that
+  does not know an algorithm reports the segment as signed with an unknown algorithm, not as valid.
   The directory lists the SHA-256 of every group catalog, each catalog lists every frame with its
   CRC (and the AEAD binds each frame to its index), so the signature covers the whole segment.
   It can be checked without any key to the content.

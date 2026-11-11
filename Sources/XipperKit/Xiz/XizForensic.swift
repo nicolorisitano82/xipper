@@ -891,6 +891,16 @@ public enum XizForensic {
         } else {
             add("signatures", .passed, sigs.map { "\($0.segment): \($0.label)" }.joined(separator: ", "))
         }
+        // Certificates (algorithms 2, 3): who, and whether this Mac trusts the chain at the signing time.
+        let certified = sigs.filter { $0.certificate != nil }
+        if !certified.isEmpty {
+            let untrusted = certified.filter { !($0.certificate!.trusted) }.map(\.segment)
+            let expired = certified.filter { !($0.certificate!.validAtSigning) }.map(\.segment)
+            var d = Array(Set(certified.map { "\($0.certificate!.subject) (\($0.certificate!.issuer))" })).sorted()
+            if !untrusted.isEmpty { d.append("chain not trusted by this Mac in segments \(untrusted)") }
+            if !expired.isEmpty { d.append("certificate not valid at signing time in segments \(expired)") }
+            add("certificates", expired.isEmpty && untrusted.isEmpty ? .passed : .warning, d.joined(separator: "; "))
+        }
         let stamped = sigs.filter { $0.timestamp != nil }
         add("time-stamps", stamped.isEmpty ? .skipped : stamped.allSatisfy { $0.timestamp?.trusted ?? false } ? .passed : .warning,
             stamped.isEmpty ? "none requested" : "\(stamped.count) of \(sigs.count) segments")

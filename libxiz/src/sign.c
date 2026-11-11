@@ -2,6 +2,9 @@
 #include "internal.h"
 
 #include "monocypher-ed25519.h"
+#include "bearssl_x509.h"
+#include "bearssl_ec.h"
+#include "bearssl_rsa.h"
 
 #include <stdio.h>
 
@@ -79,28 +82,75 @@ void leaf_data(wbuf *w, const uint8_t salt[16], const char *path, size_t path_le
 /* ------------------------------------------------------------------ signatures */
 
 typedef struct {
-    const uint8_t *pk;
+    uint8_t algorithm;           /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509 */
+    const uint8_t *pk;           /* algorithm 1 */
+    const uint8_t *key;          /* the key field as stored: public key, or the encoded chain */
+    size_t key_len;
+    const uint8_t *cert;         /* algorithms 2, 3: the signer's certificate (DER) */
+    uint32_t cert_len;
+    uint16_t chain_count;
     const uint8_t *label;
     uint8_t label_len;
     int64_t time;
     const uint8_t *previous;
     const uint8_t *sig;
+    size_t sig_len;
     uint32_t token_len;
 } sig_record;
 
 static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
     rbuf q;
     rb_init(&q, b, n);
-    if (rb_u8(&q) != 1) return 0;  /* algorithm 1 = Ed25519 */
-    r->pk = rb_take(&q, 32);
+    memset(r, 0, sizeof *r);
+    r->algorithm = rb_u8(&q);
+    r->key = q.p + q.at;
+    if (r->algorithm == 1) {
+        r->pk = rb_take(&q, 32);
+    } else if (r->algorithm == 2 || r->algorithm == 3) {
+        r->chain_count = rb_u16(&q);
+        if (r->chain_count < 1 || r->chain_count > 16) return 0;
+        for (uint16_t i = 0; i < r->chain_count && !q.bad; i++) {
+            uint32_t len = rb_u32(&q);
+            if (len > 65536) return 0;
+            const uint8_t *c = rb_take(&q, len);
+            if (i == 0) { r->cert = c; r->cert_len = len; }
+        }
+    } else {
+        return 0;
+    }
+    if (q.bad) return 0;
+    r->key_len = (size_t)(q.p + q.at - r->key);
     r->label_len = rb_u8(&q);
     r->label = rb_take(&q, r->label_len);
     r->time = (int64_t)rb_u64(&q);
     r->previous = rb_take(&q, 32);
-    r->sig = rb_take(&q, 64);
+    r->sig_len = r->algorithm == 1 ? 64 : rb_u16(&q);
+    r->sig = rb_take(&q, r->sig_len);
     r->token_len = rb_u32(&q);
     rb_take(&q, r->token_len);
     return !q.bad && rb_left(&q) == 0;
+}
+
+/* The signer certificate's public key, with BearSSL's X.509 decoder (no chain validation here:
+ * which issuers to trust is the reader's decision; libxiz reports the certificate's SHA-256). */
+
+static int sig_verify(const sig_record *r, const uint8_t *msg, size_t msg_len) {
+    if (r->algorithm == 1) return crypto_ed25519_check(r->sig, r->pk, msg, msg_len) == 0;
+    br_x509_decoder_context dc;
+    br_x509_decoder_init(&dc, NULL, NULL);
+    br_x509_decoder_push(&dc, r->cert, r->cert_len);
+    const br_x509_pkey *pk = br_x509_decoder_get_pkey(&dc);
+    if (!pk || br_x509_decoder_last_error(&dc) != 0) return 0;
+    uint8_t h[32];
+    sha256(msg, msg_len, h);
+    if (r->algorithm == 2) {
+        if (pk->key_type != BR_KEYTYPE_EC || pk->key.ec.curve != BR_EC_secp256r1) return 0;
+        return br_ecdsa_i31_vrfy_asn1(&br_ec_p256_m31, h, 32, &pk->key.ec, r->sig, r->sig_len) == 1;
+    }
+    if (pk->key_type != BR_KEYTYPE_RSA || pk->key.rsa.nlen < 256) return 0;
+    uint8_t out[32];
+    if (!br_rsa_i31_pkcs1_vrfy(r->sig, r->sig_len, BR_HASH_OID_SHA256, 32, &pk->key.rsa, out)) return 0;
+    return ct_equal(out, h, 32);
 }
 
 /* "XIZ13sign" ‖ archive_id ‖ u32(segment) ‖ SHA-256(directory signed part) ‖ u64(previous_footer) ‖
@@ -116,8 +166,8 @@ static void build_message(wbuf *w, const uint8_t id[16], uint32_t segment, const
     wb_u64(w, previous_footer);
     wb_u64(w, (uint64_t)r->time);
     wb_put(w, r->previous, 32);
-    wb_u8(w, 1);
-    wb_put(w, r->pk, 32);
+    wb_u8(w, r->algorithm);
+    wb_put(w, r->key, r->key_len);
     wb_u8(w, r->label_len);
     wb_put(w, r->label, r->label_len);
 }
@@ -127,7 +177,7 @@ int signature_message(wbuf *w, const uint8_t id[16], uint32_t segment, const uin
     sig_record r;
     if (!record_parse(sig, sig_len, &r)) return 0;
     build_message(w, id, segment, dir_signed, dir_len, previous_footer, &r);
-    if (signature64) *signature64 = r.sig;
+    if (signature64) *signature64 = r.algorithm == 1 ? r.sig : NULL;
     return !w->oom;
 }
 
@@ -191,9 +241,9 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
             wbuf m = {0};
             build_message(&m, a->sb.id, k, d->raw, d->signed_len, s[k].ft.previous, &r);
             if (m.oom) { wb_free(&m); free(s); return FAIL(XIZ_E_NOMEM, "out of memory"); }
-            valid = crypto_ed25519_check(r.sig, r.pk, m.p, m.n) == 0;
+            valid = sig_verify(&r, m.p, m.n);
             chain_ok = memcmp(r.previous, previous, 32) == 0;
-            wb_put(&m, r.sig, 64);
+            wb_put(&m, r.sig, r.sig_len);
             sha256(m.p, m.n, chained);
             wb_free(&m);
         }
@@ -204,7 +254,9 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
             if (is_signed) {
                 memcpy(o->label, r.label, r.label_len);
                 o->label[r.label_len] = 0;
-                memcpy(o->public_key, r.pk, 32);
+                o->algorithm = r.algorithm;
+                if (r.algorithm == 1) memcpy(o->public_key, r.pk, 32);
+                else { sha256(r.cert, r.cert_len, o->certificate_sha256); o->chain_count = r.chain_count; }
                 o->time = r.time;
                 o->has_timestamp = r.token_len > 0;
                 o->timestamp_length = r.token_len;
@@ -548,10 +600,12 @@ int xiz_verify_proof(const char *json, size_t json_len, const uint8_t *content, 
     sig_record rec;
     if (sigb.n && record_parse(sigb.p, sigb.n, &rec)) {
         build_message(&msg, id, o->segment, dirb.p, dirb.n, prevf, &rec);
-        o->is_signed = !msg.oom && crypto_ed25519_check(rec.sig, rec.pk, msg.p, msg.n) == 0;
+        o->is_signed = !msg.oom && sig_verify(&rec, msg.p, msg.n);
         memcpy(o->signer, rec.label, rec.label_len);
         o->signer[rec.label_len] = 0;
-        memcpy(o->signer_key, rec.pk, 32);
+        o->algorithm = rec.algorithm;
+        if (rec.algorithm == 1) memcpy(o->signer_key, rec.pk, 32);
+        else sha256(rec.cert, rec.cert_len, o->signer_key);
         o->signed_at = rec.time;
     }
 out:

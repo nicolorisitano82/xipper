@@ -348,8 +348,14 @@ static int cmd_history(int argc, char **argv) {
         time_t tt = (time_t)sg.time;
         struct tm *tm = gmtime(&tt);
         if (tm) strftime(date, sizeof date, "%Y-%m-%d %H:%M:%SZ", tm);
-        printf("#%u  %s  %s  xizsig1", s, sg.label, date);
-        b64url(sg.public_key, 32);
+        if (sg.algorithm == 1) {
+            printf("#%u  %s  %s  xizsig1", s, sg.label, date);
+            b64url(sg.public_key, 32);
+        } else {
+            printf("#%u  %s  %s  x509:", s, sg.label, date);
+            for (int i = 0; i < 32; i++) printf("%02x", sg.certificate_sha256[i]);
+            printf(" (%s, %u certificates, chain not checked)", sg.algorithm == 2 ? "ECDSA P-256" : "RSA", sg.chain_count);
+        }
         printf("  signature %s, chain %s%s\n", sg.valid ? "valid" : "INVALID", sg.chained ? "ok" : "BROKEN",
                sg.has_timestamp ? ", time-stamp present (not verified)" : "");
         if (!sg.valid || !sg.chained) bad = 1;

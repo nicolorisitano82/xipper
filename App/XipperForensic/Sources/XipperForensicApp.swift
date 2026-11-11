@@ -132,10 +132,26 @@ enum Panels {
         p.canChooseDirectories = true
         p.canChooseFiles = true
         p.treatsFilePackagesAsDirectories = false
-        p.allowedContentTypes = [.init(filenameExtension: ForensicCase.fileExtension) ?? .folder]
+        // No content types: a .xfcase is a folder, and until Launch Services knows the app's package type
+        // it is greyed out. The delegate enables case folders and lets every other folder be browsed.
+        let filter = CaseFilter()
+        p.delegate = filter
         p.message = String(localized: "Choose a case folder (.xfcase)")
         guard p.runModal() == .OK, let u = p.url else { return nil }
-        return u
+        withExtendedLifetime(filter) {}
+        return u.pathExtension == ForensicCase.fileExtension ? u : nil
+    }
+
+    /// Case folders can be chosen; other folders are only for browsing.
+    final class CaseFilter: NSObject, NSOpenSavePanelDelegate {
+        func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+            url.pathExtension == ForensicCase.fileExtension || url.hasDirectoryPath
+        }
+        func panel(_ sender: Any, validate url: URL) throws {
+            guard url.pathExtension == ForensicCase.fileExtension else {
+                throw NSError(domain: "XipperForensic", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Choose a case folder (.xfcase)")])
+            }
+        }
     }
 
     @MainActor static func openArchive() -> URL? {
