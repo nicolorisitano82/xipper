@@ -1,6 +1,6 @@
 // xipper-forensic: acquisition, custody and verification of evidence in forensic XIZ archives
 // (XIZ 1.10 profile, docs/XIZ_SPEC.md §20; product study in docs/XIPPER_FORENSIC.md).
-// Alias: xfor. This version acquires image files and folders; devices come with the helper (P4).
+// Alias: xfor. Disks are opened by the app's helper, or directly with sudo.
 import ForensicKit
 import Foundation
 import XipperKit
@@ -16,6 +16,14 @@ usage:
   xipper-forensic case verify DIR.xfcase             log chain and signatures, case record, archives
   xipper-forensic case note DIR.xfcase --text T --sign KEY
 
+  xipper-forensic disks [--json]                    physical disks and partitions that can be acquired
+  xipper-forensic acquire --device diskN[sM] (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
+      the whole disk or one partition, read raw; never the startup disk nor the destination's disk
+      --unmount              unmount its volumes first (refused otherwise while mounted);
+                             new mounts are refused until the end
+      --confirm-serial SN    required for an internal disk: its serial number
+      --errors fast|standard|exhaustive   read errors: 1 try and 64 KiB lost per error, or down
+                             to the sector with 2 or 8 tries (default standard)
   xipper-forensic acquire --image SOURCE (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
   xipper-forensic acquire --logical PATH... (-o OUT.xiz | --in DIR.xfcase [--evidence-id R01]) --sign KEY [options]
       with --in the archive goes to DIR/evidence/R01/R01.xiz with a signed report, and every
@@ -132,14 +140,49 @@ if command == "--version" || command == "version" { print("xipper-forensic \(ver
 if command == "help" || command == "--help" || command == "-h" { print(usage); exit(0) }
 
 switch command {
+case "disks":
+    let json = flag("--json")
+    done()
+    let disks = Disks.list()
+    if json {
+        let a = disks.map { d -> [String: Any] in
+            var o: [String: Any] = d.record
+            o["boot"] = d.isBoot
+            o["partitions"] = d.partitions.map { p -> [String: Any] in
+                var r: [String: Any] = p.record
+                r["volumes"] = p.volumes.map { ["name": $0.name, "mount_point": $0.mountPoint, "file_system": $0.fileSystem] }
+                return r
+            }
+            o["volumes"] = d.volumes.map { ["name": $0.name, "mount_point": $0.mountPoint, "file_system": $0.fileSystem] }
+            return o
+        }
+        let data = try! JSONSerialization.data(withJSONObject: a, options: [.prettyPrinted, .sortedKeys])
+        print(String(decoding: data, as: UTF8.self))
+    } else {
+        let f = ByteCountFormatter()
+        for d in disks {
+            var flags = [d.isInternal ? "internal" : "external", d.bus]
+            if d.isDiskImage { flags.append("disk image") }
+            if d.isBoot { flags.append("STARTUP DISK") }
+            print("\(d.bsd)  \(f.string(fromByteCount: Int64(d.size)))  \(d.title)  serial \(d.serial.isEmpty ? "-" : d.serial)  [\(flags.filter { !$0.isEmpty }.joined(separator: ", "))]")
+            for p in d.partitions {
+                let vols = p.volumes.map { "\($0.name) (\($0.mountPoint))" }.joined(separator: ", ")
+                print("  \(p.bsd)  \(f.string(fromByteCount: Int64(p.size)))  \(p.content)\(vols.isEmpty ? "" : "  mounted: " + vols)")
+            }
+        }
+    }
+
 case "acquire":
     let image = value("--image")
+    let deviceName = value("--device")
     var logical: [String] = []
     if flag("--logical") {
         while let f = args.first, !f.hasPrefix("-") { logical.append(f); args.removeFirst() }
         guard !logical.isEmpty else { fail("--logical needs at least one file or folder", code: 2) }
     }
-    guard (image == nil) != logical.isEmpty else { fail("acquire needs --image SOURCE or --logical PATH... (devices come with xipper-forensic 1.0)", code: 2) }
+    guard [image != nil, !logical.isEmpty, deviceName != nil].filter({ $0 }).count == 1 else {
+        fail("acquire needs one of --device diskN, --image SOURCE, --logical PATH...", code: 2)
+    }
     let out = value("-o") ?? value("--output")
     let caseDir = value("--in")
     guard (out == nil) != (caseDir == nil) else { fail("acquire needs -o OUT.xiz or --in DIR.xfcase", code: 2) }
@@ -159,7 +202,7 @@ case "acquire":
     let forensicCase: ForensicCase? = caseDir.map { d in
         do { var c = try ForensicCase(at: URL(fileURLWithPath: d)); c.reportLanguage = lang; return c } catch { fail("\(error)") }
     }
-    if let image {
+    if image != nil || deviceName != nil {
         var o = XizForensic.ImageOptions()
         o.caseInfo = caseInfo; o.device = device; o.acquisition = acquisition; o.level = level; o.now = now
         o.name = value("--name") ?? o.name
@@ -173,18 +216,60 @@ case "acquire":
             guard p.count == 2, let off = UInt64(p[0]), let len = UInt64(p[1]) else { fail("--unreadable OFFSET:LENGTH", code: 2) }
             o.unreadable.append(.init(offset: off, length: len))
         }
+        if let v = value("--errors") { guard let e = XizForensic.ReadErrors.named(v) else { fail("--errors fast|standard|exhaustive", code: 2) }; o.readErrors = e }
+        let unmount = flag("--unmount")
+        let confirmSerial = value("--confirm-serial")
         o.password = password()
         let s = signer()
         done()
+        // A disk: checks, unmount, mounts refused while reading, opened read-only (directly or by the helper).
+        var blocker: MountBlocker?
+        var opened: XizForensic.ImageSource?
+        if let deviceName {
+            guard let (whole, target) = Disks.find(deviceName) else { fail("\(deviceName): no such disk (see xipper-forensic disks)") }
+            let dest = forensicCase?.url.path ?? out!
+            let refused = Disks.refusals(whole: whole, destination: dest)
+            if !refused.isEmpty { fail(refused.joined(separator: "; ")) }
+            if whole.isInternal && !whole.isDiskImage {
+                guard let c = confirmSerial, !whole.serial.isEmpty, c == whole.serial else {
+                    fail("\(whole.bsd) is an internal disk: confirm with --confirm-serial and its serial number")
+                }
+            }
+            blocker = MountBlocker(wholeDisks: [whole.bsd])
+            let mounted = whole.volumes
+            if !mounted.isEmpty {
+                guard unmount else { fail("mounted: \(mounted.map { $0.mountPoint }.joined(separator: ", ")); add --unmount") }
+                let sem = DispatchSemaphore(value: 0)
+                nonisolated(unsafe) var err: Error?
+                Task.detached { do { try await Disks.unmount(whole.bsd) } catch { err = error }; sem.signal() }
+                sem.wait()
+                if let err { fail("\(err.localizedDescription)") }
+                try? forensicCase?.log("disk unmounted", ["disk": whole.bsd, "volumes": mounted.map(\.mountPoint).joined(separator: ", ")], signer: s)
+            }
+            let route: DeviceAccess.Route
+            do { (opened, route) = try DeviceAccess.open(target.devicePath) } catch { fail(error.localizedDescription) }
+            o.device = target.record.merging(device, uniquingKeysWith: { _, cli in cli })
+            if !target.whole { o.device["whole_disk"] = whole.bsd; o.volume = true; o.volumeOffset = target.offset }
+            o.acquisition["device_access"] = route.rawValue
+            if o.name == "image.dd" { o.name = "\(target.bsd).dd" }
+        }
         do {
+            let reader = try opened ?? XizForensic.ImageSource(path: image!)
             let r: XizForensic.ImageReport
             var target = out ?? ""
             if let forensicCase {
-                let (e, rep) = try forensicCase.acquireImage(from: image, evidence: evidenceID ?? forensicCase.nextEvidenceID(), options: o, signer: s)
+                let (e, rep) = try forensicCase.acquireImage(from: reader, evidence: evidenceID ?? forensicCase.nextEvidenceID(), options: o, signer: s)
                 r = rep
                 target = e.archive.path
             } else {
-                r = try XizForensic.acquireImage(from: image, to: target, options: o, signer: s)
+                r = try XizForensic.acquireImage(from: reader, to: target, options: o, signer: s)
+            }
+            if let blocker {
+                blocker.stop()
+                if !blocker.refused.isEmpty {
+                    print("mounts refused during the acquisition: \(blocker.refused.joined(separator: ", "))")
+                    try? forensicCase?.log("mounts refused", ["volumes": blocker.refused.joined(separator: ", ")], signer: s)
+                }
             }
             print("acquired \(r.size) bytes into \(target) (\(r.archiveBytes) bytes, \(r.frames) frames, \(r.zeroBlocks) zero blocks)")
             print("SHA-256  \(XizForensic.hex(r.sha256))")

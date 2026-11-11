@@ -6,12 +6,13 @@ import SwiftUI
 import XipperKit
 
 /// The guided acquisition (docs/XIPPER_FORENSIC.md §4.3): a fixed sequence, no way to "Start"
-/// without the evidence item, the source and the checks. 0.9: files and folders, image files, and
-/// a Mac in "Share Disk" mode mounted read-only over SMB. Disks come with the helper (1.0).
+/// without the evidence item, the source and the checks. Sources: a disk or one of its partitions (read
+/// raw, through the helper), files and folders, image files, a Mac in "Share Disk" mode mounted
+/// read-only over SMB.
 @MainActor @Observable
 final class Acquisition {
     enum Step: Int, CaseIterable { case item, source, options, checks, running, done }
-    enum Kind: String, CaseIterable { case files, image, share }
+    enum Kind: String, CaseIterable { case disk, files, image, share }
 
     let model: CaseModel
     var step = Step.item
@@ -25,7 +26,11 @@ final class Acquisition {
     var notes = ""
 
     // 2. source
-    var kind = Kind.files
+    var kind = Kind.disk
+    var disks: [Disk] = []
+    /// BSD name of the chosen whole disk or partition.
+    var selected: String?
+    var helper = DeviceAccess.HelperStatus.unavailable
     var files: [URL] = []
     var image: URL?
     var server = "smb://"
@@ -35,6 +40,7 @@ final class Acquisition {
     var mounting = false
 
     // 3. options
+    var readErrors = XizForensic.ReadErrors.standard
     var md5 = true
     var sha1 = true
     var compress = true
@@ -49,6 +55,7 @@ final class Acquisition {
     var estimating = false
     var estimate: Int64 = 0
     var confirmName = ""
+    var confirmSerial = ""
 
     // 5. running
     var progress: ProgressSnapshot?
@@ -56,6 +63,8 @@ final class Acquisition {
     var paused = false
     var interruptReason = ""
     var askingReason = false
+    /// Unreadable ranges found so far (disk map, counter).
+    var unreadable: [XizForensic.Unreadable.Range] = []
 
     // 6. done
     var outcome: StatusIcon.State = .running
@@ -73,7 +82,35 @@ final class Acquisition {
         switch kind {
         case .files, .share: files
         case .image: image.map { [$0] } ?? []
+        case .disk: chosen.map { [URL(fileURLWithPath: $0.target.devicePath)] } ?? []
         }
+    }
+
+    /// The chosen disk: its whole disk and the disk or partition to read.
+    var chosen: (whole: Disk, target: Disk)? {
+        guard let selected else { return nil }
+        for d in disks {
+            if d.bsd == selected { return (d, d) }
+            if let p = d.partitions.first(where: { $0.bsd == selected }) { return (d, p) }
+        }
+        return nil
+    }
+
+    /// An internal disk is acquired only after typing its serial number (no slip of the mouse on the wrong disk).
+    var needsSerial: Bool { kind == .disk && chosen.map { $0.whole.isInternal && !$0.whole.isDiskImage } == true }
+
+    func refreshDisks() async {
+        let list = await Task.detached { Disks.list() }.value
+        disks = list
+        helper = DeviceAccess.helperStatus
+        if let s = selected, chosen == nil { _ = s; selected = nil }
+    }
+
+    func choose(_ bsd: String) {
+        selected = bsd
+        guard let c = chosen else { return }
+        if deviceModel.isEmpty { deviceModel = c.whole.title }
+        if serial.isEmpty { serial = c.whole.serial }
     }
 
     var idTaken: Bool { model.items.contains { $0.id == id } || FileManager.default.fileExists(atPath: model.url.appendingPathComponent("evidence/" + id).path) }
@@ -84,7 +121,9 @@ final class Acquisition {
         case .item: idValid
         case .source: !sources.isEmpty
         case .options: !encrypt || (password.count >= 8 && password == password2)
-        case .checks: !estimating && !checks.contains { $0.state == .failed } && confirmName.trimmingCharacters(in: .whitespaces) == Prefs.shared.examiner.trimmingCharacters(in: .whitespaces)
+        case .checks: !estimating && !checks.contains { $0.state == .failed }
+            && confirmName.trimmingCharacters(in: .whitespaces) == Prefs.shared.examiner.trimmingCharacters(in: .whitespaces)
+            && (!needsSerial || confirmSerial.trimmingCharacters(in: .whitespaces) == chosen?.whole.serial)
         case .running, .done: false
         }
     }
@@ -141,6 +180,7 @@ final class Acquisition {
     // MARK: checks
 
     func runChecks() async {
+        if kind == .disk { await runDiskChecks(); return }
         estimating = true
         let srcs = sources
         let caseURL = model.url
@@ -170,6 +210,12 @@ final class Acquisition {
         } else {
             out.append(Check(state: .passed, text: String(format: String(localized: "Free space at the destination: %@"), Words.bytes(free))))
         }
+        common(&out)
+        checks = out
+    }
+
+    /// Signing key, time-stamp, power, encryption: the same for every source.
+    func common(_ out: inout [Check]) {
         do {
             _ = try Prefs.shared.signer()
             out.append(Check(state: .passed, text: String(format: String(localized: "Signing key “%@” unlocked"), Prefs.shared.keyName)))
@@ -183,6 +229,57 @@ final class Acquisition {
             out.append(Check(state: .warning, text: String(localized: "The Mac is on battery: connect the power adapter for a long acquisition")))
         }
         if encrypt { out.append(Check(state: .passed, text: String(localized: "Archive encrypted with a password: verification of structure, signatures and hashes works without it"))) }
+    }
+
+    /// A disk: not the startup disk nor the destination's, readable (directly or through the helper),
+    /// its volumes to unmount, the space at the destination.
+    func runDiskChecks() async {
+        estimating = true
+        await refreshDisks()
+        estimating = false
+        var out: [Check] = []
+        guard let (whole, target) = chosen else {
+            checks = [Check(state: .failed, text: String(localized: "The chosen disk is no longer connected"))]
+            return
+        }
+        estimate = Int64(target.size)
+        for r in Disks.refusals(whole: whole, destination: model.url.path) {
+            out.append(Check(state: .failed, text: whole.isBoot ? String(localized: "This is the disk the Mac started from: it cannot be acquired while in use")
+                                                                : String(localized: "The case folder is on this disk: the archive would be written into the source") + " (\(r))"))
+        }
+        let path = target.devicePath
+        let access: Result<DeviceAccess.Route, Error> = await Task.detached {
+            do { let (_, route) = try DeviceAccess.open(path); return .success(route) } catch { return .failure(error) }
+        }.value
+        switch access {
+        case .success(let route):
+            out.append(Check(state: .passed, text: route == .helper ? String(format: String(localized: "%@ readable through the disk helper, read-only"), target.bsd)
+                                                                     : String(format: String(localized: "%@ readable, read-only (a disk image of this user)"), target.bsd)))
+        case .failure(let e as DeviceAccess.Problem):
+            out.append(Check(state: .failed, text: Words.access(e)))
+        case .failure(let e):
+            out.append(Check(state: .failed, text: e.localizedDescription))
+        }
+        if whole.volumes.isEmpty {
+            out.append(Check(state: .passed, text: String(localized: "No volume of the disk is mounted")))
+        } else {
+            out.append(Check(state: .warning, text: String(format: String(localized: "Mounted: %@. They will be unmounted at the start (logged); macOS will not mount them again until the end."),
+                                                             whole.volumes.map(\.mountPoint).joined(separator: ", "))))
+        }
+        out.append(Check(state: .passed, text: String(format: String(localized: "Read errors: %@"), Words.readErrors(readErrors))))
+        if !target.whole {
+            out.append(Check(state: .passed, text: String(format: String(localized: "Partition %@ only, at %@ from the start of the disk"), target.bsd, Words.bytes(Int64(target.offset)))))
+        }
+        if needsSerial {
+            out.append(Check(state: .warning, text: String(localized: "Internal disk: type its serial number below to confirm the choice")))
+        }
+        let free = (try? model.url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage) ?? 0
+        if free < Int64(target.size) + 64 << 20 {
+            out.append(Check(state: compress ? .warning : .failed, text: String(format: String(localized: "Free space at the destination: %@ for up to %@ (compression usually needs less)"), Words.bytes(free), Words.bytes(Int64(target.size)))))
+        } else {
+            out.append(Check(state: .passed, text: String(format: String(localized: "Free space at the destination: %@"), Words.bytes(free))))
+        }
+        common(&out)
         checks = out
     }
 
@@ -229,14 +326,44 @@ final class Acquisition {
         let caseFields = caseInfo, deviceFields = device
         let pw = encrypt ? password : nil
         let level = compress ? 3 : 0
-        let md5 = self.md5, sha1 = self.sha1, xattrs = self.xattrs
+        let md5 = self.md5, sha1 = self.sha1, xattrs = self.xattrs, readErrors = self.readErrors
+        let disk = kind == .disk ? chosen : nil
+        unreadable = []
         let checkLines = checks.map { c in (c.state == .passed ? "ok: " : c.state == .warning ? "warning: " : "blocked: ") + c.text }
         let progress: ProgressHandler = { snap in Task { @MainActor in self.progress = snap } }
         let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Forensic acquisition")
         Task {
             defer { ProcessInfo.processInfo.endActivity(activity) }
+            // A disk: macOS must not mount it while it is read, its volumes go away first, then it is opened read-only.
+            var blocker: MountBlocker?
+            defer { blocker?.stop() }
             do {
+                var opened: (XizForensic.ImageSource, DeviceAccess.Route)?
+                if let (whole, target) = disk {
+                    blocker = MountBlocker(wholeDisks: [whole.bsd])
+                    try c.log("source checks", ["evidence": id, "checks": checkLines.joined(separator: " | "), "confirmed_by": acquisition["confirmed_by"]!],
+                              signer: signer)
+                    if !whole.volumes.isEmpty {
+                        try await Disks.unmount(whole.bsd)
+                        try c.log("disk unmounted", ["evidence": id, "disk": whole.bsd, "volumes": whole.volumes.map(\.mountPoint).joined(separator: ", ")], signer: signer)
+                    }
+                    let path = target.devicePath
+                    opened = try await Task.detached { try DeviceAccess.open(path) }.value
+                }
+                let source = opened
                 let pdf = try await Task.detached { () throws -> URL in
+                    if let (whole, target) = disk, let (reader, route) = source {
+                        var o = XizForensic.ImageOptions()
+                        o.name = target.bsd + ".dd"
+                        o.md5 = md5; o.sha1 = sha1; o.level = level; o.password = pw; o.readErrors = readErrors
+                        o.caseInfo = caseFields
+                        o.device = target.record.merging(deviceFields, uniquingKeysWith: { _, typed in typed })
+                        if !target.whole { o.device["whole_disk"] = whole.bsd; o.volume = true; o.volumeOffset = target.offset }
+                        o.acquisition = acquisition.merging(["device_access": route.rawValue], uniquingKeysWith: { a, _ in a })
+                        o.onUnreadable = { r in Task { @MainActor in self.unreadable.append(r) } }
+                        let (e, _) = try c.acquireImage(from: reader, evidence: id, options: o, signer: signer, progress: progress, cancel: token)
+                        return e.pdf
+                    }
                     try c.log("source checks", ["evidence": id, "checks": checkLines.joined(separator: " | "), "confirmed_by": acquisition["confirmed_by"]!],
                               signer: signer)
                     if kind == .image {
@@ -255,6 +382,13 @@ final class Acquisition {
                     }
                 }.value
                 _ = pdf
+                if let b = blocker {
+                    b.stop()
+                    if !b.refused.isEmpty {
+                        let vols = b.refused.joined(separator: ", ")
+                        _ = await model.signed { c, s in try c.log("mounts refused", ["evidence": id, "volumes": vols], signer: s) }
+                    }
+                }
                 model.reload()
                 finish()
             } catch {
@@ -432,14 +566,17 @@ struct SourceStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("", selection: $a.kind) {
+                Text("Disk").tag(Acquisition.Kind.disk)
                 Text("Files and folders").tag(Acquisition.Kind.files)
                 Text("Image file").tag(Acquisition.Kind.image)
                 Text("Mac via Share Disk").tag(Acquisition.Kind.share)
             }
             .pickerStyle(.segmented).labelsHidden()
-            .onChange(of: a.kind) { a.files = []; a.image = nil }
+            .onChange(of: a.kind) { a.files = []; a.image = nil; a.selected = nil }
 
             switch a.kind {
+            case .disk:
+                DiskPicker(a: a)
             case .files:
                 Text("Logical acquisition: every file and folder found is listed in a signed inventory with its metadata, including what cannot be read.")
                     .font(.callout).foregroundStyle(.secondary)
@@ -517,16 +654,29 @@ struct OptionsStep: View {
         Form {
             Section("Hashes") {
                 Toggle("SHA-256", isOn: .constant(true)).disabled(true)
-                if a.kind == .image {
+                if a.kind == .image || a.kind == .disk {
                     Toggle("MD5 (compatibility)", isOn: $a.md5)
                     Toggle("SHA-1 (compatibility)", isOn: $a.sha1)
                 } else {
                     Text("Every file has its SHA-256 in the signed inventory.").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if a.kind == .disk {
+                Section {
+                    Picker("Read errors", selection: $a.readErrors) {
+                        Text(Words.readErrors(.fast)).tag(XizForensic.ReadErrors.fast)
+                        Text(Words.readErrors(.standard)).tag(XizForensic.ReadErrors.standard)
+                        Text(Words.readErrors(.exhaustive)).tag(XizForensic.ReadErrors.exhaustive)
+                    }
+                    .pickerStyle(.radioGroup)
+                } header: { Text("Damaged disks") } footer: {
+                    Text("What cannot be read is filled with zeros and listed in a signed map; the outcome says how much.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section("Archive") {
                 Toggle("Compress (zstd; the hashes are of the original data)", isOn: $a.compress)
-                if a.kind != .image { Toggle("Keep extended attributes (quarantine, tags, resource forks)", isOn: $a.xattrs) }
+                if a.kind == .files || a.kind == .share { Toggle("Keep extended attributes (quarantine, tags, resource forks)", isOn: $a.xattrs) }
                 Toggle("Encrypt with a password", isOn: $a.encrypt)
                 if a.encrypt {
                     SecureField("Password (at least 8 characters)", text: $a.password)
@@ -573,6 +723,10 @@ struct ChecksStep: View {
                     .font(.callout).foregroundStyle(.secondary)
                 TextField("Operator", text: $a.confirmName, prompt: Text(Prefs.shared.examiner))
                     .textFieldStyle(.roundedBorder).frame(maxWidth: 320)
+                if a.needsSerial {
+                    TextField("Serial number of the internal disk", text: $a.confirmSerial)
+                        .textFieldStyle(.roundedBorder).frame(maxWidth: 320)
+                }
             }
             .padding()
         }
@@ -604,6 +758,16 @@ struct RunningStep: View {
                 Text("Starting…").foregroundStyle(.secondary)
             }
             if a.paused { Label("Paused", systemImage: "pause.circle").foregroundStyle(.orange) }
+            if a.kind == .disk || a.kind == .image {
+                let bad = a.unreadable.reduce(UInt64(0)) { $0 + $1.length }
+                Label(bad == 0 ? String(localized: "No unreadable sectors so far")
+                               : String(format: String(localized: "Unreadable: %@ in %lld ranges (zeros, mapped)"), Words.bytes(Int64(bad)), a.unreadable.count),
+                      systemImage: bad == 0 ? "checkmark.circle" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(bad == 0 ? Color.secondary : Color.orange)
+                if let p = a.progress, p.totalBytes > 0 {
+                    DiskMap(total: UInt64(p.totalBytes), done: UInt64(p.completedBytes), bad: a.unreadable).frame(height: 54)
+                }
+            }
             Text("SHA-256, MD5 and SHA-1 are computed while reading; at the end the archive is read back and verified, then the reports are signed. The Mac does not go to sleep meanwhile.")
                 .font(.callout).foregroundStyle(.secondary)
             Spacer()
@@ -643,5 +807,127 @@ struct DoneStep: View {
             }
             .padding()
         }
+    }
+}
+
+/// The disks to choose from, with partitions; the startup disk is shown and cannot be chosen.
+struct DiskPicker: View {
+    @Bindable var a: Acquisition
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Physical acquisition: the whole disk or one partition, read sector by sector without mounting it. Connect the evidence through a hardware write blocker when you have one.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if a.helper != .enabled {
+                HelperBanner(status: a.helper).onTapGesture { Task { await a.refreshDisks() } }
+            }
+            List(selection: Binding(get: { a.selected }, set: { if let s = $0 { a.choose(s) } })) {
+                ForEach(a.disks) { d in
+                    DiskRow(disk: d, partition: false).tag(d.bsd).selectionDisabled(d.isBoot)
+                    ForEach(d.partitions) { p in
+                        DiskRow(disk: p, partition: true).tag(p.bsd).selectionDisabled(d.isBoot)
+                    }
+                }
+            }
+            .frame(minHeight: 220)
+            .overlay { if a.disks.isEmpty { Text("No disks").foregroundStyle(.secondary) } }
+            HStack {
+                Button("Refresh") { Task { await a.refreshDisks() } }
+                Spacer()
+                if let c = a.chosen {
+                    Text(String(format: String(localized: "Chosen: %@, %@"), c.target.bsd, Words.bytes(Int64(c.target.size)))).font(.callout)
+                }
+            }
+        }
+        // Disks come and go: the list follows while this step is open.
+        .task {
+            while !Task.isCancelled {
+                await a.refreshDisks()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+}
+
+struct DiskRow: View {
+    let disk: Disk
+    let partition: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: partition ? "square.split.1x2" : disk.isDiskImage ? "opticaldiscdrive" : disk.isInternal ? "internaldrive" : "externaldrive")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(partition ? Words.partition(disk.content) : disk.title).fontWeight(partition ? .regular : .semibold)
+                    Text(Words.bytes(Int64(disk.size))).foregroundStyle(.secondary).monospacedDigit()
+                    if disk.isBoot { Text("startup disk").font(.caption.bold()).foregroundStyle(.red) }
+                }
+                Text(details).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
+        .padding(.leading, partition ? 22 : 0)
+        .opacity(disk.isBoot ? 0.5 : 1)
+    }
+
+    var details: String {
+        var d = [disk.bsd]
+        if !partition {
+            d.append(disk.isDiskImage ? String(localized: "disk image") : (disk.isInternal ? String(localized: "internal") : String(localized: "external")) + " · " + disk.bus)
+            if !disk.serial.isEmpty { d.append(String(localized: "serial") + " " + disk.serial) }
+        }
+        if !disk.volumes.isEmpty { d.append(String(localized: "mounted:") + " " + disk.volumes.map(\.name).joined(separator: ", ")) }
+        return d.joined(separator: " · ")
+    }
+}
+
+/// The disk helper is not ready: what to do, in words.
+struct HelperBanner: View {
+    let status: DeviceAccess.HelperStatus
+
+    var body: some View {
+        GroupBox {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "lock.shield").font(.title2).foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(status == .requiresApproval ? "The disk helper waits for your approval" : "Install the disk helper to read real disks")
+                        .font(.headline)
+                    Text("Disks belong to the system: a small helper opens them read-only for Xipper Forensic. Disk images you attached yourself can be read without it.")
+                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        if status == .requiresApproval {
+                            Button("Open Login Items…") { DeviceAccess.openLoginItems() }
+                        } else {
+                            SettingsLink { Text("Open Settings…") }
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// The disk as a strip of cells, like hardware imagers: read (green), unreadable (red), still to read (grey).
+struct DiskMap: View {
+    let total: UInt64
+    let done: UInt64
+    let bad: [XizForensic.Unreadable.Range]
+    var cells = 120
+
+    var body: some View {
+        Canvas { ctx, size in
+            let rows = 3, cols = cells / rows
+            let w = size.width / CGFloat(cols), h = size.height / CGFloat(rows)
+            let per = max(1, (total + UInt64(cells) - 1) / UInt64(cells))
+            for i in 0..<cells {
+                let lo = UInt64(i) * per, hi = min(total, lo + per)
+                let broken = bad.contains { $0.offset < hi && lo < $0.offset + $0.length }
+                let color: Color = broken ? .red : hi <= done ? .green : lo < done ? .green.opacity(0.5) : .secondary.opacity(0.25)
+                let r = CGRect(x: CGFloat(i % cols) * w, y: CGFloat(i / cols) * h, width: w - 1.5, height: h - 1.5)
+                ctx.fill(Path(roundedRect: r, cornerRadius: 1.5), with: .color(color))
+            }
+        }
+        .accessibilityLabel(Text(String(format: String(localized: "Disk map: %lld unreadable ranges"), bad.count)))
     }
 }

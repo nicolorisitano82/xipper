@@ -151,6 +151,8 @@ enum Words {
         case "evidence verified": String(localized: "Verified again")
         case "source checks": String(localized: "Checks before starting")
         case "share mounted": String(localized: "Shared disk connected read-only")
+        case "disk unmounted": String(localized: "Disk volumes unmounted")
+        case "mounts refused": String(localized: "Mounts refused during the acquisition")
         default: e
         }
     }
@@ -190,6 +192,40 @@ enum Words {
         case "location": String(localized: "Location")
         case "notes": String(localized: "Notes")
         default: k.replacingOccurrences(of: "_", with: " ")
+        }
+    }
+
+    static func readErrors(_ r: XizForensic.ReadErrors) -> String {
+        switch r.name {
+        case "fast": String(localized: "Fast: one read, 64 KiB given up per error")
+        case "exhaustive": String(localized: "Exhaustive: down to the sector, 8 reads each")
+        default: String(localized: "Standard: down to the sector, 2 reads each")
+        }
+    }
+
+    static func access(_ p: DeviceAccess.Problem) -> String {
+        switch p {
+        case .helperMissing: String(localized: "The disk helper is not installed: install it in Settings")
+        case .helperNeedsApproval: String(localized: "The disk helper waits for approval: System Settings › General › Login Items & Extensions")
+        case .fullDiskAccess: String(localized: "The disk helper needs Full Disk Access: System Settings › Privacy & Security › Full Disk Access, then add xipper-forensic-helper")
+        default: p.localizedDescription
+        }
+    }
+
+    /// Common partition types by their GUID or name.
+    static func partition(_ content: String) -> String {
+        switch content.uppercased() {
+        case "7C3457EF-0000-11AA-AA11-00306543ECAC", "APPLE_APFS": "APFS"
+        case "48465300-0000-11AA-AA11-00306543ECAC", "APPLE_HFS": "Mac OS Extended (HFS+)"
+        case "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7", "MICROSOFT BASIC DATA": String(localized: "Windows data (FAT, exFAT, NTFS)")
+        case "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "EFI": "EFI"
+        case "0FC63DAF-8483-4772-8E79-3D69D8477DE4": "Linux"
+        case "69646961-6700-11AA-AA11-00306543ECAC": "Apple ISC"
+        case "52637672-7900-11AA-AA11-00306543ECAC": "Apple Recovery"
+        case "DOS_FAT_32": "FAT32"
+        case "DOS_FAT_16": "FAT16"
+        case "WINDOWS_NTFS": "NTFS"
+        default: content.isEmpty ? String(localized: "partition") : content
         }
     }
 

@@ -50,6 +50,6 @@ Il formato è documentato in `docs/XIZ_SPEC.md` §20.
 - Niente acquisizione diretta dei dischi: arriva con la 1.0, insieme all'helper che apre i dischi in sola lettura e blocca il montaggio.
 - I dettagli tecnici dei controlli sono in inglese anche nel report italiano.
 - XIZ rende evidente la manomissione, non la impedisce: togliere gli ultimi segmenti di custodia lascia un archivio valido. Per questo nel verbale vanno lo SHA-256 dell'archivio e il numero dei passaggi di mano.
-- «Condividi disco» c'è nei Mac con Apple Silicon; per i Mac Intel (Modalità disco di destinazione) serve l'acquisizione dei dischi della 1.0.
+- Solo Mac con Apple silicon, sia quello che acquisisce sia il Mac sorgente via «Condividi disco». I Mac Intel non sono supportati.
 
 Segnalazioni: https://github.com/nicolorisitano82/xipper/issues

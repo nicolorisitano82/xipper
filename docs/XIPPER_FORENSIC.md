@@ -89,7 +89,7 @@ Sintesi delle note di ricerca (fonti [Rn] in [research_notes/forensic_tools_ui.m
 
 Conseguenza: **la realtà del Mac moderno è l'acquisizione logica**. «Physical imaging of modern Macs is pretty
 much dead» [R55]. La 1.0 deve essere eccellente sull'acquisizione logica e sulla custodia; la fisica serve per
-dischi esterni, chiavette, Mac Intel e dischi estratti.
+dischi esterni, chiavette e dischi estratti.
 
 ---
 
@@ -250,7 +250,7 @@ l'ambiente di lavoro e l'indice; se si perde, gli XIZ restano validi.
 |---|---|---|
 | 1. Reperto | numero (proposto R01, R02…), descrizione, foto (fotocamera del Mac o iPhone con Continuity Camera), sigilli trovati | numero unico nel caso |
 | 2. Sorgente | schede **Disco**, **Volume**, **Cartelle e file**, **Mac via «Condividi disco»**: modello, seriale, capacità, interfaccia, bridge USB, schema partizioni, FileVault/cifratura, SMART, snapshot APFS | sorgente non montata (o smontata ora, con evento nel log); disco di avvio e destinazione esclusi; disco interno solo con conferma digitando il seriale [R11] |
-| 3. Assistente Mac (solo se la sorgente è un Mac) | domande: acceso o spento? Intel o Apple Silicon? FileVault? credenziali disponibili? → metodo proposto (live logica, «Condividi disco», TDM sui Mac Intel). Ogni cambiamento allo stato del Mac (Secure Boot, SIP, sblocco FileVault) è chiesto come dichiarazione e **finisce nel log** [R24][R55] | metodo coerente con la sorgente |
+| 3. Assistente Mac (solo se la sorgente è un Mac) | domande: acceso o spento? FileVault? credenziali disponibili? → metodo proposto (live logica, «Condividi disco», TDM sui Mac Intel). Ogni cambiamento allo stato del Mac (Secure Boot, SIP, sblocco FileVault) è chiesto come dichiarazione e **finisce nel log** [R24][R55] | metodo coerente con la sorgente |
 | 4. Destinazioni | una o più (copia master e copia di lavoro in parallelo [R30]), spazio libero contro dimensione stimata, file system (avviso su FAT32), cifratura dell'XIZ (password o destinatari), divisione in parti, nome generato da caso + reperto + seriale + data | spazio sufficiente; destinazione ≠ sorgente |
 | 5. Opzioni | hash (SHA-256 sempre; MD5 e SHA-1 per compatibilità), compressione (veloce/nessuna), errori di lettura con tre preset **Rapido / Standard / Esaustivo** (riletture e granularità [R30][R34]), seconda lettura della sorgente, snapshot APFS, recovery record, firma e marca | identità di firma sbloccata; TSA raggiungibile o modalità offline dichiarata |
 | 6. Controlli e riepilogo | elenco di controlli automatici come il TX1: ✔ superato, ⚠ avviso (si può andare avanti, resta nel log), ⛔ blocco [R30]; poi tutto in una pagina stampabile, l'operatore conferma con il nome | nessun ⛔ |
@@ -386,6 +386,7 @@ cancellazione sicura, recupero password.
 | D6 | Profilo forense nel formato | **bit richiesto `forensic`** in una nuova versione XIZ (1.10): un lettore vecchio rifiuta il file con un errore chiaro invece di ignorare mappa dei settori e hash dei frame |
 | D7 | Prima release | **0.9 anteprima**: caso e log, acquisizione logica, «Condividi disco», acquisizione da file immagine, verifica, custodia, report. Dischi fisici con l'helper nella **1.0** |
 | D8 | Acquisizione live del Mac stesso | dopo la 1.0; prima «Condividi disco» da un secondo Mac |
+| D9 | Mac Intel | **non supportati** (11/11/2026): né come Mac che acquisisce né come sorgente (niente Modalità disco di destinazione); app solo arm64 |
 
 Conseguenze:
 - la tabella del §5 va letta con una colonna «0.9» = righe 1.0 senza la lettura da `/dev/rdiskN` e senza l'helper;
@@ -423,6 +424,18 @@ Si appoggia alle fasi F0–F8 di FORENSE_3.1 §6, riordinate per il prodotto.
 | P2 ✅ | ForensicKit: caso, log, acquisizione logica e da file immagine, verifica, report JSON | fatta il 10/11/2026: cartella `.xfcase` con registro JSON Lines firmato a catena (Ed25519, `prev` = SHA-256 della riga prima); acquisizione logica con `forensic/inventory.jsonl` (ogni elemento trovato, anche illeggibile o speciale, con metadati e SHA-256) il cui hash è nel record firmato; report JSON firmato a parte (`.sig`); CLI `case new/show/verify/note`, `acquire --logical`, `acquire --in`, `custody --in`, `report`; 10 test Swift; `scripts/forensic-hashes.sh`: SHA-256, SHA-1 e MD5 uguali a `shasum`/`md5` da 0 byte a 13 MiB; `scripts/cfreds-check.sh`: MD5 e SHA-1 uguali a quelli pubblicati da NIST CFReDS su 4 immagini (Rhino Hunt 260 MB, Basic Mac 103 MB, Data Leakage RM#3 108 MB e RM#2 4 GB), immagine riletta da libxiz identica. Il PC del Data Leakage (21 GB) non è stato provato per lo spazio su disco |
 | P3 ✅ | App: caso, reperti, procedura guidata, avanzamento, verifica, custodia, report PDF | fatta il 10/11/2026 (note sotto), prova a mano del proprietario; «Condividi disco» resta da provare nella P3b |
 | P3b 🔶 | Rilascio 0.9 anteprima (D7): DMG proprio, release `forensic-v0.9.0` | DMG pronto il 10/11/2026 (`scripts/release-forensic.sh`, note in `docs/forensic/`, icona da `scripts/make-forensic-icon.swift`); manca la prova di «Condividi disco» con un secondo Mac |
-| P4 | Dispositivi: helper, Disk Arbitration, IOKit, settori illeggibili | FORENSE F3 |
+| P4 ✅ | Dispositivi: helper, Disk Arbitration, IOKit, settori illeggibili | fatta l'11/11/2026 (note sotto); prova a mano del proprietario con helper approvato e chiavetta USB |
 | P5 | Firma con certificato, TSA autenticata, export/import E01, consegna | FORENSE F4, F6 |
 | P6 | Rilascio 1.0: DMG proprio, `xizcat` multipiattaforma, documento di validazione stile NIST CFTT | report di validazione pubblicato |
+
+**Note sulla P4 (11/11/2026).**
+- Lettura: `XizForensic.ImageSource` apre un file o un dispositivo (`/dev/rdiskN`, `/dev/rdiskNsM`) solo in lettura (rifiuta un descrittore scrivibile); dimensione e settori dai `DKIOC…`. Una lettura fallita si restringe a pezzi da 64 KiB e poi al settore, con riletture; i pezzi persi diventano zeri e intervalli della mappa firmata (errno e tentativi). Tre preset: **Rapido** (1 lettura, 64 KiB persi per errore), **Standard** (settore, 2 letture), **Esaustivo** (settore, 8 letture). `ENXIO`/`ENODEV` (cavo staccato) fermano l'acquisizione invece di riempire di zeri il resto. Preset e settore logico vanno nel record di acquisizione.
+- Dischi (`ForensicKit/Disks.swift`): elenco da IOKit (`IOMedia` interi senza media sopra: dischi fisici e immagini collegate, mai i contenitori APFS sintetizzati) con partizioni, descrizione da Disk Arbitration (modello, produttore, bus, interno, rimovibile), seriale cercato tra gli antenati (USB, NVMe, SATA), volumi montati ricondotti al disco fisico anche attraverso APFS. Rifiutati il disco di avvio e quello che contiene la destinazione; un disco interno chiede il numero di serie scritto a mano.
+- Montaggio: `MountBlocker` (callback di approvazione di Disk Arbitration nel processo dell'app, non serve root) rifiuta ogni montaggio di volumi del disco in acquisizione; i volumi già montati si smontano all'avvio. Smontaggio e montaggi rifiutati entrano nel registro del caso.
+- Helper `xipper-forensic-helper` (target SwiftPM, `App/XipperForensic/Helper`): LaunchDaemon in `Contents/Library/LaunchDaemons` registrato con `SMAppService` dalle Impostazioni dell'app; apre solo `/dev/rdisk…` con `O_RDONLY` e passa il descrittore via XPC. Accetta solo l'app e la CLI firmate con lo stesso certificato (requisito con l'hash del certificato foglia, scritto nel plist da `build-forensic-app.sh`). `DeviceAccess.open` prova prima da sé (immagini disco dell'utente, CLI con `sudo`), poi l'helper.
+- CLI: `xipper-forensic disks [--json]`; `acquire --device diskN[sM] [--unmount] [--confirm-serial SN] [--errors fast|standard|exhaustive]`.
+- App: scheda **Disco** nella sorgente (elenco aggiornato ogni 2 s, disco di avvio non selezionabile, avviso se manca l'helper), preset degli errori nelle opzioni, controlli del disco (accesso, volumi montati, seriale), mappa del disco e contatore degli illeggibili durante l'acquisizione; sezione «Dischi» nelle Impostazioni per installare l'helper e aprire Elementi login e Accesso completo al disco.
+- Prove: 5 test con errori simulati (settori singoli e a cavallo dei blocchi, settore che si riprende con le riletture, preset Rapido, sorgente sparita, descrittore scrivibile rifiutato); test su immagine disco collegata con `hdiutil` (`XIPPER_DISK_TESTS=1`): elenco, montaggio rifiutato e poi permesso, smontaggio, SHA-256 uguale a quello del dispositivo. A mano: disco intero e partizione di un'immagine FAT32, SHA-256 uguali a `shasum /dev/rdiskN`.
+- Prova a mano del proprietario (11/11/2026): helper installato e approvato in Elementi login, acquisizione di una chiavetta USB dall'app, tutto regolare.
+- Non provato: settori davvero illeggibili (solo simulati).
+- Solo Apple silicon (D9): `LSArchitecturePriority` arm64.

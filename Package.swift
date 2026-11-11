@@ -37,6 +37,7 @@ let package = Package(
         .executable(name: "xipper", targets: ["xipper"]),
         .executable(name: "xipper-forensic", targets: ["xipper-forensic"]),
         .executable(name: "XipperForensic", targets: ["XipperForensic"]),
+        .executable(name: "xipper-forensic-helper", targets: ["xipper-forensic-helper"]),
     ],
     targets: [
         // MARK: vendored codecs (permissive licenses, compiled in; see Vendor/README.md)
@@ -172,7 +173,8 @@ let package = Package(
         // xipper-forensic (docs/XIPPER_FORENSIC.md): evidence in forensic XIZ archives (XIZ 1.10, §20).
         .target(
             name: "ForensicKit",
-            dependencies: ["XipperKit"]
+            dependencies: ["XipperKit"],
+            linkerSettings: [.linkedFramework("DiskArbitration"), .linkedFramework("IOKit"), .linkedFramework("ServiceManagement")]
         ),
         .executableTarget(
             name: "xipper-forensic",
@@ -185,6 +187,11 @@ let package = Package(
             dependencies: ["XipperKit", "ForensicKit"],
             path: "App/XipperForensic/Sources",
             linkerSettings: [.linkedFramework("NetFS"), .linkedFramework("IOKit")]
+        ),
+        // Root LaunchDaemon of the app: opens raw disks read-only and passes the descriptor (DeviceAccess.swift).
+        .executableTarget(
+            name: "xipper-forensic-helper",
+            path: "App/XipperForensic/Helper"
         ),
         // Sandboxed helper that runs the external decoders (RAR) for the app and the CLI (IsolatedDecoder.swift).
         .executableTarget(

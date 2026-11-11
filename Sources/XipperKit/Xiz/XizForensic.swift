@@ -188,6 +188,21 @@ public enum XizForensic {
 
         init(path: String, ranges: [Range]) { self.path = path; self.ranges = ranges }
 
+        /// Two sorted lists of ranges as one, overlaps and touching ranges joined (the first error wins).
+        static func union(_ a: [Range], _ b: [Range]) -> [Range] {
+            var out: [Range] = []
+            for x in (a + b).sorted(by: { $0.offset < $1.offset }) {
+                if let l = out.last, x.offset < l.offset + l.length || (x.offset == l.offset + l.length && x.error == l.error) {
+                    let end = max(l.offset + l.length, x.offset + x.length)
+                    out[out.count - 1].length = end - l.offset
+                    out[out.count - 1].attempts = max(l.attempts, x.attempts)
+                } else {
+                    out.append(x)
+                }
+            }
+            return out
+        }
+
         public init(_ b: [UInt8]) throws {
             try self = b.withUnsafeBytes { raw in
                 var r = ByteReader(raw)
@@ -345,8 +360,13 @@ public enum XizForensic {
         public var caseInfo: [String: String] = [:]
         public var device: [String: String] = [:]
         public var acquisition: [String: String] = [:]
-        /// Ranges the source could not read: zeros in the image, listed in the unreadable map.
+        /// Ranges declared unreadable beforehand (tests, an image made by another tool): zeros in the image,
+        /// listed in the unreadable map together with those found while reading.
         public var unreadable: [Unreadable.Range] = []
+        /// Retries and granularity for reads that fail.
+        public var readErrors: ReadErrors = .standard
+        /// Called for every unreadable range found while reading (progress, disk map).
+        public var onUnreadable: (@Sendable (Unreadable.Range) -> Void)?
         /// Fixed time for reproducible test vectors; the clock otherwise.
         public var now: Date?
         public init() {}
@@ -363,12 +383,23 @@ public enum XizForensic {
         public var unreadableBytes: UInt64
     }
 
-    /// Writes a forensic XIZ holding the image of `source` (a file or a raw device opened by the caller).
+    /// Writes a forensic XIZ holding the image of the file or device at `source`, opened here read-only.
     public static func acquireImage(from source: String, to path: String, options o: ImageOptions, signer: XizSigner,
                                     workload: Workload = .interactive, progress: ProgressHandler? = nil,
                                     cancel: CancellationToken? = nil) throws -> ImageReport {
-        let reader = try FileReader(path: source)
-        let size = UInt64(reader.size)
+        try acquireImage(from: ImageSource(path: source), to: path, options: o, signer: signer, workload: workload,
+                         progress: progress, cancel: cancel)
+    }
+
+    /// Writes a forensic XIZ holding the image of `reader` (a file, or a raw disk opened by the helper).
+    public static func acquireImage(from reader: ImageSource, to path: String, options o: ImageOptions, signer: XizSigner,
+                                    workload: Workload = .interactive, progress: ProgressHandler? = nil,
+                                    cancel: CancellationToken? = nil) throws -> ImageReport {
+        let source = reader.name
+        let size = reader.size
+        var o = o
+        if reader.isDevice { o.logicalSector = reader.logicalSector; o.physicalSector = reader.physicalSector }
+        var found: [Unreadable.Range] = []
         let started = o.now ?? Date()
         let tracker = ProgressTracker(totalBytes: Int64(size), totalEntries: 1, handler: progress)
         let ranges = o.unreadable.sorted { $0.offset < $1.offset }
@@ -399,7 +430,12 @@ public enum XizForensic {
             for k in 0..<count {
                 let off = UInt64(b + k) * UInt64(block)
                 let n = Int(min(UInt64(block), size - off))
-                var d = try reader.read(at: Int64(off), count: n)
+                var d = [UInt8](repeating: 0, count: n)
+                let bad = try d.withUnsafeMutableBytes { try reader.read(at: off, into: $0.baseAddress!, count: n, policy: o.readErrors) }
+                for x in bad {
+                    if let l = found.last, l.offset + l.length == x.offset, l.error == x.error { found[found.count - 1].length += x.length } else { found.append(x) }
+                    o.onUnreadable?(x)
+                }
                 while nextRange < ranges.count, ranges[nextRange].offset + ranges[nextRange].length <= off { nextRange += 1 }
                 var j = nextRange
                 while j < ranges.count, ranges[j].offset < off + UInt64(n) {
@@ -439,7 +475,8 @@ public enum XizForensic {
         let finished = o.now ?? Date()
         let sourceSHA = Array(sha256.finalize())
         let md5Out = md5.map { Array($0.finalize()) }, sha1Out = sha1.map { Array($0.finalize()) }
-        let unreadableBytes = ranges.reduce(UInt64(0)) { $0 + $1.length }
+        let mapped = Unreadable.union(ranges, found)
+        let unreadableBytes = mapped.reduce(UInt64(0)) { $0 + $1.length }
 
         // Records, also stored as ordinary files under "forensic/" so any XIZ reader extracts them.
         var acquisition = o.acquisition
@@ -448,8 +485,11 @@ public enum XizForensic {
         acquisition["started"] = timestamp(started)
         acquisition["finished"] = timestamp(finished)
         acquisition["source_size"] = String(size)
+        acquisition["read_errors"] = acquisition["read_errors"] ?? "\(o.readErrors.name): \(o.readErrors.attempts) attempts, "
+            + (o.readErrors.granularity == 0 ? "sector" : "\(o.readErrors.granularity) bytes")
+        acquisition["logical_sector"] = String(o.logicalSector)
         var log = [logLine("acquisition started", ["source": (source as NSString).lastPathComponent, "size": String(size)], at: started)]
-        for x in ranges { log.append(logLine("unreadable", ["offset": String(x.offset), "length": String(x.length), "error": String(x.error)], at: finished)) }
+        for x in mapped { log.append(logLine("unreadable", ["offset": String(x.offset), "length": String(x.length), "error": String(x.error)], at: finished)) }
         log.append(logLine("acquisition finished", ["sha256": hex(sourceSHA), "unreadable_bytes": String(unreadableBytes)], at: finished))
         let logText = Array((log.joined(separator: "\n") + "\n").utf8)
         var device = o.device
@@ -464,7 +504,7 @@ public enum XizForensic {
         var records = [Record(.caseInfo, json(o.caseInfo)), Record(.device, json(device)),
                        Record(.sourceHashes, SourceHashes(path: o.name, size: size, md5: md5Out, sha1: sha1Out, sha256: sourceSHA,
                                                           started: started, finished: finished).encoded)]
-        if !ranges.isEmpty { records.append(Record(.unreadable, Unreadable(path: o.name, ranges: ranges).encoded)) }
+        if !mapped.isEmpty { records.append(Record(.unreadable, Unreadable(path: o.name, ranges: mapped).encoded)) }
         records += [Record(.acquisition, json(acquisition)), Record(.log, logText)]
         let written = try w.finish(entries: entries, records: records, signer: signer)
         tracker.finish()

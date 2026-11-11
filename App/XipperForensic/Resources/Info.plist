@@ -12,6 +12,8 @@
 	<key>CFBundleDevelopmentRegion</key><string>en</string>
 	<key>CFBundleLocalizations</key><array><string>en</string><string>it</string></array>
 	<key>LSMinimumSystemVersion</key><string>26.0</string>
+	<key>LSArchitecturePriority</key><array><string>arm64</string></array>
+	<key>LSRequiresNativeExecution</key><true/>
 	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key><string>MIT License</string>
 	<key>NSPrincipalClass</key><string>NSApplication</string>

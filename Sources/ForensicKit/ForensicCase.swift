@@ -201,6 +201,14 @@ public struct ForensicCase: Sendable {
     /// Acquires an image into evidence/ID/ID.xiz, with the case record, then writes the signed report.
     public func acquireImage(from source: String, evidence id: String, options: XizForensic.ImageOptions, signer: XizSigner,
                              progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> (Evidence, XizForensic.ImageReport) {
+        try acquireImage(from: XizForensic.ImageSource(path: source), evidence: id, options: options, signer: signer,
+                         progress: progress, cancel: cancel)
+    }
+
+    /// Acquires an opened source (a disk through `DeviceAccess`) into evidence/ID/ID.xiz.
+    public func acquireImage(from reader: XizForensic.ImageSource, evidence id: String, options: XizForensic.ImageOptions, signer: XizSigner,
+                             progress: ProgressHandler? = nil, cancel: CancellationToken? = nil) throws -> (Evidence, XizForensic.ImageReport) {
+        let source = reader.name
         var o = options
         o.caseInfo = try info.merging(["evidence_number": id], uniquingKeysWith: { _, n in n }).merging(options.caseInfo, uniquingKeysWith: { _, n in n })
         let e = try prepare(id)
@@ -208,13 +216,15 @@ public struct ForensicCase: Sendable {
                                         "source": (source as NSString).lastPathComponent], signer: signer, now: o.now)
         let r: XizForensic.ImageReport
         do {
-            r = try XizForensic.acquireImage(from: source, to: e.archive.path, options: o, signer: signer, progress: progress, cancel: cancel)
+            r = try XizForensic.acquireImage(from: reader, to: e.archive.path, options: o, signer: signer, progress: progress, cancel: cancel)
         } catch {
             try? log("acquisition failed", ["evidence": id, "error": "\(error)"], signer: signer)
             try? FileManager.default.removeItem(at: e.folder)
             throw error
         }
-        try finishAcquisition(e, fields: ["source_sha256": Self.hex(r.sha256), "size": String(r.size)], password: o.password, signer: signer, now: o.now)
+        var fields = ["source_sha256": Self.hex(r.sha256), "size": String(r.size)]
+        if r.unreadableBytes > 0 { fields["unreadable_bytes"] = String(r.unreadableBytes) }
+        try finishAcquisition(e, fields: fields, password: o.password, signer: signer, now: o.now)
         return (e, r)
     }
 

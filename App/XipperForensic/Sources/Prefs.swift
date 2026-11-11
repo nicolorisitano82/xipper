@@ -109,11 +109,58 @@ struct SettingsView: View {
                 Text("Offline mode: with no authority, nothing goes on the network; the report says so.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            HelperSection()
             if let error { Text(error).foregroundStyle(.red) }
         }
         .formStyle(.grouped)
         .onAppear { prefs.reloadKeys() }
         .frame(width: 520)
         .padding(.vertical, 8)
+    }
+}
+
+/// The disk helper: a root LaunchDaemon that only opens disks read-only for this app. Two approvals,
+/// both the user's: allow it in Login Items, then give it Full Disk Access (needed for internal disks).
+struct HelperSection: View {
+    @State private var status = DeviceAccess.helperStatus
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            LabeledContent("Disk helper") {
+                switch status {
+                case .enabled: Label("Active", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case .requiresApproval: Label("Waiting for approval", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                case .notInstalled: Label("Not installed", systemImage: "minus.circle").foregroundStyle(.secondary)
+                case .unavailable: Label("Not available in this build", systemImage: "xmark.octagon").foregroundStyle(.secondary)
+                }
+            }
+            HStack {
+                switch status {
+                case .notInstalled, .unavailable:
+                    Button("Install…") {
+                        do { try DeviceAccess.installHelper() } catch { self.error = error.localizedDescription }
+                        status = DeviceAccess.helperStatus
+                        if status == .requiresApproval { DeviceAccess.openLoginItems() }
+                    }
+                case .requiresApproval:
+                    Button("Open Login Items…") { DeviceAccess.openLoginItems() }
+                case .enabled:
+                    Button("Open Full Disk Access…") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
+                    }
+                    Button("Remove") {
+                        do { try DeviceAccess.removeHelper() } catch { self.error = error.localizedDescription }
+                        status = DeviceAccess.helperStatus
+                    }
+                }
+            }
+            if let error { Text(error).foregroundStyle(.red).font(.caption) }
+        } header: { Text("Disks") } footer: {
+            Text("Disks belong to the system. The helper runs as root and does only one thing: it opens a disk read-only and hands it to Xipper Forensic; it never writes. macOS asks you to allow it in Login Items; for internal disks also give “xipper-forensic-helper” Full Disk Access.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .onAppear { status = DeviceAccess.helperStatus }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in status = DeviceAccess.helperStatus }
     }
 }

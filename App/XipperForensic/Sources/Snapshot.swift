@@ -43,11 +43,19 @@ enum Snapshot {
             a.deviceModel = "SanDisk Ultra 64 GB"
             a.serial = "4C530001"
             a.files = model.items.first.map { [$0.evidence.folder] } ?? []
+            // The disk source with a disk image attached (the first one listed), when there is one.
+            await a.refreshDisks()
+            if let d = a.disks.first(where: { $0.isDiskImage && !$0.partitions.isEmpty }) {
+                a.choose(d.partitions[0].bsd)
+            } else {
+                a.kind = .files
+            }
             a.step = step
             if step == .checks { await a.runChecks() }
             if step == .running {
                 a.progress = ProgressSnapshot(completedBytes: 40_300_000_000, totalBytes: 64_000_000_000, completedEntries: 0, totalEntries: 1,
-                                              currentEntry: "evidence/Docs/relazione.pdf", elapsed: 98)
+                                              currentEntry: nil, elapsed: 98)
+                a.unreadable = [.init(offset: 21_000_000_000, length: 4096), .init(offset: 21_000_100_000, length: 512)]
             }
             if step == .done, let i = model.items.first {
                 a.id = i.id
@@ -92,6 +100,7 @@ struct WizardSnapshot: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(width: 720, height: 600)
     }
 }
 #endif

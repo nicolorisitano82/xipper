@@ -50,6 +50,6 @@ The format is documented in `docs/XIZ_SPEC.md` §20.
 - No direct disk acquisition: it comes with 1.0, together with the helper that opens disks read-only and blocks mounting.
 - The technical details of the checks are in English in the Italian report too.
 - XIZ makes tampering evident, not impossible: removing the last custody segments leaves a valid archive. That is why the record should hold the archive's SHA-256 and the number of hand-overs.
-- Share Disk exists on Apple Silicon Macs; Intel Macs (Target Disk Mode) need the disk acquisition of 1.0.
+- Apple silicon only, both the Mac that acquires and the source Mac in Share Disk. Intel Macs are not supported.
 
 Issues: https://github.com/nicolorisitano82/xipper/issues

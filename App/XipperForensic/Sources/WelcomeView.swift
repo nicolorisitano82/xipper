@@ -18,7 +18,7 @@ struct WelcomeView: View {
                 Text("Xipper Forensic").font(.largeTitle.bold())
                 Text("Acquisition, verification and chain of custody of digital evidence, in signed XIZ archives.")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Text("Preview 0.9 — files, folders and image files. Disks come with 1.0.")
+                Text("Preview — disks and partitions, files and folders, image files, Mac via Share Disk. Apple silicon only.")
                     .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if !prefs.ready {
