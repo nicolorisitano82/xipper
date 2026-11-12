@@ -383,12 +383,22 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 3. ~~F nella 3.0~~: sì, provata con `kill -9`; la prova di interruzione di corrente in VM passa alla 3.1 (10/11/2026).
 
 #### Fuori dalla 3.0
-- **OpenZL** per CSV, Parquet e tabelle genomiche: formato e API ancora dichiarati instabili; si riguarda alla 3.1;
+- **OpenZL** per CSV, Parquet e tabelle genomiche: formato e API ancora dichiarati instabili; si riguarda alla 3.1 (fatto nella 3.1 per CSV, TSV e BED);
 - **FSKit** al posto del volume WebDAV: richiede un entitlement riservato e quindi un account Apple (vedi [FSKIT.md](FSKIT.md));
 - ML-DSA per le firme, libbsc e kanzi per il testo (licenze da verificare).
 
-### 3.1 — XIZ forense
-- **prova di corrente per «Cambia formato» a poco spazio** (dalla 3.0, F): VM macOS con Virtualization.framework, spegnimenti improvvisi ripetuti durante `--little-space`; serve scaricare l'IPSW (circa 18 GB).
+### 3.1 — tabelle con OpenZL, archivi forensi letti da Xipper (in corso, 12/11/2026)
+
+Il forense è diventato il prodotto separato xipper-forensic (1.0.0 pubblicata l'11/11/2026, tag `forensic-v1.0.0`). La 3.1 di Xipper riprende quello che ne viene, più OpenZL.
+
+- ✅ **branch `forensic` unito in `main`** (12/11/2026, avanti veloce): XIZ 1.10, firme con certificato (algoritmi 2 e 3), BearSSL in libxiz;
+- ✅ **aggiornamenti solo dai tag `v*`** (12/11/2026): i rilasci `forensic-v*` dello stesso repository non vengono mai proposti a Xipper (la 3.0 li scartava già, per caso: «forensic-v1.0.0» risultava una pre-release della versione 0);
+- ✅ **archivi forensi in Xipper** (12/11/2026): si aprono, si verificano e si estraggono come gli altri XIZ (provato da CLI: elenco, test, cronologia, estrazione identica); l'inspector ha la sezione in sola lettura **«Reperto forense»** (caso, reperto, SHA-256 della sorgente, settori illeggibili, passaggi di mano) e mostra il titolare del certificato nelle firme; nessuna funzione forense (`XizForensic.summary`);
+- ✅ **tabelle con OpenZL, XIZ 1.11** (12/11/2026, [XIZ_SPEC.md §21](XIZ_SPEC.md)): OpenZL 0.3.0 (BSD, Meta) vendorizzato, solo il core C e il profilo CSV; i file CSV, TSV, BED e PSV vanno in pezzi da 16 MiB di righe intere, ognuno un frame OpenZL tenuto solo se più piccolo del codec normale. `xipper create --tables`, «Tabelle CSV più piccole» nelle Impostazioni, «Cambia formato». Su 66,8 MB di tabelle (3 pubbliche, 2 sintetiche): zstd 3 19,9 MB, LZMA2 13,3 MB, zstd 3 con tabelle 12,6 MB (1,4 s contro 2,6 s), LZMA2 con tabelle 11,8 MB (10,4 s); estrazione sotto 0,2 s. Anche in libxiz (`XIZ_OPENZL`, attivo di default) con un vettore di prova. Parquet resta fuori: OpenZL vuole Parquet non compresso e in codifica plain, mentre quasi tutti i file reali sono compressi;
+- **prova di corrente per «Cambia formato» a poco spazio** (dalla 3.0, F): VM macOS con Virtualization.framework, spegnimenti improvvisi ripetuti durante `--little-space`; serve scaricare l'IPSW (circa 18 GB);
+- da provare a mano: quelle rimaste dalla 3.0 (RAR e 7z grandi, JPEG, VoiceOver, foglio «Cambia formato» con poco spazio, banner «Riprendi», sezione «Versioni»), più la sezione «Reperto forense» e l'interruttore delle tabelle; `xiz` portabile con OpenZL per Linux e Windows (compilazione con zig da rifare).
+
+### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 
 **Decisione del 10/11/2026:** il forense è un **prodotto derivato e separato, `xipper-forensic`**, che fa parte della famiglia Xipper. Ha una sua app con un'interfaccia pensata solo per questo lavoro: caso, dispositivo, acquisizione, verifica e catena di custodia, non il browser di archivi. Condivide con Xipper XipperKit e il formato XIZ; l'app Xipper resta un archiviatore e non mostra funzioni forensi.
 

@@ -10,6 +10,7 @@ option(XIZ_FUZZ "Build the libFuzzer targets (clang)" OFF)
 option(XIZ_TESTS "Build and register the tests" ON)
 option(XIZ_JPEG "Decode brunsli JPEG frames (XIZ 1.6, §16); needs a C++17 compiler" ON)
 option(XIZ_PREFLATE "Decode documents with recompressed Deflate streams (XIZ 1.9, §19); needs a C++17 compiler" ON)
+option(XIZ_OPENZL "Decode delimited tables in OpenZL frames (XIZ 1.11, §21); needs a C11 compiler" ON)
 set(XIZ_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Vendor" CACHE PATH "Xipper's Vendor directory")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -89,6 +90,24 @@ if(XIZ_PREFLATE)
   list(APPEND XIZ_DEPS xiz_preflate)
 endif()
 
+# OpenZL's C core (universal decoder, with its encoders: one tree) and the lz4 it links: codec 8 (§21).
+if(XIZ_OPENZL)
+  set(OPENZL_DIR "${XIZ_VENDOR_DIR}/openzl")
+  file(GLOB_RECURSE OPENZL_SOURCES "${OPENZL_DIR}/src/*.c")
+  add_library(xiz_openzl OBJECT ${OPENZL_SOURCES} "${XIZ_VENDOR_DIR}/lz4/lib/lz4.c" "${XIZ_VENDOR_DIR}/lz4/lib/lz4hc.c")
+  target_include_directories(xiz_openzl SYSTEM PUBLIC "${OPENZL_DIR}/include"
+    PRIVATE "${OPENZL_DIR}/src" "${OPENZL_DIR}" "${ZSTD_DIR}" "${XIZ_VENDOR_DIR}/lz4/lib")
+  target_compile_definitions(xiz_openzl PRIVATE NDEBUG _GNU_SOURCE _REENTRANT XXH_NAMESPACE=ZL_XXH_ LZ4_XXH_NAMESPACE)
+  # The AVX-512 kernels (picked at run time) need evex512 too with clang 18 and later (zig).
+  include(CheckCCompilerFlag)
+  check_c_compiler_flag(-mevex512 XIZ_CC_EVEX512)
+  if(XIZ_CC_EVEX512)
+    file(GLOB OPENZL_AVX512 "${OPENZL_DIR}/src/openzl/codecs/pivco_huffman/arch/*avx512.c")
+    set_source_files_properties(${OPENZL_AVX512} PROPERTIES COMPILE_OPTIONS "-mevex512")
+  endif()
+  list(APPEND XIZ_DEPS xiz_openzl)
+endif()
+
 foreach(dep ${XIZ_DEPS})
   set_target_properties(${dep} PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 99 C_EXTENSIONS ON)
   if(MSVC)
@@ -97,6 +116,10 @@ foreach(dep ${XIZ_DEPS})
     target_compile_options(${dep} PRIVATE -w)
   endif()
 endforeach()
+
+if(XIZ_OPENZL)
+  set_target_properties(xiz_openzl PROPERTIES C_STANDARD 11)
+endif()
 
 # ---------------------------------------------------------------- warnings and sanitizers
 
@@ -131,7 +154,8 @@ add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
   src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c src/forensic.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
-  $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>> $<$<BOOL:${XIZ_PREFLATE}>:$<TARGET_OBJECTS:xiz_preflate>>)
+  $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>> $<$<BOOL:${XIZ_PREFLATE}>:$<TARGET_OBJECTS:xiz_preflate>>
+  $<$<BOOL:${XIZ_OPENZL}>:$<TARGET_OBJECTS:xiz_openzl>>)
 target_include_directories(xiz PUBLIC include PRIVATE src)
 target_link_libraries(xiz PRIVATE ${XIZ_DEPS})
 if(XIZ_JPEG)
@@ -139,6 +163,10 @@ if(XIZ_JPEG)
 endif()
 if(XIZ_PREFLATE)
   target_compile_definitions(xiz PRIVATE XIZ_HAVE_PREFLATE)
+endif()
+if(XIZ_OPENZL)
+  target_compile_definitions(xiz PRIVATE XIZ_HAVE_OPENZL)
+  target_include_directories(xiz PRIVATE "${XIZ_VENDOR_DIR}/openzl/include")
 endif()
 if(XIZ_JPEG OR XIZ_PREFLATE)
   # The static library carries C++ objects: whoever links it needs the C++ runtime.

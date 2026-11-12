@@ -57,7 +57,9 @@ enum Xiz {
         static let deflate = Required(rawValue: 1 << 8)
         /// 1.10: forensic profile (§20): directory version 3 with a forensic block in every segment.
         static let forensic = Required(rawValue: 1 << 9)
-        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple, .deflate, .forensic]
+        /// 1.11: delimited tables (CSV, TSV, BED) in OpenZL frames (§21).
+        static let tables = Required(rawValue: 1 << 10)
+        static let understood: Required = [.encrypted, .dictionaries, .directory, .lzma2, .jpeg, .apple, .deflate, .forensic, .tables]
     }
 
     /// Features a reader may ignore.
@@ -76,6 +78,8 @@ enum Xiz {
         case lzraven = 5, lzmesh = 6
         /// 1.9: one whole PNG, PDF or ZIP-based document with its Deflate streams split by preflate (§19).
         case preflate = 7
+        /// 1.11: a piece of a delimited table, whole rows, as one OpenZL frame (§21).
+        case openzl = 8
 
         /// Whether the superblock declares the feature this codec needs.
         func isDeclared(by required: Required) -> Bool {
@@ -85,6 +89,7 @@ enum Xiz {
             case .jpeg: required.contains(.jpeg)
             case .lzraven, .lzmesh: required.contains(.apple)
             case .preflate: required.contains(.deflate)
+            case .openzl: required.contains(.tables)
             }
         }
     }

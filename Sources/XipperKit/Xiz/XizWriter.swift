@@ -41,7 +41,7 @@ enum XizWriter {
     }
 
     static func write(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool = false, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false,
-                      deflate: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
+                      deflate: Bool = false, tables: Bool = false, password: String?, kdf: XizKeys.KDF = .standard,
                       extendedAttributes: Bool, dictionaryThreshold: Int64 = XizDictionary.minimumSmallBytes,
                       access: XizAccess? = nil, signer: XizSigner? = nil, carried: [XizCarriedFrame] = [],
                       declareRecompression: Bool = false,
@@ -50,7 +50,7 @@ enum XizWriter {
             throw XipperError.invalidArgument("copied zstd frames go only into plain XIZ archives")
         }
         if access != nil || signer != nil {
-            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate, password: password, kdf: kdf,
+            return try writeWithDirectory(items: items, to: path, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate, tables: tables, password: password, kdf: kdf,
                                           extendedAttributes: extendedAttributes, access: access, signer: signer,
                                           workload: workload, overwrite: overwrite, progress: progress, cancel: cancel)
         }
@@ -89,6 +89,11 @@ enum XizWriter {
             superblock.required.insert(.deflate)
             superblock.minor = 9
         }
+        let tables = tables && level > 0 && (declareRecompression || items.contains(where: Self.isTable))
+        if tables {
+            superblock.required.insert(.tables)
+            superblock.minor = 11
+        }
 
         // Keys first: the digests and the chunker depend on them.
         var keysBlock: [UInt8] = []
@@ -105,7 +110,7 @@ enum XizWriter {
         let out = try OutputFile(path: path)
         try out.write(superblock.encode())
         if !keysBlock.isEmpty { try keysBlock.withUnsafeBytes { try out.write($0) } }
-        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate,
+        let (frames, entries) = try writeData(items, to: out, startFrame: 0, known: [:], keys: keys, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate, tables: tables,
                                               dictionary: dictionary.map { (XizDictionary.id, $0, true) }, carried: carried,
                                               extendedAttributes: extendedAttributes, workload: workload, tracker: tracker, cancel: cancel)
         try writeCatalog(Xiz.Catalog(frames: frames, entries: entries), to: out, keys: keys, segment: 0, previousFooter: 0)
@@ -140,6 +145,12 @@ enum XizWriter {
         return DeflateRecompression.isCandidate(name: item.name, path: item.sourcePath, size: size)
     }
 
+    /// A delimited table compressed with OpenZL when the archive allows it (1.11).
+    static func isTable(_ item: ArchiveItem) -> Bool {
+        guard case let .file(size) = item.kind else { return false }
+        return TableRecompression.isCandidate(name: item.name, path: item.sourcePath, size: size)
+    }
+
     /// A file recompressed with brunsli when the archive allows it (1.6).
     static func isJPEG(_ item: ArchiveItem) -> Bool {
         guard case let .file(size) = item.kind else { return false }
@@ -166,7 +177,7 @@ enum XizWriter {
     /// content: digest → extents already in the archive) and returns them with the items' entries.
     /// `dictionary`: used by frames made mostly of small files; written first when new (1.2).
     static func writeData(_ items: [ArchiveItem], to out: XizOutput, startFrame: Int, known: [[UInt8]: [Xiz.Extent]], keys: XizKeys?,
-                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false, deflate: Bool = false,
+                          group: UInt16 = 0, proofs: Bool = false, level: Int, lzma2: Bool = false, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false, deflate: Bool = false, tables: Bool = false,
                           dictionary: (id: UInt16, bytes: [UInt8], isNew: Bool)? = nil, carried: [XizCarriedFrame] = [],
                           extendedAttributes: Bool, workload: Workload, tracker: ProgressTracker,
                           cancel: CancellationToken?) throws -> ([Xiz.Frame], [Xiz.Entry]) {
@@ -183,7 +194,14 @@ enum XizWriter {
         let jpegs = jpeg && level > 0 ? Set(files.filter { Self.isJPEG(items[$0]) }) : []
         // PNG, PDF and Office documents (1.9) likewise, with their Deflate streams split by preflate.
         let documents = deflate && level > 0 ? Set(files.filter { !jpegs.contains($0) && Self.isDeflateDocument(items[$0]) }) : []
-        let recompressed = jpegs.union(documents)
+        // Delimited tables (1.11): pieces of whole rows, a frame each, deduplicated as whole files only.
+        var tableSeparators: [Int: UInt8] = [:]
+        if tables && level > 0 {
+            for i in files where !jpegs.contains(i) && !documents.contains(i) {
+                if let sep = TableRecompression.separator(name: items[i].name, path: items[i].sourcePath, size: items[i].size) { tableSeparators[i] = sep }
+            }
+        }
+        let recompressed = jpegs.union(documents).union(tableSeparators.keys)
         var work: [Work] = []
         for i in files {
             work.append(.whole(i))
@@ -328,9 +346,21 @@ enum XizWriter {
         }
         closeFrame()
         var jpegFrames: [Int: Xiz.Codec] = [:]  // frame → .jpeg or .preflate
+        var tableFrames: [Int: (separator: UInt8, header: Bool)] = [:]
         for i in pendingJPEGs {
             guard let h = digests[i] else { continue }
             if let copy = seenFiles[h.digest] { placed[i] = copy; continue }
+            if let sep = tableSeparators[i] {
+                var extents: [Xiz.Extent] = []
+                for piece in try TableRecompression.pieces(path: items[i].sourcePath, size: items[i].size) {
+                    frames.append([Segment(item: i, fileOffset: piece.lowerBound, length: Int(piece.count))])
+                    tableFrames[frames.count - 1] = (sep, piece.lowerBound == 0)
+                    extents.append(Xiz.Extent(frame: UInt32(base + frames.count - 1), offset: 0, length: UInt32(piece.count)))
+                }
+                seenFiles[h.digest] = extents
+                placed[i] = extents
+                continue
+            }
             frames.append([Segment(item: i, fileOffset: 0, length: Int(items[i].size))])
             jpegFrames[frames.count - 1] = jpegs.contains(i) ? .jpeg : .preflate
             let extents = [Xiz.Extent(frame: UInt32(base + frames.count - 1), offset: 0, length: UInt32(items[i].size))]
@@ -426,6 +456,15 @@ enum XizWriter {
                     codec = .zstd
                     payload = c
                 }
+                // A table piece (1.11) in OpenZL when that is smaller than the usual codec.
+                if let t = tableFrames[idx],
+                   let p = TableRecompression.encode(data, separator: t.separator, header: t.header,
+                                                     level: TableRecompression.level(for: level, lzma2: lzma2)),
+                   p.count < payload.count {
+                    codec = .openzl
+                    payload = p
+                    dictID = 0
+                }
                 var f = Xiz.Frame(offset: 0, csize: 0, usize: UInt32(data.count), crc: 0, codec: codec, dictionary: dictID, group: group)
                 if let keys { payload = try keys.sealFrame(payload, index: UInt32(global), f) }
                 f.csize = UInt32(payload.count)
@@ -489,7 +528,7 @@ enum XizWriter {
     /// its own (frames sealed with the group's key, deduplication inside the group), then one
     /// catalog per group, the directory (signed when there is a signer) and the footer.
     static func writeWithDirectory(items: [ArchiveItem], to path: String, level: Int, lzma2: Bool, appleCodec: Xiz.Codec? = nil, jpeg: Bool = false,
-                                   deflate: Bool = false, password: String?, kdf: XizKeys.KDF,
+                                   deflate: Bool = false, tables: Bool = false, password: String?, kdf: XizKeys.KDF,
                                    extendedAttributes: Bool, access: XizAccess?, signer: XizSigner?,
                                    workload: Workload, overwrite: Bool, progress: ProgressHandler?, cancel: CancellationToken?) throws -> WriteReport {
         let total = items.reduce(Int64(0)) { $0 + $1.size }
@@ -519,6 +558,11 @@ enum XizWriter {
         if deflate {
             superblock.required.insert(.deflate)
             superblock.minor = 9
+        }
+        let tables = tables && level > 0 && items.contains(where: Self.isTable)
+        if tables {
+            superblock.required.insert(.tables)
+            superblock.minor = 11
         }
         let map = try XizGroupMap(access)
 
@@ -567,7 +611,7 @@ enum XizWriter {
                 slots += s
             } else {
                 let (f, e) = try writeData(byGroup[g.id] ?? [], to: out, startFrame: frames.count, known: [:], keys: groupKeys[g.id],
-                                           group: g.id, proofs: true, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate, extendedAttributes: extendedAttributes, workload: workload,
+                                           group: g.id, proofs: true, level: level, lzma2: lzma2, appleCodec: appleCodec, jpeg: jpeg, deflate: deflate, tables: tables, extendedAttributes: extendedAttributes, workload: workload,
                                            tracker: tracker, cancel: cancel)
                 frames += f
                 entries[g.id] = e

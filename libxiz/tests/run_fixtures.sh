@@ -68,9 +68,18 @@ fi
 if "$XIZ" info "$F/docs.xiz" > "$W/docs-info.log" 2>&1; then
     extract_cmp docs docs.xiz docs.manifest
     expect_code test-docs 0 "$XIZ" test "$F/docs.xiz"
-    grep -q 'preflate 3)' "$W/docs-info.log" && pass codec-preflate || fail "codec-preflate: $(grep frames "$W/docs-info.log")"
+    grep -q 'preflate 3,' "$W/docs-info.log" && pass codec-preflate || fail "codec-preflate: $(grep frames "$W/docs-info.log")"
 else
     grep -q 'built without preflate' "$W/docs-info.log" && pass docs-refused-cleanly || fail "docs: $(tail -1 "$W/docs-info.log")"
+fi
+
+# 1.11: delimited tables in OpenZL frames (a CSV and a BED: two OpenZL frames)
+if "$XIZ" info "$F/tables.xiz" > "$W/tables-info.log" 2>&1; then
+    extract_cmp tables tables.xiz tables.manifest
+    expect_code test-tables 0 "$XIZ" test "$F/tables.xiz"
+    grep -q 'OpenZL 2)' "$W/tables-info.log" && pass codec-openzl || fail "codec-openzl: $(grep frames "$W/tables-info.log")"
+else
+    grep -q 'built without OpenZL' "$W/tables-info.log" && pass tables-refused-cleanly || fail "tables: $(tail -1 "$W/tables-info.log")"
 fi
 
 # cat

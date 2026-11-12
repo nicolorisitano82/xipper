@@ -12,6 +12,19 @@ SAME = {"", "5%", "10%", "20%", "PAR2", "7z", "CRC-32", "SHA-256", "No", "%@", "
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
+    "%@ → %@": "%1$@ → %2$@",
+    "Caso": "Case",
+    "Certificato attendibile": "Trusted certificate",
+    "Certificato non attendibile per questo Mac": "Certificate not trusted by this Mac",
+    "Descrizione": "Description",
+    "File CSV, TSV e BED compressi colonna per colonna con OpenZL: sulle tabelle di numeri dal 10 al 30% più piccoli di «Massimo», e si aprono più in fretta. All'estrazione ogni file torna identico byte per byte. Si leggono solo con Xipper 3.1 o successivo.": "CSV, TSV and BED files compressed column by column with OpenZL: tables of numbers come out 10 to 30% smaller than with “Maximum”, and open faster. Every file is extracted identical, byte for byte. Readable only with Xipper 3.1 or later.",
+    "Nessun passaggio di mano": "No hand-overs",
+    "Per verificare il reperto, il registro del caso e i report usa Xipper Forensic o xiz.": "To verify the evidence, the case log and the reports, use Xipper Forensic or xiz.",
+    "Reperto": "Evidence item",
+    "Reperto forense": "Forensic evidence",
+    "SHA-256 %@": "SHA-256 %@",
+    "Settori illeggibili: %@": "Unreadable sectors: %@",
+    "Tabelle CSV più piccole": "Smaller CSV Tables",
     "Annulla conversione": "Cancel Conversion",
     "Cambio di formato in %@ interrotto": "Format change to %@ interrupted",
     "Converti con poco spazio libero": "Convert with Little Free Space",

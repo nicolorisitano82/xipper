@@ -85,6 +85,8 @@ static int decode_frame(xiz_archive *a, uint32_t i, uint8_t *dst, const void *dd
         return jpeg_decode_frame(p, n, dst, f->usize, err);
     case CODEC_PREFLATE:
         return preflate_decode_frame(p, n, dst, f->usize, err);
+    case CODEC_OPENZL:
+        return openzl_decode_frame(p, n, dst, f->usize, err);
     case CODEC_LZRAVEN:
     case CODEC_LZMESH:
         return apple_decode_frame(p, n, dst, f->usize, f->codec, err);

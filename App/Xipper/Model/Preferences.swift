@@ -29,6 +29,7 @@ enum PrefKey {
     static let xizAppleCodecs = "xizAppleCodecs"
     static let xizJPEG = "xizJPEG"
     static let xizDocuments = "xizDocuments"
+    static let xizTables = "xizTables"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
@@ -104,6 +105,7 @@ enum Preferences {
             PrefKey.xizAppleCodecs: false,
             PrefKey.xizJPEG: false,
             PrefKey.xizDocuments: false,
+            PrefKey.xizTables: false,
             PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,
@@ -144,6 +146,8 @@ enum Preferences {
         if format == .xiz, defaults.bool(forKey: PrefKey.xizJPEG) { o.xizJPEG = true }
         // XIZ 1.9: PNG, PDF and Office documents with their Deflate streams recompressed.
         if format == .xiz, defaults.bool(forKey: PrefKey.xizDocuments) { o.xizDocuments = true }
+        // XIZ 1.11: CSV, TSV and BED tables compressed column by column with OpenZL.
+        if format == .xiz, defaults.bool(forKey: PrefKey.xizTables) { o.xizTables = true }
         o.workload = workload
         return o
     }

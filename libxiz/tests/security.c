@@ -167,8 +167,8 @@ static void test_structure(void) {
 
     xiz_archive *a;
     xiz_error e;
-    /* Unknown required feature bits (bit 2 is reserved, 10–15 unknown). */
-    k.required = 0x0400;
+    /* Unknown required feature bits (bit 2 is reserved, 11–15 unknown). */
+    k.required = 0x0800;
     b = forge(basic, 3, &k);
     CHECK(open_mem(&b, &a, &e) == XIZ_E_UNSUPPORTED);
     wb_free(&b);

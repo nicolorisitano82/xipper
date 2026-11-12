@@ -122,8 +122,10 @@ XIZ_API void xiz_close(xiz_archive *a);
 #define XIZ_FEATURE_APPLE        0x0080u  /* LZRAVEN / LZMESH frames (§18): macOS 27 or later only */
 #define XIZ_FEATURE_DEFLATE      0x0100u  /* documents with recompressed Deflate streams (§19): XIZ_PREFLATE */
 #define XIZ_FEATURE_FORENSIC     0x0200u  /* forensic profile (§20): images, frame hashes, custody */
+#define XIZ_FEATURE_TABLES       0x0400u  /* delimited tables in OpenZL frames (§21): needs a build with XIZ_OPENZL */
 #define XIZ_FEATURES_KNOWN       (XIZ_FEATURE_ENCRYPTED | XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_DIRECTORY | XIZ_FEATURE_LZMA2 | \
-                                  XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE | XIZ_FEATURE_FORENSIC)
+                                  XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE | XIZ_FEATURE_FORENSIC | \
+                                  XIZ_FEATURE_TABLES)
 
 /* 1 when this build decodes JPEG frames (codec 4, §16), 0 when it refuses them. */
 XIZ_API int xiz_has_jpeg(void);
@@ -131,6 +133,7 @@ XIZ_API int xiz_has_jpeg(void);
 XIZ_API int xiz_has_apple_codecs(void);
 /* 1 when this build decodes documents with recompressed Deflate streams (codec 7, §19). */
 XIZ_API int xiz_has_preflate(void);
+XIZ_API int xiz_has_openzl(void);
 
 typedef struct xiz_info {
     uint16_t version_major, version_minor;  /* superblock */
@@ -151,7 +154,7 @@ typedef struct xiz_info {
     uint64_t data_start;        /* 64 + keys block */
     uint64_t footer_offset;     /* of the current footer */
     uint64_t trailing_bytes;    /* bytes after the footer (an interrupted append) */
-    uint32_t codec_frames[8];   /* frames per codec: store, zstd, LZMA2, ARM64+LZMA2, brunsli JPEG, LZRAVEN, LZMESH, preflate */
+    uint32_t codec_frames[9];   /* frames per codec: store, zstd, LZMA2, ARM64+LZMA2, brunsli JPEG, LZRAVEN, LZMESH, preflate, OpenZL */
 } xiz_info;
 
 XIZ_API int xiz_get_info(const xiz_archive *a, xiz_info *out);

@@ -69,6 +69,27 @@ struct XizForensicTests {
         _ = try XizArchive(path: out, password: "segreto")  // the reader follows the custody segments
     }
 
+    @Test func summaryForAnArchiver() throws {
+        let t = TempDir()
+        let (src, data) = image(t)
+        let out = t.path + "/s.xiz"
+        let ranges = [XizForensic.Unreadable.Range(offset: 4096, length: 1024)]
+        _ = try XizForensic.acquireImage(from: src, to: out, options: options { $0.password = "segreto"; $0.unreadable = ranges },
+                                         signer: Self.examiner)
+        try XizForensic.appendCustody(to: out, custody: ["from": "Esaminatore", "to": "Laboratorio"], signer: Self.courier)
+        let s = try #require(try XizForensic.summary(out))
+        #expect(s.caseNumber == "2026-117" && s.evidenceNumber == "R01")
+        #expect(s.sources.count == 1 && s.sources[0].size == UInt64(data.count))
+        #expect(s.unreadableBytes == 1024)
+        #expect(s.handOvers.map(\.to) == ["Laboratorio"] && s.handOvers[0].segment == 1 && !s.handOvers[0].time.isEmpty)
+        // An ordinary XIZ has no summary.
+        let plain = t.path + "/p.xiz"
+        var o = CreateOptions()
+        o.format = .xiz
+        _ = try Xipper.create(from: [URL(fileURLWithPath: src)], to: URL(fileURLWithPath: plain), options: o)
+        #expect(try XizForensic.summary(plain) == nil)
+    }
+
     @Test func unreadableRangesAreZerosAndListed() throws {
         let t = TempDir()
         let (src, data) = image(t)

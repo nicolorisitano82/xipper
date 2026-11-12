@@ -1115,6 +1115,52 @@
         }
       }
     },
+    "%@ → %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
     "%@, custode %lld" : {
       "localizations" : {
         "de" : {
@@ -8022,6 +8068,46 @@
         }
       }
     },
+    "Caso" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fall"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affaire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "事件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "案件"
+          }
+        }
+      }
+    },
     "Catena interrotta: una versione precedente è stata alterata" : {
       "localizations" : {
         "de" : {
@@ -8178,6 +8264,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索归档"
+          }
+        }
+      }
+    },
+    "Certificato attendibile" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertrauenswürdiges Zertifikat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted certificate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado de confianza"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat de confiance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信頼された証明書"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受信任的证书"
+          }
+        }
+      }
+    },
+    "Certificato non attendibile per questo Mac" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat ist für diesen Mac nicht vertrauenswürdig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate not trusted by this Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado no fiable para este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat non approuvé par ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacでは信頼されていない証明書"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Mac 不信任该证书"
           }
         }
       }
@@ -12455,6 +12621,46 @@
         }
       }
     },
+    "Descrizione" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschreibung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descripción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "説明"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描述"
+          }
+        }
+      }
+    },
     "Deseleziona" : {
       "localizations" : {
         "de" : {
@@ -15653,6 +15859,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "归档旁边的 .par2 文件，可在归档损坏时用于修复"
+          }
+        }
+      }
+    },
+    "File CSV, TSV e BED compressi colonna per colonna con OpenZL: sulle tabelle di numeri dal 10 al 30% più piccoli di «Massimo», e si aprono più in fretta. All'estrazione ogni file torna identico byte per byte. Si leggono solo con Xipper 3.1 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV-, TSV- und BED-Dateien werden mit OpenZL spaltenweise komprimiert: Zahlentabellen werden 10 bis 30 % kleiner als mit „Maximal“ und öffnen sich schneller. Beim Entpacken ist jede Datei Byte für Byte identisch. Nur mit Xipper 3.1 oder neuer lesbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV, TSV and BED files compressed column by column with OpenZL: tables of numbers come out 10 to 30% smaller than with “Maximum”, and open faster. Every file is extracted identical, byte for byte. Readable only with Xipper 3.1 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivos CSV, TSV y BED comprimidos columna por columna con OpenZL: las tablas de números quedan entre un 10 y un 30 % más pequeñas que con «Máximo» y se abren más rápido. Al extraerlos, cada archivo es idéntico byte a byte. Solo se leen con Xipper 3.1 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichiers CSV, TSV et BED compressés colonne par colonne avec OpenZL : les tableaux de nombres sont de 10 à 30 % plus petits qu’avec « Maximum » et s’ouvrent plus vite. À l’extraction, chaque fichier est identique octet par octet. Lisibles uniquement avec Xipper 3.1 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV、TSV、BEDファイルをOpenZLで列ごとに圧縮します。数値の表は「最大」より10〜30%小さくなり、より速く開けます。展開すると各ファイルはバイト単位で元どおりになります。Xipper 3.1以降でのみ読み込めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 OpenZL 按列压缩 CSV、TSV 和 BED 文件：数字表格比“最大”小 10% 至 30%，且打开更快。解压后每个文件逐字节完全相同。仅可用 Xipper 3.1 或更高版本读取。"
           }
         }
       }
@@ -22592,6 +22838,46 @@
         }
       }
     },
+    "Nessun passaggio di mano" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Übergaben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hand-overs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguna entrega"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune remise"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引き渡しなし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无移交记录"
+          }
+        }
+      }
+    },
     "Nessuna" : {
       "localizations" : {
         "de" : {
@@ -25032,6 +25318,46 @@
         }
       }
     },
+    "Per verificare il reperto, il registro del caso e i report usa Xipper Forensic o xiz." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um das Beweisstück, das Fallprotokoll und die Berichte zu prüfen, verwende Xipper Forensic oder xiz."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To verify the evidence, the case log and the reports, use Xipper Forensic or xiz."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para verificar la evidencia, el registro del caso y los informes, usa Xipper Forensic o xiz."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour vérifier la pièce, le journal de l’affaire et les rapports, utilisez Xipper Forensic ou xiz."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証拠品、事件ログ、レポートを検証するには、Xipper Forensic または xiz を使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要验证证物、案件日志和报告，请使用 Xipper Forensic 或 xiz。"
+          }
+        }
+      }
+    },
     "Perché si ricomprimono" : {
       "localizations" : {
         "de" : {
@@ -26438,6 +26764,86 @@
         }
       }
     },
+    "Reperto" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beweisstück"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evidence item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evidencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pièce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証拠品"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证物"
+          }
+        }
+      }
+    },
+    "Reperto forense" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forensisches Beweisstück"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forensic evidence"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evidencia forense"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pièce à conviction"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォレンジック証拠品"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取证证物"
+          }
+        }
+      }
+    },
     "Report" : {
       "localizations" : {
         "de" : {
@@ -27514,6 +27920,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SHA-256"
+          }
+        }
+      }
+    },
+    "SHA-256 %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SHA-256 %@"
           }
         }
       }
@@ -29244,6 +29690,46 @@
         }
       }
     },
+    "Settori illeggibili: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlesbare Sektoren: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unreadable sectors: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sectores ilegibles: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secteurs illisibles : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れないセクタ: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取的扇区：%@"
+          }
+        }
+      }
+    },
     "Sicurezza" : {
       "localizations" : {
         "de" : {
@@ -30166,6 +30652,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "是，使用 %@ 下载"
+          }
+        }
+      }
+    },
+    "Tabelle CSV più piccole" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere CSV-Tabellen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smaller CSV Tables"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tablas CSV más pequeñas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tableaux CSV plus petits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSVの表を小さく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更小的 CSV 表格"
           }
         }
       }

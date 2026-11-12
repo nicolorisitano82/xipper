@@ -836,7 +836,7 @@ public enum XizForensic {
 
         // 1. Segments: profile rules, custody segments repeat their predecessor.
         var problems: [String] = []
-        if !sb.required.isDisjoint(with: [.dictionaries, .lzma2, .jpeg, .apple, .deflate]) { problems.append("codec features not allowed") }
+        if !sb.required.isDisjoint(with: [.dictionaries, .lzma2, .jpeg, .apple, .deflate, .tables]) { problems.append("codec features not allowed") }
         for (i, s) in segs.enumerated() {
             if s.directory.flags & XizDirectory.erasableFlag != 0 { problems.append("segment \(i): erasable") }
             guard s.directory.isCustody else { continue }

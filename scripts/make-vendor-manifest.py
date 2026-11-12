@@ -19,6 +19,7 @@ LIBRARIES = {
     "brotli": ("1.2.1", "https://github.com/google/brotli", "v1.2.1"),
     "brunsli": ("0.1+c18b962", "https://github.com/google/brunsli", "c18b9625ef045b0b89ebb4439ae2339e2160df71"),
     "preflate": ("0.3.5", "https://github.com/deus-libri/preflate", "609eefaa96ac6c51d7b1a3fb29e0ed94d0f3623e"),
+    "openzl": ("0.3.0", "https://github.com/facebook/openzl", "v0.3.0 (32246b4)"),
     "argon2": ("20190702", "https://github.com/P-H-C/phc-winner-argon2", "62358ba"),
 }
 
@@ -30,6 +31,7 @@ OURS = {
     "brotli/c/include/module.modulemap", "lzma-sdk/include/CLzmaSDK.h", "lzma-sdk/shim/xs_ppmd.c",
     "lzma-sdk/shim/xs_lzdec.c", "brunsli/c/include/brunsli/brunsli_export.h", "brunsli/c/include/module.modulemap",
     "preflate/include/xpf.h", "preflate/include/module.modulemap", "preflate/shim/xpf.cpp",
+    "openzl/shim/xs_openzl.cpp", "openzl/shim/include/xs_openzl.h", "openzl/include/openzl/zl_config.h",
 }
 
 

@@ -345,3 +345,31 @@ int preflate_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usi
     return FAIL(XIZ_E_UNSUPPORTED, "preflate frames: this libxiz was built without XIZ_PREFLATE");
 }
 #endif
+
+/* ------------------------------------------------------------------ OpenZL tables (§21) */
+
+#ifdef XIZ_HAVE_OPENZL
+#include "openzl/zl_decompress.h"
+
+int xiz_has_openzl(void) { return 1; }
+
+/* One OpenZL frame (universal decoder): exactly usize bytes, content checksum checked. */
+int openzl_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    ZL_Report r = ZL_getDecompressedSize(src, n);
+    if (ZL_isError(r) || ZL_validResult(r) != usize) return FAIL(XIZ_E_CORRUPT, "OpenZL frame size");
+    ZL_DCtx *d = ZL_DCtx_create();
+    if (!d) return FAIL(XIZ_E_NOMEM, "OpenZL context");
+    ZL_DCtx_setParameter(d, ZL_DParam_checkContentChecksum, ZL_TernaryParam_enable);
+    r = ZL_DCtx_decompress(d, dst, usize, src, n);
+    ZL_DCtx_free(d);
+    if (ZL_isError(r) || ZL_validResult(r) != usize) return FAIL(XIZ_E_CORRUPT, "OpenZL frame does not decode");
+    return XIZ_OK;
+}
+#else
+int xiz_has_openzl(void) { return 0; }
+
+int openzl_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize, xiz_error *err) {
+    (void)src; (void)n; (void)dst; (void)usize;
+    return FAIL(XIZ_E_UNSUPPORTED, "OpenZL frames: this libxiz was built without XIZ_OPENZL");
+}
+#endif

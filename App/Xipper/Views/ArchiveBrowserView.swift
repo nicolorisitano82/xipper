@@ -899,12 +899,47 @@ private struct ArchiveInspector: View {
                                     Text(ts.valid ? String(localized: "Marca temporale \(ts.time.formatted(date: .abbreviated, time: .shortened))") : String(localized: "Marca temporale non valida"))
                                         .font(.caption).foregroundStyle(ts.valid ? Color.secondary : Color.red)
                                 }
+                                if let c = s.certificate {
+                                    Text(c.subject).font(.caption).textSelection(.enabled)
+                                    Text(c.trusted ? String(localized: "Certificato attendibile") : String(localized: "Certificato non attendibile per questo Mac"))
+                                        .font(.caption).foregroundStyle(c.trusted ? Color.secondary : Color.orange)
+                                }
                                 SignerKey(text: s.publicKeyText)
                             }
                         }
                         let unsigned = model.history.filter { !$0.signed }.count
                         if unsigned > 0 && model.history.contains(where: \.signed) {
                             Text("\(unsigned) modifiche non firmate").font(.caption).foregroundStyle(.orange)
+                        }
+                    }
+                    if let f = model.forensic {
+                        Section("Reperto forense") {
+                            if !f.caseNumber.isEmpty { LabeledContent("Caso", value: f.caseNumber) }
+                            if !f.evidenceNumber.isEmpty { LabeledContent("Reperto", value: f.evidenceNumber) }
+                            if !f.description.isEmpty { LabeledContent("Descrizione", value: f.description) }
+                            ForEach(f.sources, id: \.path) { src in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(src.path).font(.callout)
+                                    Text(src.size.formatted(.byteCount(style: .file))).font(.caption).foregroundStyle(.secondary)
+                                    Text("SHA-256 \(src.sha256)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                                        .lineLimit(1).truncationMode(.middle).textSelection(.enabled).help(src.sha256)
+                                }
+                            }
+                            if f.unreadableBytes > 0 {
+                                Text("Settori illeggibili: \(f.unreadableBytes.formatted(.byteCount(style: .file)))")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            if f.handOvers.isEmpty {
+                                Text("Nessun passaggio di mano").font(.caption).foregroundStyle(.secondary)
+                            }
+                            ForEach(f.handOvers, id: \.segment) { h in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(h.from) → \(h.to)").font(.callout)
+                                    Text(h.time).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Text("Per verificare il reperto, il registro del caso e i report usa Xipper Forensic o xiz.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     if info.encrypted {

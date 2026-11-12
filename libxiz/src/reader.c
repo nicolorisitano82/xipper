@@ -130,6 +130,8 @@ static int check_frames(xiz_archive *a, const gaps_t *gs, uint64_t frame_end, in
             return FAIL(XIZ_E_CORRUPT, "frame %u uses an Apple codec, not declared", i);
         if (f->codec == CODEC_PREFLATE && !(a->sb.required & XIZ_FEATURE_DEFLATE))
             return FAIL(XIZ_E_CORRUPT, "frame %u uses preflate, not declared", i);
+        if (f->codec == CODEC_OPENZL && !(a->sb.required & XIZ_FEATURE_TABLES))
+            return FAIL(XIZ_E_CORRUPT, "frame %u uses OpenZL, not declared", i);
         if (f->codec >= CODEC_LZRAVEN && (f->flags & XIZ_FLAG_DICTIONARY || f->dict))
             return FAIL(XIZ_E_CORRUPT, "frame %u with codec %u and a dictionary", i, f->codec);
         if (f->codec == CODEC_JPEG) {
@@ -303,7 +305,7 @@ static int open_directory(xiz_archive *a, const xiz_open_options *opt, const key
     const int forensic = (a->sb.required & XIZ_FEATURE_FORENSIC) != 0;
     if (forensic != (d->version == 3)) return FAIL(XIZ_E_CORRUPT, "forensic profile: directory version %u", d->version);
     if (forensic && ((d->flags & XIZ_DIR_ERASABLE) ||
-                     (a->sb.required & (XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_LZMA2 | XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE))))
+                     (a->sb.required & (XIZ_FEATURE_DICTIONARIES | XIZ_FEATURE_LZMA2 | XIZ_FEATURE_JPEG | XIZ_FEATURE_APPLE | XIZ_FEATURE_DEFLATE | XIZ_FEATURE_TABLES))))
         return FAIL(XIZ_E_CORRUPT, "forensic profile: feature not allowed");
     const int custody = (d->flags & XIZ_DIR_CUSTODY) != 0;
     footer pft;
@@ -672,7 +674,7 @@ int xiz_get_info(const xiz_archive *a, xiz_info *o) {
     o->data_start = a->data_start;
     o->footer_offset = a->footer_offset;
     o->trailing_bytes = a->src.size - a->footer_offset - XIZ_FOOTER;
-    for (uint32_t i = 0; i < a->cat.n_frames; i++) o->codec_frames[a->cat.frames[i].codec]++;  /* ≤ CODEC_PREFLATE, checked when parsed */
+    for (uint32_t i = 0; i < a->cat.n_frames; i++) o->codec_frames[a->cat.frames[i].codec]++;  /* ≤ CODEC_OPENZL, checked when parsed */
     return XIZ_OK;
 }
 

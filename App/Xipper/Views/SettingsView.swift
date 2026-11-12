@@ -96,6 +96,7 @@ private struct FormatSettings: View {
     @AppStorage(PrefKey.xizLZMA2) private var xizLZMA2 = false
     @AppStorage(PrefKey.xizJPEG) private var xizJPEG = false
     @AppStorage(PrefKey.xizDocuments) private var xizDocuments = false
+    @AppStorage(PrefKey.xizTables) private var xizTables = false
     @AppStorage(PrefKey.xizAppleCodecs) private var xizApple = false
 
     var body: some View {
@@ -135,6 +136,10 @@ private struct FormatSettings: View {
                 Toggle(isOn: $xizDocuments) {
                     Text("PNG, PDF e documenti più piccoli")
                     Text("Immagini PNG, PDF e documenti Office ed EPUB circa il 15% più piccoli senza perdere nulla: all'estrazione ogni file torna identico byte per byte. Compressione ed estrazione di questi file più lente. Si leggono solo con Xipper 3.0 o successivo.")
+                }
+                Toggle(isOn: $xizTables) {
+                    Text("Tabelle CSV più piccole")
+                    Text("File CSV, TSV e BED compressi colonna per colonna con OpenZL: sulle tabelle di numeri dal 10 al 30% più piccoli di «Massimo», e si aprono più in fretta. All'estrazione ogni file torna identico byte per byte. Si leggono solo con Xipper 3.1 o successivo.")
                 }
                 Toggle(isOn: $xizJPEG) {
                     Text("Foto JPEG più piccole")

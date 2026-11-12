@@ -230,7 +230,7 @@ final class XizArchive: @unchecked Sendable {
         // Forensic profile (§20): directory version 3 everywhere, nothing else uses it.
         guard forensic == (directory.version == 3) else { throw XipperError.corrupt("XIZ forensic profile: directory version") }
         if forensic {
-            guard directory.flags & XizDirectory.erasableFlag == 0, sb.required.isDisjoint(with: [.dictionaries, .lzma2, .jpeg, .apple, .deflate]) else {
+            guard directory.flags & XizDirectory.erasableFlag == 0, sb.required.isDisjoint(with: [.dictionaries, .lzma2, .jpeg, .apple, .deflate, .tables]) else {
                 throw XipperError.corrupt("XIZ forensic profile: feature not allowed")
             }
         }
@@ -511,6 +511,8 @@ final class XizArchive: @unchecked Sendable {
             return try payload.withUnsafeBytes { try Xiz.appleDecompress($0, size: Int(f.usize), codec: f.codec) }
         case .preflate:
             return try DeflateRecompression.decode(payload, size: Int(f.usize))
+        case .openzl:
+            return try TableRecompression.decode(payload, size: Int(f.usize))
         }
     }
 

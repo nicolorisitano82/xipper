@@ -77,7 +77,8 @@ enum Updates {
     static func releases(from json: Data) -> [Release] {
         guard let list = try? JSONSerialization.jsonObject(with: json) as? [[String: Any]] else { return [] }
         return list.compactMap { root in
-            guard root["draft"] as? Bool != true, let tag = root["tag_name"] as? String else { return nil }
+            guard root["draft"] as? Bool != true, let tag = root["tag_name"] as? String,
+                  isXipperTag(tag) else { return nil }
             let assets = root["assets"] as? [[String: Any]] ?? []
             let image = assets.first { ($0["name"] as? String)?.hasSuffix(".dmg") == true }
             let sum = assets.first { ($0["name"] as? String)?.hasSuffix(".dmg.sha256") == true }
@@ -88,6 +89,13 @@ enum Updates {
                            checksumURL: (sum?["browser_download_url"] as? String).flatMap(URL.init(string:)),
                            size: Int64((image?["size"] as? Int) ?? 0))
         }
+    }
+
+    /// Xipper's own releases are tagged "v1.2.3"; other products of the family share the
+    /// repository with their own prefix ("forensic-v1.0.0") and are never offered here.
+    static func isXipperTag(_ tag: String) -> Bool {
+        guard tag.hasPrefix("v"), let first = tag.dropFirst().first else { return false }
+        return first.isASCII && first.isNumber
     }
 
     static func fetchReleases() async throws -> [Release] {

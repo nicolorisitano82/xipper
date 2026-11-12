@@ -50,6 +50,8 @@ final class ArchiveModel {
     private(set) var xizAccess: (groups: [String], hidden: Int)?
     /// XIZ 1.3: the signed history, oldest change first.
     private(set) var history: [XizSegmentSignature] = []
+    /// XIZ 1.10: what the forensic records say (case, evidence, source, hand-overs), read-only.
+    private(set) var forensic: XizForensic.Summary?
     /// XIZ: its versions, oldest first (one per change appended to it).
     private(set) var versions: [XizVersion] = []
     /// XIZ 1.3: opened with the session's credentials (identities, custodians' passwords), so no
@@ -120,6 +122,7 @@ final class ArchiveModel {
             unlockMessage = nil
             if f == .xiz {
                 versions = await Task.detached { (try? Xipper.xizVersions(url, password: pw)) ?? [] }.value
+                forensic = await Task.detached { try? XizForensic.summary(url.path) }.value ?? nil
             }
             if let info = xizInfo, info.hasDirectory {
                 openedWithCredentials = info.encrypted

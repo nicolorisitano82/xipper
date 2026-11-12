@@ -2038,6 +2038,2210 @@
    }
   },
   {
+   "name": "openzl",
+   "version": "0.3.0",
+   "upstream": "https://github.com/facebook/openzl",
+   "ref": "v0.3.0 (32246b4)",
+   "files": {
+    "openzl/LICENSE": {
+     "sha256": "371ed262b7969ba0a52f009588c0215df0e455c86b88356e8753748fad8296a5"
+    },
+    "openzl/custom_parsers/csv/csv_lexer.c": {
+     "sha256": "e41eeb617ee2a4e8c9fa80a2f2ed6e58a0a4b210062cd979feb15011d6c86435"
+    },
+    "openzl/custom_parsers/csv/csv_lexer.h": {
+     "sha256": "ae9b1ffde91e846feb2e3c307bd0aa47c5e59a742440e2c48854261bc5df2758"
+    },
+    "openzl/custom_parsers/csv/csv_parser.c": {
+     "sha256": "78161b557406240ca1152a33c8c44e5fbbd09638f8467838b4a6eef554bf1967"
+    },
+    "openzl/custom_parsers/csv/csv_parser.h": {
+     "sha256": "e506394034a967c567a300dda5459315b2e76b0f4700ef177cec99edc961414a"
+    },
+    "openzl/custom_parsers/csv/csv_profile.cpp": {
+     "sha256": "78e6e1c3692dabe5a66a33292bcbf547d59003859229a4cc763b811825282f17"
+    },
+    "openzl/custom_parsers/csv/csv_profile.h": {
+     "sha256": "1b26b38209667d6bfc60bf28a7bf2874ffb587a66f34e4a799daf1e83e3bfec4"
+    },
+    "openzl/custom_parsers/csv/csv_segmenter.c": {
+     "sha256": "2fe079bf3a548b4f00e78fae136b7b22bc41f66445fc221a1646544988d4729f"
+    },
+    "openzl/custom_parsers/csv/csv_segmenter.h": {
+     "sha256": "4cccc43b5b234b7f979f87337303cfb1125d7fa3448463387c4d21d0f8828682"
+    },
+    "openzl/custom_parsers/shared_components/clustering.cpp": {
+     "sha256": "b53d60b0043b2592d23d39d80f4e3c5c7771dd685a1372b6469272fa24c2fc92"
+    },
+    "openzl/custom_parsers/shared_components/clustering.h": {
+     "sha256": "280bc2f211fa5d6582468d6b7cb02fac15c219fc97584f28c8d1a9f2c3c9a766"
+    },
+    "openzl/custom_parsers/shared_components/numeric_graphs.cpp": {
+     "sha256": "565479a0bd6b089beba411013a736152f04f996e66d9e0f3c2ddf8a9d3e54a04"
+    },
+    "openzl/custom_parsers/shared_components/numeric_graphs.h": {
+     "sha256": "e5a62cdb77ccc5aebc8c5399020f77818dfc3895452a23432d78a34ab63fb2a9"
+    },
+    "openzl/custom_parsers/shared_components/string_graphs.cpp": {
+     "sha256": "5d3018835c4f7b3a1d8a56869110e215e6b4d2a0937f3ef7f332f99c913da375"
+    },
+    "openzl/custom_parsers/shared_components/string_graphs.h": {
+     "sha256": "fcf641b2f381cf2c597833ec7daeaad322eb1b42837aa80eb2929ebdc7e232fe"
+    },
+    "openzl/include/openzl/openzl.h": {
+     "sha256": "72f34b0929d9de89d90e9e83ef12a7d1b6bc71fdb954f14c2d5ca8ca112764a1"
+    },
+    "openzl/include/openzl/zl_buffer.h": {
+     "sha256": "29e414d65d0811c051b0e1bce4d4cc9bb0bcdf7c6aa7a52a6912555fde74b34e"
+    },
+    "openzl/include/openzl/zl_codec_output_cache.h": {
+     "sha256": "adca036904d88c12efc91d7b39ddb94b6ef13b8b53c0612eb9f864aa7b9a1e14"
+    },
+    "openzl/include/openzl/zl_common_types.h": {
+     "sha256": "2a0389644b9f9a9088fd779d5e18df81ff607eb3c9ad96f0365ee14c92d209c4"
+    },
+    "openzl/include/openzl/zl_compress.h": {
+     "sha256": "4a616e619dbd31ec15c5b1958931774ce81c0b18410fd16d3cdd5cb853a57104"
+    },
+    "openzl/include/openzl/zl_compressor.h": {
+     "sha256": "b08dd467cdecee51975a563d1e0313e92e3679fb2f6ae1743247cf4df8556934"
+    },
+    "openzl/include/openzl/zl_compressor_serialization.h": {
+     "sha256": "bcb777e983d5c26c0726bfcda7481231bac4237409148febdd53189ceb5c7ed8"
+    },
+    "openzl/include/openzl/zl_config.h": {
+     "sha256": "da2225f3a4c752b345b0594acae3713d9b7392fda0abd213bef2c448e42c2ba4",
+     "ours": true
+    },
+    "openzl/include/openzl/zl_ctransform.h": {
+     "sha256": "de5c5f7e36ff016ddc027acc1b524fdf2d04ed7e2278ce7a08bd60de2b519aa8"
+    },
+    "openzl/include/openzl/zl_ctransform_legacy.h": {
+     "sha256": "b2e01bb4a7b8208b97ce702ff51c0cdde10284a7ea5ce91b659151a41c70b8f9"
+    },
+    "openzl/include/openzl/zl_data.h": {
+     "sha256": "a2d89b9006527def1ba451b7a4d42a0c1a96b9b13b2bd242dfd29184a13da46c"
+    },
+    "openzl/include/openzl/zl_decompress.h": {
+     "sha256": "73593260aa5d6955952c67bb5ee0047e8aeb53ef1863ae38bb2b876ff5b4dc0b"
+    },
+    "openzl/include/openzl/zl_dict.h": {
+     "sha256": "22b16474a7bc37cfd6423c66db60b57195f8fa9b489c3aa21a41e3568aa0065d"
+    },
+    "openzl/include/openzl/zl_dictloader.h": {
+     "sha256": "3e73d08e7e863db149d0382d382f4c7490e246bacaab2927c3575c4e84f29cef"
+    },
+    "openzl/include/openzl/zl_dtransform.h": {
+     "sha256": "6fa5ed3b45e277b5f86d8f87e9b749f7f63b27e31df80ec5490bf9f5afa40896"
+    },
+    "openzl/include/openzl/zl_dtransform_legacy.h": {
+     "sha256": "efe4be94acb4aa2c287ae1963b6c544a1b3591d3403c6388b86d425e5d014b72"
+    },
+    "openzl/include/openzl/zl_errors.h": {
+     "sha256": "546d8943fa368ae43dd8a3dc5c5a5fa489855bd218dc3a377b9d9867db7f89ba"
+    },
+    "openzl/include/openzl/zl_errors_types.h": {
+     "sha256": "fa3ab9f7511952a22a2950708bcf10927d495a82c421814cfae25a0691f41a4d"
+    },
+    "openzl/include/openzl/zl_graph_api.h": {
+     "sha256": "140b68bc1ad648f3b21b8c39918ba6053359aeba40fd26dec80329bb193e10d8"
+    },
+    "openzl/include/openzl/zl_graphs.h": {
+     "sha256": "b9140d0be1b53028bbed13d83817dc05b2cebe66aed9b0807b99c13da73fcaf1"
+    },
+    "openzl/include/openzl/zl_input.h": {
+     "sha256": "2fcedc432a9925719dac0f689f9a791cf723b919511220b865fe965639b5cc62"
+    },
+    "openzl/include/openzl/zl_introspection.h": {
+     "sha256": "da569453cefbec37ff905e71493477217f9e1603a9d4d3c407d9817af195590c"
+    },
+    "openzl/include/openzl/zl_localParams.h": {
+     "sha256": "f17d5c5dca35f8fea8729361457b5e68cf641fff0dbe0a54c9b4703015fbfc15"
+    },
+    "openzl/include/openzl/zl_macro_helpers.h": {
+     "sha256": "22284a1f90aaf57b1c17c5c6ffa859545c458523322ea7a939f1b806d0313e73"
+    },
+    "openzl/include/openzl/zl_materializer.h": {
+     "sha256": "c1f2e3370c67bb8ceb60579edc1b0a20481111bd383bfb3a54ee0c13950314b5"
+    },
+    "openzl/include/openzl/zl_nodes.h": {
+     "sha256": "a661aaa6f93ee92409e45254e1e170b8fd9df764b9d1dbfeef08938abca0b1b2"
+    },
+    "openzl/include/openzl/zl_opaque_types.h": {
+     "sha256": "be03f05513168c9d5ba0af4608716161984ca37bd6af379262fceb3d21cb7c3e"
+    },
+    "openzl/include/openzl/zl_output.h": {
+     "sha256": "d8272a98774e4752e7879fc96854814ddae9130b1cdd19ad040a0f1faa29fbb5"
+    },
+    "openzl/include/openzl/zl_portability.h": {
+     "sha256": "95883c8e80ce77a1efeaf97233b3c84ea4d7eb4dc472b8f825bb7247859859e0"
+    },
+    "openzl/include/openzl/zl_public_nodes.h": {
+     "sha256": "5e9ea57efa1d06ccae5ffa763955c4814ea89f77b5da148d7104a8f7179fdb1d"
+    },
+    "openzl/include/openzl/zl_reflection.h": {
+     "sha256": "0085fcb00636b0f0b39d42a00bc3b0b4d094d252586d7230f3623649497023a4"
+    },
+    "openzl/include/openzl/zl_segmenter.h": {
+     "sha256": "ac76c2f24cc94ee3dfce56e9d68e6bbfc50857b2c3e9c1bd31b22d3bf9efc744"
+    },
+    "openzl/include/openzl/zl_selector.h": {
+     "sha256": "a91da3dfe0a9e64ab8423e648f699ae03b125520c11c28a16eac1d9905eea0a1"
+    },
+    "openzl/include/openzl/zl_selector_declare_helper.h": {
+     "sha256": "09d8534aec9af4bd0acbcf7ce5fe98eb711f589d64f82e612614e30388445432"
+    },
+    "openzl/include/openzl/zl_selector_declare_helper_macro_utils.h": {
+     "sha256": "a157649b48de708df649b9b5706a365dc0dc6b51bb65796ed02bea5a7cdba1c0"
+    },
+    "openzl/include/openzl/zl_unique_id.h": {
+     "sha256": "54547e60cea048efb5a5a0f64bd3fc58417d339661844ce83e9f7b99a82a486c"
+    },
+    "openzl/include/openzl/zl_version.h": {
+     "sha256": "af951f04fcaddbf012797e5e368dd76366450db58ccde4bb90f6e51dd958b86e"
+    },
+    "openzl/include/openzl/codecs/zl_ace.h": {
+     "sha256": "c355fd48051dfa76acf004fadd2684343c2349ffe8836cc58143506190def047"
+    },
+    "openzl/include/openzl/codecs/zl_bitpack.h": {
+     "sha256": "d93bae7a53c56c91185ad52774fe0f413e5851f12f708fbf6c5576ede4ac568a"
+    },
+    "openzl/include/openzl/codecs/zl_bitsplit.h": {
+     "sha256": "7a45d83f690a1167ab2b73107d37f1b5f3d9b7d64ee1275669cbefbe309ad3c1"
+    },
+    "openzl/include/openzl/codecs/zl_bitunpack.h": {
+     "sha256": "cbb48706711a4e6a5730c492ae3cf7dae4af3e98663aa50c6d04745bcbe6f08d"
+    },
+    "openzl/include/openzl/codecs/zl_brute_force_selector.h": {
+     "sha256": "2fac8d00ee2ddb53adb0f85576b80ec421f8c6fe46e5a86cb3007144dfe05091"
+    },
+    "openzl/include/openzl/codecs/zl_clustering.h": {
+     "sha256": "9a5859f3e6677045de532e2190077f7ef819bbd99ad51d66e70f51d51e4cb5ae"
+    },
+    "openzl/include/openzl/codecs/zl_concat.h": {
+     "sha256": "0c99dd1bb97468d6c7551ba5b59d39e12db10ade660343a8af07c3c26e5076e8"
+    },
+    "openzl/include/openzl/codecs/zl_constant.h": {
+     "sha256": "9ff2baa073d002e27e28e7da24c676f281c997977d104df40358097c291b408a"
+    },
+    "openzl/include/openzl/codecs/zl_conversion.h": {
+     "sha256": "d14064f7df64084cf624786c95b7737443da7506ce7d83ddf34171053f825d19"
+    },
+    "openzl/include/openzl/codecs/zl_dedup.h": {
+     "sha256": "1488a39d192853156082543218c3d165ed47953bc44b6799ac19ceba119a11db"
+    },
+    "openzl/include/openzl/codecs/zl_delta.h": {
+     "sha256": "8813f971001a0a6d46799a88a24a711bdf5bb1440dba2f5c5d484da711647869"
+    },
+    "openzl/include/openzl/codecs/zl_dispatch.h": {
+     "sha256": "29e2dcf1bbd62c8fe9273afe15eb9ec4422c51166f804fff2ba051ee260770b6"
+    },
+    "openzl/include/openzl/codecs/zl_divide_by.h": {
+     "sha256": "f72303c7726afa53f21526f1a230ffe41b26ae4a06ede706ba1524c195f282ae"
+    },
+    "openzl/include/openzl/codecs/zl_entropy.h": {
+     "sha256": "c6eb96c256a862231a7a1633574b0f12c9e58d1c8def17188b801a97d10093f4"
+    },
+    "openzl/include/openzl/codecs/zl_field_lz.h": {
+     "sha256": "6e5e421e186b9c36d7c3d54edb3d38173652ff0e1f2aa0d3ea9d2d43dd69cb5a"
+    },
+    "openzl/include/openzl/codecs/zl_flatpack.h": {
+     "sha256": "0a2eada5e8fcb86bbaade283003063a97b0095caf4885c44e3e5c0ce8152c004"
+    },
+    "openzl/include/openzl/codecs/zl_float_deconstruct.h": {
+     "sha256": "dd9e947afb117f4bb763a11ea7f55a248ab4fea88d0e9cc0604f17a9c1d9d01f"
+    },
+    "openzl/include/openzl/codecs/zl_generic.h": {
+     "sha256": "bc157cd19688f5409e0970d709d5a69fae3deb3c044f40ddc59d65fe4c33d619"
+    },
+    "openzl/include/openzl/codecs/zl_illegal.h": {
+     "sha256": "67f173e626795530047f6bab2eea1abb04343eab19197ce7ef7609d28a0a55fb"
+    },
+    "openzl/include/openzl/codecs/zl_interleave.h": {
+     "sha256": "b4f108006d5403c30fc316977a9b53edd7b552043ee231d5ce39d8da170e7d86"
+    },
+    "openzl/include/openzl/codecs/zl_lz.h": {
+     "sha256": "b0fc133fc9e752960685e56bf3a75dfc452468ff7b88f1d369d267fd75efb0f4"
+    },
+    "openzl/include/openzl/codecs/zl_lz4.h": {
+     "sha256": "7a0818171170d084029b5097504c113b5a980681accf64aa6e9bfc41c3d144aa"
+    },
+    "openzl/include/openzl/codecs/zl_merge_sorted.h": {
+     "sha256": "b6b5d8f708618a9d5aac5ac2a318d4f206b2fabd550a388a2a4a0ba7ebd5ef7a"
+    },
+    "openzl/include/openzl/codecs/zl_mlselector.h": {
+     "sha256": "40b1513484b32962c39f7bf85f7b53c82721e52a64c277af49a488dcb2e0d140"
+    },
+    "openzl/include/openzl/codecs/zl_mux_lengths.h": {
+     "sha256": "ef986cdc5598da4abb49b4c0d320f81ff3bccd51d8224e0221590438e492b1f6"
+    },
+    "openzl/include/openzl/codecs/zl_parse_int.h": {
+     "sha256": "b99dec9f175bed35cf5b06b55e74ca46c37448a613eeba389c949c896d9adbe5"
+    },
+    "openzl/include/openzl/codecs/zl_partition.h": {
+     "sha256": "262f7acc10b1db82308122ef8c2f8b42a5febcadaf3a8584fd988181d5bf9f1f"
+    },
+    "openzl/include/openzl/codecs/zl_prefix.h": {
+     "sha256": "5274618cf8a9c279bad3394fbd09bc5a18e8d56f73e43e3bf68b1d1ef8bbb7ba"
+    },
+    "openzl/include/openzl/codecs/zl_quantize.h": {
+     "sha256": "41e69e30998118e3f878b5d75ea0f9667aee5668dd68ac5d3143d5b779e12232"
+    },
+    "openzl/include/openzl/codecs/zl_range_pack.h": {
+     "sha256": "fd4291f9bd98fbcbe023e7a75d99431c038fe0e4ec99904fac821a6be134ca5d"
+    },
+    "openzl/include/openzl/codecs/zl_sddl.h": {
+     "sha256": "37eeb2884f84d3284d66b5b691380f072fe42c12a1f9cfced8b718834dca032f"
+    },
+    "openzl/include/openzl/codecs/zl_sddl2.h": {
+     "sha256": "d164f7c5ba765a602cb07eb3565abc6aede52c14c15d68ee0f0108354bf06ff0"
+    },
+    "openzl/include/openzl/codecs/zl_segmenters.h": {
+     "sha256": "e6c4d1d75ed47b371207f60c1ed7379fa72544f14cf52ddb4329cac6d6f9dd32"
+    },
+    "openzl/include/openzl/codecs/zl_sentinel.h": {
+     "sha256": "1ff7b79d679fc551d016c326b8d73670a5db24ff40ca73507ba712d5ec12d51c"
+    },
+    "openzl/include/openzl/codecs/zl_sparse_num.h": {
+     "sha256": "2f8f7115fa00164914efa52f3bf1c678464b2ea53ad9f8863155ccaf51e94362"
+    },
+    "openzl/include/openzl/codecs/zl_split.h": {
+     "sha256": "ac799d64ac5be688a804ca4e6bac3f799bd1f37392c65aaf715ca61a964e1f9a"
+    },
+    "openzl/include/openzl/codecs/zl_split_by_struct.h": {
+     "sha256": "e51e5d436f91db6b3b228fbc51eae7a1d8b04bfe1d0308217469754f4e5cfaf5"
+    },
+    "openzl/include/openzl/codecs/zl_store.h": {
+     "sha256": "4133d7fb9943fb8151fb9efa2191a54bc4d86e473f0fbf042cc561395a7e82e9"
+    },
+    "openzl/include/openzl/codecs/zl_tokenize.h": {
+     "sha256": "c0ca5df7ac6af2eeadef8c463153f0dd2032cb6fc1a56c9338117ab3c0fddb7b"
+    },
+    "openzl/include/openzl/codecs/zl_transformer.h": {
+     "sha256": "e71facf812c23a7bf85bc005341432b31ebd5b73823e08aded7859957be8f8e9"
+    },
+    "openzl/include/openzl/codecs/zl_transpose.h": {
+     "sha256": "23b496e5972e8d2123bae73ba213a6195a2a6bd5d8b75cd964e696e3c86991b0"
+    },
+    "openzl/include/openzl/codecs/zl_zigzag.h": {
+     "sha256": "7198a4b30b4522e9eb6ba98c7ff3876b152e6ef13682f1e614880cb87d169e30"
+    },
+    "openzl/include/openzl/codecs/zl_zstd.h": {
+     "sha256": "64f1feeb3a2ec684afe399ea32e735f2209aa9067785d41a4d3a08e7ea4ed482"
+    },
+    "openzl/include/openzl/detail/zl_error_context.h": {
+     "sha256": "89fbae5c28819a1fd4a72f3c54a04245b0b7be63107aff5dbf339d3111502904"
+    },
+    "openzl/include/openzl/detail/zl_errors_detail.h": {
+     "sha256": "3fa722fa1de16eab211680840529e8e862d391f71c07b0157c28090b58cbaf71"
+    },
+    "openzl/shim/xs_openzl.cpp": {
+     "sha256": "63bea62135767f77591d74f2c2b8d883637ab4202735fdcc499e44b19c24c136",
+     "ours": true
+    },
+    "openzl/shim/include/xs_openzl.h": {
+     "sha256": "ffcf799d45429ca065650ba3111b3e89e4da1a76e518a5abefe0dd8f62f2a851",
+     "ours": true
+    },
+    "openzl/src/openzl/codecs/decoder_registry.c": {
+     "sha256": "840f29fbc4ec47bfc17112c2d50e42e43f03b18c365d20d086a48d777eca7397"
+    },
+    "openzl/src/openzl/codecs/decoder_registry.h": {
+     "sha256": "802f8dc04d0bddcb44d12df6570743a67845e184cda742536566f38d733fad16"
+    },
+    "openzl/src/openzl/codecs/encoder_registry.c": {
+     "sha256": "1a3daed43cdc068bfad18be7f908b9ac61130908499bb03ab9d3188d6da872a9"
+    },
+    "openzl/src/openzl/codecs/encoder_registry.h": {
+     "sha256": "8a8da22deb888df53cc6d3133f8fb78499a29d130cc409e3250fba3162180b3f"
+    },
+    "openzl/src/openzl/codecs/bitSplit/common_bitSplit_kernel.c": {
+     "sha256": "ec29ec8c30785dd92c00a82e5edcc094256bebc49d75b95430a86b32dcd75b59"
+    },
+    "openzl/src/openzl/codecs/bitSplit/common_bitSplit_kernel.h": {
+     "sha256": "15dd72cde63439127a8493c356ecfacc77b1d36ad4a282d4a9574c647171b56f"
+    },
+    "openzl/src/openzl/codecs/bitSplit/decode_bitSplit_binding.c": {
+     "sha256": "085179fd2e00eac7af924485e038b4f57cefa3f13616f4aa9b059b80811ab218"
+    },
+    "openzl/src/openzl/codecs/bitSplit/decode_bitSplit_binding.h": {
+     "sha256": "186b19b0c5fd34d9ecf9ae618b7bb8aa865a10f1747cdbcc11ea4ddd353bec52"
+    },
+    "openzl/src/openzl/codecs/bitSplit/decode_bitSplit_kernel.c": {
+     "sha256": "35d69707240718533548f10bce79af82505237bc5f82fb2751f77d89324ef7c8"
+    },
+    "openzl/src/openzl/codecs/bitSplit/decode_bitSplit_kernel.h": {
+     "sha256": "225345a6fe6b2360a39f6bf09ad3469d4facd099a5ec498a54a9c0e433667708"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitSplit_binding.c": {
+     "sha256": "f6536040c3ca22eba0ca834f45465c06b4111e01e7695a860b25d05b33f1ebd0"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitSplit_binding.h": {
+     "sha256": "9d8a64e5efa1b2c9f8ae9c861888482cce9eff3002e04384bbdd30576872b8e3"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitSplit_kernel.c": {
+     "sha256": "9a254bb9977ae86b13fcbc709cafd134481eb0eee2b11949e04bfc94baf06d8d"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitSplit_kernel.h": {
+     "sha256": "7f0dfd79e86cc1faedb3f4c4badc740450144129d452af04d4e4d9954b84ae2d"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_bf16_binding.c": {
+     "sha256": "323b512085a6c4e5144140e80ce54dc5f98b17094441a637e13be99cde04f588"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_bf16_binding.h": {
+     "sha256": "3badd91c548564717d962b326c63e5287d28f4b4a2b65b6a730f163f0dcf23b5"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_fp_binding.c": {
+     "sha256": "d876434766f64a29ace356c53406e360cda43303b935f9487722f39973aa4ce8"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_fp_binding.h": {
+     "sha256": "d1fd871a6877063595f02bc1aa6eb04843e2bc1fea6d6bf133eaf28cae0e6296"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_top8_binding.c": {
+     "sha256": "18dfb927d87c5aa63dace4ad07bc400374fa10ca5e53ba92be2fcb94761559d8"
+    },
+    "openzl/src/openzl/codecs/bitSplit/encode_bitsplit_top8_binding.h": {
+     "sha256": "4ed4f156ceaf2f2e26a03dde74b72222e8d265f9c938c59f58d4c54abd7cb587"
+    },
+    "openzl/src/openzl/codecs/bitSplit/graph_bitSplit.h": {
+     "sha256": "b191c55175f4d83a10a59454ad4455ee54c8594a29a6fba2b7af9f9a173e4715"
+    },
+    "openzl/src/openzl/codecs/bitpack/common_bitpack_kernel.c": {
+     "sha256": "9dd442847e65c39cbea6acf11e4722b632bf77285f0ad0239a68e95ef173b4d2"
+    },
+    "openzl/src/openzl/codecs/bitpack/common_bitpack_kernel.h": {
+     "sha256": "66fb01319574158c7e778c17009a0254be96768adb7706cfd1fe220c3e753d3a"
+    },
+    "openzl/src/openzl/codecs/bitpack/decode_bitpack_binding.c": {
+     "sha256": "54f69614306b0535d550e3d5224165cfd59e890b95dd908b83bb09a591b4d298"
+    },
+    "openzl/src/openzl/codecs/bitpack/decode_bitpack_binding.h": {
+     "sha256": "dadcf0fe9417b3f30dd641c33a555ba204b3bd2f8159013a36aea86b672af56f"
+    },
+    "openzl/src/openzl/codecs/bitpack/encode_bitpack_binding.c": {
+     "sha256": "73ec41614dabff703c42db37b531a6c2a8f1feba00e4c84f288308461e996b1b"
+    },
+    "openzl/src/openzl/codecs/bitpack/encode_bitpack_binding.h": {
+     "sha256": "09896f9fa171f4a0e73a06f888b294730fff3359619630bbf927f11cf4431f1d"
+    },
+    "openzl/src/openzl/codecs/bitpack/graph_bitpack.h": {
+     "sha256": "719ba97f20fc80f8bd2cc76a0c6d39bc22568d5d93989243cae1a0675dd9f21f"
+    },
+    "openzl/src/openzl/codecs/bitunpack/decode_bitunpack_binding.c": {
+     "sha256": "a5092e9fa06e1faa4afdd992825a5fd5362a807771cde815860f3d838f6c2f8f"
+    },
+    "openzl/src/openzl/codecs/bitunpack/decode_bitunpack_binding.h": {
+     "sha256": "7b7f9c546f681b39a4cdb6fea88c80a48fe06e39d723048abff44beb56fbf8ea"
+    },
+    "openzl/src/openzl/codecs/bitunpack/encode_bitunpack_binding.c": {
+     "sha256": "3e43ea6e60bc23a37613b96a6896f183d1015afee9abb26a28b184bd8dd9534f"
+    },
+    "openzl/src/openzl/codecs/bitunpack/encode_bitunpack_binding.h": {
+     "sha256": "5ffc3a1a288f9c5c76b1c02de6857995fe1abda7959de704803b6f7968b21297"
+    },
+    "openzl/src/openzl/codecs/bitunpack/graph_bitunpack.h": {
+     "sha256": "ff5383c7fcbf187da872e26fab1ec1792670443936b86dd6233e36c9160b016e"
+    },
+    "openzl/src/openzl/codecs/common/copy.h": {
+     "sha256": "c471937f44b9764a0652a933d7541683ca7b037877a2f8c848869a367dee7142"
+    },
+    "openzl/src/openzl/codecs/common/count.h": {
+     "sha256": "dcf9327b99f7d02f526c6025175b5306b8af34880d975dca49f6478d1e3a7238"
+    },
+    "openzl/src/openzl/codecs/common/fast_table.c": {
+     "sha256": "7b64df255e432aeef1e4db2b7c1845ba1d65a62fd0a0031a1107ce272a0068b5"
+    },
+    "openzl/src/openzl/codecs/common/fast_table.h": {
+     "sha256": "17ffc4055cc2624ed32d2d93cf2fc681f4117ce8a21b9951fd8dad72921f1993"
+    },
+    "openzl/src/openzl/codecs/common/fast_table16.c": {
+     "sha256": "e62c14fadd5a0626700bcb1c57f78b11a0072667c346e87f72abe8fa53b95735"
+    },
+    "openzl/src/openzl/codecs/common/fast_table16.h": {
+     "sha256": "5846333f58a9e4e9e21983781e95240ead6b78125f6f3ecce2dc7120fdf3aeff"
+    },
+    "openzl/src/openzl/codecs/common/fast_tag_table.c": {
+     "sha256": "a0e30052172db13ecc8fecbbb8216b4c7412cbc19c8633abb6f292f87f1114ac"
+    },
+    "openzl/src/openzl/codecs/common/fast_tag_table.h": {
+     "sha256": "0238ff47b6d7fffbb6bb3dea3fb06d31abb6e3915013be6a3ab0134cfa6aa5a3"
+    },
+    "openzl/src/openzl/codecs/common/graph_constant.h": {
+     "sha256": "441c72450932f8e73fb2d28ce6e5d250ab77e2539b5cbbc7ef6bba92094d9f98"
+    },
+    "openzl/src/openzl/codecs/common/graph_pipe.h": {
+     "sha256": "b08bfd8c2cad3493bea18591727a134afe3f81cf9c319062af3e3b55d0da7771"
+    },
+    "openzl/src/openzl/codecs/common/graph_prefix.h": {
+     "sha256": "00737b3141735ed6a7bdc4ad34e25f41fb20cc9222cba3f2d58f30d97b42cfb9"
+    },
+    "openzl/src/openzl/codecs/common/graph_tokenize.h": {
+     "sha256": "2aa173ef7a715b5c4c1ba394df9bddee3e22b7b258629db880db348c616c8c80"
+    },
+    "openzl/src/openzl/codecs/common/graph_vo.h": {
+     "sha256": "db0223d0014c1536302b1a91137a3e2c882f6438fc031279df86e3d087dbd968"
+    },
+    "openzl/src/openzl/codecs/common/row_table.h": {
+     "sha256": "32e9f0f98a2ae9258af6b276c8647cc7dca6cdd013ac5b8a6d8c99d3f3590e07"
+    },
+    "openzl/src/openzl/codecs/common/window.c": {
+     "sha256": "ecf20c2a9f0964dbb9995278c1a00fb44e2a659c03b3bdad03c6b49225cc62e7"
+    },
+    "openzl/src/openzl/codecs/common/window.h": {
+     "sha256": "25012068cb97c55aac101b7d50bc6ecbe0f68a2298e1bf77d4a8c90f9a82b71a"
+    },
+    "openzl/src/openzl/codecs/common/bitstream/bf_bitstream.h": {
+     "sha256": "70960b307383e3ffd950ccdbb013f1f79e02166de011fbb670bae34a9803c912"
+    },
+    "openzl/src/openzl/codecs/common/bitstream/ff_bitstream.h": {
+     "sha256": "84bba4209c817141ce952d3f1c780b2b0c98abc901fd341babe2d74e3e681175"
+    },
+    "openzl/src/openzl/codecs/concat/decode_concat_binding.c": {
+     "sha256": "10710a913d33b7c2ed0c286657e03f68e5eef12c2fb192fe406af551d4c588fa"
+    },
+    "openzl/src/openzl/codecs/concat/decode_concat_binding.h": {
+     "sha256": "3eeb5bad1a28a6d38ac853c7be6d71201782d89e842c4cfb948f0b32cb5e0262"
+    },
+    "openzl/src/openzl/codecs/concat/encode_concat_binding.c": {
+     "sha256": "ca310bbddde9cf6847bb26f97ee1b24af8dff93236550e6da1aeffb211728a1c"
+    },
+    "openzl/src/openzl/codecs/concat/encode_concat_binding.h": {
+     "sha256": "d93009df08b68153bde30022883d98518419469852a54e0b1824fde76c7f3377"
+    },
+    "openzl/src/openzl/codecs/concat/graph_concat.h": {
+     "sha256": "85b9986247e8fa1c8c671bfb02888b40b5b0c7ba2372dce5021f596b9c9c54a7"
+    },
+    "openzl/src/openzl/codecs/constant/decode_constant_binding.c": {
+     "sha256": "933574db9986bd3493e6579d42b641b865970ce8433095539ff1442ddac00b5d"
+    },
+    "openzl/src/openzl/codecs/constant/decode_constant_binding.h": {
+     "sha256": "6b2712ce0eebda4c6743df0c1ef6d263989a3add9c223b07707e333fe815bc51"
+    },
+    "openzl/src/openzl/codecs/constant/decode_constant_kernel.c": {
+     "sha256": "d381774fe4b85711f9f31a7f59130bc8f0b42822767c28832d31c62777d6e476"
+    },
+    "openzl/src/openzl/codecs/constant/decode_constant_kernel.h": {
+     "sha256": "3ac7f15b65ac14d5e68af5b318202f58964f17f04a0c07974a00321d65e8fa51"
+    },
+    "openzl/src/openzl/codecs/constant/encode_constant_binding.c": {
+     "sha256": "0aac0a9c241f82204829690bddf5c1443eaea71103f7baee4be7e62f3f3b2e12"
+    },
+    "openzl/src/openzl/codecs/constant/encode_constant_binding.h": {
+     "sha256": "384ebf47120ffa9bafb935da75e6783855769bd4cacae6ac5110d38d54b3bdd1"
+    },
+    "openzl/src/openzl/codecs/constant/encode_constant_kernel.c": {
+     "sha256": "9e870a1e510b80d219d90d1466f02496ef57f288d3b3a588b64d479768a9bb80"
+    },
+    "openzl/src/openzl/codecs/constant/encode_constant_kernel.h": {
+     "sha256": "aeb9beb7389751ee3adf84238f4078015a3b77c08c19ffd488fe9fde9a59eba7"
+    },
+    "openzl/src/openzl/codecs/conversion/common_endianness_kernel.h": {
+     "sha256": "286597d813f99c767fa94ebc9143abc23004e3370f261920bd92ce10b1f9af3e"
+    },
+    "openzl/src/openzl/codecs/conversion/decode_conversion_binding.c": {
+     "sha256": "35b95d53f5a83c6d00f6ac5876b3b5bdd4890cbbe0b5585599837a7627472c6c"
+    },
+    "openzl/src/openzl/codecs/conversion/decode_conversion_binding.h": {
+     "sha256": "50257ed71b63efd3dafc1f955d920390d20ba8bc71d9f620d47fdf7329c65bb2"
+    },
+    "openzl/src/openzl/codecs/conversion/encode_conversion_binding.c": {
+     "sha256": "14e20005f05a661ee6649c4bdb46bbdb3f00f5f0bf82541646559da9716ff90e"
+    },
+    "openzl/src/openzl/codecs/conversion/encode_conversion_binding.h": {
+     "sha256": "d3f5a1914a9d49c86a588242143ae7bfb4cd21da91a423946202f25a065c6383"
+    },
+    "openzl/src/openzl/codecs/conversion/encode_setStringSizes_binding.c": {
+     "sha256": "ed2845a3be486f0185c6bb060b0ea82a46f2652e9c77f75b19b5c8e9bd11ae63"
+    },
+    "openzl/src/openzl/codecs/conversion/graph_conversion.c": {
+     "sha256": "5d99ddad8c12dfcc3c47a12449ee68bc6f3499efc0a07fce17c327b3161882eb"
+    },
+    "openzl/src/openzl/codecs/conversion/graph_conversion.h": {
+     "sha256": "2fd31beae2e4cd861de2623f9286cb8eeade8d1af5685bdffe27cf9e73664662"
+    },
+    "openzl/src/openzl/codecs/dedup/decode_dedup_binding.c": {
+     "sha256": "792044007a2f0b8507ab4efceb38d04e8afa609dc5974fb4c0781188253fc070"
+    },
+    "openzl/src/openzl/codecs/dedup/decode_dedup_binding.h": {
+     "sha256": "ba7766fa36b82fb36b626862283fb4d580d264102d69b4d696e1d3289d7ae165"
+    },
+    "openzl/src/openzl/codecs/dedup/encode_dedup_binding.c": {
+     "sha256": "a923d02dfaf6861e0396012c9a4c3f7ccf20286bd5e6ad927e441fe0c8036a2f"
+    },
+    "openzl/src/openzl/codecs/dedup/encode_dedup_binding.h": {
+     "sha256": "59183033c27705a7e2c928d4164be211b8c979269215e448093c77dc20359e74"
+    },
+    "openzl/src/openzl/codecs/dedup/graph_dedup.h": {
+     "sha256": "5289344b15a563146196fa1f211ea86e016328847a15bae5835c7829706bc83b"
+    },
+    "openzl/src/openzl/codecs/delta/decode_delta_binding.c": {
+     "sha256": "4a5b6b600cad2d2be9d28aa9a9df823b6a0a97cf68f6e0450f7e86b05542e1fe"
+    },
+    "openzl/src/openzl/codecs/delta/decode_delta_binding.h": {
+     "sha256": "46654a307daa259ae3830ba85ee22c996cfe1f0d923dc11d5a711bc3732f7b8a"
+    },
+    "openzl/src/openzl/codecs/delta/decode_delta_kernel.c": {
+     "sha256": "9f0b22e8f44ea2a089919f34ae54ace1f6e84bbf53d497a322fbede70c47c69c"
+    },
+    "openzl/src/openzl/codecs/delta/decode_delta_kernel.h": {
+     "sha256": "d2dac2f27c75eab9a487e9dcbdc0f18ca108eb049e1ef26697abc619e6bd21bf"
+    },
+    "openzl/src/openzl/codecs/delta/encode_delta_binding.c": {
+     "sha256": "7545534c77a57c67a5a175c6207712979736b187c00d517279e7034cf9ccc9e5"
+    },
+    "openzl/src/openzl/codecs/delta/encode_delta_binding.h": {
+     "sha256": "a738b8df437082f0ca6deef60290fdc1e29985e70089660b1de341b4227ef0b6"
+    },
+    "openzl/src/openzl/codecs/delta/encode_delta_kernel.c": {
+     "sha256": "3f309c00b2c7ec651943c09194e082e5b2e88dbd8e1456b90571274360e3ddef"
+    },
+    "openzl/src/openzl/codecs/delta/encode_delta_kernel.h": {
+     "sha256": "df5da029582f46edaf88e49a1a181defc45274e17b227807470c52a7462d3336"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/decode_dispatchN_byTag_binding.c": {
+     "sha256": "2239e4e939f4fe67510287e6a33a99c4f000ac3806df348643d71ee96904a5cd"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/decode_dispatchN_byTag_binding.h": {
+     "sha256": "c53b1560da61792e5e270d53aea3edc18f8b00a08222e7db6508e77e44db36fc"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/decode_dispatchN_byTag_kernel.c": {
+     "sha256": "83c6c68458f99f56d3e9386a660f454ddae46206dac340b0e170424de6fe86de"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/decode_dispatchN_byTag_kernel.h": {
+     "sha256": "0bfe78de31adce6c28cf4f1a1cd3ab1a22202840af7661163c93478821ae247b"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/encode_dispatchN_byTag_binding.c": {
+     "sha256": "2cab8ed4277bfbd0ae561e32da8c52c22eceb718c7f898f647605b7ae122c028"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/encode_dispatchN_byTag_binding.h": {
+     "sha256": "0cf6beca5f47aebedcfabd9fdc046060f5d47c6cb827bd543ec2ec227f0a391e"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/encode_dispatchN_byTag_kernel.c": {
+     "sha256": "67a7200a954f57f169569a835fabca50804594f228ebaab1a0155c98ff663731"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/encode_dispatchN_byTag_kernel.h": {
+     "sha256": "d4590d87dc30af338f51ae6689c2b0d3f5bf513ac8b97b142a72a4c4f5d2e464"
+    },
+    "openzl/src/openzl/codecs/dispatchN_byTag/graph_dispatchN_byTag.h": {
+     "sha256": "20d1ac27a09f1500a6b17f32cc506124b75283d9cf9b4d226c5aced8d20f2058"
+    },
+    "openzl/src/openzl/codecs/dispatch_by_tag/decode_dispatch_by_tag_kernel.c": {
+     "sha256": "3f84299164cb5e17fc537670e386addc6477ff30369990a0d8f6be34dc3c93f0"
+    },
+    "openzl/src/openzl/codecs/dispatch_by_tag/decode_dispatch_by_tag_kernel.h": {
+     "sha256": "8f4bd5fd73e7745818ee2472fc8f1bf5b9e01e4d35631ce54216e30558cc56e6"
+    },
+    "openzl/src/openzl/codecs/dispatch_by_tag/encode_dispatch_by_tag_kernel.c": {
+     "sha256": "3585143edff9b4c06ab679a4b42dcc1ae174c946ba9a66bc50b5d082045674c2"
+    },
+    "openzl/src/openzl/codecs/dispatch_by_tag/encode_dispatch_by_tag_kernel.h": {
+     "sha256": "efcf477246cfc7a63c08ac04d8552606b7dcc5147cd4d7094a29e2797e5e0304"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/common_dispatch_string.h": {
+     "sha256": "a643185a9cd9fd1dcdcae7ee120171ddaad47c20bca17e2721fda71dd0e9e0d9"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/decode_dispatch_string_binding.c": {
+     "sha256": "a887d5e9c4554b03c06870e034d7b0e3e2698226ebd9323c7a1ce193f0ecdabe"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/decode_dispatch_string_binding.h": {
+     "sha256": "bde9c298272066244a65a0131a66a10c228501522f09517642185610015522c7"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/decode_dispatch_string_kernel.c": {
+     "sha256": "7c47232b4cd99dc9ad15489883755a7940b6d7e2e3ecd5c88b98f81ca977ba93"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/decode_dispatch_string_kernel.h": {
+     "sha256": "12f717a076db04cae76b3304a5fd8a4d38c42b1fa5676334541089754942763d"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/encode_dispatch_string_binding.c": {
+     "sha256": "e1122eefffb18d085adf4cc944bb33e00fb91d11c5feae523ed6ce1cf34fa305"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/encode_dispatch_string_binding.h": {
+     "sha256": "81b3cc2571882bfa6e68f444f7652e4046e717384a6b40c9700d3cd59b41b877"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/encode_dispatch_string_kernel.c": {
+     "sha256": "9e6188fcd2df957a126d1eac03eb370ebfda9c96a8396e9f7479e2642a017aba"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/encode_dispatch_string_kernel.h": {
+     "sha256": "36ddd52ca9ffd056b849bd4ed1c33a11f0829863377f452f12d3a8236549ca17"
+    },
+    "openzl/src/openzl/codecs/dispatch_string/graph_dispatch_string.h": {
+     "sha256": "c765026303479dffe1ed379b4e64c8bd1aa9fa117c9294791950a5b8097ec1e6"
+    },
+    "openzl/src/openzl/codecs/divide_by/common_gcd.h": {
+     "sha256": "2d2687ad157b5ae52385f3e4b8f40675cc12181f55a45438ce565eb5ea494978"
+    },
+    "openzl/src/openzl/codecs/divide_by/decode_divide_by_binding.c": {
+     "sha256": "c811b7e256a5210b53dde6c9a85f9d2c3f672f62c20810a1c4cc8a9d00b5f752"
+    },
+    "openzl/src/openzl/codecs/divide_by/decode_divide_by_binding.h": {
+     "sha256": "62aef004369eb3387300e03a822d0ecdad2e79c0a6b4aeabdbe2d58bb8e7a972"
+    },
+    "openzl/src/openzl/codecs/divide_by/decode_divide_by_kernel.c": {
+     "sha256": "1cfe65575a942e1bb2a2c6bfa9da5861575c0dd4ef1193866ad01c08b18013d4"
+    },
+    "openzl/src/openzl/codecs/divide_by/decode_divide_by_kernel.h": {
+     "sha256": "57a5f16fc3c762d2df549dba16ed94eacd938bcfa449815d59147c10a730b9bd"
+    },
+    "openzl/src/openzl/codecs/divide_by/encode_divide_by_binding.c": {
+     "sha256": "d2ed29e7841a648c9fc35d7713788d67156856b58516f8f63eb78ea3764c7792"
+    },
+    "openzl/src/openzl/codecs/divide_by/encode_divide_by_binding.h": {
+     "sha256": "18edc3eac0f6cb460be170d2b357733c6d6db13795dff45a56f600819ae40123"
+    },
+    "openzl/src/openzl/codecs/divide_by/encode_divide_by_kernel.c": {
+     "sha256": "ea67b7828cf84f16b03e542f3bf8c34ba75cef7baf62f3353dc1a0770e72f0cc"
+    },
+    "openzl/src/openzl/codecs/divide_by/encode_divide_by_kernel.h": {
+     "sha256": "35ddd3f571f4c7a94b2fa133a4bcff82e28e02d0e72986e2f266cf031b1ee771"
+    },
+    "openzl/src/openzl/codecs/entropy/common_huffman_kernel.h": {
+     "sha256": "a2e5868866682702710ee2b1364c41abf3addde20b9cd7953fe1a1c2dc4e7bf5"
+    },
+    "openzl/src/openzl/codecs/entropy/decode_entropy_binding.c": {
+     "sha256": "1e222ab5e7b1e1ec000fa98d5a9954fa6cf7967e86874cf9853ab86de432b301"
+    },
+    "openzl/src/openzl/codecs/entropy/decode_entropy_binding.h": {
+     "sha256": "78f22ea229e5f76a7178c3f7bed9051460878ce7633a73c9112024a46ac04671"
+    },
+    "openzl/src/openzl/codecs/entropy/decode_huffman_kernel.c": {
+     "sha256": "1c64da3306c6aae95ed91a964fda8369428a5a22d37b0864b5e3326ff873a837"
+    },
+    "openzl/src/openzl/codecs/entropy/decode_huffman_kernel.h": {
+     "sha256": "3d944da1413cf699f133117e7776598ae7213e0076267b6c7035b475b1fdadc9"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_entropy_binding.c": {
+     "sha256": "b9658d1bd3f43f3a3b17c8447dad2dfc418ac3c9d84b36dd7619e71820ab0eab"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_entropy_binding.h": {
+     "sha256": "ed8dd62d220a9cca9453541ca9a6109db322864f3c69675a58fb4ac975bceee6"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_entropy_selector.c": {
+     "sha256": "1ae22d85a86bf488a5c807f424efeb688ac1a8a4bae4c05e3c6578de9f731c44"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_entropy_selector.h": {
+     "sha256": "e552ff16cfcc82b878a78ea53573e3805428fb6a3545602ec139885ae07959fb"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_huffman_kernel.c": {
+     "sha256": "0f0abb9d763367b0550424c8d9623181df0754c76bc9524e55080742071418c4"
+    },
+    "openzl/src/openzl/codecs/entropy/encode_huffman_kernel.h": {
+     "sha256": "c11443e77ee9124cf3a1fe634f5bc25d2d8114c767f0b23ab037d013123b0180"
+    },
+    "openzl/src/openzl/codecs/entropy/graph_entropy.h": {
+     "sha256": "0da08e90e30fca8468fb02131740cca9383faef01eb40e4c74df05bba3186ba4"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/common_entropy.h": {
+     "sha256": "29f206e0bcd3e1e38dd4e51900f24fa3389f431a299f589698287e4103845985"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/common_fse_kernel.h": {
+     "sha256": "df6a5d2d19d39386fa000e831c4c1dc79be98f1c2cda83e8d5c8d0c6c7096dcb"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/common_huf_avx2.h": {
+     "sha256": "545593e68524d1c8157bb2911bfc18672c42599aa4f53266f2f924f4f8c1ef71"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/decode_entropy_decompress.c": {
+     "sha256": "f0705bb018ffdea74983544077572acf706143b770c3f9edce66d6b04e734f63"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/decode_fse_kernel.c": {
+     "sha256": "1178e53806f0a60158a45a6e4e28ea7081b412b57ef0766d8e82331f38912923"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/decode_fse_kernel.h": {
+     "sha256": "31179bbe41969d072233ecb881e134d3545f7e1c499fa2678a7f2ac239b11c34"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/decode_huf_avx2_decompress.c": {
+     "sha256": "ec32493502888d1d12edd566a46dfe690a4d3a34719b9e45a5c5a0e91f7da71a"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/encode_entropy_compress.c": {
+     "sha256": "fab7249e4e372db981b30dcbab016cd1bb35a56f0b6eac5b34660837709fe3f3"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/encode_fse_kernel.c": {
+     "sha256": "6ad7abce634efeddb664304d9a7651c5234d25d492fbf5b59edd000463f90e71"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/encode_fse_kernel.h": {
+     "sha256": "06798bb916e332513e5d28a309e985f1371e46696eb2e6dabe9f615ea89b3bfb"
+    },
+    "openzl/src/openzl/codecs/entropy/deprecated/encode_huf_avx2_compress.c": {
+     "sha256": "18785aa878a293ef19d321602d9cea2beb951fe39e405ecf92c34dc054ffb67a"
+    },
+    "openzl/src/openzl/codecs/flatpack/common_flatpack.h": {
+     "sha256": "2db6743c758bd674a886dfa102758699025b1db86ea0347415da1916ee2c0f0e"
+    },
+    "openzl/src/openzl/codecs/flatpack/decode_flatpack_binding.c": {
+     "sha256": "bd229fc97d49be388d31d9462dbf423e897397d1987f714d80287c5778cd0eda"
+    },
+    "openzl/src/openzl/codecs/flatpack/decode_flatpack_binding.h": {
+     "sha256": "9a98267325d7649f01fac246d777648f33a258624a838a48aee3ba61db277dd0"
+    },
+    "openzl/src/openzl/codecs/flatpack/decode_flatpack_kernel.c": {
+     "sha256": "6e310c06a2db9e670129ea3b064c35b1bf24cd842b32238fcc77b430f8320339"
+    },
+    "openzl/src/openzl/codecs/flatpack/decode_flatpack_kernel.h": {
+     "sha256": "ecba3f2062a283e04f1e537fd79adb77c76287940a2716742559523b5eb36715"
+    },
+    "openzl/src/openzl/codecs/flatpack/encode_flatpack_binding.c": {
+     "sha256": "124906b713c93e8e9d267cfa18176682d6cc4e4876fa786c330bee8275786b67"
+    },
+    "openzl/src/openzl/codecs/flatpack/encode_flatpack_binding.h": {
+     "sha256": "25b9fa71cbc37de877471b728272376ee71aabe763b4b0f82f12f8dcea8b9d10"
+    },
+    "openzl/src/openzl/codecs/flatpack/encode_flatpack_kernel.c": {
+     "sha256": "825a6d368346466aca032261b02b6e3239093d4cf828328cd9b1ceb09ab972e9"
+    },
+    "openzl/src/openzl/codecs/flatpack/encode_flatpack_kernel.h": {
+     "sha256": "fef6c2b6e5654e2a89e2c1f74501c9ad9b6a1b4dff2bfc976e9d2ebb61002371"
+    },
+    "openzl/src/openzl/codecs/flatpack/graph_flatpack.h": {
+     "sha256": "a3246b58fc3bd22539df7cbf8bad05371cbe9e7ae1dd2b1425462614dc97fdf9"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/common_float_deconstruct_binding.h": {
+     "sha256": "5b72d45deadb8e5e36f442882dedd488135dd102a7963a56d046d228d29dd224"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/decode_float_deconstruct_binding.c": {
+     "sha256": "b7d68cae69b0e227fed3741023ecf2146a078d0256994c66b596b3e71ee6cb0a"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/decode_float_deconstruct_binding.h": {
+     "sha256": "e89b9379c4d9236227f2656b30aaec8110fbee150bed483d5aede87e9d355821"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/decode_float_deconstruct_kernel.c": {
+     "sha256": "5bbe6a9d6a8eef78cf5a8d105aa20a15254ac14653384cd8d17af4015e2c986e"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/decode_float_deconstruct_kernel.h": {
+     "sha256": "c6fce391b4f879c73a2cea2f14f930e42830747c7877e776ac3c4361392b4013"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/encode_float_deconstruct_binding.c": {
+     "sha256": "a399f3bf09c290660093de20d58939d069c01137656d508412c60da5487b62df"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/encode_float_deconstruct_binding.h": {
+     "sha256": "3165aa2f783ecca897c75fe07337da78ba67566d3cdf6d44d26a92d9b43ea8bc"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/encode_float_deconstruct_kernel.c": {
+     "sha256": "b776a9bb9a74d48aa2c6a9f1066627223706946193e0bbc8f0daff3872ec3c9a"
+    },
+    "openzl/src/openzl/codecs/float_deconstruct/encode_float_deconstruct_kernel.h": {
+     "sha256": "16b88701eb4a6996c5b22dae9f03d1acbff4c23ff3a1609c809916ac19bef270"
+    },
+    "openzl/src/openzl/codecs/interleave/common_interleave.h": {
+     "sha256": "6e1284025793cd5e56e8e7bfcfe55f9b092524dcfa4f95a035e07104fe746ed8"
+    },
+    "openzl/src/openzl/codecs/interleave/decode_interleave_binding.c": {
+     "sha256": "1a4aa81eccd47897279b7f1fd43974c6242dec5d72a5d91528e5a7a9b8855f3c"
+    },
+    "openzl/src/openzl/codecs/interleave/decode_interleave_binding.h": {
+     "sha256": "0bcaf93187de66d7f8ce9d077e502d066fd730bb5a011504f4ce7ed68ed96573"
+    },
+    "openzl/src/openzl/codecs/interleave/encode_interleave_binding.c": {
+     "sha256": "67b09901aea478efd56fc8092bd5d654a0f1cc4ce2f850d8c74d9ed0e2219875"
+    },
+    "openzl/src/openzl/codecs/interleave/encode_interleave_binding.h": {
+     "sha256": "c39d940c3d9385a3aa723d4434674b6bb45c60a0c1b1f014f4c797e971dd81b9"
+    },
+    "openzl/src/openzl/codecs/interleave/graph_interleave.h": {
+     "sha256": "6b8c08c6acbfa3648d6f4102d4de26cb6c1d49f54b718105fcb938ec9abb1647"
+    },
+    "openzl/src/openzl/codecs/lz/common_field_lz.h": {
+     "sha256": "ea2c50e0ca508f529c51cc8a90f532d8fef92f65a575deda11a65fe886adb6a2"
+    },
+    "openzl/src/openzl/codecs/lz/decode_field_lz.c": {
+     "sha256": "97932fbdcc984fbd8636c3b802b7889a36794c64c2e7518318f4f48dff5eb423"
+    },
+    "openzl/src/openzl/codecs/lz/decode_field_lz_offset_tables.h": {
+     "sha256": "e2fadff8c1dac4d3ae7b32cfc940063f4b8b4c6d9a299915a933b2c7b5a1b74d"
+    },
+    "openzl/src/openzl/codecs/lz/decode_lz_binding.c": {
+     "sha256": "cb822db71c09a06756db790e204c4a890bad663f76414dadfaecf59fb255552b"
+    },
+    "openzl/src/openzl/codecs/lz/decode_lz_binding.h": {
+     "sha256": "1f30aac1158e7c73457ef2a06f16532fb950c0b94ac1c1bf439777206095a478"
+    },
+    "openzl/src/openzl/codecs/lz/decode_lz_kernel.c": {
+     "sha256": "98fa1adf721641992651c3e90b60fb33f0c8adac59d486817ec05d734eab44c0"
+    },
+    "openzl/src/openzl/codecs/lz/decode_lz_kernel.h": {
+     "sha256": "acd022b0f206ae6f0ed3dc080c651753ffc109fc83935ca244c0cdd328837822"
+    },
+    "openzl/src/openzl/codecs/lz/encode_field_lz.c": {
+     "sha256": "0f3cc1b01bb778b04e4b2968690a8d22f90635462f59a07552e83c839f7b3f7c"
+    },
+    "openzl/src/openzl/codecs/lz/encode_field_lz_literals_selector.c": {
+     "sha256": "1cbd87bfec48a424b6eb7756e612e93d918c91385fc4022264ba8d7624134313"
+    },
+    "openzl/src/openzl/codecs/lz/encode_field_lz_literals_selector.h": {
+     "sha256": "c8f794a4ed404f8cb0e6c6d571f31c7316c32de573036669bacf119398d9fec9"
+    },
+    "openzl/src/openzl/codecs/lz/encode_field_lz_sequences.c": {
+     "sha256": "166b1189175bed297132859500bc979eec6b3b2e30c42caa330c5c4374538641"
+    },
+    "openzl/src/openzl/codecs/lz/encode_field_lz_sequences.h": {
+     "sha256": "18e6f3c18db48c08e77fae589fe66497e7940d6afbd3e22bdf8184da6e06dd16"
+    },
+    "openzl/src/openzl/codecs/lz/encode_lz_binding.c": {
+     "sha256": "3c092feb067d8301652ec78f7af0442268ffc93617d1eed52d58d7da72c2fc65"
+    },
+    "openzl/src/openzl/codecs/lz/encode_lz_binding.h": {
+     "sha256": "d901d29fd5708a9c5b0dd000b703759a96df4131565178954daa3b8ff0884c9a"
+    },
+    "openzl/src/openzl/codecs/lz/encode_lz_kernel.c": {
+     "sha256": "c92674298bacf33a3e49c4f8677b45f6288f33d5d68e5b027c3c5d1ee5bd5c2c"
+    },
+    "openzl/src/openzl/codecs/lz/encode_lz_kernel.h": {
+     "sha256": "2221cf1c45dc4045fa886ba47852f3dbecc767fad79fb697b6502b75c93e6dac"
+    },
+    "openzl/src/openzl/codecs/lz/encode_match_finder.h": {
+     "sha256": "0134e926b25c057d2d5c59f4e6b646c5eb0751511cd119af631eab93fff29288"
+    },
+    "openzl/src/openzl/codecs/lz/encode_match_finder_fast_field_lz.c": {
+     "sha256": "a26aedb372dd0ca5b0af5f257b105734cc23bf37771e4fef97ac695b3be690a6"
+    },
+    "openzl/src/openzl/codecs/lz/encode_match_finder_greedy_field_lz.c": {
+     "sha256": "7f50e7b90cf949cd01a3748f0829a09d041aef342f755a42185388b9068c2755"
+    },
+    "openzl/src/openzl/codecs/lz/graph_lz.h": {
+     "sha256": "6c9fc56c50ecd582ebb24406e2ad92988d886cb2e830b2cbfc9a02eadc9bb862"
+    },
+    "openzl/src/openzl/codecs/lz4/decode_lz4_binding.c": {
+     "sha256": "ec1f4223480f0cfdfebb201b5fc61177a971242eab2e1821950cea6b461fd484"
+    },
+    "openzl/src/openzl/codecs/lz4/decode_lz4_binding.h": {
+     "sha256": "c98511abb9b64380763847e177ae9c6e128563e9cab1130bcc606300af47f7e3"
+    },
+    "openzl/src/openzl/codecs/lz4/encode_lz4_binding.c": {
+     "sha256": "dd575cd5567b8da5e3f18f6c4ab28857e0b4eb73890391501a59dd42e5a484bd"
+    },
+    "openzl/src/openzl/codecs/lz4/encode_lz4_binding.h": {
+     "sha256": "3b0cdc6a7a2ea64602ea47c0e536017937aa0ab88a9326abb5c05aa21fb0505a"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/decode_merge_sorted_binding.c": {
+     "sha256": "66554cf75a8af88181e69da9d47240737ac76263d684f51cd36cd431a8f02bb6"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/decode_merge_sorted_binding.h": {
+     "sha256": "f82c833c3aa6864124f16046926a393fbd6c405c0cd72579d46db60ac559ffd0"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/decode_merge_sorted_kernel.c": {
+     "sha256": "332be755c4d5eedf262f3d30f65d0c1246ab7cfb5ca8ff3d2c63ec07a2e9f4ac"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/decode_merge_sorted_kernel.h": {
+     "sha256": "c6868fc0665e887935b3bc5b3073ba851568341248ca97fc3d36868aea454301"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/encode_merge_sorted_binding.c": {
+     "sha256": "06e547035e38b7dd50199035ee32e5a171f060ec6a67741edc6a37abc3d8c0e0"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/encode_merge_sorted_binding.h": {
+     "sha256": "58b0eb41c9295a59aab1f4013ae2ea30ec5112345b8fafab0a02e3658ef1804b"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/encode_merge_sorted_kernel.c": {
+     "sha256": "b3b3e5030bf6c57182021cdf9d4bc3214283ab43d1280e782ad6a4ade2aacffe"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/encode_merge_sorted_kernel.h": {
+     "sha256": "b36ceb4a0429af542ad0b509cbe5821dd102e785da056f5d8556a7746c49fe93"
+    },
+    "openzl/src/openzl/codecs/merge_sorted/graph_merge_sorted.h": {
+     "sha256": "de15493acb7a3ea05449ba54095e24b2b973ebe8a0bd6835d0942a29c04dcfe5"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/common_mux_lengths_luts.h": {
+     "sha256": "dc8778ac4eb2c3d82a245b88bd9c3fda3e7f9fc4807099b4d286438053b13842"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/decode_mux_lengths_binding.c": {
+     "sha256": "545122374900755bf78a257abe08fca4b6f9dc8c69fc215d579387822c1f67dd"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/decode_mux_lengths_binding.h": {
+     "sha256": "4716c5cae9e3ce68789c439af3c24f859f590741657916bcf1a956608a311b88"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/decode_mux_lengths_kernel.c": {
+     "sha256": "ceb843ef8561144d329d90f0d805a3a0169f71d75fbf3cb03656bd9cd6914ab5"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/decode_mux_lengths_kernel.h": {
+     "sha256": "105177b9e1ad68fdbaac1779770554a73191570c80b698c3af58cbfc4e6b1200"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/encode_mux_lengths_binding.c": {
+     "sha256": "5e51ccb1574f18bbc1870d19d3a08899bb898f6c6fc3c87b8686367d8a952109"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/encode_mux_lengths_binding.h": {
+     "sha256": "c6663e63f87a0edfbda3b3daf6812f59edea861ad17b7a2c3740b7363645c8e3"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/encode_mux_lengths_kernel.c": {
+     "sha256": "adad9ed9be1db29aadf53a70e638c9b15b6561b26cc72e894ee35cfd4460730d"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/encode_mux_lengths_kernel.h": {
+     "sha256": "38167e62b5345b4bd8e828f3f96c56064b20d9f277bcaf0c2772ce6b42b7525d"
+    },
+    "openzl/src/openzl/codecs/mux_lengths/graph_mux_lengths.h": {
+     "sha256": "b79db80b10a613f5a43f25c605ff21c6d7fab3e50b3dcf117670f6409ea7e4cd"
+    },
+    "openzl/src/openzl/codecs/parse_int/common_parse_int.h": {
+     "sha256": "14ff4fa49fdb9295927aab2e6bb11811fe456fa2f5a36019febb2b63fef6e62f"
+    },
+    "openzl/src/openzl/codecs/parse_int/decode_parse_int_binding.c": {
+     "sha256": "4acb46a332e718403600883d36feb238fef3003c2fa8200d3ed4efe6e2dcfb9c"
+    },
+    "openzl/src/openzl/codecs/parse_int/decode_parse_int_binding.h": {
+     "sha256": "4a7b96fa42132319ce5658528dfbfaec4861aedde6c412bedfe67a9d852b10e9"
+    },
+    "openzl/src/openzl/codecs/parse_int/decode_parse_int_gen_lut.h": {
+     "sha256": "1e72f8da1be8b4687e74a90f8e5e3e572e192319276a8a5c7c9cf100f6b4eebf"
+    },
+    "openzl/src/openzl/codecs/parse_int/decode_parse_int_kernel.c": {
+     "sha256": "eb54cfc3ce8fb137ef3e772a2fe6d65e1097548029b06f2bdb6ef472023eca7d"
+    },
+    "openzl/src/openzl/codecs/parse_int/decode_parse_int_kernel.h": {
+     "sha256": "c7c0d10c6ba5e30c0eb19a0b96e079e7c0b13d12550438d6630ab0a7820ceb13"
+    },
+    "openzl/src/openzl/codecs/parse_int/encode_parse_int_binding.c": {
+     "sha256": "de76747159894dc9676948980b8579728b4d25c01cdb16b778c7e981aa42db49"
+    },
+    "openzl/src/openzl/codecs/parse_int/encode_parse_int_binding.h": {
+     "sha256": "5065f0ddac854476485a7e8e9edf301499eaa823efa65e9392fbc4feab35d30b"
+    },
+    "openzl/src/openzl/codecs/parse_int/encode_parse_int_gen_lut.h": {
+     "sha256": "0799b0e39be2b8f1ad4079d502df3be1db867a6f098aa54bc3f36d338aab0459"
+    },
+    "openzl/src/openzl/codecs/parse_int/encode_parse_int_kernel.c": {
+     "sha256": "0169bf85c1f8b8ac8057f40ba203a8a7814f1bdac03c7d8ae63909b747d020bb"
+    },
+    "openzl/src/openzl/codecs/parse_int/encode_parse_int_kernel.h": {
+     "sha256": "b3222427101c568f5f7457aa0662f3d14d3928e6001c1f0c179de63fac89fb2c"
+    },
+    "openzl/src/openzl/codecs/parse_int/graph_parse_int.h": {
+     "sha256": "f37bc827e563aff06ec475a3e5481e0d75546a6db49380a4beed76c853231125"
+    },
+    "openzl/src/openzl/codecs/partition/common_partition.c": {
+     "sha256": "1fa0d9b0aeda308b506c42539ad031fa295f7ed31d97bf25d954dac4548947c1"
+    },
+    "openzl/src/openzl/codecs/partition/common_partition.h": {
+     "sha256": "ae48397819ca99f86fd2da18e9aa0f10fba346a6e29ed46ed0708a783fab5423"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_binding.c": {
+     "sha256": "6faa05dc05007ceb07c7a13db389a4ba13eb00a730339b082458c21cdbaa2951"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_binding.h": {
+     "sha256": "0140e6848b285e2aeed13bae4f08805fea63f6b66cadbda97fdaf0fe3a1ba553"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_bitpack_fusion.c": {
+     "sha256": "3d24594de642a09454672c4e3cfaad67d2b52aae28479ff9d24054e9172d7c48"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_bitpack_fusion.h": {
+     "sha256": "d5f72102b1ccde71c071521cc75c8226f4796fb452911f23a55e7f9a7dba8d82"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_kernel.c": {
+     "sha256": "12c2393b955c25ec221beb7ff5ec015e75a3ba10b7dd1d27e9f0477fa777f758"
+    },
+    "openzl/src/openzl/codecs/partition/decode_partition_kernel.h": {
+     "sha256": "1c077f8cded267a4f5e5cdb435038e4c50e8609aec70915b9f36886b4a5ae1e9"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_binding.c": {
+     "sha256": "98e0e6b4ffcb8c013693cf3fe42fe97ee473aa6a2c453e7f8f2e51affc5a750b"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_binding.h": {
+     "sha256": "59f891427833f2b46bec6c8a4d3dc2eccad1c942618434ab1e539530d2ac959b"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_bitpack.c": {
+     "sha256": "73fc1fdd0236ce83b90ae0581745400ea2203978747a94a9d1dbcdddd2b0ae7d"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_bitpack.h": {
+     "sha256": "bb8aa438c28c0e874742cdb7cb77f92c97823d3f1a548818df8adc38b614b200"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_kernel.c": {
+     "sha256": "b0f3c71eca51de58868bd1bf8233cf222e826ba9d19ce82156c4de78871579b0"
+    },
+    "openzl/src/openzl/codecs/partition/encode_partition_kernel.h": {
+     "sha256": "8d0b4566fc837c1d9df2a59af2a17828ad8ba93fd41cd3683f6885c83c851ed8"
+    },
+    "openzl/src/openzl/codecs/partition/graph_partition.h": {
+     "sha256": "4f70e9ac6b3d8a6cb056842e819ba94d10f814aaabedd7f7284bb5e1c2a75f6d"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/common_pivco_kernel.c": {
+     "sha256": "1f7a32619ae22fb840912ede510760a732c11500f46a8c0b7abd365e2927c799"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/common_pivco_kernel.h": {
+     "sha256": "6af0bdcaa1a2e48b66d4d4548b06b32dfb83d325984da901b7596286b228a038"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/decode_pivco_binding.c": {
+     "sha256": "3b3ed551bde6f99b6d6253ae3473c57c605a4cc99df1c3d73d7fb560cfa5540c"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/decode_pivco_binding.h": {
+     "sha256": "38bd4be93141d51d7b2e0da9937f2caeedf31346081684c46f9f7ba0d7292275"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/decode_pivco_kernel.c": {
+     "sha256": "5fc10e07bd17bcb205b0a66e471a972f19f068afb1cf0f7f8513dc466859dcf4"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/decode_pivco_kernel.h": {
+     "sha256": "da7dce025159e68b7a1023e68731707155ae92d901c35cfce956943720339324"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/encode_pivco_binding.c": {
+     "sha256": "6b9d96e8cf39ea8953ecf17a85c94545cba1a7e69ad33ca7a167038e7f7d36e9"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/encode_pivco_binding.h": {
+     "sha256": "1776b6318f52f778ad6af393bcd594873f9e7cfd36db5400fe255e6114cd11ce"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/encode_pivco_kernel.c": {
+     "sha256": "b87ddcfd2bc6e37b494fc4e9d15b5a56e10b16bf0130a40f194201c5dfabf9bf"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/encode_pivco_kernel.h": {
+     "sha256": "898d1af328ea672894d841c01d35f1ad0e71f1bbb2ec1c53dd2ee5448eff5f20"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/graph_pivco_huffman.h": {
+     "sha256": "29684d0918ec737c04c3949ff141ea543b45c6c2d5ec64f83e9b4c8311d65690"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/common_pivco_arch.h": {
+     "sha256": "acc30aac0f4940327a7b20d593dac2fda0f302c80ac17426c3d5ae5076bba66a"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/common_pivco_avx2_tables.h": {
+     "sha256": "91b9e651e05da03d52bd4c9a39d8aa860056ddcc983d2580547401bb4f7dfb20"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/common_pivco_avx512_tables.h": {
+     "sha256": "02ac462835f6abb5981e8538ad5ef9cd3096b45842f432a65a2646b92e96e5a3"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/common_pivco_neon_tables.h": {
+     "sha256": "cd53d7ffe130ae8de559442be037c94cebc8c37b1719d6806be174038635507d"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/common_pivco_tables.h": {
+     "sha256": "617b89944b1265ef04483c93ada94e9c289474dbe8c4e865d96befa8d73919f0"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/decode_pivco_arch.c": {
+     "sha256": "ea5ba200adfd52860451c70eb1e1acf82282b19d3d7997fbf660d8d43c43363a"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/decode_pivco_arch.h": {
+     "sha256": "ed39815bbacb5fdf1950e6493f594def170d795864b62309d35cea6e1be7c600"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/decode_pivco_arm.c": {
+     "sha256": "95cd3ff2e0fe3eeefadf264a1d044f7053e833fbfcacb6ab5ebe823b32d16865"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/decode_pivco_avx2.c": {
+     "sha256": "516c6b54407168febfc3692381d7ea4ed8027852878df70c2a4dc935da15c322"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/decode_pivco_avx512.c": {
+     "sha256": "457ff7c1e21653486aded409a7db0ede7ea96c76cbda8cdd419cb4d3ff652f62"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/encode_pivco_arch.c": {
+     "sha256": "e169a526b3ffa64a518a051e79088b3dcb1bddfa563c5fd4bfd1b69c5bec40d7"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/encode_pivco_arch.h": {
+     "sha256": "5b8fae7283579da8814c57828b7c3c33c1b37e9243be991c925ffc20d8ca093a"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/encode_pivco_arm.c": {
+     "sha256": "1b6ce73157a1a08d4467670b66dc084cfc042f4050e31a043d54d041b4d13351"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/encode_pivco_avx2.c": {
+     "sha256": "99b4834d8004eea6ab47da2067da46c7301f8c0842f7b6dde6946d95a944a9de"
+    },
+    "openzl/src/openzl/codecs/pivco_huffman/arch/encode_pivco_avx512.c": {
+     "sha256": "49e3e4dcd72502152947b331df3b4d9c74f01e7b767068997301424dfca82f48"
+    },
+    "openzl/src/openzl/codecs/prefix/decode_prefix_binding.c": {
+     "sha256": "f1e145f9655b4b5e7e6a42800359ee9cb2843fdf27835c55a9767b89739a408b"
+    },
+    "openzl/src/openzl/codecs/prefix/decode_prefix_binding.h": {
+     "sha256": "7e37f7fa99fac0ed04812360550d87aa0608a1b0da482d37634cc3da7abe0f2f"
+    },
+    "openzl/src/openzl/codecs/prefix/decode_prefix_kernel.c": {
+     "sha256": "5a5696faf8cfe5da308a140aaa077b46e851333dd01bc4c4db6dfc66397e8252"
+    },
+    "openzl/src/openzl/codecs/prefix/decode_prefix_kernel.h": {
+     "sha256": "87c2c2b6e22f84bb7bc0eeac51da25b7b058746d35374a646f4d1888a37cb7b7"
+    },
+    "openzl/src/openzl/codecs/prefix/encode_prefix_binding.c": {
+     "sha256": "150315b0407c46fbb68baaace9f42494295dfae69bf1a955987f6b0e21d22330"
+    },
+    "openzl/src/openzl/codecs/prefix/encode_prefix_binding.h": {
+     "sha256": "3cc3e7f24b6a26551f77f766bc1a0309e6c5e8f11ecc19333f17fb0c210d9e97"
+    },
+    "openzl/src/openzl/codecs/prefix/encode_prefix_kernel.c": {
+     "sha256": "2afa37a5fc92ce4da0a3538191e07f727dc54d22af6ebbb21e335e4789657daa"
+    },
+    "openzl/src/openzl/codecs/prefix/encode_prefix_kernel.h": {
+     "sha256": "8b53a20c6bc68807df55c083ddbb6946d07bd4bfd4002f0e8243874e12d35817"
+    },
+    "openzl/src/openzl/codecs/quantize/common_quantize.c": {
+     "sha256": "19514388d2c83b037bd3a091fb6f79a54ea07abf67c1fcc4fc724e01d8fc14e4"
+    },
+    "openzl/src/openzl/codecs/quantize/common_quantize.h": {
+     "sha256": "3b18fe1b25e5d94094fdc7cffef5a7249fe30561ba12455d9b1dd40d55055ea9"
+    },
+    "openzl/src/openzl/codecs/quantize/decode_quantize_binding.c": {
+     "sha256": "272a644f1492ea229ce4910380925f101cb59a73c665e018c853f00e1742c48d"
+    },
+    "openzl/src/openzl/codecs/quantize/decode_quantize_binding.h": {
+     "sha256": "2024368d3b5901a8bd968561ae7f4e271c46250adac74a76e45b411ca18ffc84"
+    },
+    "openzl/src/openzl/codecs/quantize/decode_quantize_kernel.c": {
+     "sha256": "0abe73b90c3201e128da496a45fec41b432332bd6912495e035b2ec74f9406da"
+    },
+    "openzl/src/openzl/codecs/quantize/decode_quantize_kernel.h": {
+     "sha256": "76223112649cf67ce98f3a101273688670c00164488c08d2187b0c6a49180bc8"
+    },
+    "openzl/src/openzl/codecs/quantize/encode_quantize_binding.c": {
+     "sha256": "9ac63e9a3fb3ae82b36c3d741312560c2a398a24d2d4b4cb18fbe41ac1c7e131"
+    },
+    "openzl/src/openzl/codecs/quantize/encode_quantize_binding.h": {
+     "sha256": "95a6dfcac050bbc18b2e9dec6f106b56b5fd8d1b07bdf0a1f6db9764bb898a1d"
+    },
+    "openzl/src/openzl/codecs/quantize/encode_quantize_kernel.c": {
+     "sha256": "59ee3afd5806d6c2fc2e087cb9e2310050ebaa542baa6f4701c2f983a8b49be6"
+    },
+    "openzl/src/openzl/codecs/quantize/encode_quantize_kernel.h": {
+     "sha256": "34e9ecfd1bef4488e8a37b218e0ed88e64efc406f389b67354a939c7ff112786"
+    },
+    "openzl/src/openzl/codecs/quantize/graph_quantize.h": {
+     "sha256": "70a3878c0d062a53a66d82f3d02243c8697fac80858b4eba71118182b0e9200a"
+    },
+    "openzl/src/openzl/codecs/range_pack/decode_range_pack_binding.c": {
+     "sha256": "2c15bf471266c6be2953c5481835c87d021fed736ea734f47f2ebe23ea1aaac8"
+    },
+    "openzl/src/openzl/codecs/range_pack/decode_range_pack_binding.h": {
+     "sha256": "b555e9de41238dade207a42f30093d8426ddf4a6a9557fd0ab9fd35682f9e74c"
+    },
+    "openzl/src/openzl/codecs/range_pack/decode_range_pack_kernel.c": {
+     "sha256": "618a3f7edc5029945c9b7d89e8d0689c460e18cd8685fd3a0bca30e4ae61262f"
+    },
+    "openzl/src/openzl/codecs/range_pack/decode_range_pack_kernel.h": {
+     "sha256": "16dc9696f02c6d1ddbdbdc34ec6f3a5a914940a329815c70658fa22de81af436"
+    },
+    "openzl/src/openzl/codecs/range_pack/encode_range_pack_binding.c": {
+     "sha256": "12443e725fd82e2af914039b62163ab85220fb85e5487b57949a21b5fd271221"
+    },
+    "openzl/src/openzl/codecs/range_pack/encode_range_pack_binding.h": {
+     "sha256": "c3e127efd535554fef2b1a5e8099c6f3085eb0e6b36269edf3c0748492de4654"
+    },
+    "openzl/src/openzl/codecs/range_pack/encode_range_pack_kernel.c": {
+     "sha256": "9e69d313b02ef7188ecab8721ecd7a66f9f58ec0e6e3850d5c32a17bf9dffea5"
+    },
+    "openzl/src/openzl/codecs/range_pack/encode_range_pack_kernel.h": {
+     "sha256": "af6121c274a3b53db783cd40e748ed8c8202c74ac18a27617b1c224d057d83b4"
+    },
+    "openzl/src/openzl/codecs/range_pack/graph_range_pack.h": {
+     "sha256": "66454dea477e7a45542b6bb3db4fded0b1c7a7a879bbdf6a5f4a80cbaa3f9e34"
+    },
+    "openzl/src/openzl/codecs/rolz/common_markov.h": {
+     "sha256": "d8e8219c1e197798afcb483f58e6a21b07c6a1d90b673e81d41ac6c768f3d5e8"
+    },
+    "openzl/src/openzl/codecs/rolz/common_rolz.h": {
+     "sha256": "8edbdac45e519634846206321b77d26ffd9d66477ee916debc2ea509aa5dbca2"
+    },
+    "openzl/src/openzl/codecs/rolz/common_rolz_sequences.h": {
+     "sha256": "36ea32e3e6fb7c902f6d82d689a7a2e3dd752889d91dbb236410e415ca15ecb9"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_decoder.h": {
+     "sha256": "dd1ebd97c89d7f041f37b24d7fc70507b0aad889700cddbbfb8c5c741ab231b7"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_experimental_dec.c": {
+     "sha256": "3fa5ef37781d79affe0c7d098b52eb59b2d0377b3e7e0dc1b9c6c393fa97539c"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_fast_dec.c": {
+     "sha256": "0150f22b4ada37bb8439fd78be4e56d5b5abfe5d0f309570a9ebebaee872eff3"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_rep.h": {
+     "sha256": "397d3208d4ae085f4affe5bfa20df6709c485216e41350368d3d1503d7df55e0"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_rolz_binding.c": {
+     "sha256": "66da07f76e8e3bc8e79ac6354f74754741525e9f99672b1661a05cb9ee93b65c"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_rolz_binding.h": {
+     "sha256": "284ee3da658ba61f6a158fc242158209fefc30d74fb605a94190e7d6aed420d2"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_rolz_kernel.c": {
+     "sha256": "2cd03e56414f7c05f3a14e9112c214aa672cb4e664798c0988e19657d9667d19"
+    },
+    "openzl/src/openzl/codecs/rolz/decode_rolz_kernel.h": {
+     "sha256": "002de25ced6224e2094c6c3ad3994b47b8b4c9c5a02e358f3b9f30a71a4f1e68"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_encoder.h": {
+     "sha256": "326273352bcb1ada015c4df6edb9f8350fb5c958ff4376f7db8732ef18e27d58"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_experimental_enc.c": {
+     "sha256": "24bd5c881392f6bf16de5f80a13b14ccebc61be5c364f0fd60dbf73a7e09ea5e"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_fast_enc.c": {
+     "sha256": "a179c4c7f88619e9a6ecf272a806552e2e2a9589bc732f38cd52e7be6aa6cfac"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_match_finder.h": {
+     "sha256": "c4c825007dbd71dec5c3d78d0e315f552072d7ad719432440237dd28b21d41ac"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_match_finder_double_fast_lc.c": {
+     "sha256": "95949b84034e6567258b20a0513ea46bda87a6a9660daf3b7b518d95adca4b19"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_match_finder_lazy.c": {
+     "sha256": "df183bfcb2d9a33822cf7165ed32b2e288d307f3e3d2b4b265d5dc1fb6e3dda1"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_binding.c": {
+     "sha256": "4ed80bd38e0354b7b1d77085189b81b2b590f69948addfc4edc35ad6fa4741fc"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_binding.h": {
+     "sha256": "05d214ea0d2746b79516698592bd3eb5bcacc19adf32dabffe45246ae134e788"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_kernel.c": {
+     "sha256": "9931bad4aa0edfda8bef6cbd2c9baff568011d47518c2ed4f8b7e1743de3594a"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_kernel.h": {
+     "sha256": "d33a522692371c3e53101a9a67ebed128f7352d6157bb5b48cca7768a394610e"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_sequences.c": {
+     "sha256": "4bb563cd4fdb31dd33627702e61259f2ee6736af9937b5b5c8aa927223a0e8c4"
+    },
+    "openzl/src/openzl/codecs/rolz/encode_rolz_sequences.h": {
+     "sha256": "ab6f871eefcf67224be8d130c7834cc09eb5ba19e3fab7ceba5f47890f5a8ef4"
+    },
+    "openzl/src/openzl/codecs/sentinel/decode_sentinel_binding.c": {
+     "sha256": "5015175cdef0e6b950aca9184e03078da268652cbc977be91c4068951f2423ca"
+    },
+    "openzl/src/openzl/codecs/sentinel/decode_sentinel_binding.h": {
+     "sha256": "032d3065ba47e108d30d6313b6bc9b4997af11c00ca58a845b834c544cf1956f"
+    },
+    "openzl/src/openzl/codecs/sentinel/decode_sentinel_kernel.c": {
+     "sha256": "a5da83f7c96c3df8d7594a710d3848c6427ea6c92cf98d69afaa4a3aa09039d2"
+    },
+    "openzl/src/openzl/codecs/sentinel/decode_sentinel_kernel.h": {
+     "sha256": "46f5b63d3a98250d2d1b4ae58d0433840683b9cdc2b44936b1716de4844dd8a0"
+    },
+    "openzl/src/openzl/codecs/sentinel/encode_sentinel_binding.c": {
+     "sha256": "7a4b83a55c372e03c4b7cc327172e59afbcc288c71b0114fb174d1f0402e541b"
+    },
+    "openzl/src/openzl/codecs/sentinel/encode_sentinel_binding.h": {
+     "sha256": "a2ea85b0d958b827dae0a562c97c4e4fe2e3eb9d1dd9075142a97ceb7e54d0e4"
+    },
+    "openzl/src/openzl/codecs/sentinel/encode_sentinel_kernel.c": {
+     "sha256": "de03de2fa5ee39ce6704acdf1ada82e2e597485956fcf1b7a474b21806733b44"
+    },
+    "openzl/src/openzl/codecs/sentinel/encode_sentinel_kernel.h": {
+     "sha256": "3e6499862ee8cc0be1b45e1acefb9272a6d04980c993ce92f6acade5d63be64a"
+    },
+    "openzl/src/openzl/codecs/sentinel/graph_sentinel.h": {
+     "sha256": "e638a05cedbbf3210c136c01b708bd74a3357316b3881487d05456385f9a16a5"
+    },
+    "openzl/src/openzl/codecs/sparse_num/common_sparse_num.h": {
+     "sha256": "7a5e9e47d1bc12e44482b350167bb500e61a2a454988e7737ec5043d854c83b1"
+    },
+    "openzl/src/openzl/codecs/sparse_num/decode_sparse_num_binding.c": {
+     "sha256": "29d86496f6271446dc89147ed37a74f6179b480cd6580dd25f41a89e24f9b29f"
+    },
+    "openzl/src/openzl/codecs/sparse_num/decode_sparse_num_binding.h": {
+     "sha256": "b6416d3327e38773815f48867823af728203cf63191e94c2febae8216ca499cd"
+    },
+    "openzl/src/openzl/codecs/sparse_num/decode_sparse_num_kernel.c": {
+     "sha256": "9adf4a3668c013d8bb457c7119b252ff5a0a666409d62fbf1fc2df89895c8e67"
+    },
+    "openzl/src/openzl/codecs/sparse_num/decode_sparse_num_kernel.h": {
+     "sha256": "4a954600ffbbe55d8bd4c2c99bc397cd885c1d49285d9a7422d26bd77725fed7"
+    },
+    "openzl/src/openzl/codecs/sparse_num/encode_sparse_num_binding.c": {
+     "sha256": "ba4dd53af40c38571b283129d8f7d2836e3a36f7e8714edc2e9c04b81e07b41c"
+    },
+    "openzl/src/openzl/codecs/sparse_num/encode_sparse_num_binding.h": {
+     "sha256": "cf5f7a5f46f0ef2efe59308cc9dd78383a85b64f88ea483fc3249a275b2edcf7"
+    },
+    "openzl/src/openzl/codecs/sparse_num/encode_sparse_num_kernel.c": {
+     "sha256": "7363c52bfbc68e8239325e19439a64fe00e33c4699740b0da294c58915af7e25"
+    },
+    "openzl/src/openzl/codecs/sparse_num/encode_sparse_num_kernel.h": {
+     "sha256": "6d14c028d560b4cbcec361205c052370af98dbef9d50d688e18b10b5bcdece76"
+    },
+    "openzl/src/openzl/codecs/sparse_num/graph_sparse_num.h": {
+     "sha256": "5097473d8e2236ab2ecd0c5418cc3537723c831681b9742767b9f8a9a2d6afde"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/decode_splitByStruct_binding.c": {
+     "sha256": "a3e73bf70242ab9e3664c396232707bb61bfe31f5db5df82e0d7b720eff97d29"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/decode_splitByStruct_binding.h": {
+     "sha256": "8f1419c53eb2ab8bad829c3dddcbee40351ba86fa18dedaeffea2b80a1001e9f"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/decode_splitByStruct_kernel.c": {
+     "sha256": "14525cc040cd7a65fa752443732cd9965a9b5aa024bd342f279f20271b021884"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/decode_splitByStruct_kernel.h": {
+     "sha256": "c1eed2f61e03129997a9657e5d89d38202a1c819328dc7f7170b41199f30e987"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/encode_splitByStruct_binding.c": {
+     "sha256": "b57467e098334b3b7fec2f7d94801a8c01a59572278c202d88fba8d504964eb9"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/encode_splitByStruct_binding.h": {
+     "sha256": "93b6627fc095e51745865de8a24a59da05bc2ba681734ac871893d40e52a0870"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/encode_splitByStruct_kernel.c": {
+     "sha256": "b8f4d27f4a46528901a2a75bdc1f26ddf34d89cc784ac25b7d595dd96fcccb6e"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/encode_splitByStruct_kernel.h": {
+     "sha256": "f3f4ab565e40ea3dee3ffaac8ad941dde353fc0c50a77b91be5839009d8a834e"
+    },
+    "openzl/src/openzl/codecs/splitByStruct/graph_splitByStruct.h": {
+     "sha256": "7b076bdb56a93a10e657fede70730434d1122fac401e4a9b332d4103cbb1f451"
+    },
+    "openzl/src/openzl/codecs/splitN/decode_splitN_binding.c": {
+     "sha256": "fb09ddaae452a586d28c52031989c0b1ffff7951e1ca31540f5f1b973a140be3"
+    },
+    "openzl/src/openzl/codecs/splitN/decode_splitN_binding.h": {
+     "sha256": "0c0b9ec5078108a230f6c25bba6f42914ed1248bf6805f287785f8425aa5c4bd"
+    },
+    "openzl/src/openzl/codecs/splitN/decode_splitN_kernel.c": {
+     "sha256": "0b8afcc3aac2d3972416815afd60cf9821ca0412b0289bed5136f8c9e4aa7d43"
+    },
+    "openzl/src/openzl/codecs/splitN/decode_splitN_kernel.h": {
+     "sha256": "65012ab256d6942d023499c5356728941337ce7731076787e941179faecd616b"
+    },
+    "openzl/src/openzl/codecs/splitN/encode_splitN_binding.c": {
+     "sha256": "ebc1f73f5aae37829c1652aa7bcf968c47829df432894721f0686c3143cd1eba"
+    },
+    "openzl/src/openzl/codecs/splitN/encode_splitN_binding.h": {
+     "sha256": "fbd2148f80aaab09bd717e94ca0e305aa604ecb34f40920865cf5b8e172582fc"
+    },
+    "openzl/src/openzl/codecs/splitN/encode_split_byrange_binding.c": {
+     "sha256": "46cc064ae5a0f6bbe22d4162590370d93b256c917f1bf258a3df2a9e9c8dd705"
+    },
+    "openzl/src/openzl/codecs/splitN/encode_split_byrange_binding.h": {
+     "sha256": "276749f493daafe739d7ff40818d5df4bf326810c16167fbcb40b1e89dacdcf8"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize2to1_kernel.c": {
+     "sha256": "b3d4286c70636800e18ad2b0ed6539333b193650d7780325248930b738946265"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize2to1_kernel.h": {
+     "sha256": "0f346bfc4718329f2aaf591bf2f52116eb2225190689ea0fa5147f41abecc40a"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize4to2_kernel.c": {
+     "sha256": "320851cc5bc9d462016ceaf701c4cc59c9562d81448c67da737784e5b89a8f3b"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize4to2_kernel.h": {
+     "sha256": "f3df204594e832d6b2f6cddb18453d676ed9e6678ba2dfd053b767596865d846"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenizeVarto4_kernel.c": {
+     "sha256": "78b0e0939546b7b1f3b686038804b434fc896ef28265e8c214440fdb429a9e6b"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenizeVarto4_kernel.h": {
+     "sha256": "a5519ba10a5582a266c587921713f86aff51e6558055751effd871d710ffcc02"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize_binding.c": {
+     "sha256": "6cc07543dfd26d669f56a9967a534994e82db63387b0ed80d1c62e694674588c"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize_binding.h": {
+     "sha256": "bb79380239f8cd3c7692e168534508e1508c7288a9e6b4e562387a653b468f75"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize_kernel.c": {
+     "sha256": "174def4505bd35e303ebd613534a2eb2bfa69ece9135f858ec2c9f6f10a275a9"
+    },
+    "openzl/src/openzl/codecs/tokenize/decode_tokenize_kernel.h": {
+     "sha256": "2a81cbe8d29a88a0e7e763a30995bd060175dcd7bd7aae0e7e18d146282d5c16"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize2to1_kernel.c": {
+     "sha256": "7090c81ed6756796d5b536593eb928416837b8ba44bbc51a3065793ae0a773ae"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize2to1_kernel.h": {
+     "sha256": "74e99123355b76ab5a86f25db57cd7efe206b52ea98b43d1946dfa128708be82"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize4to2_kernel.c": {
+     "sha256": "6dc14edb3d27efa4983f95ee039ebfa7cbac9d396c23c68693a0dfda7474e049"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize4to2_kernel.h": {
+     "sha256": "955585a94e874bccc1e945b40db722ffe40a53a9918f89527a427b02e8f783ce"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenizeVarto4_kernel.c": {
+     "sha256": "69152f47076f2bc1380e0d7149ae01e770a3178f5cd1f9dd624481327dd03970"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenizeVarto4_kernel.h": {
+     "sha256": "049a6f289fba00547845b51e935953eaf3bc8aa102335b7ec420f64f4589c86b"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_binding.c": {
+     "sha256": "faac59827ae0c07b22bebdb6f2f728aeaaf1bbb704d91fe3da2507f7bcbe4c76"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_binding.h": {
+     "sha256": "a5c9e18fe026c19adbe807af0feca2611adccc42c5c1c5235d0733069cf54956"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_kernel.c": {
+     "sha256": "605127a85ac2b5e9bae44f47c227d6a8609186d221c0eae4e3b42dfdf0108ea9"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_kernel.h": {
+     "sha256": "5c4fc85347876825ae810749d5b747bee18ac0c97f104fc55982eee443a8ccfa"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_kernel_sort.c": {
+     "sha256": "2159f7a9ca5955fec4209f3be72b05b5d0df1a93338281f0c9ad7e78c4471575"
+    },
+    "openzl/src/openzl/codecs/tokenize/encode_tokenize_kernel_sort.h": {
+     "sha256": "bcebd2396caaec58c2fadd572dc1e3fc93ea9d3f4f6e19f0d8f3ee221ff08753"
+    },
+    "openzl/src/openzl/codecs/transpose/decode_transpose_binding.c": {
+     "sha256": "e24299c32d7d622a884ac837c39094e3423e73c16de0c015dd01e5d5f0860926"
+    },
+    "openzl/src/openzl/codecs/transpose/decode_transpose_binding.h": {
+     "sha256": "ea5983972d673f95539e8bb30408293700e67fe1268c6cc91d48db34345fc881"
+    },
+    "openzl/src/openzl/codecs/transpose/decode_transpose_kernel.c": {
+     "sha256": "92ea5dbec0e719275fd73348d20ab66a3383872e7a483e857ddd76ec4291b5e8"
+    },
+    "openzl/src/openzl/codecs/transpose/decode_transpose_kernel.h": {
+     "sha256": "ad34a24d605a724f421e922e9659dbfb5af8da243a4e6476b34c890fc0d67da0"
+    },
+    "openzl/src/openzl/codecs/transpose/encode_transpose_binding.c": {
+     "sha256": "9a86e1c02706c18418093590d19dc0cd9d03cc9cba6e5c968c7eb61870abe69d"
+    },
+    "openzl/src/openzl/codecs/transpose/encode_transpose_binding.h": {
+     "sha256": "84877ef41a24a12728d8ca963585ed68a4421a51181f86c723adfc1da70c1c0a"
+    },
+    "openzl/src/openzl/codecs/transpose/encode_transpose_kernel.c": {
+     "sha256": "2d71115f609287be6c2e79abe46e61f53110636655f86363b21c570812da1739"
+    },
+    "openzl/src/openzl/codecs/transpose/encode_transpose_kernel.h": {
+     "sha256": "6a624d91ebaa407e973039bbafc0c38de5284a703678cb6967049b756b9e0bbd"
+    },
+    "openzl/src/openzl/codecs/transpose/graph_transpose.h": {
+     "sha256": "8932036c0025d015f7f2647f23ad0a71644bdabff42c6732a305435df6280c28"
+    },
+    "openzl/src/openzl/codecs/zigzag/decode_zigzag_binding.c": {
+     "sha256": "b6aac0ca8dec7080efd9c1cec9cef5a282d0569960b0c3d3427de50d3b08e6a6"
+    },
+    "openzl/src/openzl/codecs/zigzag/decode_zigzag_binding.h": {
+     "sha256": "675c9613386ccc67c3dc382f22a567947160802f64146ab55501069e8cd1a6a0"
+    },
+    "openzl/src/openzl/codecs/zigzag/decode_zigzag_kernel.c": {
+     "sha256": "0e874721c7eed2bae0fc22283ba47626ab1dec4380b5deb9a3da26694f284e0c"
+    },
+    "openzl/src/openzl/codecs/zigzag/decode_zigzag_kernel.h": {
+     "sha256": "ffee640b8d9041ba023a9bc69fcb02b0c0b31a1d68b34a8b80a67db6aea955aa"
+    },
+    "openzl/src/openzl/codecs/zigzag/encode_zigzag_binding.c": {
+     "sha256": "c3b563000c7a066e8898d7785f50f8722687240151936a918480acedab8d35a3"
+    },
+    "openzl/src/openzl/codecs/zigzag/encode_zigzag_binding.h": {
+     "sha256": "66abe0128edc9f7a5701647df9684438ad3ea782f35e129a55ca36c58b6a6010"
+    },
+    "openzl/src/openzl/codecs/zigzag/encode_zigzag_kernel.c": {
+     "sha256": "6cee295dedec4784eb04e6d8f65abacad5cbd5d3963585c267a464832011eba1"
+    },
+    "openzl/src/openzl/codecs/zigzag/encode_zigzag_kernel.h": {
+     "sha256": "9bfade49e3e46677c1332976b0e8f0872ac309c0eb0e527095d9d1ac8d08764e"
+    },
+    "openzl/src/openzl/codecs/zstd/common_zstd.c": {
+     "sha256": "d4bf6cae705c012b9e32b1db4bd3021fb4fb50285e775e09ad0f992f6a59a64d"
+    },
+    "openzl/src/openzl/codecs/zstd/common_zstd.h": {
+     "sha256": "0a37b12bc3a0b70b43f873404729e09cd92a3817ef40e358bfd20b7f26681c55"
+    },
+    "openzl/src/openzl/codecs/zstd/decode_zstd_binding.c": {
+     "sha256": "1bc54619a2c92601ac0e201679a10ce6b3c1d502fb070af2aadb8c625b91ea2e"
+    },
+    "openzl/src/openzl/codecs/zstd/decode_zstd_binding.h": {
+     "sha256": "868442c37243d0f38d3f291e79750802d693f6970eed12c30237ec5ece09aabf"
+    },
+    "openzl/src/openzl/codecs/zstd/encode_zstd_binding.c": {
+     "sha256": "69576e3489bfacf41b80b1ac941dc210310c23c56b9a4c65e1a88888a1675d8f"
+    },
+    "openzl/src/openzl/codecs/zstd/encode_zstd_binding.h": {
+     "sha256": "a05824f327025762fc62eab2afbc9d9ad16f0c90ab65e03727bb53ea6c2ab454"
+    },
+    "openzl/src/openzl/common/a1cbor_helpers.c": {
+     "sha256": "cdcaabb7cce0a75f133915fca14a116bfb184a1bade187e49aa06428a115a32a"
+    },
+    "openzl/src/openzl/common/a1cbor_helpers.h": {
+     "sha256": "105c00b4db7e7a08d4e4e90cf8b04db640b93fe27794d0ffe9a7ff6056545f93"
+    },
+    "openzl/src/openzl/common/allocation.c": {
+     "sha256": "f36890c28ab4c4bef269659324ec7aa5f5d606b464e3d65e194f320c7de6971c"
+    },
+    "openzl/src/openzl/common/allocation.h": {
+     "sha256": "b0f775147ee8e01ba1ef751112455b43be66cf65eb13a357cea7e4da22fe5ad5"
+    },
+    "openzl/src/openzl/common/assertion.h": {
+     "sha256": "e0e97322478d14570a4f557ff39832706ca8fac6c1295e8930dca2f02ad83191"
+    },
+    "openzl/src/openzl/common/base_types.h": {
+     "sha256": "a43e8a370dfde4b816525cb04a7e08dd741ef4c5257acf5313443118d0952b5d"
+    },
+    "openzl/src/openzl/common/buffer.h": {
+     "sha256": "9c162fb24ff2ad390aac55ef95ba2ed8840c2fe8341992a631250db43160bee8"
+    },
+    "openzl/src/openzl/common/buffer_internal.h": {
+     "sha256": "79c5bb9755f383e740ce6270e2d4fe8d31e827b545646efb4581b574965f82dd"
+    },
+    "openzl/src/openzl/common/cursor.h": {
+     "sha256": "5c89bc1ec9058afceb76a9ab630fa2cb8da0afa6377eab1162fa3101f3089f0c"
+    },
+    "openzl/src/openzl/common/debug.h": {
+     "sha256": "aeb9e99d03ea2b3adbf58200ead4e7cd2d438190f038fa43bfab3a7ab020794d"
+    },
+    "openzl/src/openzl/common/debug_level.h": {
+     "sha256": "3c9f84a42ae1da25306d92b7a2a1a4b5bfbb24f568e9ced891e868c95bda6547"
+    },
+    "openzl/src/openzl/common/ensure.h": {
+     "sha256": "4d2a9115c2d7ac43f2bcc0edc62d61116679c3d3d5ddb3228eccb962d284f97e"
+    },
+    "openzl/src/openzl/common/errors.c": {
+     "sha256": "e661d2750dbd5f7a52f424d1101b2e4b72b4a3054d10e98d2e9c527f96fe0a06"
+    },
+    "openzl/src/openzl/common/errors_internal.h": {
+     "sha256": "62ee957acdc0b0864ee15ab6ab471123c75b1cf7b06359674244e0415811a61a"
+    },
+    "openzl/src/openzl/common/introspection.h": {
+     "sha256": "a613bf8d9610599b97774267b5827100b95b69c1f0e20617582456c0a72ae174"
+    },
+    "openzl/src/openzl/common/limits.c": {
+     "sha256": "2a66e7ad4eb4173e85b2acec2ac849714f4e8926de75b508240cba082628b254"
+    },
+    "openzl/src/openzl/common/limits.h": {
+     "sha256": "d899f7c8fc99ce3f7b6e2d4dc44c53bc16d5a8d75717a48bfb12ec269f4dbe41"
+    },
+    "openzl/src/openzl/common/logging.c": {
+     "sha256": "a8cc9361d260f70f4dbc0daf7f3410e76e6435f5dae0cf15c95716c05e24d4ff"
+    },
+    "openzl/src/openzl/common/logging.h": {
+     "sha256": "ddb1c19715d3519c7772b65ed59c26dc6ea63a411b6222d439cabb2397e86193"
+    },
+    "openzl/src/openzl/common/map.h": {
+     "sha256": "8609a80fe35ceceefb53084ff654a2023af8af17d40d9b089a85e5223301e321"
+    },
+    "openzl/src/openzl/common/map_api.h": {
+     "sha256": "0503a38fd36d37059d8a3b4b54cea1372411cac7fd7fc66ef50ca054dca7b647"
+    },
+    "openzl/src/openzl/common/materializer_ctx.c": {
+     "sha256": "4ad7c0e3c0111ef14f8c1e761a6133b4e18ce21fab9f23b2d9e01b7ce339c9d3"
+    },
+    "openzl/src/openzl/common/materializer_ctx.h": {
+     "sha256": "8dec6004b6a282d0cf4f31517e1d80ef04aeda3f8ae68c7e556d5ea16891656d"
+    },
+    "openzl/src/openzl/common/opaque.c": {
+     "sha256": "6108e0989047b8219fb800100aeb3a16998ec5f93d6bd75e8ee066f542b8039b"
+    },
+    "openzl/src/openzl/common/opaque.h": {
+     "sha256": "835f705d2c3cc7eaf9e9f1d00bc8c552220147464598fc1fd55aadcc862acfb5"
+    },
+    "openzl/src/openzl/common/opaque_types_internal.h": {
+     "sha256": "f1ad43cc4da25180af52e0fbc076a3d3dda7ba4d3f6bd98887b7fc0699eb4758"
+    },
+    "openzl/src/openzl/common/operation_context.c": {
+     "sha256": "c459c5fb72ef9a8a319a77c605893c44f5d1f0e784b17ad14227ffde60c90c35"
+    },
+    "openzl/src/openzl/common/operation_context.h": {
+     "sha256": "b41a523df3310ed6f8e3ab22ed0b661231f685d84db8e2645a70760b5766f6a4"
+    },
+    "openzl/src/openzl/common/refcount.c": {
+     "sha256": "a9b55a96b1c035770cdb90b736f36dd52f9b56eed473989eb0c1aa373ed71278"
+    },
+    "openzl/src/openzl/common/refcount.h": {
+     "sha256": "e1d1202582e8eb8d7bc63b9b3b40f6a48e6e49fc73a237f5bc2f53c254335adc"
+    },
+    "openzl/src/openzl/common/set.h": {
+     "sha256": "af066997bb771522c15476efaf6e8720ad0c0f4ce75c29f3dfe0bf659bf100b4"
+    },
+    "openzl/src/openzl/common/set_api.h": {
+     "sha256": "9b61ea25af69e97e960d3711f1bd8cbcaacc36c8f7bd16bf730d2c1befea54af"
+    },
+    "openzl/src/openzl/common/sha256.c": {
+     "sha256": "b889b551eb36241816ee2afe5cd8a7e63b61f56e240f23af10f1453eb167a435"
+    },
+    "openzl/src/openzl/common/sha256.h": {
+     "sha256": "359551b384f362a220d7267d7a8c24739db37c527df201194d63869997bd5671"
+    },
+    "openzl/src/openzl/common/speed.h": {
+     "sha256": "af475cf4afa5a8cb3da57c8e5be5f021925b1082f724fdf0d817c63d43604b4f"
+    },
+    "openzl/src/openzl/common/stream.c": {
+     "sha256": "ef7d2edfb26b82572e82bcf2e054354b98155c31ecbe9f06bd1b842a611bf8fc"
+    },
+    "openzl/src/openzl/common/stream.h": {
+     "sha256": "f62742e19248ebb73e5e196d94ea3d027b813c5c688b6409a226f32bca4dd850"
+    },
+    "openzl/src/openzl/common/unique_id.c": {
+     "sha256": "5bc8a1c7be14023013bc87ff9595e925b40c85c14227756fea0bf93940ab4a6b"
+    },
+    "openzl/src/openzl/common/vector.h": {
+     "sha256": "e79c41f3c9fa94a097eb7bfb1abe7d274358666bb8c14e94a3cfdff8c22c331f"
+    },
+    "openzl/src/openzl/common/wire_format.c": {
+     "sha256": "7003862b181d632520c4115e563a856ee9df60a30455491c2926bd472a9bda73"
+    },
+    "openzl/src/openzl/common/wire_format.h": {
+     "sha256": "b929bbc82a189a94c04c99dfd345e8de5ea003bf93c8dd131a9a8452abdcdee2"
+    },
+    "openzl/src/openzl/common/zstrong_internal.h": {
+     "sha256": "b6ee2a133d0ab58a18c8d1ce96ded0efc108057cfae1bf73330be51ed41d8656"
+    },
+    "openzl/src/openzl/common/detail/table.h": {
+     "sha256": "153d5430e7c62975c5207a7062afa9e93934583f83f7a28dba84ace6533f09eb"
+    },
+    "openzl/src/openzl/compress/cctx.c": {
+     "sha256": "ebaef2144dc20057ac0b6d2201c032c31d52281eedbbc0afc16988614fb86de4"
+    },
+    "openzl/src/openzl/compress/cctx.h": {
+     "sha256": "a70872cc00030b8e41818c58b5937c83f7938233d6c8793247affdf7cadd77bb"
+    },
+    "openzl/src/openzl/compress/cdictmgr.c": {
+     "sha256": "8abcb8f35f964a60b13e04f8449d6a063f4b1389c1e796d525efcb53a2e52681"
+    },
+    "openzl/src/openzl/compress/cdictmgr.h": {
+     "sha256": "e994af0f3984e6637d1ae89b4a282115b4faacf279c289be09b7719c8fe1b1ae"
+    },
+    "openzl/src/openzl/compress/cgraph.c": {
+     "sha256": "50c49478740fc7fc457c8ff3622faa3428397bfdfa41ad0688d4ce6b54f09c89"
+    },
+    "openzl/src/openzl/compress/cgraph.h": {
+     "sha256": "7d749fca0c49be73b821d7cba12ea7ec760df5a35685d176b397bcf0f9585e24"
+    },
+    "openzl/src/openzl/compress/cnode.c": {
+     "sha256": "05dc409a1d58abbe4c086ef816995a836fab9886e3ab47fc67c5bd72e002af0f"
+    },
+    "openzl/src/openzl/compress/cnode.h": {
+     "sha256": "bb55570f5fff533e051e9025dbae841ac8d13e6fbc0e99a7928dd8a98e874206"
+    },
+    "openzl/src/openzl/compress/cnodes.c": {
+     "sha256": "640b4b4cb9e99a0d1b459ec534f62f34377c51e113ee0e335dc277280da60f35"
+    },
+    "openzl/src/openzl/compress/cnodes.h": {
+     "sha256": "1ff550ef533fd009867cf0163c688e3ea604017698c0de0b04ffca8ba9fc889f"
+    },
+    "openzl/src/openzl/compress/codec_output_cache.c": {
+     "sha256": "e09343243e57be1a71773cbf60fca778e4eb9971fa8f22ca5293dcc422da40fc"
+    },
+    "openzl/src/openzl/compress/codec_output_cache.h": {
+     "sha256": "53485f35fdd4c105ca933b9d27086519c514cc49aaaee208dda40f692e4e344f"
+    },
+    "openzl/src/openzl/compress/compress2.c": {
+     "sha256": "1e0d6f32f5d306fa34ad1eef5262d9a038ef360ecb2ec6d1c9379407aa6f01ac"
+    },
+    "openzl/src/openzl/compress/compress_types.h": {
+     "sha256": "b12c73db15fd8144f9bacee1c87cd0fb86768eba14b56cdf5821fa833b6c92ac"
+    },
+    "openzl/src/openzl/compress/compressor_serialization.c": {
+     "sha256": "835badf7918bbb3ab896da288a5fac79177d8e0b837a618ed7c40b44ee1e25bf"
+    },
+    "openzl/src/openzl/compress/dyngraph_interface.c": {
+     "sha256": "20c0d36fcb0f6198c6119296a6ed26acdeb2e94827e360309a92111a7d36537e"
+    },
+    "openzl/src/openzl/compress/dyngraph_interface.h": {
+     "sha256": "8e46e9d6222c4625632cc073ef02318c749aa1c6532bbe51de801b641c11eef1"
+    },
+    "openzl/src/openzl/compress/enc_interface.c": {
+     "sha256": "08ddef678128031e7af54d167e8223032498f7308b2808a0c5b3d56d52bdcc45"
+    },
+    "openzl/src/openzl/compress/enc_interface.h": {
+     "sha256": "6416090db991275f2f5535a4fc94b4c2662441ae22ce0be7246000dd4a4233fc"
+    },
+    "openzl/src/openzl/compress/encode_frameheader.c": {
+     "sha256": "66ee9fe63356f69d5dc8e8fe178853027a5b156dde40b404eac1edcb10b5f1f9"
+    },
+    "openzl/src/openzl/compress/encode_frameheader.h": {
+     "sha256": "4781c16f6a4854413c4e87d2044f4851642b4dea3a544ee80678c11a102bafee"
+    },
+    "openzl/src/openzl/compress/gcparams.c": {
+     "sha256": "085f3c3cfd658f12ca07913037d955e3146a1c93c76dbbe229db10feff61b097"
+    },
+    "openzl/src/openzl/compress/gcparams.h": {
+     "sha256": "6ca195575363b36460f9a03c4628e1928f283bdba892c44ca7fa44c3d4bd4fc3"
+    },
+    "openzl/src/openzl/compress/graph_registry.c": {
+     "sha256": "9f3d734fd205e9c896eb5fae18c576c658264629df58a4ca222c8c555aef460e"
+    },
+    "openzl/src/openzl/compress/graph_registry.h": {
+     "sha256": "ed7fa581051b37320f19c4bece83b8aad23a5d46a9aee6d285c5807a982a4eb7"
+    },
+    "openzl/src/openzl/compress/graphmgr.c": {
+     "sha256": "8cb3c3d565eb7db816157ad74d68e39e56903d0835bb302cb33facd13019fb4e"
+    },
+    "openzl/src/openzl/compress/graphmgr.h": {
+     "sha256": "0dd28af98369da9660a8af0db7823476e407e936561c0418622132ad11bc8f54"
+    },
+    "openzl/src/openzl/compress/implicit_conversion.c": {
+     "sha256": "d3c433327ec436df1518db4babe80872ced6c625f32ac93974218cc46a1d22d5"
+    },
+    "openzl/src/openzl/compress/implicit_conversion.h": {
+     "sha256": "c6c90f87930833acd84e413f86fada49c22b05881da501a132a914904d6584ea"
+    },
+    "openzl/src/openzl/compress/localparams.c": {
+     "sha256": "db838214960a507164daa1959d09ddd3372f9d4769ccc3b88ff1ae514322c43d"
+    },
+    "openzl/src/openzl/compress/localparams.h": {
+     "sha256": "9067d1ee3e1f3cd853e5bcfa5320601e5fa85280030066c6484283831582b981"
+    },
+    "openzl/src/openzl/compress/name.c": {
+     "sha256": "ef536ca2df6b85fbdc3f71799e109fd7daf2ce8144d5a028820d9ac7eb22d5a5"
+    },
+    "openzl/src/openzl/compress/name.h": {
+     "sha256": "dbf9ecc12a3362503a6d5b990a7ec91f92eb8641bfbc7edf11efdf133d400723"
+    },
+    "openzl/src/openzl/compress/nodemgr.c": {
+     "sha256": "bf6159ca9dde56eb049b6f3ee10328c1468dd0ad93f5a4c8f70d32db3e3430ad"
+    },
+    "openzl/src/openzl/compress/nodemgr.h": {
+     "sha256": "66787cdfcb25447448291848cd0e5f4c95147a82a2d83a0bfd87f20521ff27f8"
+    },
+    "openzl/src/openzl/compress/private_nodes.h": {
+     "sha256": "03f473f6a543d13733da0c8863717b7ab0b76ae36a05fb0759ef97fc50ebc2bc"
+    },
+    "openzl/src/openzl/compress/rtgraphs.c": {
+     "sha256": "bf947c048bf52134c638516a9cd8a8c631d163797d527ac50ba0a093c1630391"
+    },
+    "openzl/src/openzl/compress/rtgraphs.h": {
+     "sha256": "d089b54cbeff9c28823bd5111f5104220ee607662266c0de82bb8da03bd9f11f"
+    },
+    "openzl/src/openzl/compress/segmenter.c": {
+     "sha256": "cfc86d69d024c12b14f3b4405930b21a55898184b1f04f5a5699e6bf00889b43"
+    },
+    "openzl/src/openzl/compress/segmenter.h": {
+     "sha256": "6ee14e917292d5b19ad568eef744242eb3ba834c53d118d27b1e40656c8cdc59"
+    },
+    "openzl/src/openzl/compress/selector.c": {
+     "sha256": "30d31f2712fcb48b6d84d80b4dde0c477088b94c2ea2e34167c33585112f165c"
+    },
+    "openzl/src/openzl/compress/selector.h": {
+     "sha256": "b90cb26102ba72c2ace959cacaee842884d3498375408008327da04424eeeca9"
+    },
+    "openzl/src/openzl/compress/trStates.c": {
+     "sha256": "711039d9572534b390327bb184fe69d62bfd0965a454f9ccd97562eebf3eb7a8"
+    },
+    "openzl/src/openzl/compress/trStates.h": {
+     "sha256": "d62a057179f44020b502d2bcdf575567f08a97c503122f61e340e763ff61802f"
+    },
+    "openzl/src/openzl/compress/graphs/automated_compressor_explorer.c": {
+     "sha256": "68bf8b11f4c9221df0413a39f67f949b6f6100dd86473cbba61d106b6033f48f"
+    },
+    "openzl/src/openzl/compress/graphs/generic_clustering_graph.c": {
+     "sha256": "85ec715259ad878339e99f0517780138a8b4485dd40de420e70cc4ae08cb7e21"
+    },
+    "openzl/src/openzl/compress/graphs/generic_clustering_graph.h": {
+     "sha256": "fd8975a5ea7cbab3603318db1c33ee52b6a29209ddb9919375ec3fd6d7b297e8"
+    },
+    "openzl/src/openzl/compress/graphs/small_lengths_graph.c": {
+     "sha256": "4ce2b129b20383b83ec90dcc1fc0fe73c473248bf417c94fbd58641d408d4dfb"
+    },
+    "openzl/src/openzl/compress/graphs/small_lengths_graph.h": {
+     "sha256": "277c95f2f85af90919a300b956193cd5ddf725f626c19d448f4d39efe1964c5f"
+    },
+    "openzl/src/openzl/compress/graphs/split_graph.c": {
+     "sha256": "d35858b23efc2e5c301f59e73d8858cb0d71f6594dd71b5520371775e5fb3d43"
+    },
+    "openzl/src/openzl/compress/graphs/split_graph.h": {
+     "sha256": "7f5e2e0fed97e3f3fd210a874d359be5ea08d3fc6f559a7878272bb17f831127"
+    },
+    "openzl/src/openzl/compress/graphs/sddl/simple_data_description_language.c": {
+     "sha256": "45a6b4999c0d667fa9d60985319d85e28e84a4844cbe0ffc477b11fcfb14f3dc"
+    },
+    "openzl/src/openzl/compress/graphs/sddl/simple_data_description_language.h": {
+     "sha256": "3ac8df4599ff201ae7b315253a886109292c307075393b6f9772bc5dafddc151"
+    },
+    "openzl/src/openzl/compress/graphs/sddl/simple_data_description_language_source_code.c": {
+     "sha256": "bff9e0bc2fa6532ef6db04af2f62683d54242c6666601e33e4c8410c3e9bdc75"
+    },
+    "openzl/src/openzl/compress/graphs/sddl/simple_data_description_language_source_code.h": {
+     "sha256": "69e5f1adfb8ff6e3c51f8861b9623a90f5f493e94bdc8c65c354a0b28d8973ba"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2.c": {
+     "sha256": "6c7c3803d62ca4b4c39928a7a484bcb5380e73270d874524836c078dece00cad"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2.h": {
+     "sha256": "5c83272272f3a887c5bc911bce81b80b9b208be604fbf12bc3f92869e058cca2"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_disasm.c": {
+     "sha256": "c1499dce74d3a35a12e8a5b3e14bb19599bfadebf7640bb3b5708b69a5c74362"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_disasm.h": {
+     "sha256": "1dea512420e9e67ef93052f8ca77670ea75157a600acf21406d423f0199feb62"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_disasm_generated.h": {
+     "sha256": "4561795d24f32965a5cdaa5d0af90e2d9f20d60fb69afa3fff764dd822818fc8"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_error.h": {
+     "sha256": "85265a7a4fcfc3039f9ac851a4fea61846c522a7c94c7e17a4fa31614245f720"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_interpreter.c": {
+     "sha256": "950cc1b8dfcc9cd750c7ccfc36a4f5ff4295782811e7c52b8f9a664ce04c6ca5"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_interpreter.h": {
+     "sha256": "49a947d1c8ef5e5bdfa464a58914456c044f60cf578a718e95b5d1e64416f151"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_opcodes.def": {
+     "sha256": "cd6410991c5227f79449747c8d754b81b81e7482a9062b8a2d7007a9012c69d5"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_opcodes.h": {
+     "sha256": "47540dcb93c2ab9450f8443c8226ed7208db09f1dee92963acc84a9e1c465760"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_vm.c": {
+     "sha256": "bb3a6581e2be3c6d5e598c965ab81015259f4c20a613bba23881649e39f0c9b0"
+    },
+    "openzl/src/openzl/compress/graphs/sddl2/sddl2_vm.h": {
+     "sha256": "8c480e5f18ba6c586a9b1a74eac7c8e07afa68e5f59b2cca2d9e006d3925ff37"
+    },
+    "openzl/src/openzl/compress/segmenters/segmenter_numeric.c": {
+     "sha256": "d0feee1268d14c1763e717bbbc0173278ac90f61d9c289ba5d42870078ec30ca"
+    },
+    "openzl/src/openzl/compress/segmenters/segmenter_numeric.h": {
+     "sha256": "ed7fac7973b64cf1a8dcebb593bd3f6a9d40cd54bf6424ab97f55f1201e06f96"
+    },
+    "openzl/src/openzl/compress/segmenters/segmenter_serial.c": {
+     "sha256": "4e2b0f9f7cbbcb9b7a891c844669e94f808211d647930045a112de1af66b88c5"
+    },
+    "openzl/src/openzl/compress/segmenters/segmenter_serial.h": {
+     "sha256": "8da0ddb74519e4f357bf00ff2077d0542637ed7f171023144f34106849022994"
+    },
+    "openzl/src/openzl/compress/selectors/selector_brute_force.c": {
+     "sha256": "a72a34c900c5467e97443cce787150fd380512d53b23a726411e3bbf89620ffb"
+    },
+    "openzl/src/openzl/compress/selectors/selector_brute_force.h": {
+     "sha256": "fd86da444e7e4196a893165005769f4ae7de789c28d9a01984d73ede41dae90c"
+    },
+    "openzl/src/openzl/compress/selectors/selector_compress.c": {
+     "sha256": "e6879715b687f93dee4a960ae5771d1f757d875d0c4659355cb35d414adce770"
+    },
+    "openzl/src/openzl/compress/selectors/selector_compress.h": {
+     "sha256": "3cac6d91a4ef925ca0d2fe527fde70d22a102373b02a921bc6e82ce122e302db"
+    },
+    "openzl/src/openzl/compress/selectors/selector_constant.c": {
+     "sha256": "7e94c922a06dd6dca711f023bddad39dbb2647f2c7859b9d3e53af1c4fe4465e"
+    },
+    "openzl/src/openzl/compress/selectors/selector_constant.h": {
+     "sha256": "63bcfa0a317a0b9060317575bab6496dab4222bc4ea47679da8fd38505e4e79c"
+    },
+    "openzl/src/openzl/compress/selectors/selector_genericLZ.c": {
+     "sha256": "1ab0c9622801fc1306a088e17b8fcaaa2ad4fe8563d3e212e991e6f4e41c1be1"
+    },
+    "openzl/src/openzl/compress/selectors/selector_genericLZ.h": {
+     "sha256": "cb3568516f44f46bc40264eb185294d9caef95015a3baa48bbf330ce5dfe691f"
+    },
+    "openzl/src/openzl/compress/selectors/selector_numeric.c": {
+     "sha256": "92ec74ca5202b96f53e060718cff408a97d22b25ec7d9c16a8bac71674edad23"
+    },
+    "openzl/src/openzl/compress/selectors/selector_numeric.h": {
+     "sha256": "f3bf7021a07ed98f169de1f39758f3ce0591973c7b69ac3a7473c5f1dd23c150"
+    },
+    "openzl/src/openzl/compress/selectors/selector_store.c": {
+     "sha256": "78a09c50935eac857ff44e834372ed8761a5dc3ab216343f89b682cb3b66f277"
+    },
+    "openzl/src/openzl/compress/selectors/selector_store.h": {
+     "sha256": "68c0a8010a5bbf4d59d0eb475fadd81a745cdc8f47f260c58051e2318a9632b2"
+    },
+    "openzl/src/openzl/compress/selectors/ml/features.c": {
+     "sha256": "0965e2662a1331796fbee60350e855b78632fed47837b1a74b4213b37328f30b"
+    },
+    "openzl/src/openzl/compress/selectors/ml/features.h": {
+     "sha256": "81cf2233ae083bc1fc929cdba8273bcde35d76ba8ce7c71aa84877aa35831952"
+    },
+    "openzl/src/openzl/compress/selectors/ml/gbt.c": {
+     "sha256": "88eebcf58dcc8bd2fc7e0d588dd3a36140f7af1ec31a416730324319b584a65c"
+    },
+    "openzl/src/openzl/compress/selectors/ml/gbt.h": {
+     "sha256": "fe117302c04cfef338b807c1277f7785d2391fc166afada9e7f27ecd85333aa5"
+    },
+    "openzl/src/openzl/compress/selectors/ml/ml_selector_graph.c": {
+     "sha256": "8eb7a07b85ad0cb0c7d5834d1a77b4a6859906403c925f64db4f9af5f102bbac"
+    },
+    "openzl/src/openzl/compress/selectors/ml/ml_selector_graph.h": {
+     "sha256": "fe9505cad77f1ed5366f5970304ab6a7356ba5a8b28808dc9c7d9a2158dfdb2f"
+    },
+    "openzl/src/openzl/compress/selectors/ml/mlselector.c": {
+     "sha256": "d2836b14287b401332605874ca5824894511cf6b894801917ea32b3204bc698d"
+    },
+    "openzl/src/openzl/compress/selectors/ml/mlselector.h": {
+     "sha256": "91ad4613a668856492fa556df9d42d5639d576fb86184b6b8fdc733b68482f1b"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/cardinality.c": {
+     "sha256": "d68dc63bbaf5b6cc57059741a843237a24dea0503b1e617c0c1b380d44b3ebe2"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/cardinality.h": {
+     "sha256": "64e8bd5e08d5e9e9c61e2685f3694532329c19f165db77a3cdbf6a72af9d9604"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_decide.h": {
+     "sha256": "51d08bb9a77d3664852b77fd32bf14d8ab0d430cfa14d0b18b0576f30f3bc1f1"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_decide16.c": {
+     "sha256": "10acc8212894c20b91104a29a017a9444bbad46319dadc8d0df23040f8facad6"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_decide32.c": {
+     "sha256": "302f2977efdfb9f3d56df8de14aa86e13d8987fd8bcd4b12daaa3cadfade0a6c"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_decide64.c": {
+     "sha256": "2a269358bee1729e9384f0779ec47442ff83db91dbbe871b815d43694519c32d"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_decide8.c": {
+     "sha256": "3cf344e12567af8bf9dff497fe8c174d081e7536a07648d20de309ed2e47f4a0"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generic_numeric_ops.h": {
+     "sha256": "8f03ab7d5cfcd60b617f8ac8989508bd8293ba3cf76fdb7ed54dd90fb35206f1"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_extract.c": {
+     "sha256": "88556b3dbab82a75c7dcb63c46e6e6832627c3f943c9f435d41790bd1e004c9e"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_extract.h": {
+     "sha256": "1031b2f3ce719e1aed17eaa90da8818c97adcd0c48d1a54c131aeeae5d6fd401"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_features.h": {
+     "sha256": "86bddb7d2ef011fffa1164174c712117e3bd84828dbb8fbb12af08758482e9b0"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_features_v2.h": {
+     "sha256": "24335cbc64d7153cb292acdce75782ffb0537b42ab68a6178462863ed14b1fea"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_fixed_point.h": {
+     "sha256": "83ca2e42b4e2f9edba1376d8824ba780b867da3a38da53fda84235fca47c2b53"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_stats.c": {
+     "sha256": "6ebd7a42f2e136d8880e8b989de17ef6b63f4a9cc7e710566d2f0a13d53eedf5"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/numeric_stats.h": {
+     "sha256": "19608d2b1c693ee3143252a467bd3456a9c8f889911820bb4969680bd9b42126"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/score_guard.h": {
+     "sha256": "9c9d4173043c5aa2f2d80d0d4f888224c5f1e337257177edbca5f864b3755c42"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/static_core_select.c": {
+     "sha256": "fe7e75a8be9840e6e3a83b5d07f97f424cc5ea14ed07822870b8f468a478e0e6"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/static_fallback_select.c": {
+     "sha256": "1863c2e3855028aac218c54722fd0fd8ad94bbd00a63e428d7958fc625920bab"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/static_index_select.c": {
+     "sha256": "14fa8c03d82e39b9a7a5c8f798d60b17089995a1bb5f1bdf0be8d83b2c2f9fc1"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/static_selectors.h": {
+     "sha256": "cdc09e0a3a2ada570abca6659df6ca2e78e95d7c51ac6297c3f0aa48cd7986e0"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/wide_arith.c": {
+     "sha256": "53ce07b9f8643d72a6eedba6203fc860ce61e7ac6edeaf5e26cd0b15539f17cb"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/wide_arith.h": {
+     "sha256": "4708f9f813b4059b41dc44534662452f263104495ead4d3d37620f04dff8fde5"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric16.c": {
+     "sha256": "657adbd538216d1b63599dbc4829621168d62988cf264d698ad3bd9e2acc0870"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric16.h": {
+     "sha256": "bfe6e0b74800b2453a187c759a74f804d9ffa8bdb364052958e6b5f2dc958dfc"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric32.c": {
+     "sha256": "7b85eb9d777c023f87d71ee523aa0acb6fa00e6031473724e1ee50dd469fd8cb"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric32.h": {
+     "sha256": "b637195fa8f82472b90271286716f2fbbf55466b395ae9bcfcd439ac729ec1c3"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric64.c": {
+     "sha256": "20829243330643510b6b0b50dc7578088f3109413a8ba56e6a83e1f78716c7b2"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric64.h": {
+     "sha256": "81153e82793f525f80bfbdc8aed77bb5a306ae62941068c49b42759239cd1f1c"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric8.c": {
+     "sha256": "bfafa1c50b4a779853360c18209264452ba4f71f686b2bf4b6249453576d5110"
+    },
+    "openzl/src/openzl/compress/selectors/transformer/generated/score_numeric8.h": {
+     "sha256": "51263d6f3ea583a5a467bb491567ad3b572bf38927290d72063ff6983661d6b8"
+    },
+    "openzl/src/openzl/decompress/dctx2.h": {
+     "sha256": "e6a132fb3a7ff84dceea170a280027bf86adbf54d19ff1c067362047c73fe832"
+    },
+    "openzl/src/openzl/decompress/decode_frameheader.c": {
+     "sha256": "3eb5e1aa1ca90fffbcc1162ad8da78909d53022af358780f0f196c072f7184f3"
+    },
+    "openzl/src/openzl/decompress/decode_frameheader.h": {
+     "sha256": "6ca9b93be41a78700972c27c1732688efadccba04f214cfe664d65cd39d1a63d"
+    },
+    "openzl/src/openzl/decompress/decoder_fusion.c": {
+     "sha256": "30fa23a92b60408cf691be80a465bdf0616399020379b253b030b0b78c669e55"
+    },
+    "openzl/src/openzl/decompress/decoder_fusion.h": {
+     "sha256": "fda81e4d0c998934b12255bf3555c9350b7862d0c393f0fa852edd34c04b7b90"
+    },
+    "openzl/src/openzl/decompress/decompress2.c": {
+     "sha256": "54d8e6230a6cf34660311e4aa0ffb967d09a3dbe7db88db4331cf67591ae2b6f"
+    },
+    "openzl/src/openzl/decompress/dictx.c": {
+     "sha256": "30559205c4516980a0e44d64c9a1c6d72eeb07ec7b77d28ea5ab6f54982d7caf"
+    },
+    "openzl/src/openzl/decompress/dictx.h": {
+     "sha256": "9bee0d67107b993c188762cfc51018e3d489e45b8036a0890cfb2985e13f8b5b"
+    },
+    "openzl/src/openzl/decompress/dtransforms.c": {
+     "sha256": "3311093b3301762781aff5ee921e887d7cabb394272140eb4e15cbbebc449aa1"
+    },
+    "openzl/src/openzl/decompress/dtransforms.h": {
+     "sha256": "d4ce382e3a87ab8d024e9c1a44456116cac4da8cbdbcaefdf02635f31b0c5562"
+    },
+    "openzl/src/openzl/decompress/gdparams.c": {
+     "sha256": "86b85795976c0b5377d0595605fe5b84d36993f9361592e5b65470a686be70fa"
+    },
+    "openzl/src/openzl/decompress/gdparams.h": {
+     "sha256": "7702808ecc9602a07a0607a25c1a56f5c075615ce6ad1ac5b2b7708a6c6d48c9"
+    },
+    "openzl/src/openzl/decompress/internal.h": {
+     "sha256": "bc3b52c31d7d3427116f17a6a716c28e9130318ebd9bb22e930ab45c3e155beb"
+    },
+    "openzl/src/openzl/decompress/reflection.c": {
+     "sha256": "2cb8c7796130ea7aa24757ca0b9af21295c146a78acd9653d3743f00ce0c5437"
+    },
+    "openzl/src/openzl/dict/bundle.c": {
+     "sha256": "f43230b8ad040ce1730acdbc5ecc5070b5644444871f9989cb2b3a9293c45b5d"
+    },
+    "openzl/src/openzl/dict/bundle.h": {
+     "sha256": "40c5ca4c24ea7702cb413efac965093a38a9908749e8339735c816d0d25da8dc"
+    },
+    "openzl/src/openzl/dict/dict.c": {
+     "sha256": "0f2a69564b726592da9a6d939200391e59fc54ead7185319b1e00128fb2d3f49"
+    },
+    "openzl/src/openzl/dict/dict.h": {
+     "sha256": "90e703d2ee3633ed76957199aaaa25f26357660214226e2c3be1cf69783d90d5"
+    },
+    "openzl/src/openzl/dict/dict_constants.h": {
+     "sha256": "d8cf0de04fa6bf5ed185d81a5bef08d863e4bb4b3b48b70726fd926d5d5334a2"
+    },
+    "openzl/src/openzl/dict/dictloader.c": {
+     "sha256": "8bc85aa8abe20e0f1be596fdd073bced01f576b6a4255c01f3d392304692dea7"
+    },
+    "openzl/src/openzl/dict/dictloader.h": {
+     "sha256": "9b7e19d7bd2907a4b6e671415b9eab00d70ad95cd32906b750571382f95e6712"
+    },
+    "openzl/src/openzl/dict/fatbundle_dictloader.c": {
+     "sha256": "9f5d28baafa81fdd1be2d2dcbae1814119223cfdff4f6f29d444134deb06401b"
+    },
+    "openzl/src/openzl/fse/bitstream.h": {
+     "sha256": "4369c6d5ad01b6326035f11ac815ee508692b0e696fe367ac6995ad964c97e64"
+    },
+    "openzl/src/openzl/fse/fse.h": {
+     "sha256": "da2f2b4ce08e554aaa93aceb3c86a3064b6401b8222db891a33a7059236b9d92"
+    },
+    "openzl/src/openzl/fse/hist.h": {
+     "sha256": "bc17ee5588abddb7ad38d5c01dc68c0ddeed823ff9ffd3df7aaa9aea94e749dd"
+    },
+    "openzl/src/openzl/fse/huf.h": {
+     "sha256": "e2c658367721bee031d7b0dbe8341fa7eec1fb21b15471a335837d5045f2ba87"
+    },
+    "openzl/src/openzl/fse/common/bits.h": {
+     "sha256": "68b4b80be5efacd8009d1a902aa454ccd097f358f5451012e2b7f56827c14d23"
+    },
+    "openzl/src/openzl/fse/common/compiler.h": {
+     "sha256": "37046ce4806eeb02c04f93f341c88b030be5abaa5f1e6fa3d6783362697b5a40"
+    },
+    "openzl/src/openzl/fse/common/debug.c": {
+     "sha256": "2d4f30163d4b5ffa5ce571557f378ed311f05d9200692b21d8cfbcfab7217dac"
+    },
+    "openzl/src/openzl/fse/common/debug.h": {
+     "sha256": "eef7490b2987c89d27d03c7061c103aa9d9d6ca8b635afff9ac6a2be2fa71d64"
+    },
+    "openzl/src/openzl/fse/common/entropy_common.c": {
+     "sha256": "e3403202fb73c5c2d4ac77121779df3d106ad83c451c559026e9740f43d179f2"
+    },
+    "openzl/src/openzl/fse/common/error_private.c": {
+     "sha256": "d09e5c3ba27f0eb7a195e81afb55bcd837c74d1c53441eb587c87413b56c897d"
+    },
+    "openzl/src/openzl/fse/common/error_private.h": {
+     "sha256": "16fa6ad22897fc63a615bec4a8fe2e0b2e5c1e13595b389d9b659cd30ec84e8e"
+    },
+    "openzl/src/openzl/fse/common/mem.h": {
+     "sha256": "3321f5ce91d35189b907467dfd852f6e2e52df3ef28830be8d1d0d7f01ab4148"
+    },
+    "openzl/src/openzl/fse/common/portability_macros.h": {
+     "sha256": "6956e8dfc22438ae7a4acc18adca1a4e55847e437c2dca5c9a1ff4a69dbd95a7"
+    },
+    "openzl/src/openzl/fse/common/rename.h": {
+     "sha256": "dd94c9a72b590fa2e9ee0415b3eeb69d0b0b0450fca1d166ebd744e378d72f6e"
+    },
+    "openzl/src/openzl/fse/common/zstd_deps.h": {
+     "sha256": "17629b12ede014aff3d93b06d6c7cec16da900094902ca0726640218765e2c43"
+    },
+    "openzl/src/openzl/fse/compress/fse_compress.c": {
+     "sha256": "92e276605291d7dc1fa22a925a3b7ed1888cf63cd887a7091f969cda5e5959a6"
+    },
+    "openzl/src/openzl/fse/compress/hist.c": {
+     "sha256": "3300884f8d1f9818f8fc4b0d166cbb9edaa993ff0aea54cacdede44f0521c7cc"
+    },
+    "openzl/src/openzl/fse/compress/huf_compress.c": {
+     "sha256": "41cc71d47272743cf82d2da7a239ff2a89ff7611b0821184ea0585fb47c4c1e4"
+    },
+    "openzl/src/openzl/fse/decompress/fse_decompress.c": {
+     "sha256": "41299ad4f43b114555b0d93f8866b2881700379e946fa7b143ee1818f72413d2"
+    },
+    "openzl/src/openzl/fse/decompress/huf_decompress.c": {
+     "sha256": "705976e1ab19e9fc0319716ce69bb1a359fd0a5daa106acf85dab428340ac8b1"
+    },
+    "openzl/src/openzl/shared/a1cbor.c": {
+     "sha256": "6f582c7c5589f4bd2a28a4859241a96cd3ae61cb9c8a4da81c10be81981e9420"
+    },
+    "openzl/src/openzl/shared/a1cbor.h": {
+     "sha256": "ab27f7c76e60a65b59f0479fc232580ed27481917eda6f109a31ecd245a2474f"
+    },
+    "openzl/src/openzl/shared/base64.c": {
+     "sha256": "bc7e0c5666dea92f2a91e932886bec60204f60fb3b58de2b4f4df441e58995a5"
+    },
+    "openzl/src/openzl/shared/base64.h": {
+     "sha256": "9f0149d171d1716605518e21dfa463d8651810548fc2598ed0fcff5d7e4bbe5d"
+    },
+    "openzl/src/openzl/shared/bits.h": {
+     "sha256": "0e94eadedc0c919dac46c4d2e5b906f89242f5f9524b3e048dfaef2c67bbb84e"
+    },
+    "openzl/src/openzl/shared/clustering.h": {
+     "sha256": "4df7de1b1d4c8e58fbb85be0726b4d355db453da7161d7a9e96d3637fadfa9a5"
+    },
+    "openzl/src/openzl/shared/clustering_common.c": {
+     "sha256": "f6e6ed9c5478be15ecba5c36104792703a768dbdf921cebe6ec2dfb453ca3d20"
+    },
+    "openzl/src/openzl/shared/clustering_compress.c": {
+     "sha256": "775b1d990244aa6043e6009763a19fc27a687a3f8bc869c68732f4a99d21c6bc"
+    },
+    "openzl/src/openzl/shared/cpu.h": {
+     "sha256": "bf631cf3176e995a9e19a3600466513ef18acd89a97c0d8ebe7e5e67c8be23c4"
+    },
+    "openzl/src/openzl/shared/data_stats.c": {
+     "sha256": "e25cb7d12ca7855b7e25e463f7d36079e49ccc0296235d0e1856224920847005"
+    },
+    "openzl/src/openzl/shared/data_stats.h": {
+     "sha256": "8c9bf543a90152251b383c0b636b91db23ed474b50787705b63f773974605d28"
+    },
+    "openzl/src/openzl/shared/estimate.c": {
+     "sha256": "24244ff98d28f79a1d89131173d89d50348d8573ac0e9c88919a90f1cc8c8376"
+    },
+    "openzl/src/openzl/shared/estimate.h": {
+     "sha256": "8dadec65cd28d543482865736bb2bf053d7ac7c05a49965ee96884dafdeb810e"
+    },
+    "openzl/src/openzl/shared/hash.h": {
+     "sha256": "00e81eed0e838f30ce9fa52c6980052dc4f60975db019a43e993e6e2ef6ebb84"
+    },
+    "openzl/src/openzl/shared/histogram.c": {
+     "sha256": "7a6e32ab1901198638ee460ebccf7a81dc5f004d00c560dbb32a321738c2b683"
+    },
+    "openzl/src/openzl/shared/histogram.h": {
+     "sha256": "e08e2ba8c859727b433b40bd6208ae9e857ade890201e264acc63edae81b52b3"
+    },
+    "openzl/src/openzl/shared/mem.h": {
+     "sha256": "f15bb27a9a5179c77e48aeeca36dc575faa0c19ab4426a244032ab1bb58fb07e"
+    },
+    "openzl/src/openzl/shared/numeric_operations.c": {
+     "sha256": "f33b1eb4a5ed47b94426fe94f67f38ed549c3a8474f243bd8a991765258eee44"
+    },
+    "openzl/src/openzl/shared/numeric_operations.h": {
+     "sha256": "e7594f6bc71b88d13603516c8d3d1d6dcb3a3834ce82abdfc7c76c1e4051efa0"
+    },
+    "openzl/src/openzl/shared/overflow.h": {
+     "sha256": "4a3e08e7866bca7cd1e50f5e025532e7323f259613f05a84d9ff11695c301cf7"
+    },
+    "openzl/src/openzl/shared/pdqsort.h": {
+     "sha256": "b5d62d5d937b9a609b0f0d4baf70d667516f387f0777b26eb190da204aca05b8"
+    },
+    "openzl/src/openzl/shared/portability.h": {
+     "sha256": "823f33b0f8e75c7b0c102fb0633ead5730999d2da276aee611fa6669532c36ed"
+    },
+    "openzl/src/openzl/shared/simd_wrapper.h": {
+     "sha256": "2ffc3d3de306d589e2e0f26a81d4a1fdea7c5271a36bdfe60dbc088cac5ed305"
+    },
+    "openzl/src/openzl/shared/string_view.h": {
+     "sha256": "fa5e676736ae10fb6b990d7fc7629422238797d1f46b9996a21ef8fb23add076"
+    },
+    "openzl/src/openzl/shared/utils.h": {
+     "sha256": "dadb55ccc47ae286502a41b291577762bbdbbac9ae9f2e87bbf0a3549a4a6d44"
+    },
+    "openzl/src/openzl/shared/varint.h": {
+     "sha256": "549462683c9e32c9bfa580740002fc9cc7f44310f6d8d72ad3cbfd207cee9352"
+    },
+    "openzl/src/openzl/shared/xxhash.h": {
+     "sha256": "4b2a9bb97f7865f1d218085ade029fe9b8641c4d836462bf4a4a67e3ac86a295"
+    },
+    "openzl/src/openzl/shared/zs_xxhash.h": {
+     "sha256": "5058187267351ebd7f41ca70844d8edd22c40cf2d911ca99250df546ac07cd0d"
+    },
+    "openzl/src/openzl/shared/detail/pdqsort-inl.h": {
+     "sha256": "780f21d8fc4f024180a35ad42819d24b44a5524a9e36a48bb64cbf3565b51102"
+    },
+    "openzl/src/openzl/shared/detail/pdqsort1.c": {
+     "sha256": "419e5023ac12681d4426f3e0c5459982bb9ad923fff8224b27334f90253f6995"
+    },
+    "openzl/src/openzl/shared/detail/pdqsort2.c": {
+     "sha256": "c61bdb2e46027b4b97640c6520184b54595080e006544bb3e6e5f43eed2928ef"
+    },
+    "openzl/src/openzl/shared/detail/pdqsort4.c": {
+     "sha256": "cfedbdf0198934649c475e51bf1a8d76c16f13d453179204df8d1e958e761598"
+    },
+    "openzl/src/openzl/shared/detail/pdqsort8.c": {
+     "sha256": "aceb39dcff9f23f558342ce729ea3bc31ff66424bc4a64cb0479cb8550c38d28"
+    }
+   }
+  },
+  {
    "name": "argon2",
    "version": "20190702",
    "upstream": "https://github.com/P-H-C/phc-winner-argon2",

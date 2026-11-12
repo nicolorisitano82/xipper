@@ -166,6 +166,26 @@ find "$work/docs/docs" -exec touch -h -t 202601020304.05 {} +
 "$M" "$work/docs" > "$out/docs.manifest"
 "$X" create -q -f xiz -l 12 --documents "$out/docs.xiz" "$work/docs/docs"
 
+# ---------------------------------------------------------------- 1.11 tables in OpenZL frames (§21)
+mkdir -p "$work/tables/tables"
+python3 -I - "$work/tables/tables" <<'PY'
+import sys, random
+random.seed(11)
+d = sys.argv[1]
+with open(d + "/sensors.csv", "w") as f:
+    f.write("timestamp,sensor,temperature,humidity,status\n")
+    for i in range(8000):
+        f.write("%d,S%03d,%.2f,%.1f,%s\n" % (1767225600 + i * 10, i % 16, 20 + random.random() * 5, 40 + random.random() * 30, "OK" if random.random() < 0.97 else "WARN"))
+with open(d + "/peaks.bed", "w") as f:
+    p = 10000
+    for i in range(4000):
+        p += random.randint(50, 5000)
+        f.write("chr%d\t%d\t%d\tpeak_%d\t%d\t%s\n" % (i // 1000 + 1, p, p + random.randint(100, 2000), i, random.randint(0, 1000), random.choice("+-")))
+PY
+find "$work/tables/tables" -exec touch -h -t 202601020304.05 {} +
+"$M" "$work/tables" > "$out/tables.manifest"
+"$X" create -q -f xiz --tables "$out/tables.xiz" "$work/tables/tables"
+
 # ---------------------------------------------------------------- 1.10 forensic profile (§20)
 sh "$here/make_forensic_fixtures.sh" "$X" "$(dirname "$X")/xipper-forensic" "$M"
 

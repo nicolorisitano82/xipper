@@ -150,6 +150,32 @@ let package = Package(
             publicHeadersPath: "include",
             cxxSettings: [.headerSearchPath("src"), .define("NDEBUG", .when(configuration: .release))]
         ),
+        // OpenZL 0.3.0 (BSD, Meta): format-aware compression of delimited tables (CSV, TSV, BED) in
+        // XIZ 1.11, with the universal decoder. Only the C core and the CSV parser are vendored;
+        // zstd and lz4 are Xipper's own copies. shim/ is Xipper's C interface.
+        .target(
+            name: "COpenZL",
+            dependencies: ["CZstd", "CLZ4"],
+            path: "Vendor/openzl",
+            exclude: ["LICENSE"],
+            sources: ["src", "custom_parsers", "shim/xs_openzl.cpp"],
+            publicHeadersPath: "shim/include",
+            cSettings: [
+                .headerSearchPath("include"), .headerSearchPath("src"), .headerSearchPath("."),
+                .headerSearchPath("../zstd"), .headerSearchPath("../lz4/lib"),
+                .define("_GNU_SOURCE"), .define("_REENTRANT"),
+                // OpenZL's internal assertions stay off in debug builds too: hostile frames must fail
+                // with an error, as in the release build, not stop the process.
+                .define("NDEBUG"),
+                .define("XXH_NAMESPACE", to: "ZL_XXH_"),
+                .unsafeFlags(["-Wno-everything", "-O3"]),
+            ],
+            cxxSettings: [
+                .headerSearchPath("include"), .headerSearchPath("src"), .headerSearchPath("."),
+                .define("_GNU_SOURCE"), .define("_REENTRANT"), .define("NDEBUG"),
+                .unsafeFlags(["-Wno-everything", "-O3"]),
+            ]
+        ),
         // MARK: thin C helpers over system zlib / bzip2
         .target(
             name: "CXipShims",
@@ -158,7 +184,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli", "CPreflate"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli", "CPreflate", "COpenZL"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.

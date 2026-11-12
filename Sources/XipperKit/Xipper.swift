@@ -151,6 +151,9 @@ public struct CreateOptions: Sendable {
     /// XIZ 1.9: PNG, PDF and ZIP-based documents (DOCX, XLSX, PPTX, ODF, EPUB) with their Deflate
     /// streams split by preflate and recompressed, rebuilt byte for byte; readers before Xipper 3.0 refuse it.
     public var xizDocuments = false
+    /// XIZ 1.11: delimited tables (CSV, TSV, BED) compressed column by column with OpenZL, in
+    /// pieces of whole rows, each kept only when smaller; readers before Xipper 3.1 refuse it.
+    public var xizTables = false
     /// XIZ 1.5: percent of Reed–Solomon recovery data appended to the archive (§15); 0 = none.
     public var xizRecovery: Double = 0
     /// XIZ: train a zstd dictionary for the small files when there are enough of them (1.2).
@@ -315,7 +318,7 @@ public enum Xipper {
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
             var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2, appleCodec: options.xizCodec.appleFrameCodec,
-                                       jpeg: options.xizJPEG, deflate: options.xizDocuments, password: options.password, kdf: options.xizKDF,
+                                       jpeg: options.xizJPEG, deflate: options.xizDocuments, tables: options.xizTables, password: options.password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
                                        access: options.xizAccess, signer: options.xizSigner,

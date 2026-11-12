@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.10
+# XIZ archive format, version 1.11
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -11,7 +11,8 @@ post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which 
 (2026-11-10, Xipper 3.0) adds frames compressed with Apple's LZRAVEN and LZMESH (§18), macOS 27 only. **1.9** (2026-11-10, Xipper
 3.0) adds PNG, PDF and ZIP-based documents with their Deflate streams recompressed losslessly (§19). **1.10**
 (draft, 2026-11-10, xipper-forensic) adds the **forensic profile** (§20): disk images, source hashes, a
-cryptographic hash of every frame, unreadable-sector maps, case and custody records. Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+cryptographic hash of every frame, unreadable-sector maps, case and custody records. **1.11** (draft, 2026-11-12,
+Xipper 3.1) adds delimited tables (CSV, TSV, BED) compressed column by column with OpenZL (§21). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -73,7 +74,8 @@ There are no gaps and no overlaps. The footer ends the file.
 | 7 | apple | 1.8: frames with codec 5 or 6 (Apple's LZRAVEN, LZMESH) (§18) |
 | 8 | deflate | 1.9: frames with codec 7 (a document with its Deflate streams split by preflate) (§19) |
 | 9 | forensic | 1.10: forensic profile: directory version 3 with a forensic block in every segment (§20) |
-| 10–15 | — | reserved, zero |
+| 10 | tables | 1.11: frames with codec 8 (a piece of a delimited table as one OpenZL frame) (§21) |
+| 11–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
 the recovery record (§15) can be added to an existing archive, whose superblock is never rewritten,
@@ -964,3 +966,41 @@ A verifier reports each check separately, never a single "valid":
 
 Reading the content needs the password or a recipient key when the archive is encrypted; checks 2, 3
 and the source hashes do not.
+
+## 21. Version 1.11: tables in OpenZL frames
+
+An archive with frames of codec 8 sets the required feature `tables` (superblock bit 10,
+`version_minor = 11`); readers without it refuse the archive, and a frame with codec 8 in an archive
+without the bit is invalid. A codec 8 frame takes no zstd dictionary. The forensic profile (§20) does
+not allow it.
+
+General-purpose compressors see a CSV file as text; [OpenZL](https://github.com/facebook/openzl) (BSD,
+Meta; Xipper vendors release v0.3.0) parses it into columns and compresses each with its own graph of
+transforms (integers parsed and delta-coded, strings tokenised, entropy coding per column). A codec 8
+payload (before encryption) is **one OpenZL frame**, self-describing: OpenZL's universal decoder
+decodes it without knowing how it was compressed. It must decode to exactly `usize` bytes; writers set
+OpenZL's content checksum and readers check it.
+
+- **Format version.** Writers write OpenZL frames of format version 27 (OpenZL 0.3.0's newest).
+  OpenZL promises that newer releases decode frames of older tagged releases; XIZ readers carry their
+  own copy of the decoder, so the archive does not depend on that promise.
+- **Pieces.** A table is stored in frames of whole rows: each frame holds up to 16 MiB of the file,
+  cut after the last newline in the final MiB (or where it is, when there is none), and the file's
+  extents (§5) list them in order. The first piece starts with the header row. Such a file is
+  deduplicated as a whole only, like a JPEG (§16).
+- **Which files.** Xipper takes files of at least 64 KiB named `.csv` (the separator sniffed among
+  `,` `;` tab `|`), `.tsv`, `.tab`, `.bed` (tab) or `.psv` (`|`), with no NUL byte in the first 64 KiB
+  and the same number of separators, outside quotes, on at least 90% of its first 200 lines.
+- **Fallback.** A piece is stored with codec 8 only when the OpenZL frame decodes back to it and is
+  smaller than the frame compressed the usual way (zstd at the archive's level, or LZMA2); otherwise the
+  frame keeps the usual codec. OpenZL's compression level is 19 at «Massimo» (LZMA2) or archive levels
+  10 and above, 15 otherwise.
+- Readers decode untrusted frames with OpenZL's decoder, which reports errors instead of asserting
+  (release build); the entry digests (§5) still check every file.
+- Appending to an archive with `tables` may write frames of any codec; appending to one without it
+  never writes codec 8.
+
+On public tables (Our World in Data CO₂ and energy, OurAirports) and two synthetic ones (a sensor log,
+a BED file of 288,000 regions), 66.8 MB in all: zstd 3 19.9 MB, LZMA2 13.3 MB, zstd 3 with tables
+12.6 MB (in 1.4 s against 2.6 s for LZMA2), LZMA2 with tables 11.8 MB; decoding stays under 0.2 s.
+Xipper writes codec 8 only when asked (`xipper create --tables`, «Tabelle CSV più piccole» in Settings).
