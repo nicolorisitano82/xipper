@@ -1,4 +1,4 @@
-# Xipper 3.0
+# Xipper 3.1
 
 *Italiano · [English](README-USER.en.md)*
 
@@ -25,6 +25,8 @@ Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 
 - **Monta come volume:** pulsante **Monta** (o Finder › Xipper › Monta come volume). L'archivio compare in `/Volumes`, lo apri e lo modifichi nel Finder; quando lo espelli Xipper chiede se salvare le modifiche.
 - **Verifica e ripara:** **Verifica** controlla l'integrità senza scrivere nulla. Con **Crea dati di recupero** (inspector) Xipper scrive file PAR2 accanto all'archivio; se un giorno l'archivio si danneggia, **Ripara** lo ricostruisce, anche quando dei dati sono stati spostati da un'inserzione o una cancellazione. Negli XIZ i dati di recupero possono stare dentro l'archivio (Impostazioni › Generali › Dati di recupero), con una verifica mensile facoltativa in background.
 - **Foto più piccole:** con Impostazioni › Formati › XIZ › «Foto JPEG più piccole» i JPEG occupano circa il 20% in meno e all'estrazione tornano identici byte per byte (archivi leggibili da Xipper 2.7 in poi).
+- **Tabelle più piccole:** con Impostazioni › Formati › XIZ › «Tabelle CSV più piccole» i file CSV, TSV e BED vengono compressi colonna per colonna con OpenZL: le tabelle di numeri occupano dal 10 al 30% in meno che al livello Massimo, si aprono più in fretta e all'estrazione tornano identiche byte per byte (archivi leggibili da Xipper 3.1 in poi; da riga di comando `xipper create --tables`).
+- **Archivi forensi:** gli archivi creati da Xipper Forensic (prodotto separato) si aprono, si verificano e si estraggono come gli altri XIZ; l'inspector mostra in sola lettura il caso, il reperto, l'impronta della sorgente e i passaggi di mano.
 - **PNG, PDF e documenti più piccoli:** con Impostazioni › Formati › XIZ › «PNG, PDF e documenti più piccoli» Xipper ricomprime i dati interni di PNG, PDF e documenti Office ed EPUB: sui file veri i PNG occupano circa il 30% in meno, i PDF il 17%, i documenti il 13%, e all'estrazione tornano identici byte per byte (archivi leggibili da Xipper 3.0 in poi).
 - **Codec di Apple:** su macOS 27, Impostazioni › Formati › XIZ › «Codec di Apple (LZRAVEN e LZMESH)» usa i compressori di Apple: archivi più piccoli di LZMA2 al livello Massimo, più veloci da aprire agli altri livelli. Si leggono solo su macOS 27.
 - **Versioni:** ogni modifica di un XIZ ne conserva la versione precedente. Nell'inspector, la sezione **Versioni** apre in sola lettura com'era l'archivio prima; **Aggiorna da una cartella…** aggiunge i file nuovi o cambiati e toglie quelli spariti (anche da riga di comando: `xipper versions`, `xipper update`).
@@ -56,7 +58,7 @@ Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovra
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.
 
 ## Riconoscimenti
-Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli, preflate): le licenze sono in **Xipper › Riconoscimenti**.
+Xipper include codice open source (zstd, libdeflate, liblzma, htscodecs, libarchive, Argon2, LZMA SDK, Brotli, brunsli, preflate, OpenZL): le licenze sono in **Xipper › Riconoscimenti**.
 
 ## Aggiornamenti
 Una volta al giorno Xipper chiede a GitHub se c'è una versione nuova (anche da **Xipper › Cerca aggiornamenti…**). Se c'è, la scarica solo se glielo dici, la controlla con l'impronta SHA-256 e apre l'immagine disco: trascini Xipper in **Applicazioni** come la prima volta.
