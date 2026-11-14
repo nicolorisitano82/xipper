@@ -25,6 +25,8 @@
 #   forensic     scripts/forensic-validation.sh: V01–V13 (disks, E01, custody…)
 #   portable     xiz cross-built for Linux and Windows with zig
 #   linux        the Linux xiz run in a container (needs a running Docker daemon)
+#   powercut     scripts/vm/powercut.sh: the little-space conversion in a macOS VM switched off
+#                at random (needs the VM of scripts/vm, set up once; skipped by --quick)
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
@@ -137,6 +139,12 @@ linux() {
         $X test zstd-recompress-plain.xiz && $X test tables-crlf.xiz && $X extract -d out zstd-recompress-plain.xiz'
 }
 
+powercut() {
+    [ $QUICK = 1 ] && skip "skipped by --quick"
+    [ -f "$HOME/XipperVM/macos/Disk.img" ] || skip "no test VM (scripts/vm/xipper-vm install)"
+    bash scripts/vm/build.sh > /dev/null && bash scripts/vm/powercut.sh 20
+}
+
 # ---------------------------------------------------------------- run
 
 T0=$SECONDS
@@ -151,6 +159,7 @@ step lowspace   "Little-space conversion killed at random (30 rounds)" lowspace
 step forensic   "Forensic validation V01–V13" forensic
 step portable   "xiz cross-built for Linux and Windows" portable
 step linux      "Linux xiz in a container" linux
+step powercut   "Little-space conversion in a VM switched off at random (20 rounds)" powercut
 
 {
     echo "# Test campaign — Xipper $(grep -m1 'MARKETING_VERSION' App/Xipper.xcodeproj/project.pbxproj | sed -E 's/.*= ([^;]+);/\1/')"

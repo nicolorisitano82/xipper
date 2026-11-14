@@ -107,7 +107,11 @@ enum LowSpaceConverter {
         var source: String
         var target: String
         var format: String
+        /// st_dev when the conversion started: informative only, it changes across reboots and
+        /// when a disk is plugged in again (found by the power-cut test in a VM, 3.2).
         var device: Int64
+        /// The volume's UUID, which does not change; nil in journals written by Xipper 3.0 and 3.1.
+        var volume: String?
         var inode: UInt64
         var size: Int64
         /// SHA-256 of the original from `tailStart` to its end (ZIP central directory, 7z header),
@@ -353,7 +357,7 @@ enum LowSpaceConverter {
         guard stat(source.path, &st) == 0 else { throw XipperError.posix("stat", source.path) }
         let batches = layout.batches(limit: limit)
         let journal = Journal(source: source.path, target: target.path, format: options.format.rawValue, device: Int64(st.st_dev),
-                              inode: UInt64(st.st_ino), size: layout.size, tailStart: layout.tailStart,
+                              volume: volumeUUID(source), inode: UInt64(st.st_ino), size: layout.size, tailStart: layout.tailStart,
                               tail: try tailDigest(source.path, from: layout.tailStart, size: layout.size),
                               batches: batches.map { $0.flatMap(\.ranges) },
                               paths: batches.map { $0.flatMap(\.paths).filter { !isAppleDouble($0) }.map(key) },
@@ -404,7 +408,10 @@ enum LowSpaceConverter {
         var st = stat()
         guard stat(source.path, &st) == 0 else { throw XipperError.posix("stat", source.path) }
         let size = (try FileManager.default.attributesOfItem(atPath: source.path)[.size] as? NSNumber)?.int64Value ?? -1
-        guard Int64(st.st_dev) == j.device, UInt64(st.st_ino) == j.inode, size == j.size,
+        // The same file: same volume (by UUID; journals without one rely on the rest), inode, size,
+        // and the never-released tail with the first block. Not st_dev: it changes across reboots.
+        let sameVolume = j.volume == nil || volumeUUID(source) == nil || volumeUUID(source) == j.volume
+        guard sameVolume, UInt64(st.st_ino) == j.inode, size == j.size,
               try tailDigest(source.path, from: j.tailStart, size: j.size) == j.tail else {
             throw XipperError.integrity(entry: source.lastPathComponent, detail: "not the original this conversion started from")
         }
@@ -446,6 +453,11 @@ enum LowSpaceConverter {
             if i == 0 || paths.allSatisfy(catalog.contains) { done = i + 1 } else { break }
         }
         return done
+    }
+
+    /// The UUID of the volume holding `url`, stable across reboots and reconnections.
+    static func volumeUUID(_ url: URL) -> String? {
+        try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString
     }
 
     static func tailDigest(_ path: String, from: Int64, size: Int64) throws -> String {

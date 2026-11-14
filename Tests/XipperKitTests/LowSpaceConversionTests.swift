@@ -89,6 +89,41 @@ struct LowSpaceConversionTests {
         try extractsToSource(t, target)
     }
 
+    /// After a reboot the volume's st_dev is often another number (power-cut test in a VM, 3.2):
+    /// the conversion must resume all the same, journals of 3.0 and 3.1 (no volume UUID) included.
+    @Test(arguments: [true, false])
+    func resumesWhenTheDeviceNumberChanged(oldJournal: Bool) throws {
+        let t = TempDir()
+        let a = try source(t, .zip)
+        let target = t.url("a.xiz")
+        #expect(throws: XipperError.cancelled) {
+            try withHooks(stop: "batch1-released") { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
+        }
+        let url = LowSpaceConverter.journalURL(a.standardizedFileURL)
+        var j = try LowSpaceConverter.read(url)
+        #expect(j.volume != nil && j.volume == LowSpaceConverter.volumeUUID(a))
+        j.device += 3
+        if oldJournal { j.volume = nil }
+        try LowSpaceConverter.write(j, to: url)
+        _ = try withHooks { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
+        #expect(!FileManager.default.fileExists(atPath: a.path))
+        try extractsToSource(t, target)
+    }
+
+    /// Another volume (a copy of the original elsewhere) is still refused.
+    @Test func refusesTheOriginalOnAnotherVolume() throws {
+        let t = TempDir()
+        let a = try source(t, .zip)
+        #expect(throws: XipperError.cancelled) {
+            try withHooks(stop: "batch1-released") { try Xipper.convertWithLittleSpace(a, to: t.url("a.xiz"), options: xiz()) }
+        }
+        let url = LowSpaceConverter.journalURL(a.standardizedFileURL)
+        var j = try LowSpaceConverter.read(url)
+        j.volume = UUID().uuidString
+        try LowSpaceConverter.write(j, to: url)
+        #expect(throws: XipperError.self) { _ = try withHooks { try Xipper.convertWithLittleSpace(a, to: t.url("a.xiz"), options: xiz()) } }
+    }
+
     @Test(arguments: ["batch0-written", "batch1-written", "verified", "renamed"])
     func resumesFromEveryStep(step: String) throws {
         let t = TempDir()
