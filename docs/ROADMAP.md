@@ -481,7 +481,7 @@ Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento pe
 #### E. Rilascio — avanzamento al 14/11/2026
 - ✅ traduzioni delle stringhe nuove in 6 lingue (89 voci: documento firmato, firma, impostazioni, tooltip, chiavi nel Secure Enclave);
 - ✅ manuale: capitolo 14 «Signed documents», chiavi nel Secure Enclave e certificati (capitolo 7), tabelle di firma e compatibilità (6), comandi `sig` e `keygen --secure-enclave` (10), impostazioni (12), novità della 3.3 nel README;
-- da fare: fase D (smart card vera, TSA qualificata con account, DSS, `xiz` su Windows), campagna completa, note, numero di versione, DMG.
+- ✅ **3.3.0 rilasciata il 14/11/2026** (decisione del proprietario: fase D saltata, resta da fare dopo il rilascio: smart card vera, TSA qualificata con account, DSS, `xiz` su Windows); campagna completa verde (412 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti, 61 controlli di interop, 30 giri con 57 kill, validazione forense, `xiz` su Linux; prova di corrente saltata, VM eliminata).
 
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
 
