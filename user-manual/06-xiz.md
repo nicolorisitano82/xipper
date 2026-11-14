@@ -131,7 +131,8 @@ How signing works:
 |---|---|---|
 | **Post-quantum (recommended)**, `xizsigpq1…` | Ed25519 + ML-DSA-65 together. Valid only if both verify, so it stays sound as long as either algorithm is unbroken, also against future quantum computers. About 5 KB per signed version | Xipper 3.2+, libxiz from 3.2. Earlier versions show the segment as unsigned, but open the archive normally |
 | **Classic**, `xizsig1…` | Ed25519 | Every version since 2.2 |
-| **Certificate** | ECDSA P-256 or RSA with an X.509 certificate, from the Keychain or a smart card. Used mainly by Xipper Forensic | Xipper 3.1+ |
+| **Secure Enclave**, `xizsigse1…` | P-256 + ML-DSA-65 together, both kept by your Mac's Secure Enclave: the key cannot be copied, and is lost with the Mac. Post-quantum like the hybrid keys | Xipper 3.3+, libxiz from 3.3 |
+| **Certificate** | ECDSA P-256 or RSA with an X.509 certificate, from the Keychain or a smart card: the signature carries your certified name. Choose it in **Settings › Keys › Sign new XIZ archives with** or in the XIZ sheet | Xipper 3.1+ |
 
 ```bash
 xipper keygen --signing --pq --keychain "Work"                 # a hybrid key in the Keychain
@@ -188,5 +189,6 @@ Xipper never changes them. Use Xipper Forensic or `xiz forensic` to verify the e
 | Forensic profile (1.10) | Xipper 3.1+, Xipper Forensic |
 | Tables and AI models (1.11) | Xipper 3.1+ |
 | Post-quantum signatures (1.12) | Content: every version that reads signed archives. Verifying the signature: Xipper 3.2+ |
+| Secure Enclave signatures (1.13) | Content: every version that reads signed archives. Verifying the signature: Xipper 3.3+ |
 
 An archive that needs a newer reader is refused with a clear message, never misread. `xiz` (libxiz) reads all of them, the Apple codecs only on macOS 27.

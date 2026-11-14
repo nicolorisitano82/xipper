@@ -53,6 +53,8 @@
 | **Zip bomb protection** | **Standard (1000:1)**, **Strict (100:1)**, **Permissive (100,000:1)** |
 | **Archive passwords › Require Touch ID to use saved passwords** | Touch ID before a saved password is used |
 | **Saved in Keychain**, **Forget All Passwords** | The saved archive passwords, and how to forget them all |
+| **Signed documents › Online checks** | Lets Xipper download the EU trusted list and ask certification authorities about revocation, only when you verify a signature ([chapter 14](14-signed-documents.md)) |
+| **Signed documents › Trusted list** | **Italy (AgID)** or **None** |
 
 ## Keys
 
@@ -61,8 +63,8 @@
 | Setting | What it does |
 |---|---|
 | **My identities** | **New Identity…** (Post-quantum or Classic), **Import…**, and for each identity copy, **Export…**, **Delete…** |
-| **Signing keys** | **New Signing Key…** (Post-quantum or Classic), **Import…**, the same actions per key |
-| **Sign new XIZ archives with** | The key that signs by default, or none |
+| **Signing keys** | **New Signing Key…** (Post-quantum, Classic or In the Secure Enclave), **Import…**, the same actions per key |
+| **Sign new XIZ archives with** | The key or signature certificate that signs by default, or none |
 | **Also sign changes to signed archives** | Signs every edit of an archive that is already signed |
 | **Name in signatures** | The name shown in the history |
 | **Time-stamp authority (URL)** | An RFC 3161 authority, or none |

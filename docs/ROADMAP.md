@@ -478,6 +478,11 @@ Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento pe
 - ✅ app: «Nuova chiave di firma…» › «Nel Secure Enclave (non copiabile)…» con avviso, etichetta «Secure Enclave», niente «Esporta»; i certificati di firma (Portachiavi e smart card, con non ripudio, validi) scelti come chiave predefinita o nel foglio XIZ firmano gli archivi (algoritmi 2 e 3); lo storico dice «Secure Enclave di un Mac»;
 - 7 test nuovi (412 in tutto); da fare: provare in app la firma con un certificato vero (fase D).
 
+#### E. Rilascio — avanzamento al 14/11/2026
+- ✅ traduzioni delle stringhe nuove in 6 lingue (89 voci: documento firmato, firma, impostazioni, tooltip, chiavi nel Secure Enclave);
+- ✅ manuale: capitolo 14 «Signed documents», chiavi nel Secure Enclave e certificati (capitolo 7), tabelle di firma e compatibilità (6), comandi `sig` e `keygen --secure-enclave` (10), impostazioni (12), novità della 3.3 nel README;
+- da fare: fase D (smart card vera, TSA qualificata con account, DSS, `xiz` su Windows), campagna completa, note, numero di versione, DMG.
+
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)

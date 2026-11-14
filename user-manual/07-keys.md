@@ -5,7 +5,7 @@ XIZ uses two kinds of keys, both kept in your login Keychain and managed in **Se
 | Kind | What it is for | Public part looks like |
 |---|---|---|
 | **Identity** | Receiving archives: someone encrypts an archive (or a reserved folder) for your public key, and only your identity opens it | `xizpq1…` (post-quantum) or `xizpk1…` (classic) |
-| **Signing key** | Signing your archives and changes, so others can check who made them | `xizsigpq1…` (post-quantum) or `xizsig1…` (classic) |
+| **Signing key** | Signing your archives and changes, so others can check who made them | `xizsigpq1…` (post-quantum), `xizsigse1…` (Secure Enclave) or `xizsig1…` (classic) |
 
 Secret keys never leave the Keychain unless you export them. Touch ID protects their use.
 
@@ -32,6 +32,22 @@ xipper keygen --pq --keychain "Me"                  # post-quantum identity
 xipper keygen --signing --pq --keychain "Work"      # hybrid signing key
 xipper keygen --signing -o work.key                 # classic signing key in a file (mode 600)
 ```
+
+## Keys in the Secure Enclave
+
+**Settings › Keys › New Signing Key… › In the Secure Enclave (cannot be copied)…** makes a signing key inside your Mac's Secure Enclave. The key never leaves it: nobody can copy it, not even you, and malware cannot steal it. It signs with P-256 and ML-DSA-65 together, so it is post-quantum like the hybrid keys.
+
+The price: **the key is lost with the Mac**. If the Mac breaks, is erased or replaced, signatures already made stay verifiable, but you cannot sign anything else with that key. Keep another key, or a certificate, for archives that must outlive the Mac. These keys have no **Export…**. Checking their signatures needs Xipper 3.3+.
+
+```bash
+xipper keygen --signing --secure-enclave --keychain "This Mac"
+```
+
+Apple Archives cannot be signed with these keys (their signature needs an Ed25519 key).
+
+## Certificates
+
+Signature certificates in the Keychain or on a smart card (valid, meant for signing) appear under **Settings › Keys › Sign new XIZ archives with** and in the XIZ sheet's **Signature**. Signatures made with them carry your certified name; the card asks for its PIN when you sign. They also sign documents as `.p7m` ([chapter 14](14-signed-documents.md)).
 
 ## Using them
 

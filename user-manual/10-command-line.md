@@ -168,7 +168,7 @@ Algorithms: sha256 (default), sha512, sha3-256, blake3, xxh128, xxh3, sha1, md5,
 ## XIZ keys, signatures, proofs
 
 ```bash
-xipper keygen [--signing] [--pq] -o FILE | --keychain NAME
+xipper keygen [--signing] [--pq | --secure-enclave] -o FILE | --keychain NAME
 xipper history archive.xiz                       # who changed what and when; exit 3 if something does not verify
 xipper history --aea-pem key.pem signed.aar      # key of a signed Apple Archive, for aea -sign-pub
 xipper prove archive.xiz path/in/archive -o proof.json
@@ -180,7 +180,24 @@ xipper erase archive.xiz path/in/archive...      # archives created with "erasab
 - no flags: a classic identity (X25519);
 - `--pq`: a post-quantum identity (X-Wing);
 - `--signing`: a classic signing key (Ed25519);
-- `--signing --pq`: a hybrid signing key (Ed25519 + ML-DSA-65).
+- `--signing --pq`: a hybrid signing key (Ed25519 + ML-DSA-65);
+- `--signing --secure-enclave`: a key in this Mac's Secure Enclave (P-256 + ML-DSA-65), which works only on this Mac.
+
+## Signed documents
+
+```bash
+xipper sig verify [--online] [--country CC | --no-trusted-list] [--json] FILE
+xipper sig extract [-o FILE] FILE.p7m
+xipper sig certificates
+xipper sig sign --certificate NAME [--parallel | --nested] [--timestamp URL [--tsa-user USER]] [-o FILE] [--overwrite] FILE
+```
+
+- `verify` checks a `.p7m`, a signed PDF or an ASiC container; exit 3 if not every signature is valid. `--online` downloads the trusted list and asks OCSP/CRL services; otherwise the cached list and the revocation data in the file are used.
+- `extract` writes the document inside a `.p7m` (also nested), without checking.
+- `certificates` lists the signing certificates (Keychain, smart cards), marking qualified, non-repudiation and expired ones.
+- `sign` makes `FILE.p7m` (CAdES-BES; CAdES-T with `--timestamp`). For a `.p7m`, `--parallel` adds a signer in place, `--nested` wraps it. The time-stamp password comes from `XIPPER_TSA_PASSWORD` or is asked.
+
+See [chapter 14](14-signed-documents.md).
 
 ## Genomics
 

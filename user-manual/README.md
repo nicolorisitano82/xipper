@@ -21,6 +21,13 @@ This manual covers the app, the Finder integration and the `xipper` command. It 
 | [11. AI assistants (MCP)](11-ai-assistants.md) | Letting Claude and other assistants use Xipper safely |
 | [12. Settings reference](12-settings.md) | Every setting, tab by tab |
 | [13. Limits, troubleshooting and help](13-troubleshooting.md) | Known limits, common problems, reading XIZ without Xipper, reporting a problem |
+| [14. Signed documents](14-signed-documents.md) | Verifying `.p7m`, signed PDFs and ASiC, qualified or not, revocation; signing `.p7m` with a certificate or a smart card |
+
+## What's new in 3.3
+
+- **Signed documents.** Xipper verifies `.p7m` files, signed PDFs and ASiC containers: who signed, when, whether the signature is qualified (EU trusted list) and whether the certificate was revoked (online only with your permission). It also signs documents as `.p7m` with a certificate or a smart card, with a time-stamp if you like, also next to or over existing signatures. See [chapter 14](14-signed-documents.md).
+- **Signing keys in the Secure Enclave (XIZ 1.13).** A key made by your Mac's Secure Enclave never leaves it: P-256 and ML-DSA-65 together. See [Keys](07-keys.md#keys-in-the-secure-enclave).
+- **Signing XIZ archives with a certificate** (Keychain or smart card) in the app, not only in Xipper Forensic.
 
 ## What's new in 3.2
 

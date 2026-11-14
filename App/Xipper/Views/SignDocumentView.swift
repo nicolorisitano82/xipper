@@ -38,7 +38,7 @@ struct SignDocumentView: View {
             Section {
                 LabeledContent("Documento", value: url.lastPathComponent)
                 if isP7M {
-                    Picker("Firma", selection: $nested) {
+                    Picker("Tipo di firma", selection: $nested) {
                         Text("Parallela (accanto alle altre)").tag(false)
                         Text("A matrioska (sopra le altre)").tag(true)
                     }
@@ -93,7 +93,7 @@ struct SignDocumentView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button(working ? "Firma in corso…" : "Firma") { sign() }
+                Button(working ? "Firma in corso…" : "Firma documento") { sign() }
                     .disabled(working || !shown.contains { $0.name == certificate } || (useTimestamp && URL(string: tsaURL)?.scheme?.hasPrefix("http") != true))
             }
         }

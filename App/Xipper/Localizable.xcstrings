@@ -161,6 +161,126 @@
         }
       }
     },
+    " · qualificata" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · qualifiziert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · qualified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · cualificada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · qualifiée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "・適格"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 合格"
+          }
+        }
+      }
+    },
+    " — qualificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — qualifiziert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — qualified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — cualificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — qualifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 適格"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 合格"
+          }
+        }
+      }
+    },
+    " — scaduto" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — abgelaufen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — expired"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — caducado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — expiré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 期限切れ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 已过期"
+          }
+        }
+      }
+    },
     "%@" : {
       "localizations" : {
         "de" : {
@@ -753,6 +873,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · 需 %3$lld 位保管人中的 %2$lld 位共同参与"
+          }
+        }
+      }
+    },
+    "%@ · %lld firme" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld firme"
           }
         }
       }
@@ -4210,6 +4340,46 @@
         }
       }
     },
+    "A matrioska (sopra le altre)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschachtelt (über den anderen)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nested (over the others)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anidada (sobre las demás)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imbriquée (par-dessus les autres)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入れ子（ほかの署名の上に）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "嵌套（覆盖其他签名）"
+          }
+        }
+      }
+    },
     "AES-256 (consigliata)" : {
       "localizations" : {
         "de" : {
@@ -4806,6 +4976,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加文件…"
+          }
+        }
+      }
+    },
+    "Aggiungi firma…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatur hinzufügen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Signature…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir firma…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter une signature…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名を追加…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加签名…"
           }
         }
       }
@@ -5716,6 +5926,46 @@
         }
       }
     },
+    "Apri documento" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokument öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Document"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir documento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le document"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开文稿"
+          }
+        }
+      }
+    },
     "Apri e chiudi Xipper" : {
       "localizations" : {
         "de" : {
@@ -5792,6 +6042,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Xipper 打开归档"
+          }
+        }
+      }
+    },
+    "Apri il documento firmato con la sua app" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das signierte Dokument mit seiner App öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the signed document with its app"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir el documento firmado con su app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le document signé avec son app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名された書類をそのアプリで開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用对应的 App 打开已签名的文稿"
+          }
+        }
+      }
+    },
+    "Apri la cartella" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the folder"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir la carpeta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le dossier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开文件夹"
           }
         }
       }
@@ -6592,6 +6922,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@的进度"
+          }
+        }
+      }
+    },
+    "Avanzata" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortgeschritten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avanzada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avancée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级"
           }
         }
       }
@@ -8268,6 +8638,46 @@
         }
       }
     },
+    "Certificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书"
+          }
+        }
+      }
+    },
     "Certificato attendibile" : {
       "localizations" : {
         "de" : {
@@ -8344,6 +8754,126 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 Mac 不信任该证书"
+          }
+        }
+      }
+    },
+    "Certificato non trovato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat nicht gefunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate not found"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado no encontrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat introuvable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到证书"
+          }
+        }
+      }
+    },
+    "Certificato qualificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualifiziertes Zertifikat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualified certificate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado cualificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat qualifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適格証明書"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合格证书"
+          }
+        }
+      }
+    },
+    "Certificato: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificado: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificat : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书：%@"
           }
         }
       }
@@ -8585,6 +9115,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "他人要向你发送 XIZ 归档，需要使用你的公钥：只有你能打开发给你的文件夹。后量子身份（xizpq1…）也能抵御未来的量子计算机；发送者需要 Xipper 3.0 或更高版本。传统身份（xizpk1…）适用于所有版本。"
+          }
+        }
+      }
+    },
+    "Chiave di firma nel Secure Enclave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signaturschlüssel in der Secure Enclave"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing key in the Secure Enclave"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de firma en el Secure Enclave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé de signature dans la Secure Enclave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave 内の署名鍵"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全隔区中的签名密钥"
           }
         }
       }
@@ -9509,6 +10079,46 @@
         }
       }
     },
+    "Codice fiscale" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steuernummer"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tax code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código fiscal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code fiscal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "納税者番号"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "税号"
+          }
+        }
+      }
+    },
     "Codifica dei nomi" : {
       "localizations" : {
         "de" : {
@@ -10417,6 +11027,7 @@
       }
     },
     "Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10452,6 +11063,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用签名密钥后，每个 XIZ 归档和每次更改都带有你的签名：任何人都可以核实谁在何时更改了什么。后量子密钥（xizsigpq1…）同时用 Ed25519 和 ML-DSA-65 签名：只要其中之一安全，签名就有效，也能抵御未来的量子计算机；验证需要 Xipper 3.2 或更高版本。时间戳（RFC 3161）是可选的，也是 Xipper 为签名而联系服务器的唯一情况。"
+          }
+        }
+      }
+    },
+    "Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. Una chiave nel Secure Enclave (xizsigse1…) non esce mai da questo Mac: nessuno può copiarla, ma si perde con il Mac; per verificarla serve Xipper 3.3. Con un certificato (anche su smart card) la firma porta il tuo nome certificato. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einem Signaturschlüssel trägt jedes XIZ-Archiv und jede Änderung deine Signatur: Jeder kann prüfen, wer was wann geändert hat. Ein Schlüssel in der Secure Enclave (xizsigse1…) verlässt diesen Mac nie: Niemand kann ihn kopieren, aber er geht mit dem Mac verloren; zum Prüfen ist Xipper 3.3 nötig. Mit einem Zertifikat (auch auf einer Smartcard) trägt die Signatur Ihren zertifizierten Namen. Der Zeitstempel (RFC 3161) ist optional und der einzige Fall, in dem Xipper zum Signieren einen Server kontaktiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With a signing key, every XIZ archive and every change carries your signature: anyone can check who changed what and when. A key in the Secure Enclave (xizsigse1…) never leaves this Mac: nobody can copy it, but it is lost with the Mac; verifying it needs Xipper 3.3. With a certificate (also on a smart card) the signature carries your certified name. The time-stamp (RFC 3161) is optional and is the only time Xipper contacts a server to sign."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con una clave de firma, cada archivo XIZ y cada cambio llevan tu firma: cualquiera puede comprobar quién cambió qué y cuándo. Una clave en el Secure Enclave (xizsigse1…) nunca sale de este Mac: nadie puede copiarla, pero se pierde con el Mac; para verificarla hace falta Xipper 3.3. Con un certificado (también en tarjeta inteligente) la firma lleva tu nombre certificado. El sello de tiempo (RFC 3161) es opcional y es el único caso en que Xipper contacta con un servidor para firmar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une clé de signature, chaque archive XIZ et chaque modification portent votre signature : tout le monde peut vérifier qui a modifié quoi et quand. Une clé dans la Secure Enclave (xizsigse1…) ne quitte jamais ce Mac : personne ne peut la copier, mais elle se perd avec le Mac ; sa vérification nécessite Xipper 3.3. Avec un certificat (y compris sur carte à puce), la signature porte votre nom certifié. L'horodatage (RFC 3161) est facultatif et c'est le seul cas où Xipper contacte un serveur pour signer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名鍵を使用すると、すべてのXIZアーカイブとすべての変更にあなたの署名が付きます。誰がいつ何を変更したかを誰でも確認できます。 Secure Enclave 内の鍵（xizsigse1…）はこの Mac から出ることがなく、誰もコピーできませんが、Mac とともに失われます。検証には Xipper 3.3 が必要です。証明書（スマートカード上のものも含む）で署名すると、認証された名前が署名に入ります。タイムスタンプ（RFC 3161）は任意で、Xipperが署名のためにサーバに接続するのはこの場合だけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有了签名密钥，每个 XIZ 归档和每项更改都会带有你的签名：任何人都可以查验谁在何时更改了什么。安全隔区中的密钥（xizsigse1…）永不离开此 Mac：无人能拷贝，但会随 Mac 一同丢失；验证需要 Xipper 3.3。使用证书（包括智能卡上的证书）签名时，签名会带有你经认证的姓名。时间戳（RFC 3161）是可选的，也是 Xipper 为签名而联系服务器的唯一情况。"
           }
         }
       }
@@ -10852,6 +11503,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即检查"
+          }
+        }
+      }
+    },
+    "Controlli in rete" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online-Prüfungen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online checks"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobaciones en línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifications en ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンライン確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "联网检查"
+          }
+        }
+      }
+    },
+    "Controlli in rete (elenco di fiducia e revoca dei certificati)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online-Prüfungen (Vertrauensliste und Zertifikatswiderruf)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online checks (trusted list and certificate revocation)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobaciones en línea (lista de confianza y revocación de certificados)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifications en ligne (liste de confiance et révocation des certificats)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンライン確認（トラストリストと証明書の失効）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "联网检查（可信列表和证书吊销）"
           }
         }
       }
@@ -11416,6 +12147,46 @@
         }
       }
     },
+    "Copia negli appunti il rapporto della verifica" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfbericht in die Zwischenablage kopieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the verification report to the clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar el informe de verificación al portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier le rapport de vérification dans le presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検証レポートをクリップボードにコピー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将验证报告拷贝到剪贴板"
+          }
+        }
+      }
+    },
     "Copia rapporto" : {
       "localizations" : {
         "de" : {
@@ -11572,6 +12343,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "韩文（EUC-KR）"
+          }
+        }
+      }
+    },
+    "Crea" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstellen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作成"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建"
           }
         }
       }
@@ -13194,6 +14005,46 @@
         }
       }
     },
+    "Documenti firmati" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signierte Dokumente"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed documents"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documentos firmados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documents signés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名済み書類"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已签名文稿"
+          }
+        }
+      }
+    },
     "Documento" : {
       "localizations" : {
         "de" : {
@@ -13230,6 +14081,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文稿"
+          }
+        }
+      }
+    },
+    "Documento firmato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signiertes Dokument"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed document"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documento firmado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Document signé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名済み書類"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已签名文稿"
           }
         }
       }
@@ -13594,6 +14485,86 @@
         }
       }
     },
+    "Elenco di fiducia" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertrauensliste"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted list"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista de confianza"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste de confiance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トラストリスト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可信列表"
+          }
+        }
+      }
+    },
+    "Elenco di fiducia del %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertrauensliste vom %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted list of %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista de confianza del %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste de confiance du %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のトラストリスト。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的可信列表。"
+          }
+        }
+      }
+    },
     "Elimina" : {
       "localizations" : {
         "de" : {
@@ -13876,6 +14847,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除…"
+          }
+        }
+      }
+    },
+    "Emesso da" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgestellt von"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issued by"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emitido por"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Émis par"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "発行者"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "颁发者"
           }
         }
       }
@@ -14914,6 +15925,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Xipper 解压"
+          }
+        }
+      }
+    },
+    "Estrai documento…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokument extrahieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Document…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extraer documento…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extraire le document…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類を取り出す…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提取文稿…"
           }
         }
       }
@@ -16384,6 +17435,86 @@
         }
       }
     },
+    "Firma anche tu questo documento (firma parallela o a matrioska)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Dokument ebenfalls signieren (parallele oder verschachtelte Signatur)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign this document too (parallel or nested signature)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma tú también este documento (firma paralela o anidada)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signer vous aussi ce document (signature parallèle ou imbriquée)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書類にも署名する（並列署名または入れ子署名）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你也签署此文稿（并行或嵌套签名）"
+          }
+        }
+      }
+    },
+    "Firma con" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signieren mit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign with"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmar con"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signer avec"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名に使う証明書"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "签名方式"
+          }
+        }
+      }
+    },
     "Firma di %@" : {
       "localizations" : {
         "de" : {
@@ -16424,6 +17555,166 @@
         }
       }
     },
+    "Firma di %@ (questo Mac)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatur von %@ (dieser Mac)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@’s signature (this Mac)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma de %@ (este Mac)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature de %@ (ce Mac)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の署名（このMac）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的签名（此 Mac）"
+          }
+        }
+      }
+    },
+    "Firma digitale" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitale Signatur"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digital signature"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma digital"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature numérique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デジタル署名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数字签名"
+          }
+        }
+      }
+    },
+    "Firma digitalmente…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digital signieren …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Digitally…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmar digitalmente…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signer numériquement…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デジタル署名…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数字签名…"
+          }
+        }
+      }
+    },
+    "Firma documento" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Document"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokument signieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmar documento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signer le document"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類に署名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "签署文稿"
+          }
+        }
+      }
+    },
     "Firma i nuovi archivi XIZ con" : {
       "localizations" : {
         "de" : {
@@ -16460,6 +17751,126 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用以下密钥为新 XIZ 归档签名"
+          }
+        }
+      }
+    },
+    "Firma in corso…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird signiert …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature en cours…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在签名…"
+          }
+        }
+      }
+    },
+    "Firma integra, firmatario non verificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatur intakt, Unterzeichner nicht geprüft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature intact, signer not verified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma íntegra, firmante no verificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature intacte, signataire non vérifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名は無傷、署名者は未確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "签名完整，签名者未验证"
+          }
+        }
+      }
+    },
+    "Firma interna, livello %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Innere Signatur, Ebene %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inner signature, level %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma interna, nivel %lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature interne, niveau %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内側の署名、レベル %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内层签名，第 %lld 层"
           }
         }
       }
@@ -16584,6 +17995,126 @@
         }
       }
     },
+    "Firma qualificata valida" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gültige qualifizierte Signatur"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid qualified signature"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma cualificada válida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature qualifiée valide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効な適格署名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有效的合格签名"
+          }
+        }
+      }
+    },
+    "Firma valida con certificato qualificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gültige Signatur mit qualifiziertem Zertifikat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid signature with a qualified certificate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma válida con certificado cualificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature valide avec certificat qualifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適格証明書による有効な署名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用合格证书的有效签名"
+          }
+        }
+      }
+    },
+    "Firma valida, certificato non qualificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gültige Signatur, Zertifikat nicht qualifiziert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid signature, certificate not qualified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firma válida, certificado no cualificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature valide, certificat non qualifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効な署名、証明書は非適格"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "签名有效，证书非合格"
+          }
+        }
+      }
+    },
     "Firmata con un algoritmo che questa versione non conosce: non verificata. Aggiorna Xipper." : {
       "localizations" : {
         "de" : {
@@ -16620,6 +18151,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用此版本不认识的算法签名：未验证。请更新 Xipper。"
+          }
+        }
+      }
+    },
+    "Firmatario sconosciuto" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekannter Unterzeichner"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown signer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firmante desconocido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signataire inconnu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な署名者"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知签名者"
           }
         }
       }
@@ -19631,6 +21202,46 @@
         }
       }
     },
+    "Integrità" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integrität"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integrity"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intégrité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全性"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整性"
+          }
+        }
+      }
+    },
     "Integro · %lld elementi verificati" : {
       "localizations" : {
         "de" : {
@@ -19773,6 +21384,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "欢迎使用 Xipper"
+          }
+        }
+      }
+    },
+    "Italia (AgID)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italien (AgID)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italy (AgID)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italia (AgID)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italie (AgID)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "イタリア（AgID）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意大利（AgID）"
           }
         }
       }
@@ -20413,6 +22064,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这些文件的密钥将被销毁：其内容在此归档及其所有版本中，以及从现在起制作的副本中都将无法读取。之前制作的归档副本仍保留这些文件。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "La chiave nasce nel Secure Enclave di questo Mac e non ne esce mai: nessuno può copiarla, nemmeno tu. Se il Mac si rompe, viene inizializzato o sostituito, la chiave è persa: le firme già fatte restano verificabili, ma non potrai firmare altro con lei. Firma insieme con P-256 e ML-DSA-65 (post-quantum); per verificare serve Xipper 3.3 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Schlüssel entsteht in der Secure Enclave dieses Mac und verlässt sie nie: Niemand kann ihn kopieren, auch Sie nicht. Geht der Mac kaputt, wird er gelöscht oder ersetzt, ist der Schlüssel verloren: Bereits erstellte Signaturen bleiben prüfbar, aber Sie können damit nichts mehr signieren. Er signiert gleichzeitig mit P-256 und ML-DSA-65 (Post-Quanten); zum Prüfen ist Xipper 3.3 oder neuer nötig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key is made in this Mac’s Secure Enclave and never leaves it: nobody can copy it, not even you. If the Mac breaks, is erased or replaced, the key is lost: signatures already made stay verifiable, but you cannot sign anything else with it. It signs with P-256 and ML-DSA-65 together (post-quantum); verifying needs Xipper 3.3 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clave nace en el Secure Enclave de este Mac y nunca sale de él: nadie puede copiarla, ni siquiera tú. Si el Mac se rompe, se borra o se sustituye, la clave se pierde: las firmas ya hechas siguen siendo verificables, pero no podrás firmar nada más con ella. Firma a la vez con P-256 y ML-DSA-65 (poscuántica); para verificar hace falta Xipper 3.3 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé naît dans la Secure Enclave de ce Mac et n’en sort jamais : personne ne peut la copier, pas même vous. Si le Mac tombe en panne, est effacé ou remplacé, la clé est perdue : les signatures déjà faites restent vérifiables, mais vous ne pourrez plus rien signer avec elle. Elle signe à la fois avec P-256 et ML-DSA-65 (post-quantique) ; la vérification nécessite Xipper 3.3 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この鍵はこの Mac の Secure Enclave 内で作成され、外に出ることはありません。あなた自身も含め、誰もコピーできません。Mac が故障したり、消去・交換されたりすると鍵は失われます。作成済みの署名は引き続き検証できますが、その鍵で新たに署名することはできません。P-256 と ML-DSA-65（耐量子）で同時に署名します。検証には Xipper 3.3 以降が必要です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该密钥在此 Mac 的安全隔区中生成，永不离开：任何人都无法拷贝，包括你自己。如果 Mac 损坏、被抹掉或更换，密钥就会丢失：已有的签名仍可验证，但无法再用它签名。它同时使用 P-256 和 ML-DSA-65（抗量子）签名；验证需要 Xipper 3.3 或更高版本。"
           }
         }
       }
@@ -21147,6 +22838,46 @@
         }
       }
     },
+    "Le marche temporali qualificate richiedono un account presso il prestatore (per esempio quello della tua firma). La password non viene salvata." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualifizierte Zeitstempel erfordern ein Konto beim Anbieter (zum Beispiel dem Ihrer Signatur). Das Passwort wird nicht gesichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualified time-stamps need an account with the provider (for example the one of your signature). The password is not saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los sellos de tiempo cualificados requieren una cuenta con el prestador (por ejemplo, el de tu firma). La contraseña no se guarda."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les horodatages qualifiés exigent un compte auprès du prestataire (par exemple celui de votre signature). Le mot de passe n’est pas enregistré."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適格タイムスタンプには提供者（例：署名の提供者）のアカウントが必要です。パスワードは保存されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合格时间戳需要在服务商（例如你的签名服务商）处拥有账户。密码不会被存储。"
+          }
+        }
+      }
+    },
     "Le mie identità" : {
       "localizations" : {
         "de" : {
@@ -21713,6 +23444,46 @@
         }
       }
     },
+    "Marca temporale" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeitstempel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time-stamp"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sello de tiempo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horodatage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイムスタンプ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时间戳"
+          }
+        }
+      }
+    },
     "Marca temporale %@" : {
       "localizations" : {
         "de" : {
@@ -21789,6 +23560,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时间戳无效。"
+          }
+        }
+      }
+    },
+    "Marca temporale del documento" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokumentzeitstempel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Document time-stamp"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sello de tiempo del documento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horodatage du document"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類のタイムスタンプ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文稿时间戳"
           }
         }
       }
@@ -22679,6 +24490,46 @@
         }
       }
     },
+    "Mostra tutti i certificati" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Zertifikate anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show all certificates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar todos los certificados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher tous les certificats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての証明書を表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示所有证书"
+          }
+        }
+      }
+    },
     "Motivo" : {
       "localizations" : {
         "de" : {
@@ -22839,6 +24690,46 @@
         }
       }
     },
+    "Nel Secure Enclave (non copiabile)…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In der Secure Enclave (nicht kopierbar) …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the Secure Enclave (cannot be copied)…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En el Secure Enclave (no se puede copiar)…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans la Secure Enclave (non copiable)…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave 内（コピー不可）…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在安全隔区中（不可拷贝）…"
+          }
+        }
+      }
+    },
     "Nell'archivio" : {
       "localizations" : {
         "de" : {
@@ -22875,6 +24766,126 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在归档中"
+          }
+        }
+      }
+    },
+    "Nessun certificato di firma: inserisci la smart card o il token, o importa il certificato nel Portachiavi." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Signaturzertifikat: Smartcard oder Token einstecken oder das Zertifikat in den Schlüsselbund importieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No signing certificate: insert the smart card or token, or import the certificate into the Keychain."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay certificado de firma: inserta la tarjeta inteligente o el token, o importa el certificado en el Llavero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun certificat de signature : insérez la carte à puce ou le jeton, ou importez le certificat dans le trousseau."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名用証明書がありません。スマートカードやトークンを挿入するか、証明書をキーチェーンに読み込んでください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有签名证书：请插入智能卡或令牌，或将证书导入“钥匙串”。"
+          }
+        }
+      }
+    },
+    "Nessun certificato per la firma di documenti." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Zertifikat zum Signieren von Dokumenten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No certificate for signing documents."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ningún certificado para firmar documentos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun certificat pour signer des documents."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類署名用の証明書がありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有用于签署文稿的证书。"
+          }
+        }
+      }
+    },
+    "Nessun elenco di fiducia disponibile: non si può dire se le firme sono qualificate. Consenti i controlli in rete in Impostazioni › Sicurezza." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Vertrauensliste verfügbar: Ob die Signaturen qualifiziert sind, lässt sich nicht sagen. Online-Prüfungen in Einstellungen › Sicherheit erlauben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No trusted list available: whether the signatures are qualified cannot be told. Allow online checks in Settings › Security."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay lista de confianza: no se puede saber si las firmas son cualificadas. Permite las comprobaciones en línea en Ajustes › Seguridad."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune liste de confiance disponible : impossible de dire si les signatures sont qualifiées. Autorisez les vérifications en ligne dans Réglages › Sécurité."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トラストリストがないため、署名が適格かどうか判断できません。設定 › セキュリティでオンライン確認を許可してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可用的可信列表：无法判断签名是否合格。请在“设置 › 安全性”中允许联网检查。"
           }
         }
       }
@@ -24119,6 +26130,86 @@
         }
       }
     },
+    "Non valida" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No válida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non valide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效"
+          }
+        }
+      }
+    },
+    "Non verificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht geprüft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not verified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No verificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non vérifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未验证"
+          }
+        }
+      }
+    },
     "Normale" : {
       "localizations" : {
         "de" : {
@@ -24799,6 +26890,46 @@
         }
       }
     },
+    "Ora dichiarata" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angegebene Zeit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declared time"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hora declarada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heure déclarée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "申告時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声明时间"
+          }
+        }
+      }
+    },
     "Ordinamento" : {
       "localizations" : {
         "de" : {
@@ -24835,6 +26966,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排序方式"
+          }
+        }
+      }
+    },
+    "Organizzazione" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organisation"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organization"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "組織"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "组织"
           }
         }
       }
@@ -24959,6 +27130,46 @@
         }
       }
     },
+    "PDF firmato · %lld firme" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signiertes PDF · %lld Signaturen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed PDF · %lld signatures"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF firmado · %lld firmas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF signé · %lld signatures"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名済み PDF・署名 %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已签名 PDF · %lld 个签名"
+          }
+        }
+      }
+    },
     "PNG, PDF e documenti più piccoli" : {
       "localizations" : {
         "de" : {
@@ -24995,6 +27206,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更小的 PNG、PDF 和文稿"
+          }
+        }
+      }
+    },
+    "Parallela (accanto alle altre)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallel (neben den anderen)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallel (beside the others)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paralela (junto a las demás)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallèle (à côté des autres)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並列（ほかの署名と並べて）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "并行（与其他签名并列）"
+          }
+        }
+      }
+    },
+    "Parallela: un'altra firma sullo stesso documento. A matrioska: firmi il .p7m intero, come una controfirma." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallel: eine weitere Signatur auf demselben Dokument. Verschachtelt: Sie signieren die ganze .p7m-Datei, wie eine Gegenzeichnung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallel: one more signature on the same document. Nested: you sign the whole .p7m, like a countersignature."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paralela: otra firma sobre el mismo documento. Anidada: firmas el .p7m entero, como una contrafirma."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parallèle : une signature de plus sur le même document. Imbriquée : vous signez le .p7m entier, comme un contreseing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並列：同じ書類にもう一つ署名します。入れ子：.p7m 全体に署名します（副署のように）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "并行：在同一文稿上再加一个签名。嵌套：签署整个 .p7m，类似副署。"
           }
         }
       }
@@ -25439,6 +27730,46 @@
         }
       }
     },
+    "Per dire se una firma è qualificata Xipper usa l'elenco di fiducia europeo (per l'Italia quello di AgID), e per sapere se un certificato è stato revocato interroga l'autorità che l'ha emesso. Servono connessioni a quei servizi, solo quando verifichi una firma. Senza, Xipper usa l'elenco già scaricato e i dati di revoca contenuti nel file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um festzustellen, ob eine Signatur qualifiziert ist, verwendet Xipper die EU-Vertrauensliste (für Italien die von AgID), und um zu erfahren, ob ein Zertifikat widerrufen wurde, fragt es die ausstellende Stelle. Dafür sind Verbindungen zu diesen Diensten nötig, nur wenn Sie eine Signatur prüfen. Ohne sie verwendet Xipper die bereits geladene Liste und die Widerrufsdaten in der Datei."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To tell whether a signature is qualified, Xipper uses the EU trusted list (for Italy, AgID’s), and to know whether a certificate was revoked it asks the authority that issued it. That takes connections to those services, only when you verify a signature. Without them, Xipper uses the list already downloaded and the revocation data inside the file."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para saber si una firma es cualificada, Xipper usa la lista de confianza europea (para Italia, la de AgID), y para saber si un certificado fue revocado consulta a la autoridad que lo emitió. Hacen falta conexiones a esos servicios, solo cuando verificas una firma. Sin ellas, Xipper usa la lista ya descargada y los datos de revocación del archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour dire si une signature est qualifiée, Xipper utilise la liste de confiance européenne (pour l’Italie, celle de l’AgID), et pour savoir si un certificat a été révoqué, il interroge l’autorité qui l’a émis. Il faut des connexions à ces services, uniquement quand vous vérifiez une signature. Sans elles, Xipper utilise la liste déjà téléchargée et les données de révocation contenues dans le fichier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名が適格かどうかを判断するため、Xipper は EU のトラストリスト（イタリアは AgID のもの）を使い、証明書が失効したかどうかを発行機関に問い合わせます。これには、署名を検証するときだけ、それらのサービスへの接続が必要です。接続しない場合は、ダウンロード済みのリストとファイル内の失効情報を使います。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为了判断签名是否合格，Xipper 使用欧盟可信列表（意大利为 AgID 的列表）；为了了解证书是否已被吊销，它会询问颁发机构。这需要连接这些服务，仅在你验证签名时进行。不联网时，Xipper 使用已下载的列表和文件中的吊销数据。"
+          }
+        }
+      }
+    },
     "Per le cartelle custodite, ogni custode inserisce la propria password su questo Mac." : {
       "localizations" : {
         "de" : {
@@ -25515,6 +27846,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要验证证物、案件日志和报告，请使用 Xipper Forensic 或 xiz。"
+          }
+        }
+      }
+    },
+    "Per verificare un .p7m o un PDF firmato Xipper scarica l'elenco di fiducia europeo e chiede alle autorità di certificazione se il certificato è stato revocato, solo con questo permesso e solo quando verifichi una firma." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um eine .p7m-Datei oder ein signiertes PDF zu prüfen, lädt Xipper die EU-Vertrauensliste und fragt die Zertifizierungsstellen, ob das Zertifikat widerrufen wurde – nur mit dieser Erlaubnis und nur, wenn Sie eine Signatur prüfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To verify a .p7m or a signed PDF, Xipper downloads the EU trusted list and asks the certification authorities whether the certificate was revoked, only with this permission and only when you verify a signature."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para verificar un .p7m o un PDF firmado, Xipper descarga la lista de confianza europea y pregunta a las autoridades de certificación si el certificado fue revocado, solo con este permiso y solo cuando verificas una firma."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour vérifier un .p7m ou un PDF signé, Xipper télécharge la liste de confiance européenne et demande aux autorités de certification si le certificat a été révoqué, uniquement avec cette autorisation et uniquement quand vous vérifiez une signature."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".p7m や署名済み PDF を検証するため、Xipper は EU のトラストリストをダウンロードし、証明書が失効していないか認証局に問い合わせます。この許可がある場合に、署名を検証するときだけ行います。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为验证 .p7m 或已签名的 PDF，Xipper 会下载欧盟可信列表并询问认证机构证书是否已被吊销；仅在获得此许可且你验证签名时进行。"
           }
         }
       }
@@ -26565,6 +28936,46 @@
         }
       }
     },
+    "Puoi cambiare idea in Impostazioni › Sicurezza." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie können das in Einstellungen › Sicherheit ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can change your mind in Settings › Security."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puedes cambiar de idea en Ajustes › Seguridad."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous pouvez changer d’avis dans Réglages › Sécurité."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 › セキュリティでいつでも変更できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你可以在“设置 › 安全性”中更改。"
+          }
+        }
+      }
+    },
     "Può aprirlo:" : {
       "localizations" : {
         "de" : {
@@ -26601,6 +29012,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可以打开它的人："
+          }
+        }
+      }
+    },
+    "Qualificata" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualifiziert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualified"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cualificada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qualifiée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適格"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合格"
           }
         }
       }
@@ -27165,6 +29616,46 @@
         }
       }
     },
+    "Revoca" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widerruf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revocation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revocación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Révocation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "吊销"
+          }
+        }
+      }
+    },
     "Riconoscimenti" : {
       "localizations" : {
         "de" : {
@@ -27405,6 +29896,46 @@
         }
       }
     },
+    "Rileggi i certificati (dopo aver inserito la smart card)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikate neu lesen (nach dem Einstecken der Smartcard)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the certificates again (after inserting the smart card)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a leer los certificados (tras insertar la tarjeta inteligente)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relire les certificats (après avoir inséré la carte à puce)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書を読み直す（スマートカードを挿入した後）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新读取证书（插入智能卡后）"
+          }
+        }
+      }
+    },
     "Rimuovi" : {
       "localizations" : {
         "de" : {
@@ -27481,6 +30012,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从列表中移除"
+          }
+        }
+      }
+    },
+    "Rimuovi la cartella dall'elenco" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner aus der Liste entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the folder from the list"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar la carpeta de la lista"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer le dossier de la liste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダをリストから削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从列表中移除文件夹"
           }
         }
       }
@@ -27925,6 +30496,46 @@
         }
       }
     },
+    "Ripeti la verifica delle firme" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signaturen erneut prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify the signatures again"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repetir la verificación de las firmas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier à nouveau les signatures"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名を再検証"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新验证签名"
+          }
+        }
+      }
+    },
     "Ripeti password" : {
       "localizations" : {
         "de" : {
@@ -28361,6 +30972,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存储到其他位置…"
+          }
+        }
+      }
+    },
+    "Salva il documento firmato, senza la busta di firma" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das signierte Dokument ohne Signaturhülle sichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the signed document, without the signature envelope"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar el documento firmado, sin el sobre de firma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer le document signé, sans l’enveloppe de signature"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名エンベロープを除いた署名済み書類を保存"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储已签名的文稿，不含签名封装"
           }
         }
       }
@@ -29005,6 +31656,46 @@
         }
       }
     },
+    "Scegli il documento da firmare (un .p7m per aggiungere una firma)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie das zu signierende Dokument (eine .p7m-Datei, um eine Signatur hinzuzufügen)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the document to sign (a .p7m to add a signature)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el documento que firmar (un .p7m para añadir una firma)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le document à signer (un .p7m pour ajouter une signature)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名する書類を選択（署名を追加するなら .p7m）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择要签署的文稿（选择 .p7m 以添加签名）"
+          }
+        }
+      }
+    },
     "Scegli il file a cui si riferisce la prova." : {
       "localizations" : {
         "de" : {
@@ -29285,6 +31976,46 @@
         }
       }
     },
+    "Scegli un documento firmato (.p7m, PDF firmato, ASiC)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie ein signiertes Dokument (.p7m, signiertes PDF, ASiC)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a signed document (.p7m, signed PDF, ASiC)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un documento firmado (.p7m, PDF firmado, ASiC)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un document signé (.p7m, PDF signé, ASiC)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名済み書類を選択（.p7m、署名済み PDF、ASiC）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择已签名的文稿（.p7m、已签名 PDF、ASiC）"
+          }
+        }
+      }
+    },
     "Scegli un file di chiave XIZ (creato da «xipper keygen» o esportato da Xipper)." : {
       "localizations" : {
         "de" : {
@@ -29481,6 +32212,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果文件已存在"
+          }
+        }
+      }
+    },
+    "Secure Enclave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全隔区"
+          }
+        }
+      }
+    },
+    "Secure Enclave di un Mac, post-quantum: P-256 + ML-DSA-65" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave eines Mac, Post-Quanten: P-256 + ML-DSA-65"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Mac’s Secure Enclave, post-quantum: P-256 + ML-DSA-65"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave de un Mac, poscuántica: P-256 + ML-DSA-65"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secure Enclave d’un Mac, post-quantique : P-256 + ML-DSA-65"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac の Secure Enclave、耐量子：P-256 + ML-DSA-65"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 的安全隔区，抗量子：P-256 + ML-DSA-65"
           }
         }
       }
@@ -29927,6 +32738,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要密码"
+          }
+        }
+      }
+    },
+    "Servizio (URL)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dienst (URL)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service (URL)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servicio (URL)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service (URL)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービス（URL）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务（URL）"
           }
         }
       }
@@ -31057,6 +33908,46 @@
         }
       }
     },
+    "Tipo di firma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature type"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signaturart"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo de firma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type de signature"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名の種類"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "签名类型"
+          }
+        }
+      }
+    },
     "Togli %@" : {
       "localizations" : {
         "de" : {
@@ -31563,6 +34454,86 @@
         }
       }
     },
+    "Un Apple Archive si firma solo con una chiave Ed25519 o post-quantum, non con un certificato o una chiave del Secure Enclave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Apple Archive wird nur mit einem Ed25519- oder Post-Quanten-Schlüssel signiert, nicht mit einem Zertifikat oder einem Secure-Enclave-Schlüssel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An Apple Archive is signed only with an Ed25519 or post-quantum key, not with a certificate or a Secure Enclave key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un Apple Archive solo se firma con una clave Ed25519 o poscuántica, no con un certificado ni con una clave del Secure Enclave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un Apple Archive se signe uniquement avec une clé Ed25519 ou post-quantique, pas avec un certificat ni une clé de la Secure Enclave"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Archive に署名できるのは Ed25519 鍵または耐量子鍵だけで、証明書や Secure Enclave の鍵は使えません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Archive 只能用 Ed25519 或抗量子密钥签名，不能用证书或安全隔区密钥"
+          }
+        }
+      }
+    },
+    "Una marca temporale prova quando hai firmato (CAdES-T), anche dopo la scadenza del certificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Zeitstempel beweist, wann Sie signiert haben (CAdES-T), auch nach Ablauf des Zertifikats"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A time-stamp proves when you signed (CAdES-T), even after the certificate expires"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un sello de tiempo prueba cuándo firmaste (CAdES-T), incluso tras la caducidad del certificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un horodatage prouve quand vous avez signé (CAdES-T), même après l’expiration du certificat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイムスタンプは署名した日時を証明します（CAdES-T）。証明書の期限切れ後も有効です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时间戳可证明你签名的时间（CAdES-T），即使证书过期后也有效"
+          }
+        }
+      }
+    },
     "Una sola versione: ogni modifica ne aggiunge una, e quelle precedenti restano consultabili." : {
       "localizations" : {
         "de" : {
@@ -31963,6 +34934,86 @@
         }
       }
     },
+    "Utente" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutzer"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "User"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuario"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisateur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ユーザ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户"
+          }
+        }
+      }
+    },
+    "Validità" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gültigkeit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validity"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効期間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有效期"
+          }
+        }
+      }
+    },
     "Veloce" : {
       "localizations" : {
         "de" : {
@@ -32323,6 +35374,46 @@
         }
       }
     },
+    "Verifica delle firme…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signaturen werden geprüft …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifying the signatures…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificando las firmas…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérification des signatures…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名を検証中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在验证签名…"
+          }
+        }
+      }
+    },
     "Verifica di %@" : {
       "localizations" : {
         "de" : {
@@ -32399,6 +35490,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再次验证"
+          }
+        }
+      }
+    },
+    "Verifica firma…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signatur prüfen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify Signature…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificar firma…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier la signature…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名を検証…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证签名…"
           }
         }
       }
@@ -33203,6 +36334,46 @@
         }
       }
     },
+    "Xipper verifica le firme dal punto di vista tecnico; il loro valore legale in un caso concreto va valutato da un esperto." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper prüft Signaturen technisch; ihre rechtliche Wirkung im Einzelfall muss eine Fachperson beurteilen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper checks signatures technically; their legal value in a specific case is for an expert to assess."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper verifica las firmas desde el punto de vista técnico; su valor legal en un caso concreto debe evaluarlo un experto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper vérifie les signatures sur le plan technique ; leur valeur juridique dans un cas concret doit être appréciée par un expert."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper は署名を技術的に検証します。個別の事例における法的効力は専門家が判断してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipper 从技术上验证签名；其在具体案件中的法律效力应由专家评估。"
+          }
+        }
+      }
+    },
     "Xipper è aggiornato." : {
       "localizations" : {
         "de" : {
@@ -33679,6 +36850,126 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "bzip2（7-Zip/WinZip）"
+          }
+        }
+      }
+    },
+    "certificato REVOCATO" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat WIDERRUFEN"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificate REVOKED"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificado REVOCADO"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificat RÉVOQUÉ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書は失効済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书已吊销"
+          }
+        }
+      }
+    },
+    "certificato REVOCATO il %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat am %@ WIDERRUFEN"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificate REVOKED on %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificado REVOCADO el %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificat RÉVOQUÉ le %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書は %@ に失効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书于 %@ 被吊销"
+          }
+        }
+      }
+    },
+    "certificato non revocato (%@)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zertifikat nicht widerrufen (%@)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificate not revoked (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificado no revocado (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certificat non révoqué (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "証明書は失効していません（%@）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证书未被吊销（%@）"
           }
         }
       }
@@ -34581,6 +37872,86 @@
         }
       }
     },
+    "il documento è quello firmato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Dokument ist das signierte"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the document is the one signed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el documento es el firmado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le document est celui qui a été signé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類は署名されたものと同一です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文稿与签署时一致"
+          }
+        }
+      }
+    },
+    "il documento è stato modificato" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Dokument wurde verändert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the document was changed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el documento ha sido modificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le document a été modifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類は変更されています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文稿已被修改"
+          }
+        }
+      }
+    },
     "il più veloce" : {
       "localizations" : {
         "de" : {
@@ -34874,6 +38245,46 @@
         }
       }
     },
+    "non controllata" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nicht geprüft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not checked"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no comprobada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "non vérifiée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未检查"
+          }
+        }
+      }
+    },
     "originale nel Cestino" : {
       "localizations" : {
         "de" : {
@@ -35074,6 +38485,46 @@
         }
       }
     },
+    "revocato dopo la firma, il %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nach der Signatur widerrufen, am %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "revoked after the signature, on %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "revocado después de la firma, el %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "révoqué après la signature, le %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名後の %@ に失効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在签名之后于 %@ 被吊销"
+          }
+        }
+      }
+    },
     "ricompressi" : {
       "localizations" : {
         "de" : {
@@ -35270,6 +38721,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只读"
+          }
+        }
+      }
+    },
+    "solo se il servizio lo chiede" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nur wenn der Dienst es verlangt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "only if the service asks for it"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "solo si el servicio lo pide"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "seulement si le service le demande"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービスが求める場合のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当服务要求时"
+          }
+        }
+      }
+    },
+    "stato sconosciuto" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unbekannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "status unknown"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estado desconocido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "état inconnu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状態不明"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态未知"
           }
         }
       }
@@ -35791,6 +39322,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已在“钥匙串”中创建“%@”。"
+          }
+        }
+      }
+    },
+    "«%@» creata nel Secure Enclave." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ in der Secure Enclave erstellt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” created in the Secure Enclave."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» creada en el Secure Enclave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« %@ » créée dans la Secure Enclave."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」を Secure Enclave に作成しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在安全隔区中创建“%@”。"
           }
         }
       }
