@@ -51,6 +51,8 @@ struct ExhaustiveXizMatrixTests {
         t.write("\(root)/media/doc.pdf", XizDocumentsTests.pdf(pages: 4))
         t.write("\(root)/tables/sensors.csv", XizTablesTests.csv(rows: 40_000, seed: 6))
         t.write("\(root)/tables/regions.tsv", XizTablesTests.csv(rows: 20_000, seed: 7, separator: "\t"))
+        t.write("\(root)/models/model.safetensors", XizModelsTests.safetensors([
+            ("w0", "F32", XizModelsTests.weights32(200_000, seed: 8)), ("w1", "BF16", XizModelsTests.weights16(300_000, seed: 9))]))
         if let bin = FileManager.default.contents(atPath: "/usr/bin/true") { t.write("\(root)/bin/true", [UInt8](bin), mode: 0o755) }
         t.write("\(root)/a/b/c/d/e/f/g/deep.txt", "deep\n")
         t.write("\(root)/spazi e accenti/perché.txt", "ok\n")
@@ -66,6 +68,7 @@ struct ExhaustiveXizMatrixTests {
         o.xizJPEG = c.recompress
         o.xizDocuments = c.recompress
         o.xizTables = c.recompress
+        o.xizModels = c.recompress
         o.xizRecovery = c.recovery ? 5 : 0
         if c.security == .password || c.security == .both || c.security == .pq { o.password = Exhaustive.password }
         if c.security == .signed || c.security == .both { o.xizSigner = signer }

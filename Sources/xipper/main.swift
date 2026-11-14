@@ -27,6 +27,9 @@ usage: xipper <command> [options]
                            (XIZ 1.9, preflate: rebuilt byte for byte; needs Xipper 3.0+)
           --tables         xiz: compress CSV, TSV and BED tables column by column with OpenZL
                            (XIZ 1.11: 10-30% smaller than xz on numeric tables; needs Xipper 3.1+)
+          --models         xiz: compress AI model weights (.safetensors, PyTorch .pt/.pth/.bin/.ckpt)
+                           tensor by tensor with OpenZL (5-9% smaller than xz, about 100x faster;
+                           XIZ 1.11, read by Xipper 3.1+)
           --recovery N     xiz: append N percent of Reed–Solomon recovery data (XIZ 1.5, readable by any XIZ reader)
           --password-stdin read the password from the first line of stdin
           --zip64          always write ZIP64 structures
@@ -98,7 +101,7 @@ usage: xipper <command> [options]
           --trash-original move the original to the Trash once the new archive is verified
           --accept-losses  go on when signatures, access groups or the password would be lost
           --overwrite      replace an existing file at the output path
-          --lzma2, --lzraven, --lzmesh, --jpeg, --documents, --tables   XIZ: as in create
+          --lzma2, --lzraven, --lzmesh, --jpeg, --documents, --tables, --models   XIZ: as in create
           --little-space   ZIP or 7z → XIZ when the disk cannot hold both archives: a batch at a time,
                            each batch's bytes released from the original once it is safe in the new
                            archive; the original is removed at the end. Interrupted (even by a power
@@ -151,7 +154,7 @@ let knownFlags: Set<String> = command == "bgzip"
     ? commonFlags.union(["-d", "--decompress", "-c", "--stdout", "-i", "--index", "-r", "--reindex", "-t", "--test",
                          "-f", "--force", "-k", "--keep", "--convert", "--info"])
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
-                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
+                         "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--models", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon"])
 let valueOptions: Set<String> = command == "bgzip"
@@ -360,6 +363,10 @@ case "create", "c":
     if flag("--tables") {
         if o.format != .xiz { fail("--tables needs the xiz format", code: 2) }
         o.xizTables = true
+    }
+    if flag("--models") {
+        if o.format != .xiz { fail("--models needs the xiz format", code: 2) }
+        o.xizModels = true
     }
     if flag("--lzma2") {
         if o.format != .xiz { fail("--lzma2 needs the xiz format", code: 2) }
@@ -670,6 +677,7 @@ case "convert":
         o.xizJPEG = flag("--jpeg")
         o.xizDocuments = flag("--documents")
         o.xizTables = flag("--tables")
+        o.xizModels = flag("--models")
     }
     if flag("--abandon") {
         run {

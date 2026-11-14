@@ -129,6 +129,8 @@ enum LowSpaceConverter {
         var documents: Bool
         /// 1.11; nil in journals written by Xipper 3.0.
         var tables: Bool?
+        /// 3.2; nil in journals written before.
+        var models: Bool?
         var recovery: Double
         var dictionary: Bool
         var extendedAttributes: Bool
@@ -361,7 +363,7 @@ enum LowSpaceConverter {
                               tail: try tailDigest(source.path, from: layout.tailStart, size: layout.size),
                               batches: batches.map { $0.flatMap(\.ranges) },
                               paths: batches.map { $0.flatMap(\.paths).filter { !isAppleDouble($0) }.map(key) },
-                              level: options.level, codec: options.xizCodec.rawValue, jpeg: options.xizJPEG, documents: options.xizDocuments, tables: options.xizTables,
+                              level: options.level, codec: options.xizCodec.rawValue, jpeg: options.xizJPEG, documents: options.xizDocuments, tables: options.xizTables, models: options.xizModels,
                               recovery: options.xizRecovery, dictionary: options.xizDictionary,
                               extendedAttributes: options.storeExtendedAttributes, encrypted: options.password != nil,
                               sourceEncrypted: password != nil)
@@ -510,6 +512,7 @@ enum LowSpaceConverter {
         o.xizJPEG = j.jpeg
         o.xizDocuments = j.documents
         o.xizTables = j.tables ?? false
+        o.xizModels = j.models ?? false
         o.xizRecovery = j.recovery
         o.xizDictionary = j.dictionary
         o.storeExtendedAttributes = j.extendedAttributes
@@ -543,6 +546,7 @@ enum LowSpaceConverter {
         let jpegNames = o.xizJPEG && layout.entries.contains { ["jpg", "jpeg", "jpe", "jfif"].contains(($0.path as NSString).pathExtension.lowercased()) }
         let documentNames = o.xizDocuments && layout.entries.contains { DeflateRecompression.kind(name: $0.path) != nil }
         let tableNames = o.xizTables && layout.entries.contains { TableRecompression.extensions[($0.path as NSString).pathExtension.lowercased()] != nil }
+        let modelNames = o.xizModels && layout.entries.contains { ModelRecompression.extensions.contains(($0.path as NSString).pathExtension.lowercased()) }
         do {
             for b in done..<batches.count {
                 try cancel?.check()
@@ -609,7 +613,7 @@ enum LowSpaceConverter {
                     var oo = o
                     oo.overwrite = true
                     _ = try XizWriter.write(items: items, to: staged.path, level: oo.level ?? 3, lzma2: oo.xizCodec == .lzma2,
-                                            appleCodec: oo.xizCodec.appleFrameCodec, jpeg: jpegNames, deflate: documentNames, tables: tableNames,
+                                            appleCodec: oo.xizCodec.appleFrameCodec, jpeg: jpegNames, deflate: documentNames, tables: tableNames, models: modelNames,
                                             password: oo.password, kdf: oo.xizKDF, extendedAttributes: oo.storeExtendedAttributes,
                                             dictionaryThreshold: oo.xizDictionary ? XizDictionary.minimumSmallBytes : .max,
                                             declareRecompression: true, workload: workload, overwrite: true,
@@ -725,7 +729,7 @@ enum LowSpaceConverter {
         let (frames, written) = try XizWriter.writeData(fresh, to: out, startFrame: a.catalog.frames.count, known: known, keys: a.keys,
                                                         level: o.level ?? 3, lzma2: sb.contains(.lzma2),
                                                         appleCodec: sb.contains(.apple) ? o.xizCodec.appleFrameCodec : nil,
-                                                        jpeg: sb.contains(.jpeg), deflate: sb.contains(.deflate), tables: sb.contains(.tables), dictionary: dictionary,
+                                                        jpeg: sb.contains(.jpeg), deflate: sb.contains(.deflate), tables: sb.contains(.tables), models: sb.contains(.tables), dictionary: dictionary,
                                                         extendedAttributes: o.storeExtendedAttributes, workload: o.workload,
                                                         tracker: tracker, cancel: cancel)
         // A file of this batch replaces nothing: paths are unique in the original.

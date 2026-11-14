@@ -414,7 +414,7 @@ Tema: **chiudere le prove aperte e firme post-quantum**. Ordine proposto:
 | **A. Prove che mancano** | VM macOS (Virtualization.framework) per la prova di corrente di «Cambia formato» a poco spazio, con IPSW da scaricare (circa 18 GB); `xiz` eseguito su Linux (Docker o VM) e su Windows (VM ARM); le prove a mano rimaste dalla 3.0 | medio | consenso al download dell'IPSW |
 | **B. Firme ML-DSA (XIZ 1.12)** | firme post-quantum con ML-DSA-65 di CryptoKit (disponibile su macOS 26, niente codice esterno nell'app), da sole o ibride Ed25519 + ML-DSA come X-Wing per la cifratura; chiavi nel Portachiavi; Apple Archive firmati invariati | medio | decisione su libxiz (sotto) |
 | **C. OpenZL oltre il CSV** | tabelle con dizionario addestrato per archivio (`zli train`: misurare il guadagno), array numerici binari e file a struttura fissa descritti con SDDL, JSON Lines; Parquet solo se non compresso | medio | misure su file veri |
-| **D. Integrazione continua** | la campagna `--quick` a ogni push su un runner macOS di GitHub (se esiste con macOS 26), `xiz` Linux e Windows provati in CI | basso | — |
+| ~~**D. Integrazione continua**~~ | non interessa al proprietario (14/11/2026): la campagna si lancia a mano | — | — |
 | **E. Rilascio** | campagna completa, note, DMG | basso | tutte |
 
 Decisioni da prendere:
@@ -433,6 +433,14 @@ Decisioni da prendere:
 - ✅ **libxiz** verifica con mldsa-native 2.0.0 (Apache-2.0/ISC/MIT, C portabile, solo verifica, versione fissata con SHA-256): le firme di CryptoKit verificano, un bit cambiato in una delle due metà no; tre vettori nuovi (`signed-pq`, `-tampered`, `-unknown`);
 - ✅ **algoritmi sconosciuti**: Xipper e libxiz ora mostrano «firmato con un algoritmo sconosciuto, non verificato» invece di «non firmato» (§13.5); corretta anche la verifica delle prove di appartenenza, che prendeva per non valide le firme con certificato;
 - matrice esaustiva con il caso «password + firma ibrida» (80 casi), 9 test nuovi; xipper-forensic firma registro e report con la metà Ed25519 (formato della 1.0), i segmenti dell'archivio con la firma ibrida.
+
+#### C. OpenZL oltre il CSV — fatta (14/11/2026)
+Misurato prima su file veri (BERT tiny e mini in PyTorch, SmolLM2-135M in safetensors bfloat16, tabelle di Our World in Data e OurAirports, array `.npy` ricavati da esse):
+- ✅ **modelli di IA** ([XIZ_SPEC.md §21](XIZ_SPEC.md)): i tensori di `.safetensors` e dei checkpoint PyTorch (`.pt`, `.pth`, `.bin`, `.ckpt`, anche ZIP64) in pezzi di valori interi fino a 16 MiB, ognuno con il grafo float di OpenZL (float32, bfloat16, float16), tenuto solo se più piccolo. Stesso codec 8 e stesso bit delle tabelle: **li legge già Xipper 3.1** e libxiz senza modifiche. Su 331 MB di modelli: zstd 268,6 MB, LZMA2 251,1 MB in 9,6 s, **zstd con modelli 237,7 MB in 0,4 s**. `xipper create --models`, «Modelli di IA più piccoli», «Cambia formato», modifiche; 5 test, un vettore di libxiz, un modello nella matrice esaustiva;
+- ✗ addestramento OpenZL dei CSV: −10/−13% ancora, ma 2–10 minuti per un file da 15 MB;
+- ✗ array numerici `.npy`: non meglio di xz -9 (e il grafo float su dati tabellari è molto peggio);
+- ✗ JSON Lines: OpenZL non ha un parser JSON;
+- ✗ Parquet: OpenZL vuole Parquet non compresso, raro nei file veri.
 
 Fuori dalla 3.2, in backlog: ISO 9660/UDF e DMG in lettura, MPEG-G, FSKit (account Apple), libbsc e kanzi (licenze).
 

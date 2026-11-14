@@ -184,6 +184,24 @@ with open(d + "/peaks.bed", "w") as f:
 PY
 find "$work/tables/tables" -exec touch -h -t 202601020304.05 {} +
 "$M" "$work/tables" > "$out/tables.manifest"
+# AI model weights in OpenZL frames (same codec 8, the float graph): a safetensors file with float32
+# and bfloat16 tensors of normal values, as a trained layer.
+mkdir -p "$work/models/models"
+python3 -I - "$work/models/models/model.safetensors" <<'PY'
+import sys, struct, json, random, math
+random.seed(5)
+def f32(n): return b"".join(struct.pack("<f", random.gauss(0, 0.02)) for _ in range(n))
+def bf16(n): return b"".join(struct.pack("<f", random.gauss(0, 0.02))[2:] for _ in range(n))
+t = [("w0", "F32", f32(150000)), ("w1", "BF16", bf16(250000))]
+h, off = {"__metadata__": {"format": "pt"}}, 0
+for name, d, b in t:
+    h[name] = {"dtype": d, "shape": [len(b)], "data_offsets": [off, off + len(b)]}; off += len(b)
+j = json.dumps(h, sort_keys=True).encode(); j += b" " * (-len(j) % 8)
+open(sys.argv[1], "wb").write(struct.pack("<Q", len(j)) + j + b"".join(b for _, _, b in t))
+PY
+find "$work/models/models" -exec touch -h -t 202601020304.05 {} +
+"$M" "$work/models" > "$out/models.manifest"
+"$X" create -q -f xiz --models "$out/models.xiz" "$work/models/models"
 "$X" create -q -f xiz --tables "$out/tables.xiz" "$work/tables/tables"
 
 # ---------------------------------------------------------------- 1.10 forensic profile (§20)

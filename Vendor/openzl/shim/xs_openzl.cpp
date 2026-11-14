@@ -4,6 +4,8 @@
 #include "openzl/zl_compress.h"
 #include "openzl/zl_compressor.h"
 #include "openzl/zl_decompress.h"
+#include "openzl/codecs/zl_conversion.h"
+#include "openzl/codecs/zl_float_deconstruct.h"
 
 extern "C" size_t xs_ozl_bound(size_t n) { return ZL_compressBound(n); }
 
@@ -19,6 +21,31 @@ extern "C" size_t xs_ozl_csv_compress(const void *src, size_t n, void *dst, size
         bool ok = !ZL_isError(ZL_Compressor_selectStartingGraphID(compressor, g))
                && !ZL_isError(ZL_CCtx_setParameter(cctx, ZL_CParam_formatVersion, XS_OZL_FORMAT_VERSION))
                && !ZL_isError(ZL_CCtx_setParameter(cctx, ZL_CParam_compressionLevel, level))
+               && !ZL_isError(ZL_CCtx_setParameter(cctx, ZL_CParam_contentChecksum, ZL_TernaryParam_enable))
+               && !ZL_isError(ZL_CCtx_refCompressor(cctx, compressor));
+        if (ok) {
+            ZL_Report r = ZL_CCtx_compress(cctx, dst, cap, src, n);
+            if (!ZL_isError(r)) out = ZL_validResult(r);
+        }
+    }
+    ZL_CCtx_free(cctx);
+    ZL_Compressor_free(compressor);
+    return out;
+}
+
+extern "C" size_t xs_ozl_float_compress(const void *src, size_t n, void *dst, size_t cap, int kind)
+{
+    size_t width = kind == 1 ? 4 : 2;
+    if (n == 0 || n % width != 0 || kind < 1 || kind > 3) return 0;
+    ZL_Compressor *compressor = ZL_Compressor_create();
+    ZL_CCtx *cctx = ZL_CCtx_create();
+    size_t out = 0;
+    if (compressor && cctx) {
+        ZL_NodeID split = kind == 1 ? ZL_NODE_FLOAT32_DECONSTRUCT : kind == 2 ? ZL_NODE_BFLOAT16_DECONSTRUCT : ZL_NODE_FLOAT16_DECONSTRUCT;
+        ZL_GraphID g = ZL_Compressor_registerStaticGraph_fromNode(compressor, split, ZL_GRAPHLIST(ZL_GRAPH_STORE, ZL_GRAPH_HUFFMAN));
+        g = ZL_Compressor_registerStaticGraph_fromNode1o(compressor, kind == 1 ? ZL_NODE_INTERPRET_AS_LE32 : ZL_NODE_INTERPRET_AS_LE16, g);
+        bool ok = !ZL_isError(ZL_Compressor_selectStartingGraphID(compressor, g))
+               && !ZL_isError(ZL_CCtx_setParameter(cctx, ZL_CParam_formatVersion, XS_OZL_FORMAT_VERSION))
                && !ZL_isError(ZL_CCtx_setParameter(cctx, ZL_CParam_contentChecksum, ZL_TernaryParam_enable))
                && !ZL_isError(ZL_CCtx_refCompressor(cctx, compressor));
         if (ok) {

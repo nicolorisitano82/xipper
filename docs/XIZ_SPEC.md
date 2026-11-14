@@ -75,7 +75,7 @@ There are no gaps and no overlaps. The footer ends the file.
 | 7 | apple | 1.8: frames with codec 5 or 6 (Apple's LZRAVEN, LZMESH) (§18) |
 | 8 | deflate | 1.9: frames with codec 7 (a document with its Deflate streams split by preflate) (§19) |
 | 9 | forensic | 1.10: forensic profile: directory version 3 with a forensic block in every segment (§20) |
-| 10 | tables | 1.11: frames with codec 8 (a piece of a delimited table as one OpenZL frame) (§21) |
+| 10 | tables | 1.11: frames with codec 8 (one OpenZL frame: a piece of a delimited table or of model weights) (§21) |
 | 11–15 | — | reserved, zero |
 
 **Optional features**: a reader **may** ignore them. Bit 0 (`recovery`) is reserved and never set:
@@ -973,7 +973,7 @@ A verifier reports each check separately, never a single "valid":
 Reading the content needs the password or a recipient key when the archive is encrypted; checks 2, 3
 and the source hashes do not.
 
-## 21. Version 1.11: tables in OpenZL frames
+## 21. Version 1.11: OpenZL frames (tables, model weights)
 
 An archive with frames of codec 8 sets the required feature `tables` (superblock bit 10,
 `version_minor = 11`); readers without it refuse the archive, and a frame with codec 8 in an archive
@@ -1005,6 +1005,25 @@ OpenZL's content checksum and readers check it.
   (release build); the entry digests (§5) still check every file.
 - Appending to an archive with `tables` may write frames of any codec; appending to one without it
   never writes codec 8.
+
+**Model weights** (Xipper 3.2, same codec and feature bit, so Xipper 3.1 and every libxiz with
+OpenZL read them). Tensors of `.safetensors` files (u64 header length, JSON header with each
+tensor's `dtype` and `data_offsets`) and of `torch.save` checkpoints (`.pt`, `.pth`, `.bin`,
+`.ckpt`: a zip whose `…/data/` entries are stored; local headers with their sizes, ZIP64 included,
+and a central directory after them) go into pieces of whole values of up to 16 MiB. Each piece is
+compressed with OpenZL's float graph: values as little-endian integers, then
+`FLOAT32_DECONSTRUCT` or `BFLOAT16_DECONSTRUCT` / `FLOAT16_DECONSTRUCT` with the sign and exponent
+stream Huffman-coded and the mantissa stored. The dtype is the header's for safetensors. For
+PyTorch it is in the pickle, which is not read, so float32 and bfloat16 are both tried and the
+smaller is kept. Headers, metadata, other dtypes and padding are stored in pieces of the usual codec, and a
+tensor piece where OpenZL is not smaller is too. On real models (BERT tiny and mini in PyTorch,
+SmolLM2-135M in bfloat16 safetensors, 331 MB): zstd 3 268.6 MB, LZMA2 251.1 MB (9.6 s), zstd 3 with
+models 237.7 MB (0.4 s); xz -9 on the tensors alone: float32 9%, bfloat16 5% larger than OpenZL.
+Xipper writes them only when asked (`xipper create --models`, «Modelli di IA più piccoli»).
+
+Not taken, after measuring: OpenZL's CSV training (10–13% smaller again, but 2–10 minutes per
+15 MB file), numeric arrays (`.npy`: no better than xz -9), JSON (no OpenZL parser), Parquet (only
+uncompressed Parquet, which is rare).
 
 On public tables (Our World in Data CO₂ and energy, OurAirports) and two synthetic ones (a sensor log,
 a BED file of 288,000 regions), 66.8 MB in all: zstd 3 19.9 MB, LZMA2 13.3 MB, zstd 3 with tables

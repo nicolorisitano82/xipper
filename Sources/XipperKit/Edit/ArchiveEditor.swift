@@ -510,7 +510,8 @@ enum XizEditor {
                                                         level: options.level ?? 3, lzma2: a.superblock.required.contains(.lzma2),
                                                         jpeg: a.superblock.required.contains(.jpeg),
                                                         deflate: a.superblock.required.contains(.deflate),
-                                                        tables: a.superblock.required.contains(.tables), dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
+                                                        tables: a.superblock.required.contains(.tables),
+                                                        models: a.superblock.required.contains(.tables), dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
                                                         workload: options.workload, tracker: tracker, cancel: cancel)
         var newByName: [String: Xiz.Entry] = [:]
         for e in written { newByName[e.path] = e }
@@ -587,6 +588,7 @@ enum XizEditor {
                                                            jpeg: a.superblock.required.contains(.jpeg),
                                                            deflate: a.superblock.required.contains(.deflate),
                                                            tables: a.superblock.required.contains(.tables),
+                                                           models: a.superblock.required.contains(.tables),
                                                            extendedAttributes: options.storeExtendedAttributes,
                                                            workload: options.workload, tracker: tracker, cancel: cancel)
                 frames += f

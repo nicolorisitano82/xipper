@@ -19,6 +19,11 @@ size_t xs_ozl_bound(size_t n);
 /// (not a table OpenZL can parse, or no room).
 size_t xs_ozl_csv_compress(const void *src, size_t n, void *dst, size_t cap, char separator, int header, int level);
 
+/// Model weights (XIZ 1.11, §21): kind 1 float32, 2 bfloat16, 3 float16 (IEEE half). The values are
+/// split into sign and exponent (Huffman) and mantissa (stored), as OpenZL's PyTorch profile does.
+/// n must be a multiple of the element size. Returns the compressed size, 0 on failure.
+size_t xs_ozl_float_compress(const void *src, size_t n, void *dst, size_t cap, int kind);
+
 /// Size the frame decodes to, or (size_t)-1 when the header is not a valid OpenZL frame.
 size_t xs_ozl_decompressed_size(const void *src, size_t n);
 

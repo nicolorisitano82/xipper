@@ -2336,11 +2336,11 @@
      "sha256": "3fa722fa1de16eab211680840529e8e862d391f71c07b0157c28090b58cbaf71"
     },
     "openzl/shim/xs_openzl.cpp": {
-     "sha256": "63bea62135767f77591d74f2c2b8d883637ab4202735fdcc499e44b19c24c136",
+     "sha256": "6ae860828a91ef2b8e7ae99ebf6a1c636c0faa24c4a189284c4ec9b35a260c8e",
      "ours": true
     },
     "openzl/shim/include/xs_openzl.h": {
-     "sha256": "ffcf799d45429ca065650ba3111b3e89e4da1a76e518a5abefe0dd8f62f2a851",
+     "sha256": "4891ee1fa4ccba6ff482bec0d51ac803c95bd09b1a2bc4da73b4039b74ec2caf",
      "ours": true
     },
     "openzl/src/openzl/codecs/decoder_registry.c": {

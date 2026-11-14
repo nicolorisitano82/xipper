@@ -22119,6 +22119,46 @@
         }
       }
     },
+    "Modelli di IA più piccoli" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kleinere KI-Modelle"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smaller AI Models"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de IA más pequeños"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèles d’IA plus petits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIモデルを小さく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更小的 AI 模型"
+          }
+        }
+      }
+    },
     "Modifica dell'archivio…" : {
       "localizations" : {
         "de" : {
@@ -25761,6 +25801,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 个文件丢失、被截断或已损坏：%@%@"
+          }
+        }
+      }
+    },
+    "Pesi dei modelli (.safetensors e PyTorch .pt, .pth, .bin, .ckpt) compressi tensore per tensore con OpenZL: dal 5 al 9% più piccoli di «Massimo» e molto più veloci da comprimere e aprire. All'estrazione ogni file torna identico byte per byte. Si leggono con Xipper 3.1 o successivo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modellgewichte (.safetensors und PyTorch .pt, .pth, .bin, .ckpt) werden mit OpenZL Tensor für Tensor komprimiert: 5 bis 9 % kleiner als mit „Maximal“ und viel schneller beim Komprimieren und Öffnen. Beim Entpacken ist jede Datei Byte für Byte identisch. Lesbar mit Xipper 3.1 oder neuer."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model weights (.safetensors and PyTorch .pt, .pth, .bin, .ckpt) compressed tensor by tensor with OpenZL: 5 to 9% smaller than with “Maximum”, and much faster to compress and open. Every file is extracted identical, byte for byte. Readable with Xipper 3.1 or later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pesos de modelos (.safetensors y PyTorch .pt, .pth, .bin, .ckpt) comprimidos tensor por tensor con OpenZL: entre un 5 y un 9 % más pequeños que con «Máximo» y mucho más rápidos de comprimir y abrir. Al extraerlos, cada archivo es idéntico byte a byte. Se leen con Xipper 3.1 o posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poids des modèles (.safetensors et PyTorch .pt, .pth, .bin, .ckpt) compressés tenseur par tenseur avec OpenZL : de 5 à 9 % plus petits qu’avec « Maximum », et beaucoup plus rapides à compresser et à ouvrir. À l’extraction, chaque fichier est identique octet par octet. Lisibles avec Xipper 3.1 ou ultérieur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルの重み（.safetensors と PyTorch の .pt、.pth、.bin、.ckpt）をOpenZLでテンソルごとに圧縮します。「最大」より5〜9%小さく、圧縮も展開もはるかに高速です。展開すると各ファイルはバイト単位で元どおりになります。Xipper 3.1以降で読み込めます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型权重（.safetensors 和 PyTorch 的 .pt、.pth、.bin、.ckpt）使用 OpenZL 逐个张量压缩：比“最大”小 5% 至 9%，压缩和打开都快得多。解压后每个文件逐字节完全相同。可用 Xipper 3.1 或更高版本读取。"
           }
         }
       }

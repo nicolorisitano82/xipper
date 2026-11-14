@@ -73,6 +73,15 @@ else
     grep -q 'built without preflate' "$W/docs-info.log" && pass docs-refused-cleanly || fail "docs: $(tail -1 "$W/docs-info.log")"
 fi
 
+# 1.11: AI model weights in OpenZL frames (float32 and bfloat16 tensors: two OpenZL frames)
+if "$XIZ" info "$F/models.xiz" > "$W/models-info.log" 2>&1; then
+    extract_cmp models models.xiz models.manifest
+    expect_code test-models 0 "$XIZ" test "$F/models.xiz"
+    grep -q 'OpenZL 2)' "$W/models-info.log" && pass codec-openzl-models || fail "codec-openzl-models: $(grep frames "$W/models-info.log")"
+else
+    grep -q 'built without OpenZL' "$W/models-info.log" && pass models-refused-cleanly || fail "models: $(tail -1 "$W/models-info.log")"
+fi
+
 # 1.11: delimited tables in OpenZL frames (a CSV and a BED: two OpenZL frames)
 if "$XIZ" info "$F/tables.xiz" > "$W/tables-info.log" 2>&1; then
     extract_cmp tables tables.xiz tables.manifest
