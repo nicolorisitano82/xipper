@@ -37,7 +37,7 @@ enum ModelRecompression {
         if ext == "safetensors" {
             tensors = try safetensors(r, size: size)
         } else {
-            tensors = try pytorch(r, size: size)
+            tensors = try pytorch(path)
         }
         guard let tensors, !tensors.isEmpty else { return nil }
         return cut(tensors, size: size)
@@ -62,50 +62,18 @@ enum ModelRecompression {
         return out.sorted { $0.0.lowerBound < $1.0.lowerBound }
     }
 
-    /// The tensor storages of a `torch.save` zip: stored entries under `…/data/`, read from the
-    /// local headers in order (their dtype is in the pickle: float32 and bfloat16 are both tried).
-    static func pytorch(_ r: FileReader, size: Int64) throws -> [(Range<Int64>, [Float])]? {
+    /// The tensor storages of a `torch.save` zip: stored entries under `…/data/`, found through the
+    /// central directory with Xipper's strict ZIP reader (torch writes data descriptors, so the
+    /// local headers carry no sizes). Their dtype is in the pickle, which is not read: float32 and
+    /// bfloat16 are both tried.
+    static func pytorch(_ path: String) throws -> [(Range<Int64>, [Float])]? {
+        guard let zip = try? ZipArchive(path: path) else { return nil }
         var out: [(Range<Int64>, [Float])] = []
-        var at: Int64 = 0
-        var entries = 0
-        while at + 30 <= size {
-            let h = try r.read(at: at, count: 30)
-            func u16(_ o: Int) -> Int64 { Int64(h[o]) | Int64(h[o + 1]) << 8 }
-            func u32(_ o: Int) -> Int64 { u16(o) | u16(o + 2) << 16 }
-            guard u32(0) == 0x0403_4B50 else { break }  // central directory reached
-            let flags = u16(6), method = u16(8)
-            var csize = u32(18)
-            let nameLength = u16(26), extraLength = u16(28)
-            guard flags & 8 == 0, at + 30 + nameLength + extraLength <= size else { return nil }
-            let name = String(decoding: try r.read(at: at + 30, count: Int(nameLength)), as: UTF8.self)
-            if csize == 0xFFFF_FFFF {
-                // ZIP64: the sizes are in the extra field 0x0001 (uncompressed, then compressed).
-                let extra = try r.read(at: at + 30 + nameLength, count: Int(extraLength))
-                var i = 0
-                csize = -1
-                while i + 4 <= extra.count {
-                    let id = Int(extra[i]) | Int(extra[i + 1]) << 8, len = Int(extra[i + 2]) | Int(extra[i + 3]) << 8
-                    if id == 1, len >= 16, i + 4 + 16 <= extra.count {
-                        csize = extra[(i + 12)..<(i + 20)].reversed().reduce(Int64(0)) { $0 << 8 | Int64($1) }
-                    }
-                    i += 4 + len
-                }
-                guard csize >= 0 else { return nil }
-            }
-            let data = at + 30 + nameLength + extraLength
-            guard data + csize <= size else { return nil }
-            if method == 0, csize > 0, name.contains("/data/") { out.append((data..<(data + csize), [.float32, .bfloat16])) }
-            at = data + csize
-            entries += 1
+        for rec in zip.records where rec.method == 0 && rec.compressedSize > 0 && rec.entry.path.contains("/data/") {
+            let start = try zip.dataOffset(rec)
+            out.append((start..<(start + rec.compressedSize), [.float32, .bfloat16]))
         }
-        guard entries > 0, reachesCentralDirectory(at, r, size) else { return nil }
-        return out
-    }
-
-    /// After the local entries: the central directory (a real zip, not something else ending in .bin).
-    private static func reachesCentralDirectory(_ at: Int64, _ r: FileReader, _ size: Int64) -> Bool {
-        guard at + 4 <= size, let b = try? r.read(at: at, count: 4) else { return false }
-        return b == [0x50, 0x4B, 0x01, 0x02] || b == [0x50, 0x4B, 0x06, 0x06]
+        return out.sorted { $0.0.lowerBound < $1.0.lowerBound }
     }
 
     /// The whole file as pieces of at most `pieceSize`: tensors in pieces of whole values,

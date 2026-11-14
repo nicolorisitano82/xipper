@@ -406,7 +406,7 @@ Il forense è diventato il prodotto separato xipper-forensic (1.0.0 pubblicata l
 
 Prima esecuzione completa (13/11/2026, M3 Max, macOS 27.3): **11 passi su 11 superati**. 375 test; matrice esaustiva 64 + 24 casi, 18 dialetti, frame OpenZL alterati; fuzzing a 2000 mutazioni (30 test); libxiz con sanitizer 3/3; **82 archivi su 82 riletti da libxiz** identici; interop 61/61; 30 conversioni interrotte con `kill -9`; validazione forense 13/13; `xiz` compilato per 4 piattaforme ed **eseguito su Linux arm64** (Alpine in Docker) su un archivio con tabelle OpenZL e uno con tutte le ricompressioni. Resta senza prova `xiz` su Windows.
 
-### 3.2 — proposta (13/11/2026)
+### 3.2 — pubblicata il 14/11/2026 (v3.2.0): firme post-quantum, modelli di IA, prove di corrente (proposta del 13/11/2026)
 Tema: **chiudere le prove aperte e firme post-quantum**. Ordine proposto:
 
 | Fase | Contenuto | Costo | Dipende da |
@@ -415,7 +415,7 @@ Tema: **chiudere le prove aperte e firme post-quantum**. Ordine proposto:
 | **B. Firme ML-DSA (XIZ 1.12)** | firme post-quantum con ML-DSA-65 di CryptoKit (disponibile su macOS 26, niente codice esterno nell'app), da sole o ibride Ed25519 + ML-DSA come X-Wing per la cifratura; chiavi nel Portachiavi; Apple Archive firmati invariati | medio | decisione su libxiz (sotto) |
 | **C. OpenZL oltre il CSV** | tabelle con dizionario addestrato per archivio (`zli train`: misurare il guadagno), array numerici binari e file a struttura fissa descritti con SDDL, JSON Lines; Parquet solo se non compresso | medio | misure su file veri |
 | ~~**D. Integrazione continua**~~ | non interessa al proprietario (14/11/2026): la campagna si lancia a mano | — | — |
-| **E. Rilascio** | campagna completa, note, DMG | basso | tutte |
+| **E. Rilascio** ✅ | campagna completa (14/11/2026: 11 passi superati, 391 test, 98 archivi riletti da libxiz, `xiz` eseguito su Linux; prova di corrente non ripetuta, VM cancellata, 20/20 il 14/11 sulla stessa versione di «Cambia formato»), note, DMG | basso | tutte |
 
 Decisioni da prendere:
 1. **libxiz e ML-DSA**: verificare le firme ML-DSA anche nel lettore indipendente richiede una implementazione in C (per esempio mldsa-native della PQ Code Package, Apache-2.0/MIT), oggi non approvata; senza, libxiz dirà «firma ML-DSA non verificata».
@@ -436,7 +436,7 @@ Decisioni da prendere:
 
 #### C. OpenZL oltre il CSV — fatta (14/11/2026)
 Misurato prima su file veri (BERT tiny e mini in PyTorch, SmolLM2-135M in safetensors bfloat16, tabelle di Our World in Data e OurAirports, array `.npy` ricavati da esse):
-- ✅ **modelli di IA** ([XIZ_SPEC.md §21](XIZ_SPEC.md)): i tensori di `.safetensors` e dei checkpoint PyTorch (`.pt`, `.pth`, `.bin`, `.ckpt`, anche ZIP64) in pezzi di valori interi fino a 16 MiB, ognuno con il grafo float di OpenZL (float32, bfloat16, float16), tenuto solo se più piccolo. Stesso codec 8 e stesso bit delle tabelle: **li legge già Xipper 3.1** e libxiz senza modifiche. Su 331 MB di modelli: zstd 268,6 MB, LZMA2 251,1 MB in 9,6 s, **zstd con modelli 237,7 MB in 0,4 s**. `xipper create --models`, «Modelli di IA più piccoli», «Cambia formato», modifiche; 5 test, un vettore di libxiz, un modello nella matrice esaustiva;
+- ✅ **modelli di IA** ([XIZ_SPEC.md §21](XIZ_SPEC.md)): i tensori di `.safetensors` e dei checkpoint PyTorch (`.pt`, `.pth`, `.bin`, `.ckpt`, anche ZIP64) in pezzi di valori interi fino a 16 MiB, ognuno con il grafo float di OpenZL (float32, bfloat16, float16), tenuto solo se più piccolo. Stesso codec 8 e stesso bit delle tabelle: **li legge già Xipper 3.1** e libxiz senza modifiche. Su 331 MB di modelli: zstd 268,6 MB, LZMA2 251,1 MB in 9,6 s, **zstd con modelli 231,9 MB in 0,6 s** (i checkpoint PyTorch veri hanno i data descriptor: i tensori si trovano dalla directory centrale, corretto prima del rilascio). `xipper create --models`, «Modelli di IA più piccoli», «Cambia formato», modifiche; 5 test, un vettore di libxiz, un modello nella matrice esaustiva;
 - ✗ addestramento OpenZL dei CSV: −10/−13% ancora, ma 2–10 minuti per un file da 15 MB;
 - ✗ array numerici `.npy`: non meglio di xz -9 (e il grafo float su dati tabellari è molto peggio);
 - ✗ JSON Lines: OpenZL non ha un parser JSON;

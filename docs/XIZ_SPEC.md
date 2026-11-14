@@ -1009,8 +1009,8 @@ OpenZL's content checksum and readers check it.
 **Model weights** (Xipper 3.2, same codec and feature bit, so Xipper 3.1 and every libxiz with
 OpenZL read them). Tensors of `.safetensors` files (u64 header length, JSON header with each
 tensor's `dtype` and `data_offsets`) and of `torch.save` checkpoints (`.pt`, `.pth`, `.bin`,
-`.ckpt`: a zip whose `…/data/` entries are stored; local headers with their sizes, ZIP64 included,
-and a central directory after them) go into pieces of whole values of up to 16 MiB. Each piece is
+`.ckpt`: a zip whose `…/data/` entries are stored, found through the central directory, since torch
+writes data descriptors and its local headers carry no sizes; ZIP64 included) go into pieces of whole values of up to 16 MiB. Each piece is
 compressed with OpenZL's float graph: values as little-endian integers, then
 `FLOAT32_DECONSTRUCT` or `BFLOAT16_DECONSTRUCT` / `FLOAT16_DECONSTRUCT` with the sign and exponent
 stream Huffman-coded and the mantissa stored. The dtype is the header's for safetensors. For
@@ -1018,7 +1018,7 @@ PyTorch it is in the pickle, which is not read, so float32 and bfloat16 are both
 smaller is kept. Headers, metadata, other dtypes and padding are stored in pieces of the usual codec, and a
 tensor piece where OpenZL is not smaller is too. On real models (BERT tiny and mini in PyTorch,
 SmolLM2-135M in bfloat16 safetensors, 331 MB): zstd 3 268.6 MB, LZMA2 251.1 MB (9.6 s), zstd 3 with
-models 237.7 MB (0.4 s); xz -9 on the tensors alone: float32 9%, bfloat16 5% larger than OpenZL.
+models 231.9 MB (0.6 s); per model against xz -9: BERT 9%, SmolLM2 5% smaller.
 Xipper writes them only when asked (`xipper create --models`, «Modelli di IA più piccoli»).
 
 Not taken, after measuring: OpenZL's CSV training (10–13% smaller again, but 2–10 minutes per

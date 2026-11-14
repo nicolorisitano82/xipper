@@ -46,9 +46,10 @@ struct XizModelsTests {
         return out
     }
 
-    /// A `torch.save`-like zip: stored entries, sizes in the local headers, then a central directory.
-    /// `zip64`: the sizes in a ZIP64 extra field instead.
-    static func torchZip(_ entries: [(String, [UInt8])], zip64: Bool = false) -> [UInt8] {
+    /// A `torch.save`-like zip: stored entries and a central directory. As torch writes them, the
+    /// local headers have no sizes and a data descriptor follows each entry (flags 0x808);
+    /// `descriptors: false` puts the sizes in the local headers, `zip64` in a ZIP64 extra there.
+    static func torchZip(_ entries: [(String, [UInt8])], descriptors: Bool = true, zip64: Bool = false) -> [UInt8] {
         var out = [UInt8](), central = [UInt8]()
         func u16(_ v: Int, _ b: inout [UInt8]) { b += [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)] }
         func u32(_ v: Int, _ b: inout [UInt8]) { u16(v & 0xFFFF, &b); u16(v >> 16 & 0xFFFF, &b) }
@@ -58,12 +59,15 @@ struct XizModelsTests {
             let crc = Int(data.withUnsafeBytes { CRC32.checksum($0) })
             var extra = [UInt8]()
             if zip64 { u16(1, &extra); u16(16, &extra); u64(data.count, &extra); u64(data.count, &extra) }
-            u32(0x0403_4B50, &out); u16(45, &out); u16(0, &out); u16(0, &out); u16(0, &out); u16(0, &out)
-            u32(crc, &out)
-            u32(zip64 ? 0xFFFF_FFFF : data.count, &out); u32(zip64 ? 0xFFFF_FFFF : data.count, &out)
+            let flags = descriptors ? 0x808 : 0
+            u32(0x0403_4B50, &out); u16(45, &out); u16(flags, &out); u16(0, &out); u16(0, &out); u16(0, &out)
+            u32(descriptors ? 0 : crc, &out)
+            let local = descriptors ? 0 : zip64 ? 0xFFFF_FFFF : data.count
+            u32(local, &out); u32(local, &out)
             u16(name.utf8.count, &out); u16(extra.count, &out)
             out += Array(name.utf8) + extra + data
-            u32(0x0201_4B50, &central); u16(45, &central); u16(45, &central); u16(0, &central); u16(0, &central)
+            if descriptors { u32(0x0807_4B50, &out); u32(crc, &out); u32(data.count, &out); u32(data.count, &out) }
+            u32(0x0201_4B50, &central); u16(45, &central); u16(45, &central); u16(flags, &central); u16(0, &central)
             u16(0, &central); u16(0, &central); u32(crc, &central); u32(data.count, &central); u32(data.count, &central)
             u16(name.utf8.count, &central); u16(0, &central); u16(0, &central); u16(0, &central); u16(0, &central)
             u32(0, &central); u32(offset, &central); central += Array(name.utf8)
@@ -146,7 +150,8 @@ struct XizModelsTests {
 
     @Test func zip64AndEncryptedAndLZMA2() throws {
         let t = TempDir()
-        t.write("src/big.pth", Self.torchZip([("model/data/0", Self.weights32(600_000, seed: 5)), ("model/data.pkl", [1, 2, 3])], zip64: true))
+        t.write("src/big.pth", Self.torchZip([("model/data/0", Self.weights32(600_000, seed: 5)), ("model/data.pkl", [1, 2, 3])],
+                                             descriptors: false, zip64: true))
         let pt = t.path + "/src/big.pth"
         let size = Int64(try FileManager.default.attributesOfItem(atPath: pt)[.size] as! Int)
         #expect(try ModelRecompression.pieces(name: "big.pth", path: pt, size: size)?.contains { !$0.floats.isEmpty } == true)
