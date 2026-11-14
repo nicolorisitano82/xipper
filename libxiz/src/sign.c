@@ -5,6 +5,7 @@
 #include "bearssl_x509.h"
 #include "bearssl_ec.h"
 #include "bearssl_rsa.h"
+#include "mldsa.h"
 
 #include <stdio.h>
 
@@ -82,8 +83,9 @@ void leaf_data(wbuf *w, const uint8_t salt[16], const char *path, size_t path_le
 /* ------------------------------------------------------------------ signatures */
 
 typedef struct {
-    uint8_t algorithm;           /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509 */
-    const uint8_t *pk;           /* algorithm 1 */
+    uint8_t algorithm;           /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509,
+                                    4 hybrid Ed25519 + ML-DSA-65 (§22) */
+    const uint8_t *pk;           /* algorithm 1: Ed25519; 4: Ed25519 [32] ‖ ML-DSA-65 [1952] */
     const uint8_t *key;          /* the key field as stored: public key, or the encoded chain */
     size_t key_len;
     const uint8_t *cert;         /* algorithms 2, 3: the signer's certificate (DER) */
@@ -106,6 +108,8 @@ static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
     r->key = q.p + q.at;
     if (r->algorithm == 1) {
         r->pk = rb_take(&q, 32);
+    } else if (r->algorithm == 4) {
+        r->pk = rb_take(&q, 32 + XIZ_MLDSA_PUBLICKEY);
     } else if (r->algorithm == 2 || r->algorithm == 3) {
         r->chain_count = rb_u16(&q);
         if (r->chain_count < 1 || r->chain_count > 16) return 0;
@@ -124,7 +128,7 @@ static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
     r->label = rb_take(&q, r->label_len);
     r->time = (int64_t)rb_u64(&q);
     r->previous = rb_take(&q, 32);
-    r->sig_len = r->algorithm == 1 ? 64 : rb_u16(&q);
+    r->sig_len = r->algorithm == 1 ? 64 : r->algorithm == 4 ? 64 + XIZ_MLDSA_SIGNATURE : rb_u16(&q);
     r->sig = rb_take(&q, r->sig_len);
     r->token_len = rb_u32(&q);
     rb_take(&q, r->token_len);
@@ -136,6 +140,12 @@ static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
 
 static int sig_verify(const sig_record *r, const uint8_t *msg, size_t msg_len) {
     if (r->algorithm == 1) return crypto_ed25519_check(r->sig, r->pk, msg, msg_len) == 0;
+    if (r->algorithm == 4) {
+        /* Both halves, on the same message; the ML-DSA one with its FIPS 204 context. */
+        static const uint8_t ctx[] = "XIZ112hybrid";
+        return crypto_ed25519_check(r->sig, r->pk, msg, msg_len) == 0 &&
+               xiz_mldsa65_verify(r->sig + 64, msg, msg_len, ctx, sizeof ctx - 1, r->pk + 32) == 0;
+    }
     br_x509_decoder_context dc;
     br_x509_decoder_init(&dc, NULL, NULL);
     br_x509_decoder_push(&dc, r->cert, r->cert_len);
@@ -235,6 +245,8 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
         const directory *d = &s[k].dir;
         sig_record r;
         int is_signed = d->signature_len && record_parse(d->signature, d->signature_len, &r);
+        /* A record of an algorithm this reader does not know (§13.5): signed, not verified. */
+        int unknown = !is_signed && d->signature_len && (d->signature[0] < 1 || d->signature[0] > 4);
         uint8_t chained[32] = {0};
         int valid = 0, chain_ok = 0;
         if (is_signed) {
@@ -247,7 +259,12 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
             sha256(m.p, m.n, chained);
             wb_free(&m);
         }
-        if (k == segment) {
+        if (k == segment && unknown) {
+            o->is_signed = 1;
+            o->unknown_algorithm = 1;
+            o->algorithm = d->signature[0];
+        }
+        if (k == segment && !unknown) {
             o->is_signed = is_signed;
             o->valid = valid;
             o->chained = chain_ok;
@@ -256,6 +273,7 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
                 o->label[r.label_len] = 0;
                 o->algorithm = r.algorithm;
                 if (r.algorithm == 1) memcpy(o->public_key, r.pk, 32);
+                else if (r.algorithm == 4) { memcpy(o->public_key, r.pk, 32); sha256(r.pk, 32 + XIZ_MLDSA_PUBLICKEY, o->key_sha256); }
                 else { sha256(r.cert, r.cert_len, o->certificate_sha256); o->chain_count = r.chain_count; }
                 o->time = r.time;
                 o->has_timestamp = r.token_len > 0;
@@ -605,6 +623,7 @@ int xiz_verify_proof(const char *json, size_t json_len, const uint8_t *content, 
         o->signer[rec.label_len] = 0;
         o->algorithm = rec.algorithm;
         if (rec.algorithm == 1) memcpy(o->signer_key, rec.pk, 32);
+        else if (rec.algorithm == 4) sha256(rec.pk, 32 + XIZ_MLDSA_PUBLICKEY, o->signer_key);
         else sha256(rec.cert, rec.cert_len, o->signer_key);
         o->signed_at = rec.time;
     }

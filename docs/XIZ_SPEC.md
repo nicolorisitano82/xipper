@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.11
+# XIZ archive format, version 1.12
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -12,7 +12,8 @@ post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which 
 3.0) adds PNG, PDF and ZIP-based documents with their Deflate streams recompressed losslessly (§19). **1.10**
 (draft, 2026-11-10, xipper-forensic) adds the **forensic profile** (§20): disk images, source hashes, a
 cryptographic hash of every frame, unreadable-sector maps, case and custody records. **1.11** (draft, 2026-11-12,
-Xipper 3.1) adds delimited tables (CSV, TSV, BED) compressed column by column with OpenZL (§21). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+Xipper 3.1) adds delimited tables (CSV, TSV, BED) compressed column by column with OpenZL (§21). **1.12** (draft,
+2026-11-14, Xipper 3.2) adds hybrid post-quantum segment signatures, Ed25519 + ML-DSA-65 (§22). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -490,8 +491,10 @@ complete and rewritten in the new segment. (Holders of some groups only read.)
 
 ```
 algorithm        u8: 1 Ed25519; 2 ECDSA P-256 with SHA-256 and an X.509 certificate;
-                 3 RSA PKCS#1 v1.5 with SHA-256 and an X.509 certificate
+                 3 RSA PKCS#1 v1.5 with SHA-256 and an X.509 certificate;
+                 4 hybrid Ed25519 + ML-DSA-65 (1.12, §22)
 key              algorithm 1: public_key [32]
+                 algorithm 4: Ed25519 public key [32] ‖ ML-DSA-65 public key [1952]
                  algorithms 2, 3: chain = u16 count (1–16), then per certificate u32 length (≤ 65536)
                  + DER; the signer's certificate first, then its issuers as far as the writer knows
 label            u8 length + UTF-8 (the signer's name, visible)
@@ -499,7 +502,8 @@ time             i64: seconds since 1970 UTC, by the signer's clock
 previous         [32]: the chained digest of the previous segment's signature, zeros if the previous
                  segment is unsigned or there is none
 signature        algorithm 1: [64]; algorithms 2, 3: u16 length + bytes (ECDSA: DER
-                 `Ecdsa-Sig-Value`; RSA: the modulus-sized signature)
+                 `Ecdsa-Sig-Value`; RSA: the modulus-sized signature);
+                 algorithm 4: Ed25519 signature [64] ‖ ML-DSA-65 signature [3309]
 token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
 ```
 
@@ -511,7 +515,8 @@ token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
   card, in the Keychain or in the Secure Enclave). The signature is checked with the first certificate's
   key; whether the chain reaches a trusted root, and whether the certificate was valid at the signing
   time (the time-stamp's when there is one), is the reader's to evaluate and report. A reader that
-  does not know an algorithm reports the segment as signed with an unknown algorithm, not as valid.
+  does not know an algorithm reports the segment as signed with an unknown algorithm, not as valid
+  (and not as unsigned); the next segment's chain cannot be checked by such a reader.
   The directory lists the SHA-256 of every group catalog, each catalog lists every frame with its
   CRC (and the AEAD binds each frame to its index), so the signature covers the whole segment.
   It can be checked without any key to the content.
@@ -519,7 +524,8 @@ token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
   `previous` must equal it. A reader reports, for every segment: signed or not, signer key and
   label, time, whether the chain holds, and the time-stamp. Which keys are trusted is up to the
   reader (Xipper keeps a list).
-- The time-stamp token's message imprint is SHA-256 of the 64-byte signature. Readers verify the
+- The time-stamp token's message imprint is SHA-256 of the signature field (64 bytes for Ed25519,
+  the whole 3373 bytes for algorithm 4). Readers verify the
   token's CMS signature and report its `genTime` and authority; a time-stamp only proves that the
   signature existed at that time.
 - Writers time-stamp only when the user configures an authority URL (Xipper makes no network
@@ -1004,3 +1010,37 @@ On public tables (Our World in Data CO₂ and energy, OurAirports) and two synth
 a BED file of 288,000 regions), 66.8 MB in all: zstd 3 19.9 MB, LZMA2 13.3 MB, zstd 3 with tables
 12.6 MB (in 1.4 s against 2.6 s for LZMA2), LZMA2 with tables 11.8 MB; decoding stays under 0.2 s.
 Xipper writes codec 8 only when asked (`xipper create --tables`, «Tabelle CSV più piccole» in Settings).
+
+## 22. Version 1.12: hybrid post-quantum signatures
+
+Ed25519 signatures (§13.5) would be forged by a large quantum computer; whoever keeps an archive for
+years may want its history to stay trustworthy anyway. Algorithm 4 signs every segment twice, with
+Ed25519 and with **ML-DSA-65** (FIPS 204, security category 3), the way X-Wing (§17) combines
+X25519 and ML-KEM for encryption.
+
+- **Record** (§13.5): `key` is the Ed25519 public key (32 bytes) followed by the ML-DSA-65 public
+  key (1952 bytes, FIPS 204 encoding); `signature` is the Ed25519 signature (64 bytes) followed by
+  the ML-DSA-65 signature (3309 bytes), both of fixed size, with no length field.
+- **Message**: the §13.5 message, unchanged. It carries the algorithm byte and the whole key, so the
+  Ed25519 half cannot be presented as an algorithm 1 signature of the same segment.
+- **Both halves sign the same message**: Ed25519 as in §13.5; ML-DSA-65 in its pure form
+  (`ML-DSA.Sign`, hedged or deterministic) with the FIPS 204 context string `XIZ112hybrid`
+  (12 bytes, ASCII).
+- **Valid** only when both halves verify. The signature stays sound as long as either algorithm is
+  unbroken.
+- **Chained digest and time-stamp** as in §13.5, over the whole 3373-byte signature.
+- **No required feature bit**: the content reads as before. Writers set `version_minor = 12` in the
+  superblock of an archive created with such a key. Appending to an older archive keeps its
+  superblock, as always.
+- **Readers older than 1.12** report these segments as signed with an unknown algorithm (Xipper
+  before 3.2 showed them as unsigned) and cannot check the following segment's chain.
+- **Keys**:
+  - **text form**: `xizsigpq1` + base64url(record key);
+  - **secret form**: `XIZ-SIGNING-KEY-PQ-1-` + base64url(Ed25519 seed [32] ‖ ML-DSA-65 seed ξ [32]);
+  - **display**: since the text form is 2.6 KB, Xipper and `xiz` show `xizsigpq1:` followed by the
+    first 16 bytes of SHA-256 of the record key, in hex.
+
+The reference writer signs with CryptoKit (`MLDSA65`, macOS 26). libxiz verifies with
+[mldsa-native](https://github.com/pq-code-package/mldsa-native) 2.0.0, portable C, verify only.
+On the test vectors the two agree: libxiz checks what Xipper signs, a single flipped bit in either
+half fails it, and an unknown algorithm is reported as such.

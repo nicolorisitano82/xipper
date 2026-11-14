@@ -571,6 +571,8 @@ enum XizWriter {
         if let password { policy.recipients.insert(XizAccess.Recipient(label: "", credential: .password(password)), at: 0) }
         let encrypted = !policy.recipients.isEmpty || !policy.thresholds.isEmpty
         if XizAccessKeys.hasPostQuantum(policy) { superblock.minor = max(superblock.minor, 7) }  // X-Wing stanzas (§17): no feature bit
+        // Hybrid Ed25519 + ML-DSA-65 signatures (§22): no feature bit either.
+        if let signer, signer.certificate == nil, signer.key.isPostQuantum { superblock.minor = max(superblock.minor, 12) }
         guard encrypted || map.groups.count == 1 else {
             throw XipperError.invalidArgument("access groups need recipients (a password or a public key)")
         }

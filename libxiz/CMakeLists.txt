@@ -61,8 +61,12 @@ add_library(xiz_crypto OBJECT ${BEARSSL_SOURCES}
 target_include_directories(xiz_crypto SYSTEM PUBLIC third_party/bearssl/inc third_party/monocypher
   PRIVATE third_party/bearssl/src)
 
+# ML-DSA-65 verification (mldsa-native 2.0.0, portable C): hybrid signatures, algorithm 4 (§22).
+add_library(xiz_mldsa OBJECT src/mldsa.c)
+target_include_directories(xiz_mldsa SYSTEM PUBLIC third_party/mldsa-native/mldsa)
+
 # brunsli decoder (C++) with the Brotli decoder it needs: only for codec 4 (§16).
-set(XIZ_DEPS xiz_zstd xiz_lzma xiz_argon2 xiz_crypto)
+set(XIZ_DEPS xiz_zstd xiz_lzma xiz_argon2 xiz_crypto xiz_mldsa)
 if(XIZ_JPEG)
   enable_language(CXX)
   set(BROTLI_DIR "${XIZ_VENDOR_DIR}/brotli/c")
@@ -154,6 +158,7 @@ add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
   src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c src/forensic.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
+  $<TARGET_OBJECTS:xiz_mldsa>
   $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>> $<$<BOOL:${XIZ_PREFLATE}>:$<TARGET_OBJECTS:xiz_preflate>>
   $<$<BOOL:${XIZ_OPENZL}>:$<TARGET_OBJECTS:xiz_openzl>>)
 target_include_directories(xiz PUBLIC include PRIVATE src)

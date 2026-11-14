@@ -59,7 +59,7 @@ step() {  # id description command...
         fi
     fi
 }
-skip() { echo "$1"; return 77; }
+skip() { echo "$1"; }
 
 # ---------------------------------------------------------------- steps
 
@@ -119,29 +119,33 @@ cross_read() {
 }
 
 interop() { bash scripts/interop.sh; }
-lowspace() { [ $QUICK = 1 ] && skip "skipped by --quick"; bash scripts/lowspace-crash.sh 30; }
-forensic() { [ $QUICK = 1 ] && skip "skipped by --quick"; bash scripts/forensic-validation.sh; }
+lowspace() { [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }; bash scripts/lowspace-crash.sh 30; }
+forensic() { [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }; bash scripts/forensic-validation.sh; }
 
 portable() {
-    [ $QUICK = 1 ] && skip "skipped by --quick"
-    command -v zig > /dev/null || skip "zig not installed"
+    [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }
+    command -v zig > /dev/null || { skip "zig not installed"; return 77; }
     bash scripts/build-xiz-portable.sh campaign && ls "$ROOT/dist/xiz-campaign"
 }
 
 linux() {
-    command -v docker > /dev/null || skip "docker not installed"
-    docker info > /dev/null 2>&1 || skip "Docker daemon not running"
+    command -v docker > /dev/null || { skip "docker not installed"; return 77; }
+    docker info > /dev/null 2>&1 || { skip "Docker daemon not running"; return 77; }
     local pkg="$ROOT/dist/xiz-campaign/xiz-campaign-linux-arm64.tar.gz"
-    [ -f "$pkg" ] || skip "no Linux build (portable step skipped)"
+    [ -f "$pkg" ] || { skip "no Linux build (portable step skipped)"; return 77; }
     local w; w=$(mktemp -d)
-    tar -xzf "$pkg" -C "$w" && cp "$MATRIX"/zstd-recompress-plain.xiz "$MATRIX"/tables-crlf.xiz "$w"/ &&
+    local F="$ROOT/libxiz/tests/fixtures"
+    tar -xzf "$pkg" -C "$w" && cp "$F/signed-pq.xiz" "$F/signed-pq-tampered.xiz" "$F/tables.xiz" "$F/docs.xiz" "$F/forensic.xiz" "$w"/ &&
     docker run --rm -v "$w:/w" alpine:3.20 sh -c 'cd /w && X=$(find . -name xiz -type f | head -1) &&
-        $X test zstd-recompress-plain.xiz && $X test tables-crlf.xiz && $X extract -d out zstd-recompress-plain.xiz'
+        $X history signed-pq.xiz | grep -c "ML-DSA-65)  signature valid, chain ok" | grep -qx 2 &&
+        ! $X history signed-pq-tampered.xiz > /dev/null &&
+        $X test tables.xiz && $X test docs.xiz && $X forensic forensic.xiz > /dev/null && $X extract -d out tables.xiz &&
+        echo "linux ok: hybrid signatures, tampering, OpenZL tables, documents, forensic"'
 }
 
 powercut() {
-    [ $QUICK = 1 ] && skip "skipped by --quick"
-    [ -f "$HOME/XipperVM/macos/Disk.img" ] || skip "no test VM (scripts/vm/xipper-vm install)"
+    [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }
+    [ -f "$HOME/XipperVM/macos/Disk.img" ] || { skip "no test VM (scripts/vm/xipper-vm install)"; return 77; }
     bash scripts/vm/build.sh > /dev/null && bash scripts/vm/powercut.sh 20
 }
 

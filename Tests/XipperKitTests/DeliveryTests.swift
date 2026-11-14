@@ -32,6 +32,8 @@ struct DeliveryTests {
         let r = try c.deliver(evidence: "R01", options: o, signer: Self.examiner)
         let copy = r.files[0].0.path
         // Without the key the structure, signatures and hashes still verify; with it, the image too.
+        sharedCredentialsLock.lock()
+        defer { sharedCredentialsLock.unlock() }
         XizCredentials.shared.add(identity: who)
         defer { XizCredentials.shared.removeAll() }
         let v = try XizForensic.verify(copy)

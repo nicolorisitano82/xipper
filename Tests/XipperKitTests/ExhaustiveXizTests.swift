@@ -13,7 +13,8 @@ enum Exhaustive {
 }
 
 struct MatrixCase: CustomTestStringConvertible, Sendable {
-    enum Security: String, CaseIterable, Sendable { case plain, password, signed, both }
+    /// `pq`: a password and a hybrid Ed25519 + ML-DSA-65 signature (XIZ 1.12).
+    enum Security: String, CaseIterable, Sendable { case plain, password, signed, both, pq }
     var codec: XizCodec
     var recompress: Bool
     var security: Security
@@ -56,6 +57,8 @@ struct ExhaustiveXizMatrixTests {
         t.symlink("\(root)/link-to-dir", to: "data")
     }
 
+    static let pqKey = XizSigningKey(postQuantum: true)
+
     func options(_ c: MatrixCase, signer: XizSigner) -> CreateOptions {
         var o = CreateOptions()
         o.format = .xiz
@@ -64,8 +67,9 @@ struct ExhaustiveXizMatrixTests {
         o.xizDocuments = c.recompress
         o.xizTables = c.recompress
         o.xizRecovery = c.recovery ? 5 : 0
-        if c.security == .password || c.security == .both { o.password = Exhaustive.password }
+        if c.security == .password || c.security == .both || c.security == .pq { o.password = Exhaustive.password }
         if c.security == .signed || c.security == .both { o.xizSigner = signer }
+        if c.security == .pq { o.xizSigner = XizSigner(key: Self.pqKey, label: "Matrix PQ") }
         return o
     }
 
@@ -130,6 +134,7 @@ struct ExhaustiveXizMatrixTests {
         if o.xizSigner != nil {
             let h = try Xipper.xizHistory(archive)
             #expect(h.count == 2 && h.allSatisfy { $0.signed && $0.valid && $0.chained }, "\(c.name): \(h.map { ($0.valid, $0.chained) })")
+            #expect(h.allSatisfy { $0.isPostQuantum == (c.security == .pq) })
         }
 
         // 5. Left for libxiz.

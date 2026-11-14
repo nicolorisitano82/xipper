@@ -427,6 +427,13 @@ Decisioni da prendere:
 - `xiz` su Windows: in attesa dell'ISO di Windows 11 ARM (la scarica il proprietario);
 - prove a mano rimaste dalla 3.0.
 
+#### B. Firme ibride post-quantum (XIZ 1.12) — fatta (14/11/2026)
+- ✅ **algoritmo 4** ([XIZ_SPEC.md §22](XIZ_SPEC.md)): ogni segmento firmato insieme con Ed25519 e ML-DSA-65 (FIPS 204, contesto `XIZ112hybrid`), valido solo se lo sono entrambe le metà; il messaggio porta l'algoritmo e la chiave intera, quindi la metà Ed25519 non si può spacciare per una firma classica. Nessun bit obbligatorio, `version_minor = 12`. Scelte del proprietario del 14/11/2026: firma ibrida (non solo ML-DSA), libxiz con mldsa-native;
+- ✅ **chiavi** `xizsigpq1…` / `XIZ-SIGNING-KEY-PQ-1-…` (seed Ed25519 e ML-DSA, 64 byte), mostrate come impronta `xizsigpq1:` + 128 bit; `xipper keygen --signing --pq`, Portachiavi, Impostazioni › Chiavi › «Nuova chiave di firma…» con post-quantum come scelta consigliata; inspector con «Post-quantum: Ed25519 + ML-DSA-65»; firma con CryptoKit (`MLDSA65`), niente codice esterno nell'app;
+- ✅ **libxiz** verifica con mldsa-native 2.0.0 (Apache-2.0/ISC/MIT, C portabile, solo verifica, versione fissata con SHA-256): le firme di CryptoKit verificano, un bit cambiato in una delle due metà no; tre vettori nuovi (`signed-pq`, `-tampered`, `-unknown`);
+- ✅ **algoritmi sconosciuti**: Xipper e libxiz ora mostrano «firmato con un algoritmo sconosciuto, non verificato» invece di «non firmato» (§13.5); corretta anche la verifica delle prove di appartenenza, che prendeva per non valide le firme con certificato;
+- matrice esaustiva con il caso «password + firma ibrida» (80 casi), 9 test nuovi; xipper-forensic firma registro e report con la metà Ed25519 (formato della 1.0), i segmenti dell'archivio con la firma ibrida.
+
 Fuori dalla 3.2, in backlog: ISO 9660/UDF e DMG in lettura, MPEG-G, FSKit (account Apple), libbsc e kanzi (licenze).
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)

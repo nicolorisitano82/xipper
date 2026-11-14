@@ -888,12 +888,14 @@ private struct ArchiveInspector: View {
                         ForEach(model.history.filter(\.signed), id: \.segment) { s in
                             VStack(alignment: .leading, spacing: 2) {
                                 Label(s.label.isEmpty ? String(localized: "senza nome") : s.label,
-                                      systemImage: s.valid && s.chained ? "checkmark.seal.fill" : "xmark.seal.fill")
-                                    .foregroundStyle(s.valid && s.chained ? Color.green : Color.red)
+                                      systemImage: s.isUnknownAlgorithm ? "questionmark.diamond" : s.valid && s.chained ? "checkmark.seal.fill" : "xmark.seal.fill")
+                                    .foregroundStyle(s.isUnknownAlgorithm ? Color.orange : s.valid && s.chained ? Color.green : Color.red)
                                 Text(s.segment == 0 ? String(localized: "creazione · \(s.time?.formatted(date: .abbreviated, time: .shortened) ?? "")")
                                                     : String(localized: "modifica \(s.segment) · \(s.time?.formatted(date: .abbreviated, time: .shortened) ?? "")"))
                                     .font(.caption).foregroundStyle(.secondary)
-                                if !s.valid { Text("Firma non valida").font(.caption).foregroundStyle(.red) }
+                                if s.isUnknownAlgorithm {
+                                    Text("Firmata con un algoritmo che questa versione non conosce: non verificata. Aggiorna Xipper.").font(.caption).foregroundStyle(.orange)
+                                } else if !s.valid { Text("Firma non valida").font(.caption).foregroundStyle(.red) }
                                 else if !s.chained { Text("Catena interrotta: una versione precedente è stata alterata").font(.caption).foregroundStyle(.red) }
                                 if let ts = s.timestamp {
                                     Text(ts.valid ? String(localized: "Marca temporale \(ts.time.formatted(date: .abbreviated, time: .shortened))") : String(localized: "Marca temporale non valida"))
@@ -904,7 +906,10 @@ private struct ArchiveInspector: View {
                                     Text(c.trusted ? String(localized: "Certificato attendibile") : String(localized: "Certificato non attendibile per questo Mac"))
                                         .font(.caption).foregroundStyle(c.trusted ? Color.secondary : Color.orange)
                                 }
-                                SignerKey(text: s.publicKeyText)
+                                if s.isPostQuantum {
+                                    Text("Post-quantum: Ed25519 + ML-DSA-65").font(.caption).foregroundStyle(.secondary)
+                                }
+                                SignerKey(text: s.publicKeyText, display: s.publicKeyDisplay)
                             }
                         }
                         let unsigned = model.history.filter { !$0.signed }.count
@@ -1112,11 +1117,13 @@ private struct ArchiveInspector: View {
 /// The signer's public key, readable and copyable without hovering (touch screens have no hover).
 private struct SignerKey: View {
     let text: String
+    /// What is shown (a hybrid key's fingerprint); `text` is what is copied.
+    var display: String?
 
     var body: some View {
         if !text.isEmpty {
             HStack(spacing: 4) {
-                Text(text).font(.caption.monospaced()).foregroundStyle(.secondary)
+                Text(display ?? text).font(.caption.monospaced()).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                 Button("Copia chiave pubblica", systemImage: "doc.on.doc") {
                     NSPasteboard.general.clearContents()

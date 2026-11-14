@@ -356,14 +356,17 @@ typedef struct xiz_signature {
     int valid;                   /* the signature verifies over the segment (§13.5) */
     int chained;                 /* `previous` equals the previous segment's chained digest */
     char label[256];
-    uint8_t public_key[32];      /* algorithm 1: the Ed25519 key */
+    uint8_t public_key[32];      /* algorithm 1: the Ed25519 key; 4: its Ed25519 half */
     int64_t time;
     int has_timestamp;           /* an RFC 3161 token is present (not verified by libxiz) */
     uint32_t timestamp_length;
     uint8_t chained_digest[32];
-    int algorithm;               /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509 */
+    int algorithm;               /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509,
+                                    4 hybrid Ed25519 + ML-DSA-65 (§22) */
     uint8_t certificate_sha256[32]; /* algorithms 2, 3: SHA-256 of the signer certificate (DER) */
     uint32_t chain_count;        /* certificates in the record; the chain is not validated by libxiz */
+    uint8_t key_sha256[32];      /* algorithm 4: SHA-256 of the whole hybrid key (its fingerprint) */
+    int unknown_algorithm;       /* signed with an algorithm this libxiz does not know: not verified */
 } xiz_signature;
 
 /* Signatures of every segment, oldest first. Needs no key. For archives without a directory,
@@ -384,7 +387,8 @@ typedef struct xiz_proof_result {
     int in_tree;
     int is_signed;               /* signature present and valid */
     char signer[256];
-    uint8_t signer_key[32];      /* Ed25519 key, or SHA-256 of the signer certificate (algorithms 2, 3) */
+    uint8_t signer_key[32];      /* Ed25519 key, or SHA-256 of the signer certificate (algorithms 2, 3)
+                                    or of the hybrid key (algorithm 4) */
     int64_t signed_at;
     uint32_t segment;
     int algorithm;

@@ -73,6 +73,10 @@ func run(_ tool: String, _ args: [String], stdin: String? = nil, cwd: String? = 
     return ToolResult(status: p.terminationStatus, output: String(decoding: data, as: UTF8.self))
 }
 
+/// XizCredentials.shared is one list for the whole process: tests that fill or empty it take this
+/// lock for their whole run, or a parallel test empties it under them.
+let sharedCredentialsLock = NSLock()
+
 func toolExists(_ path: String) -> Bool { FileManager.default.isExecutableFile(atPath: path) }
 let sevenZip = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].first(where: toolExists)
 

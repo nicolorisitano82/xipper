@@ -36,7 +36,13 @@ struct KeysSettings: View {
             Section {
                 keyList(signingKeys, kind: .signing)
                 HStack {
-                    Button("Nuova chiave di firma…") { create(.signing) }
+                    Menu("Nuova chiave di firma…") {
+                        Button("Post-quantum (consigliata)") { create(.signing) }
+                        Button("Classica (Ed25519)") { create(.signing, postQuantum: false) }
+                    } primaryAction: {
+                        create(.signing)
+                    }
+                    .fixedSize()
                     Button("Importa…") { importKey() }
                 }
                 Picker("Firma i nuovi archivi XIZ con", selection: $defaultKey) {
@@ -53,7 +59,7 @@ struct KeysSettings: View {
             } header: {
                 Text("Chiavi di firma")
             } footer: {
-                Text("Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare.")
+                Text("Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let message {
@@ -72,7 +78,7 @@ struct KeysSettings: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(item.name)
-                        if item.publicKey.hasPrefix("xizpq1") {
+                        if item.publicKey.hasPrefix("xizpq1") || item.publicKey.hasPrefix("xizsigpq1") {
                             Text("post-quantum").font(.caption2).foregroundStyle(.secondary)
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())

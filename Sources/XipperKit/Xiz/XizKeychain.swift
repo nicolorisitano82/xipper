@@ -65,7 +65,8 @@ public enum XizKeychain {
         SecItemDelete(query(kind, name: name) as CFDictionary)
     }
 
-    /// A new identity (X-Wing when `postQuantum`) or signing key, stored under `name`; returns its public key.
+    /// A new identity (X-Wing when `postQuantum`) or signing key (hybrid Ed25519 + ML-DSA-65 when
+    /// `postQuantum`), stored under `name`; returns its public key.
     @discardableResult
     public static func generate(_ kind: Kind, name: String, postQuantum: Bool = false) throws -> String {
         switch kind {
@@ -74,7 +75,7 @@ public enum XizKeychain {
             try save(kind, name: name, secretText: k.secretText, publicText: k.publicText)
             return k.publicText
         case .signing:
-            let k = XizSigningKey()
+            let k = XizSigningKey(postQuantum: postQuantum)
             try save(kind, name: name, secretText: k.secretText, publicText: k.publicText)
             return k.publicText
         }

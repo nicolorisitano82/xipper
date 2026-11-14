@@ -30,6 +30,8 @@ struct XizAccessTests {
     }
 
     @Test func groupsRecipientsAndCustodians() throws {
+        sharedCredentialsLock.lock()
+        defer { sharedCredentialsLock.unlock() }
         XizCredentials.shared.removeAll()
         defer { XizCredentials.shared.removeAll() }
         let t = TempDir()

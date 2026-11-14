@@ -107,6 +107,16 @@ expect_code access-wrong 3 "$XIZ" list --password-env WRONG "$F/access.xiz"
 # ---------------------------------------------------------------- 1.3 signatures, proofs, erasure
 "$XIZ" history "$F/signed.xiz" > "$W/h.log" 2>&1
 if [ "$(grep -c 'signature valid, chain ok' "$W/h.log")" = 2 ] && grep -q 'inclusion tree  ok' "$W/h.log"; then pass history; else fail history; cat "$W/h.log"; fi
+# 1.12: hybrid Ed25519 + ML-DSA-65 signatures (§22), written by Xipper with CryptoKit, checked with
+# mldsa-native; one bit of the ML-DSA half flipped; an algorithm this reader does not know.
+"$XIZ" history "$F/signed-pq.xiz" > "$W/hpq.log" 2>&1
+[ "$(grep -c 'xizsigpq1:.*(Ed25519 + ML-DSA-65)  signature valid, chain ok' "$W/hpq.log")" = 2 ] && pass history-hybrid || fail "history-hybrid: $(cat "$W/hpq.log")"
+expect_code test-hybrid 0 "$XIZ" test "$F/signed-pq.xiz"
+"$XIZ" history "$F/signed-pq-tampered.xiz" > "$W/hpqt.log" 2>&1
+grep -q '^#0 .*signature INVALID' "$W/hpqt.log" && grep -q '^#1 .*signature valid, chain BROKEN' "$W/hpqt.log" && pass history-hybrid-tampered || fail "history-hybrid-tampered: $(cat "$W/hpqt.log")"
+expect_code history-hybrid-tampered-exit 1 "$XIZ" history "$F/signed-pq-tampered.xiz"
+"$XIZ" history "$F/signed-pq-unknown.xiz" > "$W/hpqu.log" 2>&1
+grep -q '^#0  signed with algorithm 9, unknown to this xiz: not verified' "$W/hpqu.log" && pass history-unknown-algorithm || fail "history-unknown-algorithm: $(cat "$W/hpqu.log")"
 "$XIZ" extract -d "$W/signed" "$F/signed.xiz" > /dev/null 2>&1
 expect_code proof-valid 0 "$XIZ" verify-proof "$F/proof-a.json" "$W/signed/tree/docs/a.md"
 printf 'tampered\n' >> "$W/signed/tree/docs/a.md"

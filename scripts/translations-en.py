@@ -12,6 +12,10 @@ SAME = {"", "5%", "10%", "20%", "PAR2", "7z", "CRC-32", "SHA-256", "No", "%@", "
         "ZIP", "ZIP · zstd", "tar.gz", "tar.xz", "tar.zst", "—", "BGZF (genomica)", "Password", "Preset", "Report", "Info"}
 
 EN = {
+    "Classica (Ed25519)": "Classic (Ed25519)",
+    "Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare.": "With a signing key, every XIZ archive and every change carry your signature: anyone can check who changed what, and when. Post-quantum keys (xizsigpq1…) sign with Ed25519 and ML-DSA-65 together: the signature holds as long as either does, also against future quantum computers; checking it needs Xipper 3.2 or later. The time-stamp (RFC 3161) is optional and is the only case in which Xipper contacts a server to sign.",
+    "Firmata con un algoritmo che questa versione non conosce: non verificata. Aggiorna Xipper.": "Signed with an algorithm this version does not know: not verified. Update Xipper.",
+    "Post-quantum: Ed25519 + ML-DSA-65": "Post-quantum: Ed25519 + ML-DSA-65",
     "%@ → %@": "%1$@ → %2$@",
     "Caso": "Case",
     "Certificato attendibile": "Trusted certificate",

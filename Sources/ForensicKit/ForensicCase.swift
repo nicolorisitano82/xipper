@@ -333,7 +333,9 @@ public struct ForensicCase: Sendable {
     /// The signer as written next to a signature: `xizsig1…` (Ed25519) or `x509:` + the certificate (DER, base64url).
     public static func keyText(_ signer: XizSigner) -> String {
         if let c = signer.certificate, let leaf = c.chain.first { return "x509:" + base64url(leaf) }
-        return signer.key.publicText
+        // A hybrid key (XIZ 1.12) signs the case log and the reports with its Ed25519 half, as
+        // xipper-forensic 1.0 reads them; the archive's segments get the hybrid signature.
+        return XizSigningKey.publicText(signer.key.publicKey)
     }
 
     /// A short, stable name for a key text: the Ed25519 key itself, or `x509:` + the certificate's SHA-256.

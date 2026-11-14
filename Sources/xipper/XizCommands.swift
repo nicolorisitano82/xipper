@@ -4,11 +4,13 @@ import Foundation
 import XipperKit
 
 let xizUsage = """
-  keygen  [--signing | --pq] -o FILE | --keychain NAME
+  keygen  [--signing] [--pq] -o FILE | --keychain NAME
                                   new XIZ identity (X25519, to receive archives; --pq: X-Wing,
                                   ML-KEM-768 + X25519, post-quantum, XIZ 1.7) or signing key
-                                  (Ed25519, --signing): the secret goes to FILE (mode 600) or to the
-                                  login Keychain under NAME (shared with the app); prints the public key
+                                  (--signing: Ed25519; with --pq hybrid Ed25519 + ML-DSA-65,
+                                  post-quantum, XIZ 1.12, read by Xipper 3.2+): the secret goes to
+                                  FILE (mode 600) or to the login Keychain under NAME (shared with
+                                  the app); prints the public key
   history <archive.xiz|.aar>      signed changes of an XIZ archive: signer, time, checks, time-stamp;
                                   for a signed Apple Archive, --aea-pem FILE writes the key for `aea -sign-pub`
   erase   [options] <archive.xiz> <path>...
@@ -144,7 +146,7 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
     guard let out = value("-o", "--output") else { fail("keygen needs -o FILE or --keychain NAME", code: 2) }
     if FileManager.default.fileExists(atPath: out) { fail("\(out) already exists") }
     let signing = flag("--signing")
-    let (text, publicText) = signing ? { let k = XizSigningKey(); return (k.fileText, k.publicText) }()
+    let (text, publicText) = signing ? { let k = XizSigningKey(postQuantum: flag("--pq")); return (k.fileText, k.publicText) }()
                                      : { let k = XizIdentity(postQuantum: flag("--pq")); return (k.fileText, k.publicText) }()
     let fd = open(out, O_WRONLY | O_CREAT | O_EXCL, 0o600)
     guard fd >= 0 else { fail("cannot create \(out)") }
@@ -218,9 +220,11 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
         var bad = false
         for s in h {
             guard s.signed else { print("#\(s.segment)  unsigned"); continue }
-            let check = s.valid ? (s.chained ? "OK" : "OK, chain broken") : "INVALID"
+            let check = s.isUnknownAlgorithm ? "NOT VERIFIED" : s.valid ? (s.chained ? "OK" : "OK, chain broken") : "INVALID"
             if !s.valid || !s.chained { bad = true }
-            var line = "#\(s.segment)  \(check)  \(s.label.isEmpty ? "?" : s.label)  \(s.time.map(df.string) ?? "")  \(s.publicKeyText)"
+            var line = "#\(s.segment)  \(check)  \(s.label.isEmpty ? "?" : s.label)  \(s.time.map(df.string) ?? "")  \(s.publicKeyDisplay)"
+            if s.isPostQuantum { line += "  (Ed25519 + ML-DSA-65)" }
+            if s.isUnknownAlgorithm { line += "  (algorithm \(s.algorithm), unknown to this version: not verified)" }
             if let ts = s.timestamp {
                 line += "\n      time-stamp \(df.string(from: ts.time)) by \(ts.authority.isEmpty ? "?" : ts.authority)"
                     + (ts.valid ? (ts.trusted ? "" : " (authority not trusted by this Mac)") : " INVALID")

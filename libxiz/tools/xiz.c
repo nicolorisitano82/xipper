@@ -349,9 +349,18 @@ static int cmd_history(int argc, char **argv) {
         time_t tt = (time_t)sg.time;
         struct tm *tm = gmtime(&tt);
         if (tm) strftime(date, sizeof date, "%Y-%m-%d %H:%M:%SZ", tm);
+        if (sg.unknown_algorithm) {
+            printf("#%u  signed with algorithm %d, unknown to this xiz: not verified\n", s, sg.algorithm);
+            bad = 1;
+            continue;
+        }
         if (sg.algorithm == 1) {
             printf("#%u  %s  %s  xizsig1", s, sg.label, date);
             b64url(sg.public_key, 32);
+        } else if (sg.algorithm == 4) {
+            printf("#%u  %s  %s  xizsigpq1:", s, sg.label, date);
+            for (int i = 0; i < 16; i++) printf("%02x", sg.key_sha256[i]);
+            printf(" (Ed25519 + ML-DSA-65)");
         } else {
             printf("#%u  %s  %s  x509:", s, sg.label, date);
             for (int i = 0; i < 32; i++) printf("%02x", sg.certificate_sha256[i]);

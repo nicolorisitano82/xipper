@@ -148,28 +148,96 @@ public struct XizIdentity: Sendable {
     }
 }
 
-/// An Ed25519 key to sign XIZ segments (`xizsig1…` public, `XIZ-SIGNING-KEY-1-…` secret).
+/// A key to sign XIZ segments: Ed25519 (`xizsig1…` public, `XIZ-SIGNING-KEY-1-…` secret), or
+/// hybrid Ed25519 + ML-DSA-65 (XIZ 1.12, §22: `xizsigpq1…`, `XIZ-SIGNING-KEY-PQ-1-…`), whose
+/// signatures hold as long as either algorithm does.
 public struct XizSigningKey: Sendable {
     public let privateKey: Curve25519.Signing.PrivateKey
+    /// The ML-DSA-65 half of a hybrid key.
+    public let postQuantumKey: MLDSA65.PrivateKey?
+    public var isPostQuantum: Bool { postQuantumKey != nil }
+    /// The Ed25519 public key (also of a hybrid key: AEA signatures and proofs of older readers use it).
     public var publicKey: [UInt8] { Array(privateKey.publicKey.rawRepresentation) }
-    public var publicText: String { Self.publicPrefix + Base64URL.encode(publicKey) }
-    public var secretText: String { Self.secretPrefix + Base64URL.encode(Array(privateKey.rawRepresentation)) }
+    /// The key a segment's signature record carries: Ed25519, or Ed25519 ‖ ML-DSA-65 (1984 bytes).
+    public var recordKey: [UInt8] {
+        publicKey + (postQuantumKey.map { Array($0.publicKey.rawRepresentation) } ?? [])
+    }
+    public var publicText: String { Self.publicText(recordKey) }
+    public var secretText: String {
+        if let pq = postQuantumKey {
+            return Self.pqSecretPrefix + Base64URL.encode(Array(privateKey.rawRepresentation) + Array(pq.seedRepresentation))
+        }
+        return Self.secretPrefix + Base64URL.encode(Array(privateKey.rawRepresentation))
+    }
 
     static let publicPrefix = "xizsig1", secretPrefix = "XIZ-SIGNING-KEY-1-"
+    static let pqPublicPrefix = "xizsigpq1", pqSecretPrefix = "XIZ-SIGNING-KEY-PQ-1-"
+    static let mldsaPublicKeySize = 1952, mldsaSignatureSize = 3309
+    static let hybridKeySize = 32 + mldsaPublicKeySize, hybridSignatureSize = 64 + mldsaSignatureSize
+    /// FIPS 204 context of the ML-DSA half: binds it to this use.
+    static let mldsaContext = Array("XIZ112hybrid".utf8)
 
-    public init() { privateKey = Curve25519.Signing.PrivateKey() }
+    /// A new key; hybrid (Ed25519 + ML-DSA-65) when `postQuantum`.
+    public init(postQuantum: Bool = false) {
+        privateKey = Curve25519.Signing.PrivateKey()
+        postQuantumKey = postQuantum ? try! MLDSA65.PrivateKey() : nil
+    }
+
     public init(secretText: String) throws {
+        if let line = XizIdentity.keyLine(secretText, prefix: Self.pqSecretPrefix) {
+            guard let raw = Base64URL.decode(String(line.dropFirst(Self.pqSecretPrefix.count))), raw.count == 64 else {
+                throw XipperError.invalidArgument("not an XIZ signing key")
+            }
+            privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: raw[0..<32])
+            postQuantumKey = try MLDSA65.PrivateKey(seedRepresentation: raw[32..<64], publicKey: nil)
+            return
+        }
         guard let line = XizIdentity.keyLine(secretText, prefix: Self.secretPrefix),
               let raw = Base64URL.decode(String(line.dropFirst(Self.secretPrefix.count))), raw.count == 32 else {
             throw XipperError.invalidArgument("not an XIZ signing key")
         }
         privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: raw)
+        postQuantumKey = nil
     }
 
-    public static func publicText(_ key: [UInt8]) -> String { publicPrefix + Base64URL.encode(key) }
+    /// For people: the key itself (`xizsig1…`, 52 characters), or for a hybrid key, whose text is
+    /// 2.6 KB, `xizsigpq1:` and the first 128 bits of its SHA-256.
+    public static func displayText(_ key: [UInt8]) -> String {
+        guard key.count == hybridKeySize else { return publicText(key) }
+        return pqPublicPrefix + ":" + Xiz.sha256(key).prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// `xizsig1…` for an Ed25519 key, `xizsigpq1…` for a hybrid one.
+    public static func publicText(_ key: [UInt8]) -> String {
+        (key.count == hybridKeySize ? pqPublicPrefix : publicPrefix) + Base64URL.encode(key)
+    }
+
+    /// The Ed25519 signature, or the hybrid one (Ed25519 ‖ ML-DSA-65 with its context).
+    func recordSignature(_ message: [UInt8]) throws -> [UInt8] {
+        let ed = Array(try privateKey.signature(for: message))
+        guard let pq = postQuantumKey else { return ed }
+        return ed + Array(try pq.signature(for: message, context: Self.mldsaContext))
+    }
+
+    /// Checks a record signature against a record key (either kind).
+    static func verify(recordKey key: [UInt8], signature: [UInt8], message: [UInt8]) -> Bool {
+        switch (key.count, signature.count) {
+        case (32, 64):
+            return (try? Curve25519.Signing.PublicKey(rawRepresentation: key))?.isValidSignature(signature, for: message) ?? false
+        case (hybridKeySize, hybridSignatureSize):
+            guard let ed = try? Curve25519.Signing.PublicKey(rawRepresentation: key[0..<32]),
+                  let pq = try? MLDSA65.PublicKey(rawRepresentation: key[32...]) else { return false }
+            // Both halves: the signature holds as long as either algorithm is unbroken.
+            return ed.isValidSignature(signature[0..<64], for: message)
+                && pq.isValidSignature(signature[64...], for: message, context: mldsaContext)
+        default:
+            return false
+        }
+    }
 
     public var fileText: String {
-        "# XIZ signing key (Ed25519), created \(ISO8601DateFormatter().string(from: Date()))\n# public key: \(publicText)\n\(secretText)\n"
+        let kind = isPostQuantum ? "hybrid Ed25519 + ML-DSA-65" : "Ed25519"
+        return "# XIZ signing key (\(kind)), created \(ISO8601DateFormatter().string(from: Date()))\n# public key: \(publicText)\n\(secretText)\n"
     }
 }
 
@@ -226,14 +294,24 @@ public struct XizSegmentSignature: Sendable {
     public var timestamp: XizTimestamp?
     /// Signed Apple Archive: the P-256 key that signed it, PEM, for `aea decrypt -sign-pub`.
     public var aeaPublicKeyPEM: String?
-    /// 1 Ed25519, 2 ECDSA P-256 with a certificate, 3 RSA with a certificate.
+    /// 1 Ed25519, 2 ECDSA P-256 with a certificate, 3 RSA with a certificate, 4 hybrid Ed25519 +
+    /// ML-DSA-65 (XIZ 1.12); any other value: an algorithm this reader does not know (not verified).
     public var algorithm: UInt8 = 1
+    /// Post-quantum: hybrid Ed25519 + ML-DSA-65 (§22).
+    public var isPostQuantum: Bool { algorithm == 4 }
+    /// Signed with an algorithm this reader cannot check (a newer writer).
+    public var isUnknownAlgorithm: Bool { signed && !(1...4).contains(algorithm) }
     /// The signer certificate (algorithms 2 and 3) and its chain, DER.
     public var chain: [[UInt8]] = []
     public var certificate: XizCertificateInfo?
     public var publicKeyText: String {
         if let c = certificate { return "x509:" + c.fingerprint }
         return publicKey.isEmpty ? "" : XizSigningKey.publicText(publicKey)
+    }
+    /// Short enough to read: a hybrid key as `xizsigpq1:` and its fingerprint.
+    public var publicKeyDisplay: String {
+        if let c = certificate { return "x509:" + c.fingerprint }
+        return publicKey.isEmpty ? "" : XizSigningKey.displayText(publicKey)
     }
 }
 
@@ -748,7 +826,7 @@ struct XizGroupMap {
 enum XizSignature {
     struct Record {
         var algorithm: UInt8 = 1
-        /// Ed25519 public key (algorithm 1); empty for certificates.
+        /// Ed25519 public key (algorithm 1), Ed25519 ‖ ML-DSA-65 (algorithm 4); empty for certificates.
         var publicKey: [UInt8]
         /// DER certificates, signer first (algorithms 2, 3).
         var chain: [[UInt8]] = []
@@ -761,7 +839,7 @@ enum XizSignature {
         /// What the message and the record carry as the key: the public key, or the chain as
         /// u16(count) ‖ (u32(length) ‖ DER)….
         var keyMaterial: [UInt8] {
-            guard algorithm != 1 else { return publicKey }
+            guard algorithm == 2 || algorithm == 3 else { return publicKey }
             var w = ByteWriter(capacity: 2 + chain.reduce(0) { $0 + 4 + $1.count })
             w.u16(UInt16(chain.count))
             for c in chain { w.u32(UInt32(c.count)); w.append(c) }
@@ -772,7 +850,7 @@ enum XizSignature {
             var w = ByteWriter(capacity: 180 + token.count + keyMaterial.count + signature.count)
             w.u8(algorithm); w.append(keyMaterial); w.append(XizAccessKeys.label(label)); w.u64(UInt64(bitPattern: time))
             w.append(previous)
-            if algorithm != 1 { w.u16(UInt16(signature.count)) }
+            if algorithm == 2 || algorithm == 3 { w.u16(UInt16(signature.count)) }
             w.append(signature); w.u32(UInt32(token.count)); w.append(token)
             return w.bytes
         }
@@ -784,6 +862,7 @@ enum XizSignature {
                 var pk: [UInt8] = [], chain: [[UInt8]] = []
                 switch alg {
                 case 1: pk = Array(try r.bytes(32))
+                case 4: pk = Array(try r.bytes(XizSigningKey.hybridKeySize))
                 case 2, 3:
                     let n = Int(try r.u16())
                     guard n >= 1, n <= 16 else { throw XipperError.corrupt("XIZ signature chain") }
@@ -797,7 +876,7 @@ enum XizSignature {
                 let label = String(decoding: try r.bytes(Int(try r.u8())), as: UTF8.self)
                 let time = Int64(bitPattern: try r.u64())
                 let prev = Array(try r.bytes(32))
-                let sig = Array(try r.bytes(alg == 1 ? 64 : Int(try r.u16())))
+                let sig = Array(try r.bytes(alg == 1 ? 64 : alg == 4 ? XizSigningKey.hybridSignatureSize : Int(try r.u16())))
                 let token = Array(try r.bytes(Int(try r.u32())))
                 guard r.remaining == 0 else { throw XipperError.corrupt("XIZ signature trailing data") }
                 return Record(algorithm: alg, publicKey: pk, chain: chain, label: label, time: time, previous: prev, signature: sig, token: token)
@@ -805,7 +884,7 @@ enum XizSignature {
         }
 
         func verify(_ message: [UInt8]) -> Bool {
-            if algorithm == 1 { return (try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey))?.isValidSignature(signature, for: message) ?? false }
+            if algorithm == 1 || algorithm == 4 { return XizSigningKey.verify(recordKey: publicKey, signature: signature, message: message) }
             return XizCertificateSigner.verify(algorithm: algorithm, chain: chain, message: message, signature: signature)
         }
     }
@@ -855,8 +934,12 @@ enum XizSignature {
         var previous = [UInt8](repeating: 0, count: 32)
         for (i, (f, d)) in chain.enumerated() {
             guard !d.signature.isEmpty, let r = try? Record.decode(d.signature) else {
-                out.append(XizSegmentSignature(segment: i, signed: false, label: "", publicKey: [], time: nil, valid: false,
-                                               chained: false, timestamp: nil))
+                // A record this reader cannot read (an algorithm it does not know, §13.5): signed,
+                // not verified; its successor's chain cannot be checked either.
+                var s = XizSegmentSignature(segment: i, signed: !d.signature.isEmpty, label: "", publicKey: [], time: nil, valid: false,
+                                            chained: false, timestamp: nil)
+                s.algorithm = d.signature.first ?? 0
+                out.append(s)
                 previous = [UInt8](repeating: 0, count: 32)
                 continue
             }
@@ -866,8 +949,8 @@ enum XizSignature {
             var s = XizSegmentSignature(segment: i, signed: true, label: r.label, publicKey: r.publicKey,
                                         time: Date(timeIntervalSince1970: Double(r.time)), valid: valid, chained: r.previous == previous,
                                         timestamp: ts)
-            if r.algorithm != 1 {
-                s.algorithm = r.algorithm
+            s.algorithm = r.algorithm
+            if r.algorithm == 2 || r.algorithm == 3 {
                 s.chain = r.chain
                 // Trust and validity at the time-stamp's time when there is one, else at the signer's clock.
                 s.certificate = XizCertificateInfo(r.chain[0], chain: r.chain, at: ts?.time ?? s.time)
@@ -881,11 +964,11 @@ enum XizSignature {
     /// Signs a segment's directory; time-stamps when the signer names an authority.
     static func sign(_ signer: XizSigner, archiveID: [UInt8], segment: UInt32, directory: XizDirectory, previousFooter: UInt64,
                      previous: [UInt8]) throws -> Record {
-        var r = Record(publicKey: signer.key.publicKey, label: signer.label, time: Int64(Date().timeIntervalSince1970),
+        var r = Record(algorithm: signer.key.isPostQuantum ? 4 : 1, publicKey: signer.key.recordKey, label: signer.label, time: Int64(Date().timeIntervalSince1970),
                        previous: previous, signature: [], token: [])
         if let c = signer.certificate { r.algorithm = c.algorithm; r.chain = c.chain; r.publicKey = [] }
         let m = message(archiveID: archiveID, segment: segment, directory: directory, previousFooter: previousFooter, r)
-        r.signature = try signer.sign(m)
+        r.signature = signer.certificate != nil ? try signer.sign(m) : try signer.key.recordSignature(m)
         if let url = signer.timestampURL { r.token = try RFC3161.request(url, imprint: Xiz.sha256(r.signature), credentials: signer.timestampCredentials) }
         return r
     }

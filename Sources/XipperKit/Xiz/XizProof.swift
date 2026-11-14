@@ -236,9 +236,12 @@ enum XizProof {
             var d = dir
             d.signature = Array(sig)
             let m = XizSignature.message(archiveID: archiveID, segment: UInt32(segment), directory: d, previousFooter: pf, rec)
-            result.signed = (try? Curve25519.Signing.PublicKey(rawRepresentation: rec.publicKey))?.isValidSignature(rec.signature, for: m) ?? false
+            // Every algorithm (also certificates and hybrid keys, which this check once took for invalid).
+            result.signed = rec.verify(m)
             result.signerLabel = rec.label
-            result.signerKey = XizSigningKey.publicText(rec.publicKey)
+            result.signerKey = rec.algorithm == 2 || rec.algorithm == 3
+                ? "x509:" + Xiz.sha256(rec.chain.first ?? []).map { String(format: "%02x", $0) }.joined()
+                : XizSigningKey.displayText(rec.publicKey)
             result.signedAt = Date(timeIntervalSince1970: Double(rec.time))
             if !rec.token.isEmpty { result.timestamp = try? RFC3161.verify(rec.token, imprint: Xiz.sha256(rec.signature)) }
         }

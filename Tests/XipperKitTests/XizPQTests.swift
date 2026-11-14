@@ -31,6 +31,8 @@ struct XizPQTests {
     }
 
     @Test func recipientsAndCustodians() throws {
+        sharedCredentialsLock.lock()
+        defer { sharedCredentialsLock.unlock() }
         XizCredentials.shared.removeAll()
         defer { XizCredentials.shared.removeAll() }
         let t = TempDir()
@@ -97,6 +99,8 @@ struct XizPQTests {
 
     /// A ciphertext changed in the keys block: the block's CRC, then AES-GCM over the header.
     @Test func alteredStanzasDoNotOpen() throws {
+        sharedCredentialsLock.lock()
+        defer { sharedCredentialsLock.unlock() }
         XizCredentials.shared.removeAll()
         defer { XizCredentials.shared.removeAll() }
         let t = TempDir()
