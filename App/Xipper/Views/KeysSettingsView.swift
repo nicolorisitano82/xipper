@@ -12,6 +12,7 @@ struct KeysSettings: View {
     @State private var timestamp = KeyVault.timestampURL?.absoluteString ?? ""
     @AppStorage(PrefKey.xizSignEdits) private var signEdits = true
     @State private var message: String?
+    @State private var certificates = KeyVault.signingCertificates()
 
     var body: some View {
         Form {
@@ -39,6 +40,10 @@ struct KeysSettings: View {
                     Menu("Nuova chiave di firma…") {
                         Button("Post-quantum (consigliata)") { create(.signing) }
                         Button("Classica (Ed25519)") { create(.signing, postQuantum: false) }
+                        if XizEnclaveSigningKey.isAvailable {
+                            Divider()
+                            Button("Nel Secure Enclave (non copiabile)…") { createEnclave() }
+                        }
                     } primaryAction: {
                         create(.signing)
                     }
@@ -48,6 +53,10 @@ struct KeysSettings: View {
                 Picker("Firma i nuovi archivi XIZ con", selection: $defaultKey) {
                     Text("Nessuna chiave").tag("")
                     ForEach(signingKeys) { Text($0.name).tag($0.name) }
+                    if !certificates.isEmpty {
+                        Divider()
+                        ForEach(certificates, id: \.self) { Text(KeyVault.displayName(KeyVault.certificatePrefix + $0)).tag(KeyVault.certificatePrefix + $0) }
+                    }
                 }
                 .onChange(of: defaultKey) { _, v in KeyVault.defaultSigningKey = v }
                 Toggle("Firma anche le modifiche agli archivi firmati", isOn: $signEdits)
@@ -59,7 +68,7 @@ struct KeysSettings: View {
             } header: {
                 Text("Chiavi di firma")
             } footer: {
-                Text("Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare.")
+                Text("Con una chiave di firma, ogni archivio XIZ e ogni modifica portano la tua firma: chiunque può verificare chi ha cambiato cosa e quando. Le chiavi post-quantum (xizsigpq1…) firmano insieme con Ed25519 e ML-DSA-65: la firma regge finché regge uno dei due, anche contro i computer quantistici futuri; per verificarla serve Xipper 3.2 o successivo. Una chiave nel Secure Enclave (xizsigse1…) non esce mai da questo Mac: nessuno può copiarla, ma si perde con il Mac; per verificarla serve Xipper 3.3. Con un certificato (anche su smart card) la firma porta il tuo nome certificato. La marca temporale (RFC 3161) è facoltativa ed è l'unico caso in cui Xipper contatta un server per firmare.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let message {
@@ -78,7 +87,11 @@ struct KeysSettings: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(item.name)
-                        if item.publicKey.hasPrefix("xizpq1") || item.publicKey.hasPrefix("xizsigpq1") {
+                        if item.publicKey.hasPrefix(XizEnclaveSigningKey.publicPrefix) {
+                            Text("Secure Enclave").font(.caption2).foregroundStyle(.secondary)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        } else if item.publicKey.hasPrefix("xizpq1") || item.publicKey.hasPrefix("xizsigpq1") {
                             Text("post-quantum").font(.caption2).foregroundStyle(.secondary)
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())
@@ -95,8 +108,10 @@ struct KeysSettings: View {
                 }
                 .buttonStyle(.touchIcon).help("Copia chiave pubblica")
                 Menu {
-                    Button("Esporta…") { export(kind, item.name) }
-                    Divider()
+                    if !item.publicKey.hasPrefix(XizEnclaveSigningKey.publicPrefix) {
+                        Button("Esporta…") { export(kind, item.name) }
+                        Divider()
+                    }
                     Button("Elimina…", role: .destructive) { delete(kind, item.name) }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -110,7 +125,8 @@ struct KeysSettings: View {
     private func reload() {
         identities = XizKeychain.list(.identity)
         signingKeys = XizKeychain.list(.signing)
-        if !signingKeys.contains(where: { $0.name == defaultKey }) { defaultKey = "" }
+        certificates = KeyVault.signingCertificates()
+        if !signingKeys.contains(where: { $0.name == defaultKey }) && !defaultKey.hasPrefix(KeyVault.certificatePrefix) { defaultKey = "" }
     }
 
     private func create(_ kind: XizKeychain.Kind, postQuantum: Bool = true) {
@@ -120,6 +136,25 @@ struct KeysSettings: View {
             try XizKeychain.generate(kind, name: name, postQuantum: postQuantum)
             if kind == .signing && defaultKey.isEmpty { defaultKey = name }
             message = String(localized: "«\(name)» creata nel Portachiavi.")
+        } catch {
+            message = error.localizedDescription
+        }
+        reload()
+    }
+
+    /// A signing key made inside the Secure Enclave, after saying what that means.
+    private func createEnclave() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Chiave di firma nel Secure Enclave")
+        alert.informativeText = String(localized: "La chiave nasce nel Secure Enclave di questo Mac e non ne esce mai: nessuno può copiarla, nemmeno tu. Se il Mac si rompe, viene inizializzato o sostituito, la chiave è persa: le firme già fatte restano verificabili, ma non potrai firmare altro con lei. Firma insieme con P-256 e ML-DSA-65 (post-quantum); per verificare serve Xipper 3.3 o successivo.")
+        alert.addButton(withTitle: String(localized: "Crea"))
+        alert.addButton(withTitle: String(localized: "Annulla"))
+        guard alert.runModal() == .alertFirstButtonReturn,
+              let name = KeysSettings.askName(String(localized: "Nuova chiave di firma"), default: String(localized: "Firma di \(NSFullUserName()) (questo Mac)")) else { return }
+        do {
+            try XizKeychain.generateEnclaveSigningKey(name: name)
+            if defaultKey.isEmpty { defaultKey = name }
+            message = String(localized: "«\(name)» creata nel Secure Enclave.")
         } catch {
             message = error.localizedDescription
         }

@@ -81,6 +81,7 @@ final class SignedDocumentModel {
 struct SignedDocumentView: View {
     let url: URL
     @State private var model: SignedDocumentModel
+    @Environment(\.openWindow) private var openWindow
 
     init(url: URL) {
         self.url = url
@@ -115,6 +116,10 @@ struct SignedDocumentView: View {
                 if model.document?.content != nil {
                     Button("Estrai documento…", systemImage: "square.and.arrow.down") { model.extractDocument() }
                         .help("Salva il documento firmato, senza la busta di firma")
+                }
+                if model.document?.format == .p7m {
+                    Button("Aggiungi firma…", systemImage: "signature") { openWindow(id: "sign", value: url) }
+                        .help("Firma anche tu questo documento (firma parallela o a matrioska)")
                 }
                 Button("Copia rapporto", systemImage: "doc.on.clipboard") { model.copyReport() }
                     .help("Copia negli appunti il rapporto della verifica")

@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import Security
 import XipperKit
 
 /// XIZ identities and signing keys in the Keychain (XizKeychain), with the same Touch ID gate as
@@ -65,9 +66,46 @@ enum KeyVault {
     }
 
     static func signer(named name: String) async -> XizSigner? {
+        if name.hasPrefix(certificatePrefix) { return await certificateSigner(String(name.dropFirst(certificatePrefix.count))) }
         guard await authorize(String(localized: "firmare con la chiave «\(name)»")),
-              let text = XizKeychain.secret(.signing, name: name), let key = try? XizSigningKey(secretText: text) else { return nil }
-        return XizSigner(key: key, label: signerName, timestampURL: timestampURL)
+              let text = XizKeychain.secret(.signing, name: name) else { return nil }
+        return try? XizSigner(secretText: text, label: signerName, timestampURL: timestampURL)
+    }
+
+    /// Choices for signing XIZ archives that are certificates (Keychain, smart cards): `cert:NAME`.
+    static let certificatePrefix = "cert:"
+
+    /// Certificates for signing (non-repudiation), read from the certificates only: no private key touched.
+    static func signingCertificates() -> [String] {
+        XizCertificateSigner.identities().compactMap { id in
+            var c: SecCertificate?
+            SecIdentityCopyCertificate(id.identity, &c)
+            guard let c, let cert = try? SignerCertificate(der: Array(SecCertificateCopyData(c) as Data)),
+                  cert.nonRepudiation, cert.isValid(at: Date()) else { return nil }
+            return id.name
+        }
+    }
+
+    /// A signer with a certificate's key (algorithm 2 or 3): the card may ask for its PIN, macOS for
+    /// permission to use a Keychain key. The signature is checked with the certificate first.
+    private static func certificateSigner(_ name: String) async -> XizSigner? {
+        let label = signerName, url = timestampURL
+        return await Task.detached { () -> XizSigner? in
+            guard let identity = XizCertificateSigner.identity(named: name),
+                  let c = try? XizCertificateSigner(identity: identity) else { return nil }
+            return XizSigner(key: XizSigningKey(), label: label, timestampURL: url, certificate: c)
+        }.value
+    }
+
+    /// Apple Archive signs only with an Ed25519 key (its P-256 key is derived from it).
+    static func signsAppleArchive(_ name: String) -> Bool {
+        guard !name.isEmpty, !name.hasPrefix(certificatePrefix) else { return false }
+        return !(XizKeychain.list(.signing).first { $0.name == name }?.publicKey.hasPrefix(XizEnclaveSigningKey.publicPrefix) ?? false)
+    }
+
+    /// Shown in pickers: a certificate as its name with a mark.
+    static func displayName(_ choice: String) -> String {
+        choice.hasPrefix(certificatePrefix) ? String(localized: "Certificato: \(String(choice.dropFirst(certificatePrefix.count)))") : choice
     }
 
     /// The secret of a key, to export it (after Touch ID).
@@ -76,6 +114,7 @@ enum KeyVault {
         guard let text = XizKeychain.secret(kind, name: name) else { return nil }
         if kind == .identity, let i = try? XizIdentity(secretText: text) { return i.fileText }
         if kind == .signing, let k = try? XizSigningKey(secretText: text) { return k.fileText }
+        if kind == .signing, let k = try? XizEnclaveSigningKey(secretText: text) { return k.fileText }
         return nil
     }
 }

@@ -45,7 +45,9 @@ public enum XizKeychain {
         add[kSecValueData as String] = Data(secretText.utf8)
         add[kSecAttrComment as String] = publicText
         add[kSecAttrLabel as String] = "Xipper: \(name)"
-        add[kSecAttrDescription as String] = kind == .signing ? "XIZ signing key (Ed25519)"
+        add[kSecAttrDescription as String] = kind == .signing
+            ? (publicText.hasPrefix(XizEnclaveSigningKey.publicPrefix) ? "XIZ signing key (Secure Enclave)"
+               : publicText.hasPrefix(XizSigningKey.pqPublicPrefix) ? "XIZ signing key (Ed25519 + ML-DSA-65)" : "XIZ signing key (Ed25519)")
             : publicText.hasPrefix(XizIdentity.pqPublicPrefix) ? "XIZ identity (X-Wing, post-quantum)" : "XIZ identity (X25519)"
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw XipperError.io("Keychain: save \(name)", path: nil, errno: Int32(truncatingIfNeeded: status)) }
@@ -81,12 +83,26 @@ public enum XizKeychain {
         }
     }
 
+    /// A new signing key inside this Mac's Secure Enclave (P-256 + ML-DSA-65, §23), stored under
+    /// `name` (the Keychain holds only the blobs this Secure Enclave can use); returns its public key.
+    @discardableResult
+    public static func generateEnclaveSigningKey(name: String) throws -> String {
+        let k = try XizEnclaveSigningKey()
+        try save(.signing, name: name, secretText: k.secretText, publicText: k.publicText)
+        return k.publicText
+    }
+
     /// Imports a key file written by `xipper keygen` (or exported from the app).
     @discardableResult
     public static func importKey(fileText: String, name: String) throws -> (Kind, String) {
         if let i = try? XizIdentity(secretText: fileText) {
             try save(.identity, name: name, secretText: i.secretText, publicText: i.publicText)
             return (.identity, i.publicText)
+        }
+        if XizEnclaveSigningKey.isSecretText(fileText) {
+            let e = try XizEnclaveSigningKey(secretText: fileText)
+            try save(.signing, name: name, secretText: e.secretText, publicText: e.publicText)
+            return (.signing, e.publicText)
         }
         let s = try XizSigningKey(secretText: fileText)
         try save(.signing, name: name, secretText: s.secretText, publicText: s.publicText)

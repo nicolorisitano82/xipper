@@ -34,6 +34,10 @@ enum PrefKey {
     /// Signed documents (3.3): "" not asked yet, "yes" online checks allowed, "no" refused.
     static let signaturesOnline = "signaturesOnline"
     static let signaturesCountry = "signaturesCountry"
+    /// Last signing choices: certificate name, time-stamp authority URL and user (never the password).
+    static let signingCertificate = "signingCertificate"
+    static let signingTSA = "signingTSA"
+    static let signingTSAUser = "signingTSAUser"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"

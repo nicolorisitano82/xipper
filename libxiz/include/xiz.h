@@ -362,10 +362,11 @@ typedef struct xiz_signature {
     uint32_t timestamp_length;
     uint8_t chained_digest[32];
     int algorithm;               /* 1 Ed25519, 2 ECDSA P-256 + X.509, 3 RSA PKCS#1 v1.5 + X.509,
-                                    4 hybrid Ed25519 + ML-DSA-65 (§22) */
+                                    4 hybrid Ed25519 + ML-DSA-65 (§22), 5 Secure Enclave P-256 +
+                                    ML-DSA-65 (§23) */
     uint8_t certificate_sha256[32]; /* algorithms 2, 3: SHA-256 of the signer certificate (DER) */
     uint32_t chain_count;        /* certificates in the record; the chain is not validated by libxiz */
-    uint8_t key_sha256[32];      /* algorithm 4: SHA-256 of the whole hybrid key (its fingerprint) */
+    uint8_t key_sha256[32];      /* algorithms 4, 5: SHA-256 of the whole key (its fingerprint) */
     int unknown_algorithm;       /* signed with an algorithm this libxiz does not know: not verified */
 } xiz_signature;
 
@@ -388,7 +389,7 @@ typedef struct xiz_proof_result {
     int is_signed;               /* signature present and valid */
     char signer[256];
     uint8_t signer_key[32];      /* Ed25519 key, or SHA-256 of the signer certificate (algorithms 2, 3)
-                                    or of the hybrid key (algorithm 4) */
+                                    or of the whole key (algorithms 4, 5) */
     int64_t signed_at;
     uint32_t segment;
     int algorithm;

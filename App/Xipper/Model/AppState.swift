@@ -49,6 +49,14 @@ final class AppState {
         return panel.runModal() == .OK ? panel.urls : []
     }
 
+    func showSignPanel() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.message = String(localized: "Scegli il documento da firmare (un .p7m per aggiungere una firma)")
+        panel.prompt = String(localized: "Firma")
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     nonisolated static func isArchive(_ url: URL) -> Bool {
         (try? ArchiveFormat.detect(url)) != nil
     }

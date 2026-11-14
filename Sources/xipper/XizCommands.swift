@@ -4,13 +4,16 @@ import Foundation
 import XipperKit
 
 let xizUsage = """
-  keygen  [--signing] [--pq] -o FILE | --keychain NAME
+  keygen  [--signing] [--pq | --secure-enclave] -o FILE | --keychain NAME
                                   new XIZ identity (X25519, to receive archives; --pq: X-Wing,
                                   ML-KEM-768 + X25519, post-quantum, XIZ 1.7) or signing key
                                   (--signing: Ed25519; with --pq hybrid Ed25519 + ML-DSA-65,
                                   post-quantum, XIZ 1.12, read by Xipper 3.2+): the secret goes to
                                   FILE (mode 600) or to the login Keychain under NAME (shared with
-                                  the app); prints the public key
+                                  the app); prints the public key. --signing --secure-enclave: a key
+                                  made and kept in this Mac's Secure Enclave (P-256 + ML-DSA-65,
+                                  XIZ 1.13, read by Xipper 3.3+): it cannot be copied and is lost
+                                  with the Mac
   history <archive.xiz|.aar>      signed changes of an XIZ archive: signer, time, checks, time-stamp;
                                   for a signed Apple Archive, --aea-pem FILE writes the key for `aea -sign-pub`
   erase   [options] <archive.xiz> <path>...
@@ -75,14 +78,12 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
         guard let t = try? String(contentsOfFile: path, encoding: .utf8) else { fail("cannot read signing key \(path)") }
         text = t
     }
-    let key: XizSigningKey
-    do { key = try XizSigningKey(secretText: text) } catch { fail("\(path): \(error)") }
     var url: URL?
     if let t = value("--timestamp") {
         guard let u = URL(string: t), u.scheme == "https" || u.scheme == "http" else { fail("invalid time-stamp URL \(t)", code: 2) }
         url = u
     }
-    return XizSigner(key: key, label: value("--signer") ?? NSFullUserName(), timestampURL: url)
+    do { return try XizSigner(secretText: text, label: value("--signer") ?? NSFullUserName(), timestampURL: url) } catch { fail("\(path): \(error)") }
 }
 
 /// An access policy from JSON. Passwords never sit in the file: `password_env` names an
@@ -135,6 +136,12 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 }
 
 @MainActor func runKeygen() -> Never {
+    if flag("--secure-enclave") {
+        guard flag("--signing"), !flag("--pq") else { fail("--secure-enclave is for signing keys (--signing), without --pq", code: 2) }
+        if let name = value("--keychain") {
+            do { print(try XizKeychain.generateEnclaveSigningKey(name: name)); exit(0) } catch { fail("\(error)") }
+        }
+    }
     if let name = value("--keychain") {
         do {
             print(try XizKeychain.generate(flag("--signing") ? .signing : .identity, name: name, postQuantum: flag("--pq")))
@@ -146,6 +153,19 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
     guard let out = value("-o", "--output") else { fail("keygen needs -o FILE or --keychain NAME", code: 2) }
     if FileManager.default.fileExists(atPath: out) { fail("\(out) already exists") }
     let signing = flag("--signing")
+    if flag("--secure-enclave") {
+        do {
+            let k = try XizEnclaveSigningKey()
+            let fd = open(out, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+            guard fd >= 0 else { fail("cannot create \(out)") }
+            let t = k.fileText
+            let ok = t.utf8CString.withUnsafeBufferPointer { write(fd, $0.baseAddress, $0.count - 1) == $0.count - 1 }
+            close(fd)
+            guard ok else { fail("cannot write \(out)") }
+            print(k.publicText)
+            exit(0)
+        } catch { fail("\(error)") }
+    }
     let (text, publicText) = signing ? { let k = XizSigningKey(postQuantum: flag("--pq")); return (k.fileText, k.publicText) }()
                                      : { let k = XizIdentity(postQuantum: flag("--pq")); return (k.fileText, k.publicText) }()
     let fd = open(out, O_WRONLY | O_CREAT | O_EXCL, 0o600)
@@ -223,7 +243,7 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
             let check = s.isUnknownAlgorithm ? "NOT VERIFIED" : s.valid ? (s.chained ? "OK" : "OK, chain broken") : "INVALID"
             if !s.valid || !s.chained { bad = true }
             var line = "#\(s.segment)  \(check)  \(s.label.isEmpty ? "?" : s.label)  \(s.time.map(df.string) ?? "")  \(s.publicKeyDisplay)"
-            if s.isPostQuantum { line += "  (Ed25519 + ML-DSA-65)" }
+            if s.isSecureEnclave { line += "  (Secure Enclave: P-256 + ML-DSA-65)" } else if s.isPostQuantum { line += "  (Ed25519 + ML-DSA-65)" }
             if s.isUnknownAlgorithm { line += "  (algorithm \(s.algorithm), unknown to this version: not verified)" }
             if let ts = s.timestamp {
                 line += "\n      time-stamp \(df.string(from: ts.time)) by \(ts.authority.isEmpty ? "?" : ts.authority)"

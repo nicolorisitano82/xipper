@@ -607,6 +607,8 @@ enum XizWriter {
         if XizAccessKeys.hasPostQuantum(policy) { superblock.minor = max(superblock.minor, 7) }  // X-Wing stanzas (§17): no feature bit
         // Hybrid Ed25519 + ML-DSA-65 signatures (§22): no feature bit either.
         if let signer, signer.certificate == nil, signer.key.isPostQuantum { superblock.minor = max(superblock.minor, 12) }
+        // Secure Enclave signatures (§23): no feature bit.
+        if let signer, signer.certificate == nil, signer.enclave != nil { superblock.minor = max(superblock.minor, 13) }
         guard encrypted || map.groups.count == 1 else {
             throw XipperError.invalidArgument("access groups need recipients (a password or a public key)")
         }

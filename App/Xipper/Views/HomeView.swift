@@ -480,6 +480,9 @@ struct HomeView: View {
     /// Why an Apple Archive cannot be signed now.
     private var signUnavailable: String? {
         if KeyVault.defaultSigningKey.isEmpty { return String(localized: "Scegli una chiave di firma predefinita in Impostazioni › Chiavi") }
+        if !KeyVault.signsAppleArchive(KeyVault.defaultSigningKey) {
+            return String(localized: "Un Apple Archive si firma solo con una chiave Ed25519 o post-quantum, non con un certificato o una chiave del Secure Enclave")
+        }
         if password != nil { return String(localized: "Un Apple Archive può essere firmato o protetto da password, non entrambe le cose") }
         return nil
     }

@@ -203,13 +203,15 @@ public struct XizSigningKey: Sendable {
     /// For people: the key itself (`xizsig1…`, 52 characters), or for a hybrid key, whose text is
     /// 2.6 KB, `xizsigpq1:` and the first 128 bits of its SHA-256.
     public static func displayText(_ key: [UInt8]) -> String {
+        if key.count == XizEnclaveSigningKey.recordKeySize { return XizEnclaveSigningKey.displayText(key) }
         guard key.count == hybridKeySize else { return publicText(key) }
         return pqPublicPrefix + ":" + Xiz.sha256(key).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 
     /// `xizsig1…` for an Ed25519 key, `xizsigpq1…` for a hybrid one.
     public static func publicText(_ key: [UInt8]) -> String {
-        (key.count == hybridKeySize ? pqPublicPrefix : publicPrefix) + Base64URL.encode(key)
+        if key.count == XizEnclaveSigningKey.recordKeySize { return XizEnclaveSigningKey.publicPrefix + Base64URL.encode(key) }
+        return (key.count == hybridKeySize ? pqPublicPrefix : publicPrefix) + Base64URL.encode(key)
     }
 
     /// The Ed25519 signature, or the hybrid one (Ed25519 ‖ ML-DSA-65 with its context).
@@ -249,6 +251,8 @@ public struct XizSigner: Sendable {
     public var timestampURL: URL?
     /// Set: segments are signed with this certificate's key (algorithm 2 or 3) instead of `key`.
     public var certificate: XizCertificateSigner?
+    /// Set: segments are signed in the Secure Enclave (algorithm 5, §23) instead of with `key`.
+    public var enclave: XizEnclaveSigningKey?
     /// HTTP Basic credentials for an authority that wants them (user, password).
     public var timestampCredentials: (user: String, password: String)?
     public init(key: XizSigningKey, label: String, timestampURL: URL? = nil, certificate: XizCertificateSigner? = nil) {
@@ -258,9 +262,23 @@ public struct XizSigner: Sendable {
         self.certificate = certificate
     }
 
+    /// A signer whose key stays in the Secure Enclave.
+    public init(enclave: XizEnclaveSigningKey, label: String, timestampURL: URL? = nil) {
+        self.init(key: XizSigningKey(), label: label, timestampURL: timestampURL)
+        self.enclave = enclave
+    }
+
+    /// The key text to show and to trust: the Ed25519 or hybrid key, the Secure Enclave key; nil for a certificate.
+    public var publicText: String? {
+        if certificate != nil { return nil }
+        if let e = enclave { return e.publicText }
+        return key.publicText
+    }
+
     /// Signs `message` with the certificate's key when there is one, else with the Ed25519 key.
     public func sign(_ message: [UInt8]) throws -> [UInt8] {
         if let c = certificate { return try c.sign(message) }
+        if enclave != nil { throw XipperError.unsupported("a Secure Enclave key signs XIZ segments only") }
         return Array(try key.privateKey.signature(for: message))
     }
 }
@@ -298,9 +316,11 @@ public struct XizSegmentSignature: Sendable {
     /// ML-DSA-65 (XIZ 1.12); any other value: an algorithm this reader does not know (not verified).
     public var algorithm: UInt8 = 1
     /// Post-quantum: hybrid Ed25519 + ML-DSA-65 (§22).
-    public var isPostQuantum: Bool { algorithm == 4 }
+    public var isPostQuantum: Bool { algorithm == 4 || algorithm == 5 }
+    /// Signed by a key in a Mac's Secure Enclave (algorithm 5, XIZ 1.13).
+    public var isSecureEnclave: Bool { algorithm == 5 }
     /// Signed with an algorithm this reader cannot check (a newer writer).
-    public var isUnknownAlgorithm: Bool { signed && !(1...4).contains(algorithm) }
+    public var isUnknownAlgorithm: Bool { signed && !(1...5).contains(algorithm) }
     /// The signer certificate (algorithms 2 and 3) and its chain, DER.
     public var chain: [[UInt8]] = []
     public var certificate: XizCertificateInfo?
@@ -863,6 +883,7 @@ enum XizSignature {
                 switch alg {
                 case 1: pk = Array(try r.bytes(32))
                 case 4: pk = Array(try r.bytes(XizSigningKey.hybridKeySize))
+                case 5: pk = Array(try r.bytes(XizEnclaveSigningKey.recordKeySize))
                 case 2, 3:
                     let n = Int(try r.u16())
                     guard n >= 1, n <= 16 else { throw XipperError.corrupt("XIZ signature chain") }
@@ -876,7 +897,8 @@ enum XizSignature {
                 let label = String(decoding: try r.bytes(Int(try r.u8())), as: UTF8.self)
                 let time = Int64(bitPattern: try r.u64())
                 let prev = Array(try r.bytes(32))
-                let sig = Array(try r.bytes(alg == 1 ? 64 : alg == 4 ? XizSigningKey.hybridSignatureSize : Int(try r.u16())))
+                let sig = Array(try r.bytes(alg == 1 ? 64 : alg == 4 ? XizSigningKey.hybridSignatureSize
+                                             : alg == 5 ? XizEnclaveSigningKey.signatureSize : Int(try r.u16())))
                 let token = Array(try r.bytes(Int(try r.u32())))
                 guard r.remaining == 0 else { throw XipperError.corrupt("XIZ signature trailing data") }
                 return Record(algorithm: alg, publicKey: pk, chain: chain, label: label, time: time, previous: prev, signature: sig, token: token)
@@ -885,6 +907,7 @@ enum XizSignature {
 
         func verify(_ message: [UInt8]) -> Bool {
             if algorithm == 1 || algorithm == 4 { return XizSigningKey.verify(recordKey: publicKey, signature: signature, message: message) }
+            if algorithm == 5 { return XizEnclaveSigningKey.verify(recordKey: publicKey, signature: signature, message: message) }
             return XizCertificateSigner.verify(algorithm: algorithm, chain: chain, message: message, signature: signature)
         }
     }
@@ -967,8 +990,11 @@ enum XizSignature {
         var r = Record(algorithm: signer.key.isPostQuantum ? 4 : 1, publicKey: signer.key.recordKey, label: signer.label, time: Int64(Date().timeIntervalSince1970),
                        previous: previous, signature: [], token: [])
         if let c = signer.certificate { r.algorithm = c.algorithm; r.chain = c.chain; r.publicKey = [] }
+        else if let e = signer.enclave { r.algorithm = 5; r.publicKey = e.recordKey }
         let m = message(archiveID: archiveID, segment: segment, directory: directory, previousFooter: previousFooter, r)
-        r.signature = signer.certificate != nil ? try signer.sign(m) : try signer.key.recordSignature(m)
+        if signer.certificate != nil { r.signature = try signer.sign(m) }
+        else if let e = signer.enclave { r.signature = try e.recordSignature(m) }
+        else { r.signature = try signer.key.recordSignature(m) }
         if let url = signer.timestampURL { r.token = try RFC3161.request(url, imprint: Xiz.sha256(r.signature), credentials: signer.timestampCredentials) }
         return r
     }

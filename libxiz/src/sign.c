@@ -110,6 +110,8 @@ static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
         r->pk = rb_take(&q, 32);
     } else if (r->algorithm == 4) {
         r->pk = rb_take(&q, 32 + XIZ_MLDSA_PUBLICKEY);
+    } else if (r->algorithm == 5) {
+        r->pk = rb_take(&q, 65 + XIZ_MLDSA_PUBLICKEY);
     } else if (r->algorithm == 2 || r->algorithm == 3) {
         r->chain_count = rb_u16(&q);
         if (r->chain_count < 1 || r->chain_count > 16) return 0;
@@ -128,7 +130,7 @@ static int record_parse(const uint8_t *b, size_t n, sig_record *r) {
     r->label = rb_take(&q, r->label_len);
     r->time = (int64_t)rb_u64(&q);
     r->previous = rb_take(&q, 32);
-    r->sig_len = r->algorithm == 1 ? 64 : r->algorithm == 4 ? 64 + XIZ_MLDSA_SIGNATURE : rb_u16(&q);
+    r->sig_len = r->algorithm == 1 ? 64 : (r->algorithm == 4 || r->algorithm == 5) ? 64 + XIZ_MLDSA_SIGNATURE : rb_u16(&q);
     r->sig = rb_take(&q, r->sig_len);
     r->token_len = rb_u32(&q);
     rb_take(&q, r->token_len);
@@ -145,6 +147,17 @@ static int sig_verify(const sig_record *r, const uint8_t *msg, size_t msg_len) {
         static const uint8_t ctx[] = "XIZ112hybrid";
         return crypto_ed25519_check(r->sig, r->pk, msg, msg_len) == 0 &&
                xiz_mldsa65_verify(r->sig + 64, msg, msg_len, ctx, sizeof ctx - 1, r->pk + 32) == 0;
+    }
+    if (r->algorithm == 5) {
+        /* Secure Enclave (§23): ECDSA P-256 (raw r ‖ s) over SHA-256, and ML-DSA-65 with its own context. */
+        static const uint8_t ctx[] = "XIZ113enclave";
+        if (r->pk[0] != 0x04) return 0;
+        uint8_t h[32], q[65];
+        memcpy(q, r->pk, 65);
+        br_ec_public_key ec = { BR_EC_secp256r1, q, 65 };
+        sha256(msg, msg_len, h);
+        return br_ecdsa_i31_vrfy_raw(&br_ec_p256_m31, h, 32, &ec, r->sig, 64) == 1 &&
+               xiz_mldsa65_verify(r->sig + 64, msg, msg_len, ctx, sizeof ctx - 1, r->pk + 65) == 0;
     }
     br_x509_decoder_context dc;
     br_x509_decoder_init(&dc, NULL, NULL);
@@ -246,7 +259,7 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
         sig_record r;
         int is_signed = d->signature_len && record_parse(d->signature, d->signature_len, &r);
         /* A record of an algorithm this reader does not know (§13.5): signed, not verified. */
-        int unknown = !is_signed && d->signature_len && (d->signature[0] < 1 || d->signature[0] > 4);
+        int unknown = !is_signed && d->signature_len && (d->signature[0] < 1 || d->signature[0] > 5);
         uint8_t chained[32] = {0};
         int valid = 0, chain_ok = 0;
         if (is_signed) {
@@ -274,6 +287,7 @@ int xiz_get_signature(xiz_archive *a, uint32_t segment, xiz_signature *o, xiz_er
                 o->algorithm = r.algorithm;
                 if (r.algorithm == 1) memcpy(o->public_key, r.pk, 32);
                 else if (r.algorithm == 4) { memcpy(o->public_key, r.pk, 32); sha256(r.pk, 32 + XIZ_MLDSA_PUBLICKEY, o->key_sha256); }
+                else if (r.algorithm == 5) sha256(r.pk, 65 + XIZ_MLDSA_PUBLICKEY, o->key_sha256);
                 else { sha256(r.cert, r.cert_len, o->certificate_sha256); o->chain_count = r.chain_count; }
                 o->time = r.time;
                 o->has_timestamp = r.token_len > 0;
@@ -624,6 +638,7 @@ int xiz_verify_proof(const char *json, size_t json_len, const uint8_t *content, 
         o->algorithm = rec.algorithm;
         if (rec.algorithm == 1) memcpy(o->signer_key, rec.pk, 32);
         else if (rec.algorithm == 4) sha256(rec.pk, 32 + XIZ_MLDSA_PUBLICKEY, o->signer_key);
+        else if (rec.algorithm == 5) sha256(rec.pk, 65 + XIZ_MLDSA_PUBLICKEY, o->signer_key);
         else sha256(rec.cert, rec.cert_len, o->signer_key);
         o->signed_at = rec.time;
     }

@@ -907,7 +907,9 @@ private struct ArchiveInspector: View {
                                     Text(c.trusted ? String(localized: "Certificato attendibile") : String(localized: "Certificato non attendibile per questo Mac"))
                                         .font(.caption).foregroundStyle(c.trusted ? Color.secondary : Color.orange)
                                 }
-                                if s.isPostQuantum {
+                                if s.isSecureEnclave {
+                                    Text("Secure Enclave di un Mac, post-quantum: P-256 + ML-DSA-65").font(.caption).foregroundStyle(.secondary)
+                                } else if s.isPostQuantum {
                                     Text("Post-quantum: Ed25519 + ML-DSA-65").font(.caption).foregroundStyle(.secondary)
                                 }
                                 SignerKey(text: s.publicKeyText, display: s.publicKeyDisplay)

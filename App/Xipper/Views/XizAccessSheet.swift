@@ -106,6 +106,7 @@ struct XizAccessSheet: View {
     @Environment(\.dismiss) private var dismiss
     private let identities = XizKeychain.list(.identity)
     private let signingKeys = XizKeychain.list(.signing)
+    private let certificates = KeyVault.signingCertificates()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -237,8 +238,12 @@ struct XizAccessSheet: View {
             Picker("Firma", selection: $draft.signingKey) {
                 Text("Non firmare").tag("")
                 ForEach(signingKeys) { Text($0.name).tag($0.name) }
+                if !certificates.isEmpty {
+                    Divider()
+                    ForEach(certificates, id: \.self) { Text(KeyVault.displayName(KeyVault.certificatePrefix + $0)).tag(KeyVault.certificatePrefix + $0) }
+                }
             }
-            if signingKeys.isEmpty {
+            if signingKeys.isEmpty && certificates.isEmpty {
                 SettingsLink { Text("Crea una chiave di firma nelle Impostazioni…") }
                     .buttonStyle(.link)
             }

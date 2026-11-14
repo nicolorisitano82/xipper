@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.12
+# XIZ archive format, version 1.13
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -13,7 +13,8 @@ post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which 
 (draft, 2026-11-10, xipper-forensic) adds the **forensic profile** (§20): disk images, source hashes, a
 cryptographic hash of every frame, unreadable-sector maps, case and custody records. **1.11** (draft, 2026-11-12,
 Xipper 3.1) adds delimited tables (CSV, TSV, BED) compressed column by column with OpenZL (§21). **1.12** (draft,
-2026-11-14, Xipper 3.2) adds hybrid post-quantum segment signatures, Ed25519 + ML-DSA-65 (§22). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+2026-11-14, Xipper 3.2) adds hybrid post-quantum segment signatures, Ed25519 + ML-DSA-65 (§22). **1.13** (draft,
+2026-11-14, Xipper 3.3) adds segment signatures by a key in a Mac's Secure Enclave, P-256 + ML-DSA-65 (§23). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -492,9 +493,11 @@ complete and rewritten in the new segment. (Holders of some groups only read.)
 ```
 algorithm        u8: 1 Ed25519; 2 ECDSA P-256 with SHA-256 and an X.509 certificate;
                  3 RSA PKCS#1 v1.5 with SHA-256 and an X.509 certificate;
-                 4 hybrid Ed25519 + ML-DSA-65 (1.12, §22)
+                 4 hybrid Ed25519 + ML-DSA-65 (1.12, §22);
+                 5 Secure Enclave, ECDSA P-256 + ML-DSA-65 (1.13, §23)
 key              algorithm 1: public_key [32]
                  algorithm 4: Ed25519 public key [32] ‖ ML-DSA-65 public key [1952]
+                 algorithm 5: P-256 public key, X9.63 uncompressed [65] ‖ ML-DSA-65 public key [1952]
                  algorithms 2, 3: chain = u16 count (1–16), then per certificate u32 length (≤ 65536)
                  + DER; the signer's certificate first, then its issuers as far as the writer knows
 label            u8 length + UTF-8 (the signer's name, visible)
@@ -504,6 +507,7 @@ previous         [32]: the chained digest of the previous segment's signature, z
 signature        algorithm 1: [64]; algorithms 2, 3: u16 length + bytes (ECDSA: DER
                  `Ecdsa-Sig-Value`; RSA: the modulus-sized signature);
                  algorithm 4: Ed25519 signature [64] ‖ ML-DSA-65 signature [3309]
+                 algorithm 5: ECDSA signature, raw r ‖ s [64] ‖ ML-DSA-65 signature [3309]
 token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
 ```
 
@@ -525,7 +529,7 @@ token_length     u32, then an RFC 3161 TimeStampToken (DER), or 0
   label, time, whether the chain holds, and the time-stamp. Which keys are trusted is up to the
   reader (Xipper keeps a list).
 - The time-stamp token's message imprint is SHA-256 of the signature field (64 bytes for Ed25519,
-  the whole 3373 bytes for algorithm 4). Readers verify the
+  the whole 3373 bytes for algorithms 4 and 5). Readers verify the
   token's CMS signature and report its `genTime` and authority; a time-stamp only proves that the
   signature existed at that time.
 - Writers time-stamp only when the user configures an authority URL (Xipper makes no network
@@ -1063,3 +1067,36 @@ The reference writer signs with CryptoKit (`MLDSA65`, macOS 26). libxiz verifies
 [mldsa-native](https://github.com/pq-code-package/mldsa-native) 2.0.0, portable C, verify only.
 On the test vectors the two agree: libxiz checks what Xipper signs, a single flipped bit in either
 half fails it, and an unknown algorithm is reported as such.
+
+## 23. Version 1.13: Secure Enclave signatures
+
+A signing key in a file or in the Keychain can be copied by whoever reads it. A key made by a Mac's
+**Secure Enclave** never leaves it: the Keychain keeps only blobs that this Secure Enclave alone can
+use. The Secure Enclave does ECDSA P-256 and ML-DSA-65 (macOS 26), not Ed25519, so algorithm 5 is
+the §22 construction with P-256 in place of Ed25519.
+
+- **Record** (§13.5): `key` is the P-256 public key in X9.63 uncompressed form (65 bytes, `04 ‖ X ‖
+  Y`) followed by the ML-DSA-65 public key (1952 bytes); `signature` is the ECDSA signature as the
+  raw `r ‖ s` (64 bytes, big-endian, 32 each) followed by the ML-DSA-65 signature (3309 bytes); no
+  length fields.
+- **Message**: the §13.5 message, unchanged (it carries the algorithm and the whole key).
+- **Both halves sign the same message**: ECDSA P-256 over SHA-256 of the message; ML-DSA-65 in its
+  pure form with the FIPS 204 context string `XIZ113enclave` (13 bytes, ASCII), so neither half can
+  be presented as part of an algorithm 2 or 4 signature.
+- **Valid** only when both halves verify. Chained digest and time-stamp as in §13.5, over the whole
+  3373-byte signature.
+- **No required feature bit**: writers set `version_minor = 13` in the superblock of an archive
+  created with such a key. Readers older than 1.13 report these segments as signed with an unknown
+  algorithm.
+- **Keys**:
+  - **text form**: `xizsigse1` + base64url(record key);
+  - **secret form**: `XIZ-SIGNING-KEY-SE-1-` + base64url(u16 length of the P-256 blob ‖ P-256 blob ‖
+    ML-DSA-65 blob), the opaque `dataRepresentation` CryptoKit gives for Secure Enclave keys; useless on
+    any other Mac, and lost when the Mac is erased or replaced;
+  - **display**: `xizsigse1:` followed by the first 16 bytes of SHA-256 of the record key, in hex.
+- Not for Apple Archive (whose signature key is derived from an Ed25519 key) nor for other messages:
+  the key signs XIZ segments only.
+
+The reference writer signs with CryptoKit (`SecureEnclave.P256.Signing`, `SecureEnclave.MLDSA65`).
+libxiz verifies with BearSSL (`br_ecdsa_i31_vrfy_raw`) and mldsa-native; on the test vectors the two
+agree, and one flipped bit in either half fails the signature.

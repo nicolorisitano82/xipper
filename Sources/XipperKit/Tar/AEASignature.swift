@@ -30,6 +30,10 @@ enum AEASignature {
 
     /// Authenticated data naming the signer.
     static func authData(for signer: XizSigner) throws -> Data {
+        // AEA wants a P-256 key derived from the Ed25519 one: not a certificate's, not the Secure Enclave's.
+        guard signer.certificate == nil, signer.enclave == nil else {
+            throw XipperError.unsupported("Apple Archive signs with an XIZ Ed25519 key only (not a certificate or a Secure Enclave key)")
+        }
         let p256 = Array(Self.p256(for: signer.key).publicKey.x963Representation)
         let binding = try signer.key.privateKey.signature(for: bindingMessage(p256: p256, label: signer.label))
         return encode([(labelKey, Array(signer.label.utf8)), (ed25519Key, signer.key.publicKey), (p256Key, p256),

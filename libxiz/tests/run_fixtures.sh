@@ -124,6 +124,12 @@ expect_code test-hybrid 0 "$XIZ" test "$F/signed-pq.xiz"
 "$XIZ" history "$F/signed-pq-tampered.xiz" > "$W/hpqt.log" 2>&1
 grep -q '^#0 .*signature INVALID' "$W/hpqt.log" && grep -q '^#1 .*signature valid, chain BROKEN' "$W/hpqt.log" && pass history-hybrid-tampered || fail "history-hybrid-tampered: $(cat "$W/hpqt.log")"
 expect_code history-hybrid-tampered-exit 1 "$XIZ" history "$F/signed-pq-tampered.xiz"
+# 1.13: Secure Enclave signatures (§23), P-256 + ML-DSA-65; one bit of the ECDSA half flipped.
+"$XIZ" history "$F/signed-se.xiz" > "$W/hse.log" 2>&1
+[ "$(grep -c 'xizsigse1:.*(Secure Enclave, P-256 + ML-DSA-65)  signature valid, chain ok' "$W/hse.log")" = 2 ] && pass history-enclave || fail "history-enclave: $(cat "$W/hse.log")"
+expect_code test-enclave 0 "$XIZ" test "$F/signed-se.xiz"
+"$XIZ" history "$F/signed-se-tampered.xiz" > "$W/hset.log" 2>&1
+grep -q '^#0 .*signature INVALID' "$W/hset.log" && grep -q '^#1 .*signature valid, chain BROKEN' "$W/hset.log" && pass history-enclave-tampered || fail "history-enclave-tampered: $(cat "$W/hset.log")"
 "$XIZ" history "$F/signed-pq-unknown.xiz" > "$W/hpqu.log" 2>&1
 grep -q '^#0  signed with algorithm 9, unknown to this xiz: not verified' "$W/hpqu.log" && pass history-unknown-algorithm || fail "history-unknown-algorithm: $(cat "$W/hpqu.log")"
 "$XIZ" extract -d "$W/signed" "$F/signed.xiz" > /dev/null 2>&1

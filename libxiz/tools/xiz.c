@@ -361,6 +361,10 @@ static int cmd_history(int argc, char **argv) {
             printf("#%u  %s  %s  xizsigpq1:", s, sg.label, date);
             for (int i = 0; i < 16; i++) printf("%02x", sg.key_sha256[i]);
             printf(" (Ed25519 + ML-DSA-65)");
+        } else if (sg.algorithm == 5) {
+            printf("#%u  %s  %s  xizsigse1:", s, sg.label, date);
+            for (int i = 0; i < 16; i++) printf("%02x", sg.key_sha256[i]);
+            printf(" (Secure Enclave, P-256 + ML-DSA-65)");
         } else {
             printf("#%u  %s  %s  x509:", s, sg.label, date);
             for (int i = 0; i < 32; i++) printf("%02x", sg.certificate_sha256[i]);

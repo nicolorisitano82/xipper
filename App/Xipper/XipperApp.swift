@@ -33,6 +33,11 @@ struct XipperApp: App {
         }
         .defaultSize(width: 720, height: 640)
 
+        WindowGroup("Firma digitale", id: "sign", for: URL.self) { $url in
+            if let url { SignDocumentView(url: url) }
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView()
         }
@@ -64,6 +69,9 @@ struct XipperCommands: Commands {
             Divider()
             Button("Verifica firma…") {
                 for url in AppState.shared.showSignedPanel() { openWindow(id: "signed", value: url) }
+            }
+            Button("Firma digitalmente…") {
+                if let url = AppState.shared.showSignPanel() { openWindow(id: "sign", value: url) }
             }
             Button("Verifica prova di appartenenza…") { ArchiveActions.verifyProof() }
             Button("Calcola checksum…") { ArchiveActions.computeChecksums() }

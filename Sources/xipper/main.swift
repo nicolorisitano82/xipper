@@ -158,20 +158,20 @@ let knownFlags: Set<String> = command == "bgzip"
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--models", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon",
-                         "--online", "--no-trusted-list"])
+                         "--online", "--no-trusted-list", "--parallel", "--nested", "--secure-enclave"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
-       "--names-encoding", "--version", "--country"]
+       "--names-encoding", "--version", "--country", "--certificate", "--tsa-user"]
 do {
     var i = 0
     while i < args.count {
         let a = args[i]
         if a == "--" { positional += args[(i + 1)...]; break }
         if a.hasPrefix("-") && a.count > 1 {
-            if a == "--overwrite" && (command == "create" || command == "convert") { flags.insert(a); i += 1; continue }
+            if a == "--overwrite" && (command == "create" || command == "convert" || command == "sig") { flags.insert(a); i += 1; continue }
             if valueOptions.contains(a) {
                 guard i + 1 < args.count else { throw Usage(message: "\(a) needs a value") }
                 values[a] = args[i + 1]

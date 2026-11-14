@@ -461,7 +461,22 @@ Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento pe
 - ✅ elenco di fiducia spostato da ForensicKit in XipperKit ed esteso alle autorità CA/QC con i qualificatori (QSCD, QCStatement): letto sull'elenco AgID vero (206 autorità qualificate); livelli QES, certificato qualificato, avanzata, firmatario non verificato, non valida;
 - ✅ revoca: CRL nella firma sempre; OCSP e CRL in rete con il consenso; provata con un'autorità OpenSSL vera (CRL e responder OCSP locale);
 - ✅ `xipper sig verify` (anche `--json`, `--online`), `xipper sig extract`; nell'app la finestra «Documento firmato» (`.p7m` e ASiC si aprono lì, «Verifica firma…» nel menu per i PDF), consenso ai controlli in rete chiesto la prima volta e in Impostazioni › Sicurezza;
-- 11 test nuovi (401 in tutto); da fare: marche temporali CAdES-T provate (con la firma della fase B), traduzioni, `.p7m` italiani veri, il manuale.
+- 11 test nuovi (401 in tutto); provato su un `.p7m` italiano vero (doppia firma ArubaPEC: QES, non revocate via OCSP; due correzioni: controllo della catena nostro quando macOS rifiuta un certificato vecchio, certificati delle autorità dell'elenco usati per la revoca); da fare: traduzioni, il manuale.
+
+#### B. Firma `.p7m` — stato al 14/11/2026
+- ✅ CAdES-BES (content-type, signing-time, message-digest, `signing-certificate-v2`, SHA-256, RSA PKCS#1 v1.5 o ECDSA P-256), contenuto incluso; CAdES-T con marca sulla firma (`signatureTimeStampToken`), da URL con utente e password o da una sorgente qualsiasi;
+- ✅ firma parallela (un firmatario in più nello stesso `.p7m`, sul posto, certificati e CRL conservati) e a matrioska (`.p7m.p7m`); il file nuovo si scrive solo dopo che il nostro verificatore ha trovato intatte tutte le firme; una TSA che non risponde = nessuna firma;
+- ✅ `xipper sig sign --certificate NOME [--parallel | --nested] [--timestamp URL [--tsa-user U]]`, `xipper sig certificates` (solo i certificati, nessuna chiave privata toccata);
+- ✅ nell'app «Firma digitalmente…» (menu File) e «Aggiungi firma…» nella finestra «Documento firmato»: scelta del certificato (qualificati e con non ripudio prima), parallela o matrioska, marca temporale (URL e utente ricordati, password mai salvata);
+- 3 test nuovi (405 in tutto): OpenSSL verifica i nostri `.p7m` RSA ed ECDSA, paralleli (anche su un `.p7m` di OpenSSL) e con marca; da fare: una smart card vera e una TSA qualificata (fase D).
+
+#### C. Firma degli XIZ con certificato e Secure Enclave — stato al 14/11/2026
+- ✅ **decisione del 14/11/2026**: chiave nel Secure Enclave **ibrida P-256 + ML-DSA-65**, entrambe fatte e tenute dal Secure Enclave: algoritmo 5, **XIZ 1.13** ([XIZ_SPEC.md §23](XIZ_SPEC.md)), contesto ML-DSA `XIZ113enclave`, chiave `xizsigse1…`; il Portachiavi tiene solo i blob utili a quel Secure Enclave (non si copia, si perde con il Mac);
+- ✅ XipperKit: `XizEnclaveSigningKey`, `XizSigner(enclave:)`, `XizSigner(secretText:)` (qualsiasi chiave salvata), `XizKeychain.generateEnclaveSigningKey`; rifiutata per Apple Archive e per messaggi diversi dai segmenti; CryptoKit (macOS 27 beta) dà una firma ML-DSA vuota del Secure Enclave se il messaggio è `[UInt8]`: si passa `Data` e si controllano le lunghezze;
+- ✅ libxiz verifica l'algoritmo 5 (BearSSL `br_ecdsa_i31_vrfy_raw` + mldsa-native), vettori `signed-se.xiz` e `signed-se-tampered.xiz`, `xiz history` lo mostra;
+- ✅ CLI `xipper keygen --signing --secure-enclave (-o FILE | --keychain NOME)`, `--sign` accetta anche queste chiavi, `history` le indica;
+- ✅ app: «Nuova chiave di firma…» › «Nel Secure Enclave (non copiabile)…» con avviso, etichetta «Secure Enclave», niente «Esporta»; i certificati di firma (Portachiavi e smart card, con non ripudio, validi) scelti come chiave predefinita o nel foglio XIZ firmano gli archivi (algoritmi 2 e 3); lo storico dice «Secure Enclave di un Mac»;
+- 7 test nuovi (412 in tutto); da fare: provare in app la firma con un certificato vero (fase D).
 
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
 

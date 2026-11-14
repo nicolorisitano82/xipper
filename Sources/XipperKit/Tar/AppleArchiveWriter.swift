@@ -47,6 +47,7 @@ public enum AppleArchiveWriter {
             do {
                 context.authData = try AEASignature.authData(for: signer)
                 try context.setSigningPrivateKey(AEASignature.p256(for: signer.key))
+            } catch let e as XipperError { try? file.close(); throw e
             } catch { try? file.close(); throw XipperError.codec("AEA signing key") }
             middle = ArchiveByteStream.encryptionStream(writingTo: file, encryptionContext: context)
         } else {
