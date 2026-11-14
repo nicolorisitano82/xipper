@@ -167,9 +167,27 @@ public struct TrustedList: Sendable {
                 SecTrustSetVerifyDate(trust, time as CFDate)
                 SecTrustSetNetworkFetchAllowed(trust, false)
                 if SecTrustEvaluateWithError(trust, nil) { return s }
+                // macOS refuses some valid qualified certificates as "not standards compliant"
+                // (older Italian ones among them): the chain is then checked here, as OpenSSL does.
+                if let anchorCert = try? SignerCertificate(der: der), Self.chains(certificate, to: anchorCert, through: chain, at: time) { return s }
             }
         }
         return nil
+    }
+
+    /// Whether `leaf` chains to `anchor` at `time`: each certificate issued by the next (name and
+    /// signature), each within its dates, through at most 5 intermediates taken from `pool`.
+    static func chains(_ leaf: SignerCertificate, to anchor: SignerCertificate, through pool: [SignerCertificate], at time: Date) -> Bool {
+        var current = leaf
+        for _ in 0..<6 {
+            guard current.isValid(at: time) else { return false }
+            if current.issuerDER == anchor.subjectDER, Revocation.signedBy(current, anchor) { return anchor.isValid(at: time) }
+            guard let next = pool.first(where: { $0.subjectDER == current.issuerDER && $0 != current && Revocation.signedBy(current, $0) }) else {
+                return false
+            }
+            current = next
+        }
+        return false
     }
 
     /// For reports: which list, when, and its hash.

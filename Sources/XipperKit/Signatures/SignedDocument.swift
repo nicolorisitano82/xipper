@@ -161,13 +161,16 @@ enum SignedDocuments {
         if c.certificateBound == false { problems.append("the signed attributes name another certificate") }
         var authority: String?
         var qualifiers: Set<String> = []
+        var listed: [SignerCertificate] = []
         if let cert, let tl = options.trustedList, let svc = tl.qualifiedAuthority(for: cert, chain: chain, at: reference) {
             authority = svc.provider.isEmpty ? svc.name : "\(svc.provider) — \(svc.name)"
             qualifiers = svc.qualifiers
+            // The authority's certificates from the list: issuers for the revocation check too.
+            listed = svc.certificates.compactMap { try? SignerCertificate(der: $0) }
         }
         let system = cert.map { systemTrust($0, chain: chain, at: reference) } ?? false
         // Revocation: embedded CRLs, then (with consent) OCSP and CRL online.
-        let revocation = cert.map { Revocation.status($0, chain: chain, embeddedCRLs: cms.crls, at: reference, online: options.online) }
+        let revocation = cert.map { Revocation.status($0, chain: chain + listed, embeddedCRLs: cms.crls, at: reference, online: options.online) }
             ?? .notChecked("no certificate")
         var level: SignatureLevel
         if !c.valid || !validAt || c.certificateBound == false { level = .invalid }

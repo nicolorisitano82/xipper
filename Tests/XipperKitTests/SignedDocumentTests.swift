@@ -391,4 +391,19 @@ struct SignedDocumentTests {
         #expect(tl.certificateAuthorities.contains { !$0.qualifiers.isEmpty })
         #expect(tl.certificateAuthorities.allSatisfy { !$0.certificates.isEmpty && !$0.history.isEmpty })
     }
+
+    /// The chain check Xipper does itself when macOS refuses a valid certificate as "not standards
+    /// compliant" (found on a real ArubaPEC certificate of 2016): issuer name and signature, dates.
+    @Test func ownChainCheck() throws {
+        let p = try Self.pki.get()
+        func cert(_ f: String) throws -> SignerCertificate {
+            let pem = try String(contentsOfFile: p.dir.path + "/" + f, encoding: .utf8)
+            return try SignerCertificate(der: Array(Data(base64Encoded: pem.split(separator: "\n").filter { !$0.hasPrefix("-----") }.joined())!))
+        }
+        let ada = try cert("ada.pem"), ca = try cert("ca.pem"), other = try cert("self.pem")
+        #expect(TrustedList.chains(ada, to: ca, through: [], at: Date()))
+        #expect(!TrustedList.chains(ada, to: other, through: [], at: Date()))
+        #expect(!TrustedList.chains(ada, to: ca, through: [], at: Date().addingTimeInterval(5 * 365 * 86400)))  // after it expired
+        #expect(!TrustedList.chains(other, to: ca, through: [ada], at: Date()))
+    }
 }

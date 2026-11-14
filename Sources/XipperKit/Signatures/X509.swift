@@ -12,7 +12,11 @@ public struct SignerCertificate: Sendable, Equatable {
         public var commonName: String? { value("2.5.4.3") }
         public var givenName: String? { value("2.5.4.42") }
         public var surname: String? { value("2.5.4.4") }
-        public var organization: String? { value("2.5.4.10") }
+        /// The organization; nil also for the placeholder some Italian authorities write ("non presente").
+        public var organization: String? {
+            guard let o = value("2.5.4.10"), !["non presente", "not present", "n/a", "-"].contains(o.lowercased()) else { return nil }
+            return o
+        }
         public var organizationIdentifier: String? { value("2.5.4.97") }
         public var serialNumber: String? { value("2.5.4.5") }
         public var country: String? { value("2.5.4.6") }
