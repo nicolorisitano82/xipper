@@ -444,6 +444,19 @@ Misurato prima su file veri (BERT tiny e mini in PyTorch, SmolLM2-135M in safete
 
 Fuori dalla 3.2, in backlog: ISO 9660/UDF e DMG in lettura, MPEG-G, FSKit (account Apple), libbsc e kanzi (licenze).
 
+### 3.3 — firme con valore legale (piano del 14/11/2026)
+Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento per i documenti firmati italiani (`.p7m`, PDF firmati), che nessun archiviatore tratta, più le chiavi nel Secure Enclave e le prove rimaste. Base: [Studio firma elettronica qualificata](../reports/Studio%20firma%20elettronica%20qualificata.md), opzioni a, b, c, f. Decisioni del 14/11/2026: **verificare e creare `.p7m`** (non solo verificare); **Secure Enclave come opzione**, non come scelta predefinita (una chiave non esportabile si perde con il Mac).
+
+| Fase | Contenuto | Dipende da | Costo |
+|---|---|---|---|
+| **A. Verifica** | `.p7m` (CAdES, anche annidati e con contenuto staccato), PDF firmati (PAdES), ASiC-S/E con CAdES: integrità, firmatario, data, catena del certificato al momento della firma, **qualificata o no** secondo l'elenco di fiducia UE (AgID per l'Italia, il codice c'è già in ForensicKit e va portato in XipperKit), marche temporali (CAdES-T). Nell'app un `.p7m` si apre come un archivio con dentro il documento originale; l'inspector mostra la firma; rapporto esportabile. `xipper sig verify` | — | alto |
+| **B. Firma `.p7m`** | CAdES-BES con `signing-certificate-v2`, contenuto incluso, con un certificato del Portachiavi o una **smart card** (CNS e token, via CryptoTokenKit: PIN chiesto dal sistema); marca temporale facoltativa (CAdES-T) anche da TSA qualificata con account; controfirme e firme multiple. Nell'app «Firma digitalmente…» su un file, nella CLI `xipper sig sign`. Con una carta qualificata è una firma elettronica qualificata | A | alto |
+| **C. Firma degli XIZ con certificato e Secure Enclave** | nell'app la firma XIZ con certificato o smart card (algoritmi 2 e 3, oggi solo in Forensic); chiavi di firma nel Secure Enclave come opzione di «Nuova chiave di firma…» (il formato va deciso: P-256 e ML-DSA-65 del Secure Enclave non sono Ed25519) | — | medio |
+| **D. Prove** | interop con OpenSSL, DSS (lo strumento di validazione della Commissione UE) e file firmati veri; una smart card vera; una TSA qualificata con account; `xiz` su Windows; prove a mano rimaste | A, B, C | medio |
+| **E. Rilascio** | campagna completa, manuale, note, DMG | tutte | basso |
+
+Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
+
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 
 **Decisione del 10/11/2026:** il forense è un **prodotto derivato e separato, `xipper-forensic`**, che fa parte della famiglia Xipper. Ha una sua app con un'interfaccia pensata solo per questo lavoro: caso, dispositivo, acquisizione, verifica e catena di custodia, non il browser di archivi. Condivide con Xipper XipperKit e il formato XIZ; l'app Xipper resta un archiviatore e non mostra funzioni forensi.
