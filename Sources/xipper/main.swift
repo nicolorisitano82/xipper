@@ -130,6 +130,7 @@ usage: xipper <command> [options]
           --info           block count, sizes, end-of-file marker
 \(genomics2Usage)
 \(xizUsage)
+\(sigUsage)
 common options:
   -j, --threads N          worker threads (default: performance cores)
       --background         run on efficiency cores at low priority
@@ -156,13 +157,14 @@ let knownFlags: Set<String> = command == "bgzip"
     : commonFlags.union(["-p", "--password", "--password-stdin", "--zip64", "--keep-mac-files", "--windows-names", "--overwrite", "--into",
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--models", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
-                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon"])
+                         "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon",
+                         "--online", "--no-trusted-list"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
-       "--names-encoding", "--version"]
+       "--names-encoding", "--version", "--country"]
 do {
     var i = 0
     while i < args.count {
@@ -252,6 +254,7 @@ let cancel = CancellationToken()
 let sigint = cancelOnInterrupt(cancel)
 loadXizIdentities()
 if command == "keygen" { runKeygen() }
+if command == "sig" { runSignature() }
 if command == "history" { runHistory() }
 if command == "erase" { runErase() }
 if command == "prove" { runProve() }

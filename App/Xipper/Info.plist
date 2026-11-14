@@ -2,20 +2,293 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-zip</string>
+			<key>CFBundleTypeName</key>
+			<string>ZIP archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-7z</string>
+			<key>CFBundleTypeName</key>
+			<string>7z archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.7-zip.7-zip-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-aar</string>
+			<key>CFBundleTypeName</key>
+			<string>Apple Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-cpio</string>
+			<key>CFBundleTypeName</key>
+			<string>cpio archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.cpio-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-lz4</string>
+			<key>CFBundleTypeName</key>
+			<string>LZ4 file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.lz4</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-br</string>
+			<key>CFBundleTypeName</key>
+			<string>Brotli file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.brotli</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-xiz</string>
+			<key>CFBundleTypeName</key>
+			<string>Xipper archive (XIZ)</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.xiz</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tar</string>
+			<key>CFBundleTypeName</key>
+			<string>tar archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.tar-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-gz</string>
+			<key>CFBundleTypeName</key>
+			<string>gzip file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.gnu.gnu-zip-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tgz</string>
+			<key>CFBundleTypeName</key>
+			<string>tar.gz archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-bz2</string>
+			<key>CFBundleTypeName</key>
+			<string>bzip2 file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.bzip2-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-xz</string>
+			<key>CFBundleTypeName</key>
+			<string>xz file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.tukaani.xz-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-txz</string>
+			<key>CFBundleTypeName</key>
+			<string>tar.xz archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.tukaani.tar-xz-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-zst</string>
+			<key>CFBundleTypeName</key>
+			<string>Zstandard file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.facebook.zstandard-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-tzst</string>
+			<key>CFBundleTypeName</key>
+			<string>tar.zst archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.tar-zstd</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-bgzf</string>
+			<key>CFBundleTypeName</key>
+			<string>BGZF file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.bgzf</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-rar</string>
+			<key>CFBundleTypeName</key>
+			<string>RAR archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.rarlab.rar-archive</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>xipper-cram</string>
+			<key>CFBundleTypeName</key>
+			<string>CRAM file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.cram</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Signed document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.xipper.p7m</string>
+				<string>app.xipper.asic</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
 			<string>app.xipper.actions</string>
 			<key>CFBundleURLSchemes</key>
-			<array><string>xipper</string></array>
+			<array>
+				<string>xipper</string>
+			</array>
 		</dict>
 	</array>
 	<key>NSServices</key>
 	<array>
 		<dict>
 			<key>NSMenuItem</key>
-			<dict><key>default</key><string>Comprimi con Xipper</string></dict>
+			<dict>
+				<key>default</key>
+				<string>Comprimi con Xipper</string>
+			</dict>
 			<key>NSMessage</key>
 			<string>compressFiles</string>
 			<key>NSPortName</key>
@@ -23,11 +296,16 @@
 			<key>NSRequiredContext</key>
 			<dict/>
 			<key>NSSendFileTypes</key>
-			<array><string>public.item</string></array>
+			<array>
+				<string>public.item</string>
+			</array>
 		</dict>
 		<dict>
 			<key>NSMenuItem</key>
-			<dict><key>default</key><string>Estrai con Xipper</string></dict>
+			<dict>
+				<key>default</key>
+				<string>Estrai con Xipper</string>
+			</dict>
 			<key>NSMessage</key>
 			<string>extractArchives</string>
 			<key>NSPortName</key>
@@ -55,7 +333,10 @@
 		</dict>
 		<dict>
 			<key>NSMenuItem</key>
-			<dict><key>default</key><string>Verifica con Xipper</string></dict>
+			<dict>
+				<key>default</key>
+				<string>Verifica con Xipper</string>
+			</dict>
 			<key>NSMessage</key>
 			<string>testArchives</string>
 			<key>NSPortName</key>
@@ -82,319 +363,232 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>ZIP archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-zip</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>public.zip-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>7z archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-7z</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>org.7-zip.7-zip-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Apple Archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-aar</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>com.apple.archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>cpio archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-cpio</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>public.cpio-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>LZ4 file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-lz4</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.lz4</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Brotli file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-br</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.brotli</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Xipper archive (XIZ)</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-xiz</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.xiz</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>tar archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-tar</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>public.tar-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>gzip file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-gz</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>org.gnu.gnu-zip-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>tar.gz archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-tgz</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>org.gnu.gnu-zip-tar-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>bzip2 file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-bz2</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>public.bzip2-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>xz file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-xz</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>org.tukaani.xz-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>tar.xz archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-txz</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>org.tukaani.tar-xz-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Zstandard file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-zst</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>com.facebook.zstandard-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>tar.zst archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-tzst</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.tar-zstd</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>BGZF file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-bgzf</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.bgzf</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>RAR archive</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-rar</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>com.rarlab.rar-archive</string></array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>CRAM file</string>
-			<key>CFBundleTypeIconFile</key>
-			<string>xipper-cram</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array><string>app.xipper.cram</string></array>
-		</dict>
-	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.xiz</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>Xipper archive (XIZ)</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.xiz</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>xiz</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>xiz</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.rarlab.rar-archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>RAR archive</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>com.rarlab.rar-archive</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>rar</string></array><key>public.mime-type</key><array><string>application/vnd.rar</string><string>application/x-rar-compressed</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rar</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.rar</string>
+					<string>application/x-rar-compressed</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.lz4</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>LZ4 file</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.lz4</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>lz4</string><string>tlz4</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>lz4</string>
+					<string>tlz4</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.brotli</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>Brotli file</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.brotli</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>br</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>br</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>org.7-zip.7-zip-archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>7-Zip archive</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>org.7-zip.7-zip-archive</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>7z</string></array><key>public.mime-type</key><array><string>application/x-7z-compressed</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>7z</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/x-7z-compressed</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.facebook.zstandard-archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>Zstandard archive</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>com.facebook.zstandard-archive</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>zst</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>zst</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.tar-zstd</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>tar.zst archive</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.tar-zstd</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>tzst</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>tzst</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.bgzf</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>BGZF (bgzip) file</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string><string>public.archive</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.bgzf</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>bgz</string><string>bam</string><string>bcf</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bgz</string>
+					<string>bam</string>
+					<string>bcf</string>
+				</array>
+			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>app.xipper.cram</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
 			<key>UTTypeDescription</key>
 			<string>CRAM alignment file</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.cram</string>
 			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>cram</string></array></dict>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cram</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Signed document (CAdES)</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.p7m</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>p7m</string>
+					<string>p7s</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/pkcs7-mime</string>
+					<string>application/pkcs7-signature</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Signed container (ASiC)</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.xipper.asic</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>asice</string>
+					<string>asics</string>
+					<string>sce</string>
+					<string>scs</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.etsi.asic-e+zip</string>
+					<string>application/vnd.etsi.asic-s+zip</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 </dict>

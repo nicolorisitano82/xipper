@@ -28,6 +28,11 @@ struct XipperApp: App {
         }
         .defaultSize(width: 980, height: 620)
 
+        WindowGroup("Documento firmato", id: "signed", for: URL.self) { $url in
+            if let url { SignedDocumentView(url: url) }
+        }
+        .defaultSize(width: 720, height: 640)
+
         Settings {
             SettingsView()
         }
@@ -51,12 +56,15 @@ struct XipperCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Apri archivio…") {
-                for url in AppState.shared.showOpenPanel() { openWindow(id: "archive", value: url) }
+                for url in AppState.shared.showOpenPanel() { openWindow(id: AppState.windowID(for: url), value: url) }
             }
             .keyboardShortcut("o")
             Button("Nuovo archivio") { openWindow(id: "home") }
                 .keyboardShortcut("n")
             Divider()
+            Button("Verifica firma…") {
+                for url in AppState.shared.showSignedPanel() { openWindow(id: "signed", value: url) }
+            }
             Button("Verifica prova di appartenenza…") { ArchiveActions.verifyProof() }
             Button("Calcola checksum…") { ArchiveActions.computeChecksums() }
             Button("Verifica checksum…") { ArchiveActions.verifyChecksums() }

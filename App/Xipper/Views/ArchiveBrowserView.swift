@@ -489,6 +489,7 @@ struct ArchiveBrowserView: View {
                                 selection.removeAll()
                             }
                             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                            .help("Apri la cartella")
                         }
                     }
                 }
@@ -1130,6 +1131,7 @@ private struct SignerKey: View {
                     NSPasteboard.general.setString(text, forType: .string)
                 }
                 .buttonStyle(.touchIcon).foregroundStyle(.secondary)
+                .help("Copia chiave pubblica")
             }
         }
     }

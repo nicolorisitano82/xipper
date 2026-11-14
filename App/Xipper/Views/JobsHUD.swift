@@ -228,5 +228,6 @@ private struct JobCapsule: View {
     private var dismiss: some View {
         Button("Chiudi", systemImage: "xmark") { center.remove(job) }
             .buttonStyle(.touchIcon).foregroundStyle(.secondary)
+            .help("Chiudi")
     }
 }

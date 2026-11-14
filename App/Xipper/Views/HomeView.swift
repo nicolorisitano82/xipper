@@ -147,14 +147,16 @@ struct HomeView: View {
         if !items.isEmpty && job == nil {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Aggiungi file", systemImage: "plus") { addFiles() }
+                    .help("Aggiungi file")
                 Button("Rimuovi dalla lista", systemImage: "trash") { removeSelected() }
+                    .help("Rimuovi dalla lista")
                     .disabled(selection.isEmpty)
             }
         }
         ToolbarSpacer(.fixed)
         ToolbarItem(placement: .primaryAction) {
             Button("Apri archivio…", systemImage: "archivebox") {
-                for url in appState.showOpenPanel() { openWindow(id: "archive", value: url) }
+                for url in appState.showOpenPanel() { openWindow(id: AppState.windowID(for: url), value: url) }
             }
             .help("Apri archivio…")
         }
@@ -428,6 +430,10 @@ struct HomeView: View {
 
     /// Archives open in a browser window (when nothing is queued); anything else joins the list.
     private func route(_ urls: [URL]) {
+        if items.isEmpty && urls.count == 1, !urls[0].hasDirectoryPath, AppState.windowID(for: urls[0]) == "signed" {
+            openWindow(id: "signed", value: urls[0])
+            return
+        }
         if items.isEmpty && urls.count == 1, !urls[0].hasDirectoryPath, AppState.isArchive(urls[0]) {
             openWindow(id: "archive", value: urls[0])
             return

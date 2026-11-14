@@ -32,6 +32,23 @@ final class AppState {
         return panel.runModal() == .OK ? panel.urls : []
     }
 
+    /// The window a file opens in: signed documents (.p7m, ASiC) in their own, the rest as archives.
+    nonisolated static func windowID(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        if ["p7m", "p7s", "asice", "asics", "sce", "scs"].contains(ext), Xipper.isSignedDocument(url) { return "signed" }
+        return "archive"
+    }
+
+    /// Lets the user pick a signed document (.p7m, signed PDF, ASiC) to verify.
+    func showSignedPanel() -> [URL] {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.message = String(localized: "Scegli un documento firmato (.p7m, PDF firmato, ASiC)")
+        panel.prompt = String(localized: "Verifica")
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+
     nonisolated static func isArchive(_ url: URL) -> Bool {
         (try? ArchiveFormat.detect(url)) != nil
     }

@@ -455,6 +455,14 @@ Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento pe
 | **D. Prove** | interop con OpenSSL, DSS (lo strumento di validazione della Commissione UE) e file firmati veri; una smart card vera; una TSA qualificata con account; `xiz` su Windows; prove a mano rimaste | A, B, C | medio |
 | **E. Rilascio** | campagna completa, manuale, note, DMG | tutte | basso |
 
+#### A. Verifica — stato al 14/11/2026
+- ✅ lettore ASN.1 BER/DER (lunghezze indefinite, OCTET STRING costruite), certificati X.509 (nomi, codice fiscale da SERIALNUMBER, uso della chiave, QCStatements, OCSP, CRL), CMS SignedData con RSA PKCS#1, RSA-PSS ed ECDSA, `signing-certificate-v2`, firme parallele;
+- ✅ `.p7m` anche annidati («matrioska»), in base64 o PEM; PDF firmati (PAdES, con modifiche successive segnalate e marche temporali del documento); ASiC-S e ASiC-E con manifest (XAdES segnalato, non verificato);
+- ✅ elenco di fiducia spostato da ForensicKit in XipperKit ed esteso alle autorità CA/QC con i qualificatori (QSCD, QCStatement): letto sull'elenco AgID vero (206 autorità qualificate); livelli QES, certificato qualificato, avanzata, firmatario non verificato, non valida;
+- ✅ revoca: CRL nella firma sempre; OCSP e CRL in rete con il consenso; provata con un'autorità OpenSSL vera (CRL e responder OCSP locale);
+- ✅ `xipper sig verify` (anche `--json`, `--online`), `xipper sig extract`; nell'app la finestra «Documento firmato» (`.p7m` e ASiC si aprono lì, «Verifica firma…» nel menu per i PDF), consenso ai controlli in rete chiesto la prima volta e in Impostazioni › Sicurezza;
+- 11 test nuovi (401 in tutto); da fare: marche temporali CAdES-T provate (con la firma della fase B), traduzioni, `.p7m` italiani veri, il manuale.
+
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)

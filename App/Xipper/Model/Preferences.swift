@@ -31,6 +31,9 @@ enum PrefKey {
     static let xizDocuments = "xizDocuments"
     static let xizTables = "xizTables"
     static let xizModels = "xizModels"
+    /// Signed documents (3.3): "" not asked yet, "yes" online checks allowed, "no" refused.
+    static let signaturesOnline = "signaturesOnline"
+    static let signaturesCountry = "signaturesCountry"
     static let extractNested = "extractNested"
     static let zipAppleDouble = "zipAppleDouble"
     static let windowsNames = "windowsCompatibleNames"
@@ -108,6 +111,8 @@ enum Preferences {
             PrefKey.xizDocuments: false,
             PrefKey.xizTables: false,
             PrefKey.xizModels: false,
+            PrefKey.signaturesOnline: "",
+            PrefKey.signaturesCountry: "IT",
             PrefKey.extractNested: false,
             PrefKey.recoveryAfterCreate: false,
             PrefKey.recoveryPercent: 10.0,

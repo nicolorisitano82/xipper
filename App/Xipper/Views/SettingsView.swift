@@ -165,6 +165,8 @@ private struct SecuritySettings: View {
     @AppStorage(PrefKey.symlinkPolicy) private var symlinks = "inside"
     @AppStorage(PrefKey.maxRatio) private var ratio = 1000.0
     @AppStorage(PrefKey.vaultRequiresAuth) private var vaultAuth = true
+    @AppStorage(PrefKey.signaturesOnline) private var signaturesOnline = ""
+    @AppStorage(PrefKey.signaturesCountry) private var signaturesCountry = "IT"
     @State private var savedPasswords = PasswordVault.count
 
     var body: some View {
@@ -188,6 +190,16 @@ private struct SecuritySettings: View {
                     savedPasswords = PasswordVault.count
                 }
                 .disabled(savedPasswords == 0)
+            }
+            Section("Documenti firmati") {
+                Toggle("Controlli in rete (elenco di fiducia e revoca dei certificati)", isOn: Binding(
+                    get: { signaturesOnline == "yes" }, set: { signaturesOnline = $0 ? "yes" : "no" }))
+                Picker("Elenco di fiducia", selection: $signaturesCountry) {
+                    Text("Italia (AgID)").tag("IT")
+                    Text("Nessuno").tag("")
+                }
+                Text("Per verificare un .p7m o un PDF firmato Xipper scarica l'elenco di fiducia europeo e chiede alle autorità di certificazione se il certificato è stato revocato, solo con questo permesso e solo quando verifichi una firma.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             Section {
                 Text("Xipper non scrive mai fuori dalla cartella di destinazione, non segue collegamenti durante l'estrazione e rimuove i permessi setuid.")
@@ -240,6 +252,7 @@ private struct IntegrationSettings: View {
                             foldersRaw = folders.filter { $0 != f }.joined(separator: "\n")
                         }
                         .buttonStyle(.touchIcon)
+                        .help("Rimuovi la cartella dall'elenco")
                     }
                 }
                 Button("Aggiungi cartella consentita…", systemImage: "plus") { addFolder() }
