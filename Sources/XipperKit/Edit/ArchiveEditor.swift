@@ -509,7 +509,8 @@ enum XizEditor {
         let (frames, written) = try XizWriter.writeData(fresh, to: out, startFrame: a.catalog.frames.count, known: known, keys: a.keys,
                                                         level: options.level ?? 3, lzma2: a.superblock.required.contains(.lzma2),
                                                         jpeg: a.superblock.required.contains(.jpeg),
-                                                        deflate: a.superblock.required.contains(.deflate), dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
+                                                        deflate: a.superblock.required.contains(.deflate),
+                                                        tables: a.superblock.required.contains(.tables), dictionary: dictionary, extendedAttributes: options.storeExtendedAttributes,
                                                         workload: options.workload, tracker: tracker, cancel: cancel)
         var newByName: [String: Xiz.Entry] = [:]
         for e in written { newByName[e.path] = e }
@@ -585,6 +586,7 @@ enum XizEditor {
                                                            lzma2: a.superblock.required.contains(.lzma2),
                                                            jpeg: a.superblock.required.contains(.jpeg),
                                                            deflate: a.superblock.required.contains(.deflate),
+                                                           tables: a.superblock.required.contains(.tables),
                                                            extendedAttributes: options.storeExtendedAttributes,
                                                            workload: options.workload, tracker: tracker, cancel: cancel)
                 frames += f

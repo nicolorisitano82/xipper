@@ -398,6 +398,29 @@ Il forense è diventato il prodotto separato xipper-forensic (1.0.0 pubblicata l
 - **prova di corrente per «Cambia formato» a poco spazio** (dalla 3.0, F; non fatta, passa alla 3.2): VM macOS con Virtualization.framework, spegnimenti improvvisi ripetuti durante `--little-space`; serve scaricare l'IPSW (circa 18 GB);
 - da provare a mano: quelle rimaste dalla 3.0 (RAR e 7z grandi, JPEG, VoiceOver, foglio «Cambia formato» con poco spazio, banner «Riprendi», sezione «Versioni»); `xiz` portabile con OpenZL per Linux e Windows (compila con zig, mai eseguito su quei sistemi). Sezione «Reperto forense» e interruttore delle tabelle provati dal proprietario il 12/11/2026: regolari.
 
+### Campagna di test completa (13/11/2026)
+`scripts/full-test.sh` (`--quick` senza i passi lenti) esegue in fila tutte le suite e scrive `dist/test-campaign-DATA/RESULTS.md`: build release, tutti i test, le suite esaustive (`XIPPER_EXHAUSTIVE=1`: matrice XIZ di 64 combinazioni codec × ricompressione × password/firma × dati di recupero, ognuna creata, verificata, estratta, modificata e con la cronologia firmata controllata, più 24 danni riparati; 18 dialetti CSV/TSV/BED; 3000–6000 frame OpenZL alterati; archivi forensi con 10 passaggi di mano visti da Xipper), il fuzzing dei lettori, libxiz con AddressSanitizer e UBSan, libxiz che rilegge tutti gli archivi della matrice, l'interoperabilità con gli strumenti esterni, «Cambia formato» interrotto con `kill -9`, la validazione forense V01–V13, `xiz` portabile e, con Docker attivo, `xiz` eseguito su Linux. Ha già trovato un difetto: le modifiche di un archivio con tabelle non usavano OpenZL per i CSV aggiunti (corretto).
+
+Prima esecuzione completa (13/11/2026, M3 Max, macOS 27.3): **11 passi su 11 superati**. 375 test; matrice esaustiva 64 + 24 casi, 18 dialetti, frame OpenZL alterati; fuzzing a 2000 mutazioni (30 test); libxiz con sanitizer 3/3; **82 archivi su 82 riletti da libxiz** identici; interop 61/61; 30 conversioni interrotte con `kill -9`; validazione forense 13/13; `xiz` compilato per 4 piattaforme ed **eseguito su Linux arm64** (Alpine in Docker) su un archivio con tabelle OpenZL e uno con tutte le ricompressioni. Resta senza prova `xiz` su Windows.
+
+### 3.2 — proposta (13/11/2026)
+Tema: **chiudere le prove aperte e firme post-quantum**. Ordine proposto:
+
+| Fase | Contenuto | Costo | Dipende da |
+|---|---|---|---|
+| **A. Prove che mancano** | VM macOS (Virtualization.framework) per la prova di corrente di «Cambia formato» a poco spazio, con IPSW da scaricare (circa 18 GB); `xiz` eseguito su Linux (Docker o VM) e su Windows (VM ARM); le prove a mano rimaste dalla 3.0 | medio | consenso al download dell'IPSW |
+| **B. Firme ML-DSA (XIZ 1.12)** | firme post-quantum con ML-DSA-65 di CryptoKit (disponibile su macOS 26, niente codice esterno nell'app), da sole o ibride Ed25519 + ML-DSA come X-Wing per la cifratura; chiavi nel Portachiavi; Apple Archive firmati invariati | medio | decisione su libxiz (sotto) |
+| **C. OpenZL oltre il CSV** | tabelle con dizionario addestrato per archivio (`zli train`: misurare il guadagno), array numerici binari e file a struttura fissa descritti con SDDL, JSON Lines; Parquet solo se non compresso | medio | misure su file veri |
+| **D. Integrazione continua** | la campagna `--quick` a ogni push su un runner macOS di GitHub (se esiste con macOS 26), `xiz` Linux e Windows provati in CI | basso | — |
+| **E. Rilascio** | campagna completa, note, DMG | basso | tutte |
+
+Decisioni da prendere:
+1. **libxiz e ML-DSA**: verificare le firme ML-DSA anche nel lettore indipendente richiede una implementazione in C (per esempio mldsa-native della PQ Code Package, Apache-2.0/MIT), oggi non approvata; senza, libxiz dirà «firma ML-DSA non verificata».
+2. **Firma ibrida o solo ML-DSA**: ibrida (Ed25519 + ML-DSA) resta valida anche se ML-DSA si rivelasse debole, al prezzo di firme più grandi (una firma ML-DSA-65 è di 3309 byte, la chiave pubblica di 1952).
+3. **Download dell'IPSW** (circa 18 GB) per la VM di prova.
+
+Fuori dalla 3.2, in backlog: ISO 9660/UDF e DMG in lettura, MPEG-G, FSKit (account Apple), libbsc e kanzi (licenze).
+
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 
 **Decisione del 10/11/2026:** il forense è un **prodotto derivato e separato, `xipper-forensic`**, che fa parte della famiglia Xipper. Ha una sua app con un'interfaccia pensata solo per questo lavoro: caso, dispositivo, acquisizione, verifica e catena di custodia, non il browser di archivi. Condivide con Xipper XipperKit e il formato XIZ; l'app Xipper resta un archiviatore e non mostra funzioni forensi.
