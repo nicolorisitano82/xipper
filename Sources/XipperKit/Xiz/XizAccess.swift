@@ -72,7 +72,9 @@ public struct XizAccess: Sendable {
 
 /// A key pair to receive XIZ archives: X25519 (`xizpk1…` public, `XIZ-SECRET-KEY-1-…` secret) or,
 /// from XIZ 1.7, the post-quantum hybrid X-Wing, ML-KEM-768 + X25519 (`xizpq1…` public,
-/// `XIZ-SECRET-KEY-PQ-1-…` secret, the 32-byte seed).
+/// `XIZ-SECRET-KEY-PQ-1-…` secret, the 32-byte seed). age's keys are accepted too, since they are the
+/// same keys: `age1…` / `AGE-SECRET-KEY-1…` (X25519) and, from age 1.3, `age1pq1…` /
+/// `AGE-SECRET-KEY-PQ-1…` (the same X-Wing seed). Archives stay XIZ: only the keys are shared.
 public struct XizIdentity: Sendable {
     enum Key: Sendable {
         case x25519(Curve25519.KeyAgreement.PrivateKey)
@@ -105,6 +107,17 @@ public struct XizIdentity: Sendable {
         key = postQuantum ? .xwing(try! XWingMLKEM768X25519.PrivateKey.generate()) : .x25519(Curve25519.KeyAgreement.PrivateKey())
     }
     public init(secretText: String) throws {
+        for (prefix, pq) in [("AGE-SECRET-KEY-PQ-1", true), ("AGE-SECRET-KEY-1", false)] {
+            // age writes identities in upper case; Bech32 also allows all lower case.
+            guard let line = Self.keyLine(secretText, prefix: prefix) ?? Self.keyLine(secretText, prefix: prefix.lowercased())
+            else { continue }
+            guard let d = Bech32.decode(String(line)), d.hrp == prefix.dropLast().lowercased(), d.data.count == 32 else {
+                throw XipperError.invalidArgument("not a valid age secret key")
+            }
+            key = pq ? .xwing(try XWingMLKEM768X25519.PrivateKey(seedRepresentation: d.data, publicKey: nil))
+                     : .x25519(try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: d.data))
+            return
+        }
         if let line = Self.keyLine(secretText, prefix: Self.pqSecretPrefix) {
             guard let seed = Base64URL.decode(String(line.dropFirst(Self.pqSecretPrefix.count))), seed.count == 32 else {
                 throw XipperError.invalidArgument("not an XIZ secret key")
@@ -119,9 +132,19 @@ public struct XizIdentity: Sendable {
         key = .x25519(try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: raw))
     }
 
-    /// The raw public key of an `xizpk1…` (32 bytes) or `xizpq1…` (1216 bytes) text.
+    /// The raw public key of an `xizpk1…` (32 bytes) or `xizpq1…` (1216 bytes) text, or of an age
+    /// recipient `age1…` (X25519) or `age1pq1…` (X-Wing).
     public static func publicKey(fromText text: String) throws -> [UInt8] {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.lowercased().hasPrefix("age1") {
+            if let d = Bech32.decode(t),
+               (d.hrp == "age" && d.data.count == 32)
+                || (d.hrp == "age1pq" && d.data.count == xwingPublicKeySize
+                    && (try? XWingMLKEM768X25519.PublicKey(rawRepresentation: d.data)) != nil) {
+                return d.data
+            }
+            throw XipperError.invalidArgument("not a valid age recipient: \(t.prefix(60))")
+        }
         for (prefix, size) in [(publicPrefix, 32), (pqPublicPrefix, xwingPublicKeySize)] where t.hasPrefix(prefix) {
             if let raw = Base64URL.decode(String(t.dropFirst(prefix.count))), raw.count == size,
                size == 32 || (try? XWingMLKEM768X25519.PublicKey(rawRepresentation: raw)) != nil {

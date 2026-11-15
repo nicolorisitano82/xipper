@@ -499,7 +499,7 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 | Fase | Contenuto | Serve | Stato |
 |---|---|---|---|
 | **A. libxiz e X-Wing** | il lettore indipendente apre le stanze 6 e 7 (destinatari e custodi post-quantum, §17) | mlkem-native (approvato il 15/11/2026) | ✅ |
-| **B. Rifinire le firme 3.3** | firma XIZ con certificato provata a mano nell'app; firma di prova (in locale) su un `.p7m` vero; importazione delle chiavi `age1pq1…` di age 1.3 | — | |
+| **B. Rifinire le firme 3.3** | firma XIZ con certificato provata a mano nell'app; firma di prova (in locale) su un `.p7m` vero; importazione delle chiavi `age1pq1…` di age 1.3 | — | ✅ |
 | **C. ISO 9660/UDF e DMG in sola lettura** | dal backlog: ISO e UDF con libarchive (già incluso), DMG non cifrati | — | |
 | **D. «Cambia formato» v2** | journal, ripresa, rollback, `F_PUNCHHOLE` | la VM per la prova di corrente | |
 | **E. `xiz` per Windows** | prova su Windows 11 ARM | l'ISO di Windows 11 ARM | |
@@ -511,6 +511,12 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 - corretto un controllo di `reader.c` che rifiutava l'archivio («serve una password») prima di guardare le stanze quando c'erano solo chiavi post-quantum;
 - fixture `access-pq.xiz` (destinatario X-Wing e soglia 2 di 2 con un custode X-Wing e una password), chiavi di prova `identity-pq.key` e `custodian-pq.key`; 6 controlli nuovi in `run_fixtures.sh` (102 in tutto); test di sicurezza: nessun byte alterato del ciphertext o dell'id chiave, con il CRC del blocco ricalcolato, apre la stanza;
 - verde con ASan e UBSan, con `-Werror` (corretto anche un valore di ritorno di OpenZL ignorato in `codec.c`), e su Linux arm64 (Alpine, build zig); la campagna prova ora le chiavi X-Wing anche su Linux.
+
+#### B. Rifinire le firme 3.3 e chiavi age — ✅ fatto (15/11/2026)
+- **firma XIZ con certificato nell'app** (certificato software di prova nel Portachiavi, scelto in Impostazioni › Chiavi): l'archivio creato dalla finestra Home è firmato con l'algoritmo del certificato; Xipper «OK», libxiz «signature valid» (RSA, 2 certificati); nota: lo storico mostra come nome quello di «Nome nelle firme», non il CN del certificato;
+- **`.p7m` vero** (copia locale, poi cancellata, di un documento con firma qualificata annidata): firma parallela con marca FreeTSA e firma a matrioska; la firma qualificata originale resta integra e «QES» per Xipper, OpenSSL verifica il CMS, DSS dà alla firma originale lo stesso esito di prima (OUT_OF_BOUNDS_NOT_REVOKED, certificato scaduto) e riconosce la nostra come CAdES-BASELINE-T;
+- **chiavi age** (studio sul codice di age 1.3.2 e su C2SP age.md): `age1pq1…` / `AGE-SECRET-KEY-PQ-1…` sono Bech32 della stessa chiave pubblica X-Wing (1216 byte) e dello stesso seed di 32 byte di CryptoKit; `age1…` / `AGE-SECRET-KEY-1…` sono X25519. Xipper le accetta come destinatari (`--to`, «Accesso») e come identità (`--identity`, «Importa…»), salvate poi in forma XIZ; anche `xiz` di libxiz legge le identità age. Solo le chiavi: gli archivi restano XIZ, i file `.age` non si aprono;
+- test: vettori ufficiali (C2SP e testdata di age: una coppia post-quantum, due classiche), checksum alterato, maiuscole e minuscole miste, HRP sbagliato; fixture libxiz `age-pq.xiz` con la chiave di prova di age.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 

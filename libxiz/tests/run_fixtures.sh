@@ -119,6 +119,8 @@ extract_cmp pq-recipient access-pq.xiz group1.manifest --skip-root -- --identity
 extract_cmp pq-threshold access-pq.xiz group1.manifest --skip-root -- --identity "$F/custodian-pq.key" --password-env XIZ_PW_C2
 expect_code pq-one-custodian 3 "$XIZ" list --identity "$F/custodian-pq.key" "$F/access-pq.xiz"
 grep -q 'needs 2 custodians' "$W/out.log" && pass pq-threshold-message || fail pq-threshold-message
+"$XIZ" extract -d "$W/age" --identity "$F/age-pq.key" "$F/age-pq.xiz" > /dev/null 2>&1 && [ "$(cat "$W/age/referti/r2.txt" 2>/dev/null)" = "referto 2" ] \
+    && pass age-identity || fail age-identity
 expect_code pq-classic-key 3 "$XIZ" list --identity "$F/identity.key" "$F/access-pq.xiz"
 "$XIZ" info --password-env XIZ_PW_A "$F/access-pq.xiz" > "$W/pq.log" 2>&1
 if grep -q 'post-quantum recipient "Chiave PQ"' "$W/pq.log" && grep -q 'post-quantum custodian share "C1 PQ"' "$W/pq.log" \

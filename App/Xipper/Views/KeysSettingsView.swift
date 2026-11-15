@@ -164,14 +164,14 @@ struct KeysSettings: View {
     private func importKey() {
         let panel = NSOpenPanel()
         panel.prompt = String(localized: "Importa")
-        panel.message = String(localized: "Scegli un file di chiave XIZ (creato da «xipper keygen» o esportato da Xipper).")
+        panel.message = String(localized: "Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»).")
         guard panel.runModal() == .OK, let url = panel.url, let text = try? String(contentsOf: url, encoding: .utf8) else { return }
         guard let name = KeysSettings.askName(String(localized: "Nome della chiave"), default: url.deletingPathExtension().lastPathComponent) else { return }
         do {
             let (kind, _) = try XizKeychain.importKey(fileText: text, name: name)
             message = kind == .identity ? String(localized: "Identità «\(name)» importata.") : String(localized: "Chiave di firma «\(name)» importata.")
         } catch {
-            message = String(localized: "Il file non contiene una chiave XIZ.")
+            message = String(localized: "Il file non contiene una chiave XIZ o age.")
         }
         reload()
     }

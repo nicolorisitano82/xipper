@@ -421,6 +421,8 @@
   "Il contenuto è DIVERSO da quello dell'archivio.": "内容がアーカイブのものと異なります。",
   "Il download non è riuscito.": "ダウンロードに失敗しました。",
   "Il file non contiene una chiave XIZ.": "このファイルにはXIZ鍵が含まれていません。",
+  "Il file non contiene una chiave XIZ o age.": "このファイルにはXIZまたはageの鍵が含まれていません。",
+  "Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»).": "XIZまたはageの鍵ファイルを選択してください（「xipper keygen」で作成、Xipperから書き出し、または「age-keygen」で作成したもの）。",
   "Il file non viene da GitHub.": "このファイルはGitHubからのものではありません。",
   "Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt».": "新しいアーカイブにはパスワードがあります。ターミナルで「xipper convert --to xiz --little-space --encrypt」を実行して再開してください。",
   "Il nuovo archivio non avrà la password": "新しいアーカイブにはパスワードが設定されません",

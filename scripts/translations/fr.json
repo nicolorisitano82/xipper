@@ -502,6 +502,8 @@
   "Il contenuto è DIVERSO da quello dell'archivio.": "Le contenu est DIFFÉRENT de celui de l'archive.",
   "Il download non è riuscito.": "Le téléchargement a échoué.",
   "Il file non contiene una chiave XIZ.": "Le fichier ne contient pas de clé XIZ.",
+  "Il file non contiene una chiave XIZ o age.": "Le fichier ne contient pas de clé XIZ ou age.",
+  "Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»).": "Choisissez un fichier de clé XIZ ou age (créé par « xipper keygen », exporté depuis Xipper ou créé par « age-keygen »).",
   "Il file non viene da GitHub.": "Ce fichier ne provient pas de GitHub.",
   "Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt».": "Le nouvel archive a un mot de passe : reprenez dans Terminal avec « xipper convert --to xiz --little-space --encrypt ».",
   "Il nuovo archivio non avrà la password": "La nouvelle archive n'aura pas de mot de passe",

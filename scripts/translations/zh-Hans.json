@@ -421,6 +421,8 @@
   "Il contenuto è DIVERSO da quello dell'archivio.": "内容与归档中的内容不同。",
   "Il download non è riuscito.": "下载失败。",
   "Il file non contiene una chiave XIZ.": "该文件不包含 XIZ 密钥。",
+  "Il file non contiene una chiave XIZ o age.": "该文件不包含 XIZ 或 age 密钥。",
+  "Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»).": "选择 XIZ 或 age 密钥文件（由“xipper keygen”创建、从 Xipper 导出，或由“age-keygen”创建）。",
   "Il file non viene da GitHub.": "该文件并非来自 GitHub。",
   "Il nuovo archivio ha una password: riprendi dal Terminale con «xipper convert --to xiz --little-space --encrypt».": "新归档有密码：请在终端中用“xipper convert --to xiz --little-space --encrypt”继续。",
   "Il nuovo archivio non avrà la password": "新归档将没有密码",

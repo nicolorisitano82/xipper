@@ -17677,16 +17677,16 @@
     },
     "Firma documento" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sign Document"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dokument signieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Document"
           }
         },
         "es" : {
@@ -19481,7 +19481,48 @@
         }
       }
     },
+    "Il file non contiene una chiave XIZ o age." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei enthält keinen XIZ- oder age-Schlüssel."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file does not contain an XIZ or age key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo no contiene una clave XIZ o age."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier ne contient pas de clé XIZ ou age."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルにはXIZまたはageの鍵が含まれていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该文件不包含 XIZ 或 age 密钥。"
+          }
+        }
+      }
+    },
     "Il file non contiene una chiave XIZ." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32017,6 +32058,7 @@
       }
     },
     "Scegli un file di chiave XIZ (creato da «xipper keygen» o esportato da Xipper)." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32052,6 +32094,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选取 XIZ 密钥文件（由“xipper keygen”创建或从 Xipper 导出）。"
+          }
+        }
+      }
+    },
+    "Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine XIZ- oder age-Schlüsseldatei (erstellt mit „xipper keygen“, aus Xipper exportiert oder mit „age-keygen“ erstellt)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an XIZ or age key file (made by “xipper keygen”, exported from Xipper, or made by “age-keygen”)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un archivo de clave XIZ o age (creado con «xipper keygen», exportado desde Xipper o creado con «age-keygen»)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un fichier de clé XIZ ou age (créé par « xipper keygen », exporté depuis Xipper ou créé par « age-keygen »)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XIZまたはageの鍵ファイルを選択してください（「xipper keygen」で作成、Xipperから書き出し、または「age-keygen」で作成したもの）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 XIZ 或 age 密钥文件（由“xipper keygen”创建、从 Xipper 导出，或由“age-keygen”创建）。"
           }
         }
       }
@@ -33910,16 +33992,16 @@
     },
     "Tipo di firma" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Signature type"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Signaturart"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signature type"
           }
         },
         "es" : {

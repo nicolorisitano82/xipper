@@ -35,7 +35,8 @@ static const char *usage =
     "  --password-env VAR    password from an environment variable (create/append: encrypt)\n"
     "  --password-stdin      one password per line on standard input (custodians: several)\n"
     "  --identity FILE       secret key: X25519 (XIZ-SECRET-KEY-1-…) or post-quantum\n"
-    "                        X-Wing (XIZ-SECRET-KEY-PQ-1-…), repeatable\n"
+    "                        X-Wing (XIZ-SECRET-KEY-PQ-1-…), or age's (AGE-SECRET-KEY-1…,\n"
+    "                        AGE-SECRET-KEY-PQ-1…), repeatable\n"
     "  --beta                accept 0.1 beta archives\n";
 
 #define MAX_PW 32
@@ -63,13 +64,73 @@ static int b64v(int c) {
     return -1;
 }
 
-/* A key file holds one secret: X25519 (XIZ-SECRET-KEY-1-) or X-Wing (XIZ-SECRET-KEY-PQ-1-), 32 bytes in base64url. */
+/* age's identities (the same keys): Bech32 as in BIP 173 without the length limit, upper or lower
+ * case, HRP "age-secret-key-pq-" (X-Wing seed) or "age-secret-key-" (X25519), 32 bytes. */
+static int age_identity(const char *s, int *pq, uint8_t out[32]) {
+    static const char cs[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+    static const uint32_t gen[5] = {0x3b6a57b2u, 0x26508e6du, 0x1ea119fau, 0x3d4233ddu, 0x2a1462b3u};
+    char low[128];
+    size_t n = 0;
+    int up = 0, lo = 0;
+    for (; s[n] && s[n] != '\n' && s[n] != '\r' && s[n] != ' ' && s[n] != '\t'; n++) {
+        if (n + 1 >= sizeof low) return 0;
+        char c = s[n];
+        if (c >= 'A' && c <= 'Z') { up = 1; c = (char)(c - 'A' + 'a'); }
+        else if (c >= 'a' && c <= 'z') lo = 1;
+        low[n] = c;
+    }
+    low[n] = 0;
+    if (up && lo) return 0;
+    char *sep = strrchr(low, '1');
+    if (!sep || sep == low || (size_t)(low + n - sep - 1) < 6) return 0;
+    size_t hl = (size_t)(sep - low);
+    if (hl == 18 && !memcmp(low, "age-secret-key-pq-", 18)) *pq = 1;
+    else if (hl == 15 && !memcmp(low, "age-secret-key-", 15)) *pq = 0;
+    else return 0;
+    uint32_t chk = 1;
+#define POLY(x) do { uint32_t t_ = chk >> 25; chk = (chk & 0x1ffffffu) << 5 ^ (uint32_t)(x); \
+                     for (int i_ = 0; i_ < 5; i_++) if ((t_ >> i_) & 1) chk ^= gen[i_]; } while (0)
+    for (size_t i = 0; i < hl; i++) POLY((unsigned char)low[i] >> 5);
+    POLY(0);
+    for (size_t i = 0; i < hl; i++) POLY((unsigned char)low[i] & 31);
+    size_t nd = (size_t)(low + n - sep - 1), k = 0;
+    uint32_t acc = 0;
+    int bits = 0;
+    for (size_t i = 0; i < nd; i++) {
+        const char *q = strchr(cs, sep[1 + i]);
+        if (!q || !sep[1 + i]) return 0;
+        uint32_t v = (uint32_t)(q - cs);
+        POLY(v);
+        if (i + 6 >= nd) continue;  /* the checksum */
+        acc = acc << 5 | v;
+        bits += 5;
+        if (bits >= 8) { bits -= 8; if (k == 32) return 0; out[k++] = (uint8_t)(acc >> bits); }
+    }
+#undef POLY
+    return chk == 1 && k == 32 && bits < 5 && (acc & ((1u << bits) - 1)) == 0;
+}
+
+/* A key file holds one secret: X25519 (XIZ-SECRET-KEY-1-) or X-Wing (XIZ-SECRET-KEY-PQ-1-), 32 bytes in
+ * base64url, or an age identity (AGE-SECRET-KEY-1…, AGE-SECRET-KEY-PQ-1…). */
 static void load_identity(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) die("cannot read identity file");
     char line[512];
     static const char *prefixes[2] = {"XIZ-SECRET-KEY-PQ-1-", "XIZ-SECRET-KEY-1-"};
     while (fgets(line, sizeof line, f)) {
+        char *g = strstr(line, "AGE-SECRET-KEY-");
+        if (!g) g = strstr(line, "age-secret-key-");
+        if (g) {
+            uint8_t out[32];
+            int pq = 0;
+            if (!age_identity(g, &pq, out)) die("invalid age identity in the identity file");
+            size_t *count = pq ? &n_pq_identities : &n_identities;
+            if (*count == MAX_ID) die("too many identities");
+            memcpy(pq ? pq_identities[(*count)++] : identities[(*count)++], out, 32);
+            for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
+            fclose(f);
+            return;
+        }
         for (int k = 0; k < 2; k++) {
             char *p = strstr(line, prefixes[k]);
             if (!p) continue;
@@ -92,7 +153,7 @@ static void load_identity(const char *path) {
         }
     }
     fclose(f);
-    die("no XIZ-SECRET-KEY-1- or XIZ-SECRET-KEY-PQ-1- line in the identity file");
+    die("no XIZ-SECRET-KEY-1-, XIZ-SECRET-KEY-PQ-1- or AGE-SECRET-KEY- line in the identity file");
 }
 
 static void read_stdin_passwords(void) {

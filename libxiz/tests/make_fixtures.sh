@@ -12,7 +12,8 @@ trap 'rm -rf "$work"' EXIT
 [ -x "$X" ] || { echo "build xipper first: swift build -c release --product xipper" >&2; exit 2; }
 [ -x "$M" ] || { echo "build xiz_manifest first (cmake)" >&2; exit 2; }
 mkdir -p "$out"
-rm -f "$out"/*.xiz "$out"/*.manifest "$out"/*.json "$out"/*.key "$out"/*.txt
+rm -f "$out"/*.xiz "$out"/*.manifest "$out"/*.json "$out"/*.txt
+find "$out" -name "*.key" ! -name age-pq.key -delete
 
 # ---------------------------------------------------------------- the synthetic tree
 t=$work/in/tree
@@ -115,6 +116,9 @@ cat > "$work/access-pq.json" <<EOF
                                     { "label": "C2", "password_env": "XIZ_PW_C2" } ] } ] }
 EOF
 "$X" create -q -f xiz --access "$work/access-pq.json" "$out/access-pq.xiz" "$t"
+# age's keys are the same keys: an archive for the recipient of age's own test identity (age-pq.key,
+# kept: it is age's public test vector, not generated here).
+"$X" create -q -f xiz --to "$(grep -o 'age1pq1[a-z0-9]*' "$here/fixtures/age-pq.key" | head -1)" "$out/age-pq.xiz" "$t/referti"
 "$X" create -q -f xiz --sign "$out/signing.key" --signer "Test Signer" "$out/signed.xiz" "$t"
 "$X" edit -q --sign "$out/signing.key" --signer "Second" "$out/signed.xiz" --add "$work/added.txt:tree/added.txt"
 "$X" prove "$out/signed.xiz" tree/docs/a.md -o "$out/proof-a.json" > /dev/null

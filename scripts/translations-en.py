@@ -655,6 +655,8 @@ EN = {
     'Il contenuto coincide.': 'The content matches.',
     "Il contenuto è DIVERSO da quello dell'archivio.": "The content is DIFFERENT from the archive's.",
     'Il file non contiene una chiave XIZ.': 'The file does not contain an XIZ key.',
+    'Il file non contiene una chiave XIZ o age.': 'The file does not contain an XIZ or age key.',
+    'Scegli un file di chiave XIZ o age (creato da «xipper keygen», esportato da Xipper o creato da «age-keygen»).': 'Choose an XIZ or age key file (made by “xipper keygen”, exported from Xipper, or made by “age-keygen”).',
     'Importa': 'Import',
     'Importa…': 'Import…',
     'Impossibile cancellare': 'Cannot erase',

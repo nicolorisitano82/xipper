@@ -33,6 +33,14 @@ xipper keygen --signing --pq --keychain "Work"      # hybrid signing key
 xipper keygen --signing -o work.key                 # classic signing key in a file (mode 600)
 ```
 
+## age keys
+
+Keys made by [age](https://age-encryption.org) are the same kind of keys, so Xipper takes them as they are:
+- an age recipient, `age1…` (classic) or `age1pq1…` (post-quantum, age 1.3+), pasted as a recipient in **Access** or given to `--to`;
+- an age identity file (`AGE-SECRET-KEY-1…` or `AGE-SECRET-KEY-PQ-1…`), with **Import…** or `--identity FILE`.
+
+Only the keys are shared: the archive is still an XIZ, which age cannot open, and Xipper does not open `.age` files.
+
 ## Keys in the Secure Enclave
 
 **Settings › Keys › New Signing Key… › In the Secure Enclave (cannot be copied)…** makes a signing key inside your Mac's Secure Enclave. The key never leaves it: nobody can copy it, not even you, and malware cannot steal it. It signs with P-256 and ML-DSA-65 together, so it is post-quantum like the hybrid keys.

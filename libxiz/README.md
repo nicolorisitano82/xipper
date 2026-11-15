@@ -95,7 +95,8 @@ dell'altro. `append` toglie il record (§15.4): va riaggiunto dopo.
 
 Credenziali: `--password-env VAR`, `--password-stdin` (una password per riga: più custodi di una
 soglia), `--identity FILE` (chiave segreta X25519 `XIZ-SECRET-KEY-1-…` o post-quantum X-Wing
-`XIZ-SECRET-KEY-PQ-1-…`, ripetibile). Codici di
+`XIZ-SECRET-KEY-PQ-1-…`, oppure un'identità di age `AGE-SECRET-KEY-1…` / `AGE-SECRET-KEY-PQ-1…`,
+ripetibile). Codici di
 uscita: 0 ok, 1 errore o archivio danneggiato, 2 uso, 3 password mancante o sbagliata, 4 voci
 saltate durante l'estrazione.
 

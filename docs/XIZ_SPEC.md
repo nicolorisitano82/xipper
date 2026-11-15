@@ -756,6 +756,11 @@ cannot be forged retroactively.
   `XWingMLKEM768X25519`; libxiz (from 3.4) decapsulates with mlkem-native 2.0.0 (portable C) and
   Monocypher's X25519, and opens stanzas 6 and 7 with keys `XIZ-SECRET-KEY-PQ-1-…`.
 
+- age (1.3+) uses the same X-Wing keys: its recipient `age1pq1…` is Bech32 (BIP 173 without the length
+  limit) of the same 1216-byte public key and its identity `AGE-SECRET-KEY-PQ-1…` Bech32 of the same
+  32-byte seed; classic `age1…` / `AGE-SECRET-KEY-1…` are X25519 keys as in §13.3. Readers and writers
+  may accept them as key texts; archives stay XIZ.
+
 Key texts: public `xizpq1` + base64url of the 1216-byte key; secret `XIZ-SECRET-KEY-PQ-1-` +
 base64url of the seed (the X25519 ones stay `xizpk1…` and `XIZ-SECRET-KEY-1-…`). Xipper creates
 them with `xipper keygen --pq` or in Settings › Keys, where new identities are post-quantum by
