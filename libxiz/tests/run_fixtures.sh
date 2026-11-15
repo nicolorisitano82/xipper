@@ -113,6 +113,17 @@ grep -q 'needs 2 custodians' "$W/out.log" && pass threshold-message || fail thre
 expect_code access-wrong 3 "$XIZ" list --password-env WRONG "$F/access.xiz"
 "$XIZ" info --password-env XIZ_PW_B "$F/access.xiz" | grep -q '(1 hidden)' && pass hidden-group || fail hidden-group
 
+# ---------------------------------------------------------------- 1.7 post-quantum recipients (§17)
+# X-Wing (ML-KEM-768 + X25519) stanzas written by CryptoKit, opened with mlkem-native.
+extract_cmp pq-recipient access-pq.xiz group1.manifest --skip-root -- --identity "$F/identity-pq.key"
+extract_cmp pq-threshold access-pq.xiz group1.manifest --skip-root -- --identity "$F/custodian-pq.key" --password-env XIZ_PW_C2
+expect_code pq-one-custodian 3 "$XIZ" list --identity "$F/custodian-pq.key" "$F/access-pq.xiz"
+grep -q 'needs 2 custodians' "$W/out.log" && pass pq-threshold-message || fail pq-threshold-message
+expect_code pq-classic-key 3 "$XIZ" list --identity "$F/identity.key" "$F/access-pq.xiz"
+"$XIZ" info --password-env XIZ_PW_A "$F/access-pq.xiz" > "$W/pq.log" 2>&1
+if grep -q 'post-quantum recipient "Chiave PQ"' "$W/pq.log" && grep -q 'post-quantum custodian share "C1 PQ"' "$W/pq.log" \
+   && grep -q 'format          XIZ 1.7' "$W/pq.log"; then pass pq-stanzas; else fail pq-stanzas; cat "$W/pq.log"; fi
+
 # ---------------------------------------------------------------- 1.3 signatures, proofs, erasure
 "$XIZ" history "$F/signed.xiz" > "$W/h.log" 2>&1
 if [ "$(grep -c 'signature valid, chain ok' "$W/h.log")" = 2 ] && grep -q 'inclusion tree  ok' "$W/h.log"; then pass history; else fail history; cat "$W/h.log"; fi

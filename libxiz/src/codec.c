@@ -359,7 +359,10 @@ int openzl_decode_frame(const uint8_t *src, size_t n, uint8_t *dst, size_t usize
     if (ZL_isError(r) || ZL_validResult(r) != usize) return FAIL(XIZ_E_CORRUPT, "OpenZL frame size");
     ZL_DCtx *d = ZL_DCtx_create();
     if (!d) return FAIL(XIZ_E_NOMEM, "OpenZL context");
-    ZL_DCtx_setParameter(d, ZL_DParam_checkContentChecksum, ZL_TernaryParam_enable);
+    if (ZL_isError(ZL_DCtx_setParameter(d, ZL_DParam_checkContentChecksum, ZL_TernaryParam_enable))) {
+        ZL_DCtx_free(d);
+        return FAIL(XIZ_E_UNSUPPORTED, "OpenZL checksum parameter");
+    }
     r = ZL_DCtx_decompress(d, dst, usize, src, n);
     ZL_DCtx_free(d);
     if (ZL_isError(r) || ZL_validResult(r) != usize) return FAIL(XIZ_E_CORRUPT, "OpenZL frame does not decode");

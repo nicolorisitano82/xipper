@@ -99,6 +99,22 @@ cat > "$work/access.json" <<EOF
                                     { "label": "C3", "password_env": "XIZ_PW_C3" } ] } ] }
 EOF
 "$X" create -q -f xiz --access "$work/access.json" "$out/access.xiz" "$t"
+
+# ---------------------------------------------------------------- 1.7 post-quantum recipients (§17)
+# An X-Wing recipient for group "referti" and a 2-of-2 threshold: an X-Wing custodian and a password.
+"$X" keygen --pq -o "$out/identity-pq.key" > /dev/null
+"$X" keygen --pq -o "$out/custodian-pq.key" > /dev/null
+pq1=$(grep -o 'xizpq1[A-Za-z0-9_-]*' "$out/identity-pq.key" | head -1)
+pq2=$(grep -o 'xizpq1[A-Za-z0-9_-]*' "$out/custodian-pq.key" | head -1)
+cat > "$work/access-pq.json" <<EOF
+{ "groups": [ { "name": "referti", "folders": ["tree/referti"] } ],
+  "recipients": [ { "label": "Laboratorio", "password_env": "XIZ_PW_A" },
+                  { "label": "Chiave PQ", "public_key": "$pq1", "groups": ["referti"] } ],
+  "thresholds": [ { "label": "Comitato", "k": 2, "groups": ["referti"],
+                    "custodians": [ { "label": "C1 PQ", "public_key": "$pq2" },
+                                    { "label": "C2", "password_env": "XIZ_PW_C2" } ] } ] }
+EOF
+"$X" create -q -f xiz --access "$work/access-pq.json" "$out/access-pq.xiz" "$t"
 "$X" create -q -f xiz --sign "$out/signing.key" --signer "Test Signer" "$out/signed.xiz" "$t"
 "$X" edit -q --sign "$out/signing.key" --signer "Second" "$out/signed.xiz" --add "$work/added.txt:tree/added.txt"
 "$X" prove "$out/signed.xiz" tree/docs/a.md -o "$out/proof-a.json" > /dev/null

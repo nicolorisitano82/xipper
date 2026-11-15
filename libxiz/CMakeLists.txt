@@ -65,8 +65,12 @@ target_include_directories(xiz_crypto SYSTEM PUBLIC third_party/bearssl/inc thir
 add_library(xiz_mldsa OBJECT src/mldsa.c)
 target_include_directories(xiz_mldsa SYSTEM PUBLIC third_party/mldsa-native/mldsa)
 
+# ML-KEM-768 decapsulation (mlkem-native 2.0.0, portable C): X-Wing recipients (§17).
+add_library(xiz_mlkem OBJECT src/mlkem.c)
+target_include_directories(xiz_mlkem SYSTEM PUBLIC third_party/mlkem-native/mlkem)
+
 # brunsli decoder (C++) with the Brotli decoder it needs: only for codec 4 (§16).
-set(XIZ_DEPS xiz_zstd xiz_lzma xiz_argon2 xiz_crypto xiz_mldsa)
+set(XIZ_DEPS xiz_zstd xiz_lzma xiz_argon2 xiz_crypto xiz_mldsa xiz_mlkem)
 if(XIZ_JPEG)
   enable_language(CXX)
   set(BROTLI_DIR "${XIZ_VENDOR_DIR}/brotli/c")
@@ -159,6 +163,7 @@ add_library(xiz STATIC
   src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c src/forensic.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
   $<TARGET_OBJECTS:xiz_mldsa>
+  $<TARGET_OBJECTS:xiz_mlkem>
   $<$<BOOL:${XIZ_JPEG}>:$<TARGET_OBJECTS:xiz_brunsli>> $<$<BOOL:${XIZ_PREFLATE}>:$<TARGET_OBJECTS:xiz_preflate>>
   $<$<BOOL:${XIZ_OPENZL}>:$<TARGET_OBJECTS:xiz_openzl>>)
 target_include_directories(xiz PUBLIC include PRIVATE src)

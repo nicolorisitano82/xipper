@@ -2,6 +2,7 @@
 #include "internal.h"
 
 #include "monocypher.h"
+#include "mlkem.h"
 
 static int kdf_acceptable(uint32_t mem, uint32_t it, uint32_t par) {
     return mem >= 19456 && mem <= 2097152 && it >= 1 && it <= 10 && par >= 1 && par <= 16;
@@ -68,7 +69,46 @@ static int open_box(const ctx_t *c, uint8_t type, const uint8_t *body, size_t le
     return ok;
 }
 
-/* KEKs for a credential header at body[p..]: kind 1 password (44 bytes), kind 2 X25519 (40 bytes). */
+/* ------------------------------------------------------------------ X-Wing (§17) */
+
+/* X-Wing (draft-connolly-cfrg-xwing-kem): ML-KEM-768 + X25519. The secret key is a 32-byte seed,
+ * expanded with SHAKE-256 into the ML-KEM seeds d, z and the X25519 key. */
+typedef struct {
+    uint8_t pk[XIZ_MLKEM_PUBLICKEY + 32];  /* pk_M ‖ pk_X: the 1216-byte public key */
+    uint8_t sk_m[XIZ_MLKEM_SECRETKEY];
+    uint8_t sk_x[32];
+    uint8_t id[8];                         /* first 8 bytes of SHA-256(pk) */
+} xwing_key;
+
+static int xwing_expand(const uint8_t seed[32], xwing_key *k) {
+    uint8_t e[96];
+    xiz_mlkem768_shake256(e, sizeof e, seed, 32);
+    int rc = xiz_mlkem768_keypair_derand(k->pk, k->sk_m, e);
+    memcpy(k->sk_x, e + 64, 32);
+    crypto_x25519_public_key(k->pk + XIZ_MLKEM_PUBLICKEY, k->sk_x);
+    uint8_t h[32];
+    sha256(k->pk, sizeof k->pk, h);
+    memcpy(k->id, h, 8);
+    secure_zero(e, sizeof e);
+    return rc == 0;
+}
+
+/* Shared secret for a 1120-byte ciphertext ct_M ‖ ct_X. A damaged ciphertext gives another secret. */
+static int xwing_decap(const xwing_key *k, const uint8_t ct[1120], uint8_t ss[32]) {
+    static const uint8_t label[6] = {0x5c, 0x2e, 0x2f, 0x2f, 0x5e, 0x5c};  /* "\\.//^\\" */
+    uint8_t in[32 + 32 + 32 + 32 + 6];
+    if (xiz_mlkem768_dec(in, ct, k->sk_m) != 0) return 0;
+    crypto_x25519(in + 32, k->sk_x, ct + XIZ_MLKEM_CIPHERTEXT);
+    memcpy(in + 64, ct + XIZ_MLKEM_CIPHERTEXT, 32);
+    memcpy(in + 96, k->pk + XIZ_MLKEM_PUBLICKEY, 32);
+    memcpy(in + 128, label, 6);
+    xiz_mlkem768_sha3_256(ss, in, sizeof in);
+    secure_zero(in, sizeof in);
+    return 1;
+}
+
+/* KEKs for a credential header at body[p..]: kind 1 password (44 bytes), kind 2 X25519 (40 bytes),
+ * kind 3 X-Wing (1128 bytes: ciphertext, key id). */
 typedef struct {
     uint8_t (*keks)[32];
     size_t n;
@@ -95,6 +135,25 @@ static int credential_keks(const ctx_t *c, int kind, const uint8_t *body, size_t
                 return FAIL(XIZ_E_NOMEM, "Argon2id failed (memory)");
             out->n++;
         }
+        return XIZ_OK;
+    }
+    if (kind == 3) {
+        if (len < p + 1128) return FAIL(XIZ_E_CORRUPT, "keys block: post-quantum stanza truncated");
+        out->header = 1128;
+        const uint8_t *ct = body + p, *id = body + p + 1120;
+        if (!c->opt || !c->opt->pq_identity_count) return XIZ_OK;
+        out->keks = calloc(c->opt->pq_identity_count, 32);
+        xwing_key *k = malloc(sizeof *k);
+        if (!out->keks || !k) { free(k); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+        for (size_t i = 0; i < c->opt->pq_identity_count; i++) {
+            uint8_t ss[32];
+            if (!xwing_expand(c->opt->pq_identities[i], k) || memcmp(k->id, id, 8) != 0) continue;
+            if (!xwing_decap(k, ct, ss)) continue;
+            hkdf_sha256(ss, 32, id, 8, "xiz/1.7/xwing", out->keks[out->n++], 32);
+            secure_zero(ss, 32);
+        }
+        secure_zero(k, sizeof *k);
+        free(k);
         return XIZ_OK;
     }
     if (kind != 2) return FAIL(XIZ_E_UNSUPPORTED, "keys block: credential kind %d", kind);
@@ -237,13 +296,14 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             }
             continue;
         }
-        if (!has_dir || st[i].type < 2 || st[i].type > 5) continue;  /* unknown here: skipped (§6.2) */
+        if (!has_dir || st[i].type < 2 || st[i].type > 7) continue;  /* unknown here: skipped (§6.2) */
         out->any_known = 1;
         out->n_stanzas++;
         switch (st[i].type) {
         case 2:
-        case 3: {
-            rc = credential_keks(&c, st[i].type == 2 ? 1 : 2, b, len, 0, &kk, err);
+        case 3:
+        case 6: {
+            rc = credential_keks(&c, st[i].type == 2 ? 1 : st[i].type == 3 ? 2 : 3, b, len, 0, &kk, err);
             if (rc) break;
             size_t end = 0;
             if ((rc = label_end(b, len, kk.header, &end, err))) break;
@@ -266,17 +326,20 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             si->label = label_dup(ar, b, 3);
             break;
         }
-        case 5: {
-            if (len < 4) { rc = FAIL(XIZ_E_CORRUPT, "share stanza"); break; }
-            rc = credential_keks(&c, b[2], b, len, 3, &kk, err);
+        case 5:
+        case 7: {
+            /* type 5: tid, x, kind, credential; type 7: tid, x, X-Wing credential */
+            size_t cp = st[i].type == 5 ? 3 : 2;
+            if (len < cp + 1) { rc = FAIL(XIZ_E_CORRUPT, "share stanza"); break; }
+            rc = credential_keks(&c, st[i].type == 5 ? b[2] : 3, b, len, cp, &kk, err);
             if (rc) break;
             size_t end = 0;
-            if ((rc = label_end(b, len, 3 + kk.header, &end, err))) break;
+            if ((rc = label_end(b, len, cp + kk.header, &end, err))) break;
             si->tid = b[0];
             si->x = b[1];
-            si->label = label_dup(ar, b, 3 + kk.header);
+            si->label = label_dup(ar, b, cp + kk.header);
             for (size_t k = 0; k < kk.n && !si->opened; k++) {
-                if (open_box(&c, 5, b, len, end, kk.keks[k], plain, &plain_len)) {
+                if (open_box(&c, st[i].type, b, len, end, kk.keks[k], plain, &plain_len)) {
                     si->opened = 1;
                     int t = b[0], dup = b[1] == 0;
                     for (int j = 0; j < share_n[t]; j++)
@@ -303,7 +366,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         /* Find the raw stanza again (same order, skipping unknown ones). */
         size_t seen = 0;
         for (uint16_t j = 0; j < count; j++) {
-            if (!(has_dir ? (st[j].type >= 2 && st[j].type <= 5) : st[j].type == 1)) continue;
+            if (!(has_dir ? (st[j].type >= 2 && st[j].type <= 7) : st[j].type == 1)) continue;
             if (seen++ != i) continue;
             uint8_t secret[32], kek[32];
             shamir_combine(share_x[t], (const uint8_t(*)[32])share_y[t], (size_t)si->k, secret);

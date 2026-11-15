@@ -750,6 +750,12 @@ cannot be forged retroactively.
 - Each post-quantum stanza takes about 1.2 KB of the 64 KiB keys block, so an archive holds about
   50 of them.
 
+- X-Wing is the final combiner of the draft: the seed expands with SHAKE-256 into 96 bytes, the ML-KEM-768
+  seeds d ‖ z and the X25519 secret; the 1120-byte ciphertext is ct_M[1088] ‖ ct_X[32]; the shared secret
+  is SHA3-256(ss_M ‖ ss_X ‖ ct_X ‖ pk_X ‖ `\.//^\`). Xipper uses CryptoKit's
+  `XWingMLKEM768X25519`; libxiz (from 3.4) decapsulates with mlkem-native 2.0.0 (portable C) and
+  Monocypher's X25519, and opens stanzas 6 and 7 with keys `XIZ-SECRET-KEY-PQ-1-…`.
+
 Key texts: public `xizpq1` + base64url of the 1216-byte key; secret `XIZ-SECRET-KEY-PQ-1-` +
 base64url of the seed (the X25519 ones stay `xizpk1…` and `XIZ-SECRET-KEY-1-…`). Xipper creates
 them with `xipper keygen --pq` or in Settings › Keys, where new identities are post-quantum by

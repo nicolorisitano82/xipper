@@ -97,6 +97,8 @@ typedef struct xiz_open_options {
     uint64_t max_catalog;               /* decompressed catalog limit; 0 = 1 GiB (§5) */
     uint32_t max_entries;               /* 0 = 10,000,000 */
     unsigned flags;                     /* XIZ_OPEN_* */
+    const uint8_t (*pq_identities)[32]; /* X-Wing secret seeds (XIZ 1.7 post-quantum recipients, §17) */
+    size_t pq_identity_count;
 } xiz_open_options;
 
 /* Accept 0.1 beta archives (§9). */
@@ -341,10 +343,11 @@ XIZ_API int xiz_get_group(const xiz_archive *a, size_t i, xiz_group *out);
 XIZ_API const char *xiz_group_prefix(const xiz_archive *a, size_t i, size_t p);
 
 typedef struct xiz_stanza {
-    int type;                    /* 1 password, 2 password recipient, 3 public key, 4 threshold, 5 share */
-    const char *label;           /* visible label (types 2–5), "" otherwise */
+    int type;                    /* 1 password, 2 password recipient, 3 public key, 4 threshold, 5 share,
+                                    6 post-quantum recipient, 7 post-quantum share (§17) */
+    const char *label;           /* visible label (types 2–7), "" otherwise */
     int opened;                  /* a credential opened it */
-    int threshold_id, k, n, x;   /* threshold (4) and share (5) */
+    int threshold_id, k, n, x;   /* threshold (4) and share (5, 7) */
 } xiz_stanza;
 
 XIZ_API size_t xiz_stanza_count(const xiz_archive *a);

@@ -621,8 +621,87 @@ static void test_erased_slot(const char *dir) {
     free(b);
 }
 
+/* The 32-byte secret after `prefix` in a key file (base64url). */
+static int key_from_file(const char *path, const char *prefix, uint8_t out[32]) {
+    size_t n;
+    uint8_t *b = slurp(path, &n);
+    if (!b) return 0;
+    b[n] = 0;
+    const char *p = strstr((const char *)b, prefix);
+    size_t k = 0;
+    if (p) {
+        uint32_t acc = 0;
+        int bits = 0;
+        for (p += strlen(prefix); *p && k < 32; p++) {
+            int c = *p, v = c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26
+                          : c >= '0' && c <= '9' ? c - '0' + 52 : c == '-' ? 62 : c == '_' ? 63 : -1;
+            if (v < 0) break;
+            acc = acc << 6 | (uint32_t)v;
+            bits += 6;
+            if (bits >= 8) { bits -= 8; out[k++] = (uint8_t)(acc >> bits); }
+        }
+    }
+    free(b);
+    return k == 32;
+}
+
+static int open_pq(const uint8_t *b, size_t n, const uint8_t seed[32]) {
+    xiz_open_options o;
+    memset(&o, 0, sizeof o);
+    o.pq_identities = (const uint8_t(*)[32])seed;
+    o.pq_identity_count = 1;
+    xiz_source s;
+    xiz_source_memory(&s, b, n);
+    xiz_archive *a = NULL;
+    xiz_error e;
+    int rc = xiz_open(&a, &s, &o, &e);
+    if (a) xiz_close(a);
+    return rc;
+}
+
+/* X-Wing stanzas (§17): every damaged byte of the ciphertext or key id, with the keys block's CRC
+ * fixed so the damage reaches the decapsulation, leaves the stanza closed (implicit rejection). */
+static void test_pq_stanza(const char *dir) {
+    char path[1024];
+    uint8_t seed[32];
+    snprintf(path, sizeof path, "%s/identity-pq.key", dir);
+    CHECK(key_from_file(path, "XIZ-SECRET-KEY-PQ-1-", seed));
+    snprintf(path, sizeof path, "%s/access-pq.xiz", dir);
+    size_t n;
+    uint8_t *b = slurp(path, &n);
+    CHECK(b != NULL);
+    if (!b) return;
+    CHECK(open_pq(b, n, seed) == XIZ_OK);
+    uint8_t *blk = b + XIZ_SUPERBLOCK;
+    size_t klen = rd32(b + 32);  /* keys_length (§3) */
+    CHECK(klen > 10 && XIZ_SUPERBLOCK + klen <= n && memcmp(blk, "XKEY", 4) == 0);
+    if (!(klen > 10 && XIZ_SUPERBLOCK + klen <= n)) { free(b); return; }
+    size_t at = 6, body = 0;
+    for (uint16_t i = 0, count = rd16(blk + 4); i < count && at + 3 <= klen - 4; i++) {
+        if (blk[at] == 6) { body = at + 3; break; }
+        at += 3 + rd16(blk + at + 1);
+    }
+    CHECK(body != 0);
+    int opened = 0;
+    for (size_t i = 0; body && i < 1128; i += i < 1080 ? 97 : 1) {  /* ML-KEM part sampled, X25519 part and id every byte */
+        blk[body + i] ^= 0x01;
+        uint32_t crc = xiz_crc32c(0, blk, klen - 4);
+        uint8_t old[4];
+        memcpy(old, blk + klen - 4, 4);
+        blk[klen - 4] = (uint8_t)crc; blk[klen - 3] = (uint8_t)(crc >> 8);
+        blk[klen - 2] = (uint8_t)(crc >> 16); blk[klen - 1] = (uint8_t)(crc >> 24);
+        if (open_pq(b, n, seed) == XIZ_OK) opened++;
+        memcpy(blk + klen - 4, old, 4);
+        blk[body + i] ^= 0x01;
+    }
+    CHECK(opened == 0);
+    CHECK(open_pq(b, n, seed) == XIZ_OK);
+    free(b);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) { fprintf(stderr, "usage: xiz_security FIXTURES SCRATCH\n"); return 2; }
+    test_pq_stanza(argv[1]);
     test_structure();
     test_lzma2();
     test_jpeg(argv[1]);

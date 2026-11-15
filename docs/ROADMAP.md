@@ -323,7 +323,7 @@ Piano del 09/11/2026. Ogni fase esce testata e committata da sola, come nella 2.
 - app: in Impostazioni › Chiavi «Nuova identità…» crea una chiave post-quantum (decisione 2: predefinita), con «Classica (X25519)» nel menu; le identità post-quantum hanno un'etichetta;
 - test: chiavi, destinatari e custodi misti, descrizione pubblica, modifica in append, stanza manomesse;
 - **age:** le chiavi `age1pq1…` di age 1.3 usano anch'esse X-Wing, ma con un'altra codifica (Bech32); importarle si può aggiungere quando c'è age per provare la compatibilità;
-- **da fare:** libxiz apre gli archivi 1.7 con le altre credenziali ma non ancora le stanze X-Wing: serve ML-KEM-768 in C (mlkem-native o PQClean, codice esterno da approvare);
+- ✅ libxiz apre anche le stanze X-Wing dalla 3.4 (mlkem-native, approvato il 15/11/2026);
 - le firme restano Ed25519: ML-DSA può aspettare, perché le firme non soffrono del «registra ora».
 
 ##### C. Versioni di un XIZ come snapshot — ✅ fatto (10/11/2026)
@@ -492,6 +492,25 @@ Il proprietario non ha smart card, account TSA qualificato né DSS installato: f
 - resta: una smart card vera, una TSA qualificata con account, la firma XIZ con certificato provata a mano nell'app (la libreria è coperta dai test), `xiz` su Windows (serve l'ISO di Windows 11 ARM).
 
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
+
+### 3.4 — interoperabilità e lacune aperte (piano del 15/11/2026)
+Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. XIG resta fuori (versione a sé), come FLAC (niente audio non compresso tra i file veri) e MPEG-G.
+
+| Fase | Contenuto | Serve | Stato |
+|---|---|---|---|
+| **A. libxiz e X-Wing** | il lettore indipendente apre le stanze 6 e 7 (destinatari e custodi post-quantum, §17) | mlkem-native (approvato il 15/11/2026) | ✅ |
+| **B. Rifinire le firme 3.3** | firma XIZ con certificato provata a mano nell'app; firma di prova (in locale) su un `.p7m` vero; importazione delle chiavi `age1pq1…` di age 1.3 | — | |
+| **C. ISO 9660/UDF e DMG in sola lettura** | dal backlog: ISO e UDF con libarchive (già incluso), DMG non cifrati | — | |
+| **D. «Cambia formato» v2** | journal, ripresa, rollback, `F_PUNCHHOLE` | la VM per la prova di corrente | |
+| **E. `xiz` per Windows** | prova su Windows 11 ARM | l'ISO di Windows 11 ARM | |
+
+#### A. libxiz e X-Wing — ✅ fatto (15/11/2026)
+- mlkem-native 2.0.0 (commit `d1b2fe7`, Apache-2.0/ISC/MIT) in `libxiz/third_party/mlkem-native`: solo `mlkem/` in C portabile, senza `native/` né assembly, senza incapsulamento né API casuali; SHA3-256 e SHAKE-256 dalla stessa libreria;
+- X-Wing nel lettore: il seed si espande con SHAKE-256 (d ‖ z ‖ chiave X25519), decapsulazione ML-KEM-768 + X25519, combinatore SHA3-256 con l'etichetta in coda; confrontato byte per byte con `XWingMLKEM768X25519` di CryptoKit;
+- API: `xiz_open_options.pq_identities` / `pq_identity_count` (in coda alla struttura); `xiz --identity` accetta `XIZ-SECRET-KEY-PQ-1-…`; `xiz info` nomina le stanze 6 e 7;
+- corretto un controllo di `reader.c` che rifiutava l'archivio («serve una password») prima di guardare le stanze quando c'erano solo chiavi post-quantum;
+- fixture `access-pq.xiz` (destinatario X-Wing e soglia 2 di 2 con un custode X-Wing e una password), chiavi di prova `identity-pq.key` e `custodian-pq.key`; 6 controlli nuovi in `run_fixtures.sh` (102 in tutto); test di sicurezza: nessun byte alterato del ciphertext o dell'id chiave, con il CRC del blocco ricalcolato, apre la stanza;
+- verde con ASan e UBSan, con `-Werror` (corretto anche un valore di ritorno di OpenZL ignorato in `codec.c`), e su Linux arm64 (Alpine, build zig); la campagna prova ora le chiavi X-Wing anche su Linux.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 

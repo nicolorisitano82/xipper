@@ -34,7 +34,8 @@ static const char *usage =
     "credentials (any command that opens an archive):\n"
     "  --password-env VAR    password from an environment variable (create/append: encrypt)\n"
     "  --password-stdin      one password per line on standard input (custodians: several)\n"
-    "  --identity FILE       X25519 secret key (XIZ-SECRET-KEY-1-…), repeatable\n"
+    "  --identity FILE       secret key: X25519 (XIZ-SECRET-KEY-1-…) or post-quantum\n"
+    "                        X-Wing (XIZ-SECRET-KEY-PQ-1-…), repeatable\n"
     "  --beta                accept 0.1 beta archives\n";
 
 #define MAX_PW 32
@@ -44,6 +45,8 @@ static const char *passwords[MAX_PW];
 static size_t n_passwords;
 static uint8_t identities[MAX_ID][32];
 static size_t n_identities;
+static uint8_t pq_identities[MAX_ID][32];
+static size_t n_pq_identities;
 static unsigned open_flags;
 
 static void die(const char *msg) {
@@ -60,31 +63,36 @@ static int b64v(int c) {
     return -1;
 }
 
+/* A key file holds one secret: X25519 (XIZ-SECRET-KEY-1-) or X-Wing (XIZ-SECRET-KEY-PQ-1-), 32 bytes in base64url. */
 static void load_identity(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) die("cannot read identity file");
     char line[512];
-    const char *prefix = "XIZ-SECRET-KEY-1-";
+    static const char *prefixes[2] = {"XIZ-SECRET-KEY-PQ-1-", "XIZ-SECRET-KEY-1-"};
     while (fgets(line, sizeof line, f)) {
-        char *p = strstr(line, prefix);
-        if (!p) continue;
-        p += strlen(prefix);
-        uint8_t out[48];
-        size_t n = 0;
-        uint32_t acc = 0;
-        int bits = 0;
-        for (; *p && b64v((unsigned char)*p) >= 0 && n < sizeof out; p++) {
-            acc = acc << 6 | (uint32_t)b64v((unsigned char)*p);
-            bits += 6;
-            if (bits >= 8) { bits -= 8; out[n++] = (uint8_t)(acc >> bits); }
+        for (int k = 0; k < 2; k++) {
+            char *p = strstr(line, prefixes[k]);
+            if (!p) continue;
+            p += strlen(prefixes[k]);
+            uint8_t out[48];
+            size_t n = 0;
+            uint32_t acc = 0;
+            int bits = 0;
+            for (; *p && b64v((unsigned char)*p) >= 0 && n < sizeof out; p++) {
+                acc = acc << 6 | (uint32_t)b64v((unsigned char)*p);
+                bits += 6;
+                if (bits >= 8) { bits -= 8; out[n++] = (uint8_t)(acc >> bits); }
+            }
+            size_t *count = k == 0 ? &n_pq_identities : &n_identities;
+            if (n != 32 || *count == MAX_ID) die("invalid identity file");
+            memcpy(k == 0 ? pq_identities[(*count)++] : identities[(*count)++], out, 32);
+            for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
+            fclose(f);
+            return;
         }
-        if (n != 32 || n_identities == MAX_ID) die("invalid identity file");
-        memcpy(identities[n_identities++], out, 32);
-        fclose(f);
-        return;
     }
     fclose(f);
-    die("no XIZ-SECRET-KEY-1- line in the identity file");
+    die("no XIZ-SECRET-KEY-1- or XIZ-SECRET-KEY-PQ-1- line in the identity file");
 }
 
 static void read_stdin_passwords(void) {
@@ -134,6 +142,8 @@ static xiz_archive *open_archive_flags(const char *path, unsigned extra) {
     }
     opt.identities = (const uint8_t(*)[32])identities;
     opt.identity_count = n_identities;
+    opt.pq_identities = (const uint8_t(*)[32])pq_identities;
+    opt.pq_identity_count = n_pq_identities;
     opt.flags = open_flags | extra;
     xiz_archive *a;
     xiz_error err;
@@ -226,8 +236,9 @@ static int cmd_info(int argc, char **argv) {
     for (size_t s = 0; s < xiz_stanza_count(a); s++) {
         xiz_stanza st;
         xiz_get_stanza(a, s, &st);
-        static const char *names[] = {"?", "password", "password recipient", "public-key recipient", "threshold", "custodian share"};
-        printf("key stanza      %s%s%s%s", names[st.type <= 5 ? st.type : 0], *st.label ? " \"" : "", st.label, *st.label ? "\"" : "");
+        static const char *names[] = {"?", "password", "password recipient", "public-key recipient", "threshold", "custodian share",
+                                     "post-quantum recipient", "post-quantum custodian share"};
+        printf("key stanza      %s%s%s%s", names[st.type <= 7 ? st.type : 0], *st.label ? " \"" : "", st.label, *st.label ? "\"" : "");
         if (st.type == 4) printf(" (%d of %d)", st.k, st.n);
         printf("%s\n", st.opened ? " [opened]" : "");
     }

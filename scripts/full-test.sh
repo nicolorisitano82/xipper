@@ -135,12 +135,15 @@ linux() {
     [ -f "$pkg" ] || { skip "no Linux build (portable step skipped)"; return 77; }
     local w; w=$(mktemp -d)
     local F="$ROOT/libxiz/tests/fixtures"
-    tar -xzf "$pkg" -C "$w" && cp "$F/signed-pq.xiz" "$F/signed-pq-tampered.xiz" "$F/tables.xiz" "$F/docs.xiz" "$F/forensic.xiz" "$w"/ &&
-    docker run --rm -v "$w:/w" alpine:3.20 sh -c 'cd /w && X=$(find . -name xiz -type f | head -1) &&
+    tar -xzf "$pkg" -C "$w" && cp "$F/signed-pq.xiz" "$F/signed-pq-tampered.xiz" "$F/tables.xiz" "$F/docs.xiz" "$F/forensic.xiz" \
+        "$F/access-pq.xiz" "$F/identity-pq.key" "$F/custodian-pq.key" "$w"/ &&
+    docker run --rm -e XIZ_PW_C2='custodian two' -v "$w:/w" alpine:3.20 sh -c 'cd /w && X=$(find . -name xiz -type f | head -1) &&
+        $X extract -d pq1 --identity identity-pq.key access-pq.xiz > /dev/null && test -f pq1/tree/referti/r2.txt &&
+        $X extract -d pq2 --identity custodian-pq.key --password-env XIZ_PW_C2 access-pq.xiz > /dev/null &&
         $X history signed-pq.xiz | grep -c "ML-DSA-65)  signature valid, chain ok" | grep -qx 2 &&
         ! $X history signed-pq-tampered.xiz > /dev/null &&
         $X test tables.xiz && $X test docs.xiz && $X forensic forensic.xiz > /dev/null && $X extract -d out tables.xiz &&
-        echo "linux ok: hybrid signatures, tampering, OpenZL tables, documents, forensic"'
+        echo "linux ok: X-Wing recipients, hybrid signatures, tampering, OpenZL tables, documents, forensic"'
 }
 
 powercut() {

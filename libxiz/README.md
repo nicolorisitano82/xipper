@@ -30,7 +30,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | Scrittura di strutture 1.3 (gruppi, firme, slot), dizionari, LZMA2 | non prevista |
 | 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
 | 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
-| 1.7: destinatari post-quantum X-Wing (§17) | saltati: si apre con le altre credenziali |
+| 1.7: destinatari e custodi post-quantum X-Wing (§17) | lettura completa: ML-KEM-768 di mlkem-native + X25519, `--identity` con `XIZ-SECRET-KEY-PQ-1-…` |
 | 1.8: frame LZRAVEN e LZMESH (§18) | lettura su macOS 27 (framework Compression), rifiutati altrove |
 | 1.9: documenti con i flussi Deflate ricompressi (§19) | non ancora: rifiutati con un errore chiaro (bit 0x0100) |
 | 1.10: profilo forense (§20): directory v3, blocchi forensi, segmenti di custodia, immagini | lettura e verifica (`xiz forensic`): hash firmati di ogni frame, Merkle, custodia, immagine contro lo SHA-256 della sorgente, acquisizioni logiche contro l'inventario firmato; MD5 e SHA-1 non verificati |
@@ -94,7 +94,8 @@ I record scritti da libxiz e da Xipper sono identici byte per byte e ciascuno ri
 dell'altro. `append` toglie il record (§15.4): va riaggiunto dopo.
 
 Credenziali: `--password-env VAR`, `--password-stdin` (una password per riga: più custodi di una
-soglia), `--identity FILE` (chiave segreta X25519 `XIZ-SECRET-KEY-1-…`, ripetibile). Codici di
+soglia), `--identity FILE` (chiave segreta X25519 `XIZ-SECRET-KEY-1-…` o post-quantum X-Wing
+`XIZ-SECRET-KEY-PQ-1-…`, ripetibile). Codici di
 uscita: 0 ok, 1 errore o archivio danneggiato, 2 uso, 3 password mancante o sbagliata, 4 voci
 saltate durante l'estrazione.
 
@@ -110,6 +111,8 @@ helper per file (`xiz_source_file`, API wide su Windows) e memoria (`xiz_source_
 
 xiz_open_options o = {0};
 o.password = "…";                       /* facoltativa */
+o.identities = x25519;  o.identity_count = 1;        /* chiavi X25519 da 32 byte, facoltative */
+o.pq_identities = seeds; o.pq_identity_count = 1;  /* seed X-Wing da 32 byte (§17), facoltativi */
 xiz_archive *a;
 xiz_error err;
 if (xiz_open_file(&a, "dati.xiz", &o, &err) != XIZ_OK) { fprintf(stderr, "%s\n", err.message); return 1; }
@@ -178,6 +181,7 @@ Né CryptoKit né CommonCrypto: tutto è portabile e compilato dai sorgenti.
 | AES-256-GCM | BearSSL 0.6, `aes_ct64*` (AES bitsliced a tempo costante) + `ghash_ctmul64` + `gcm.c` | MIT |
 | ECDSA P-256, RSA PKCS#1 v1.5 (verifica), certificato X.509 (chiave pubblica) | BearSSL 0.6, `ec_p256_m31`, `ecdsa_i31_vrfy_*`, `rsa_i31_pkcs1_vrfy`, `rsa_i31_pub`, `x509_decoder` e gli `i31_*` che servono | MIT |
 | X25519, Ed25519 (SHA-512) | [Monocypher](https://monocypher.org) 4.0.2, `monocypher.c` e `optional/monocypher-ed25519.c` | BSD-2-Clause o CC0 |
+| ML-KEM-768 (decapsulazione, destinatari X-Wing §17), SHA3-256, SHAKE-256 | [mlkem-native](https://github.com/pq-code-package/mlkem-native) 2.0.0 (PQ Code Package), `mlkem/` in C portabile, senza `native/` né assembly, senza incapsulamento | Apache-2.0, ISC o MIT |
 | ML-DSA-65 (verifica, firme ibride §22) | [mldsa-native](https://github.com/pq-code-package/mldsa-native) 2.0.0 (PQ Code Package), `mldsa/` in C portabile, senza `native/` né generazione di chiavi | Apache-2.0, ISC o MIT |
 | Argon2id | PHC reference (`../Vendor/argon2`, già usata da Xipper) | CC0 o Apache-2.0 |
 | CRC-32C | proprio (tabelle slice-by-8; istruzioni CRC su ARMv8) | MIT |
@@ -191,6 +195,7 @@ monocypher.org il 02/11/2026; SHA-256 degli archivi:
 
 - `bearssl-0.6.tar.gz` `6705bba1714961b41a728dfc5debbe348d2966c117649392f8c8139efc83ff14`
 - mldsa-native v2.0.0 (commit `834a90d5e846ffa1e1611bd24e160bb2e9b86d35`), tarball di GitHub scaricato il 14/11/2026: `d3093f0a358fa9fda1fd4fd203aeb73466419cb26012bbaa79c34d546cf81018`; configurata in `src/mldsa.h` (ML-DSA-65, solo verifica, prefisso `xiz_mldsa65`)
+- mlkem-native v2.0.0 (commit `d1b2fe782888bdb761a50336012923180be7f502`), tarball di GitHub scaricato il 15/11/2026: `76bf71771f09a25f30463218974ae10752d72bca34bbc470c7f6f8655f51d622`; configurata in `src/mlkem.h` (ML-KEM-768, espansione deterministica e decapsulazione, prefisso `xiz_mlkem768`)
 - `monocypher-4.0.2.tar.gz` `38d07179738c0c90677dba3ceb7a7b8496bcfea758ba1a53e803fed30ae0879c`
 
 Modifiche locali: nessuna ai sorgenti. Di BearSSL sono tenuti solo i file elencati in
@@ -236,7 +241,7 @@ libxiz/build-fuzz/fuzz_open -dict=libxiz/fuzz/xiz.dict -max_len=150000 CORPUS_DI
 
 Le fixture (`tests/fixtures`, ~550 KB, contenuto sintetico) si rigenerano con
 `tests/make_fixtures.sh` (serve la CLI Swift: `swift build -c release --product xipper`). Le chiavi
-`identity.key` e `signing.key` lì dentro sono chiavi di prova, generate per le fixture.
+`identity.key`, `identity-pq.key`, `custodian-pq.key` e `signing.key` lì dentro sono chiavi di prova, generate per le fixture.
 
 ## Limiti noti
 

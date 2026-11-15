@@ -576,7 +576,7 @@ int xiz_open(xiz_archive **out, const xiz_source *src, const xiz_open_options *o
     a->has_dir = (a->sb.required & XIZ_FEATURE_DIRECTORY) != 0;
     if (a->data_start + XIZ_FOOTER > src->size) { rc = FAIL(XIZ_E_CORRUPT, "keys block past the end"); goto fail; }
     if (a->encrypted) {
-        int have = (opt && (opt->password || opt->password_count || opt->identity_count));
+        int have = (opt && (opt->password || opt->password_count || opt->identity_count || opt->pq_identity_count));
         int structure = !have && a->has_dir && opt && (opt->flags & XIZ_OPEN_NO_KEYS);
         if (!have && !structure) { rc = FAIL(XIZ_E_PASSWORD_REQUIRED, "the archive is encrypted: a password is required"); goto fail; }
         uint8_t *block = NULL;
