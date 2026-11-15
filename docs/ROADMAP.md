@@ -483,6 +483,14 @@ Tema scelto dal proprietario il 14/11/2026: Xipper diventa anche lo strumento pe
 - ✅ manuale: capitolo 14 «Signed documents», chiavi nel Secure Enclave e certificati (capitolo 7), tabelle di firma e compatibilità (6), comandi `sig` e `keygen --secure-enclave` (10), impostazioni (12), novità della 3.3 nel README;
 - ✅ **3.3.0 rilasciata il 14/11/2026** (decisione del proprietario: fase D saltata, resta da fare dopo il rilascio: smart card vera, TSA qualificata con account, DSS, `xiz` su Windows); campagna completa verde (412 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti, 61 controlli di interop, 30 giri con 57 kill, validazione forense, `xiz` su Linux; prova di corrente saltata, VM eliminata).
 
+#### D. Prove dopo il rilascio — avanzamento al 15/11/2026
+Il proprietario non ha smart card, account TSA qualificato né DSS installato: fatte le prove gratuite che li sostituiscono.
+- ✅ **FreeTSA** (RFC 3161 gratuita, non qualificata) da CLI: `.p7m` RSA ed ECDSA con marca, firma parallela con due marche, matrioska; OpenSSL verifica il CMS (`cms -verify`) e la marca sulla firma (`ts -verify` con la CA di FreeTSA);
+- ✅ **app**: «Firma digitalmente…» con un certificato software del Portachiavi (CA di prova, non ripudio) e marca FreeTSA; il `.p7m` verifica con Xipper e OpenSSL;
+- ✅ **DSS 6.5.1** (bundle demo della Commissione UE, Tomcat in locale su 127.0.0.1, servizio REST `validateSignature`): tutti i nostri `.p7m` riconosciuti come **CAdES-BASELINE-T** (matrioska: BASELINE-B, DSS valida il livello esterno), firma integra e valida (RSA e ECDSA, SHA-256), message-digest trovato e intatto, signing-certificate trovato, marca integra con impronta corretta; esito INDETERMINATE / NO_CERTIFICATE_CHAIN_FOUND solo perché la CA di prova non è nella lista UE (atteso);
+- nota: con la chiave ECDSA importata il Portachiavi ha chiesto la password del login alla prima firma (con la RSA no, entrambe importate con `-A`); con una carta vera il sistema chiede comunque il PIN;
+- resta: una smart card vera, una TSA qualificata con account, la firma XIZ con certificato provata a mano nell'app (la libreria è coperta dai test), `xiz` su Windows (serve l'ISO di Windows 11 ARM).
+
 Limiti da dire chiaramente nell'app e nel manuale: Xipper verifica e firma tecnicamente, il valore legale di un caso concreto va valutato da un esperto; l'XML (XAdES) resta fuori salvo richiesta; revoca dei certificati: **in rete con il consenso** (decisione del 14/11/2026): Xipper chiede la prima volta (e nelle Impostazioni) se può contattare le autorità di certificazione per OCSP e CRL; senza consenso il rapporto dice «revoca non controllata»; i dati di revoca dentro il file (CAdES-XL, PAdES-LT) si usano sempre.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
