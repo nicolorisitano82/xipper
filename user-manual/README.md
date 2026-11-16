@@ -2,7 +2,7 @@
 
 Xipper is an archiver for Macs with Apple silicon (M1 or later) running macOS 26 or later. It creates, opens, verifies, repairs and extracts archives, edits them in place, mounts them as volumes and converts between formats. XIZ, its own format, adds features ordinary archives lack: signed history, per-folder access, post-quantum keys, recovery data inside the archive and lossless recompression of photos, documents, tables and AI models.
 
-This manual covers the app, the Finder integration and the `xipper` command. It describes version 3.4.0 (16 November 2026).
+This manual covers the app, the Finder integration and the `xipper` command. It describes version 3.4.1 (16 November 2026).
 
 ## Contents
 
