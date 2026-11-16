@@ -235,6 +235,14 @@ typedef void (*xiz_problem_fn)(void *ctx, long frame, long entry, int code, cons
 XIZ_API int xiz_test(xiz_archive *a, int frames_only, xiz_problem_fn problem, void *ctx, xiz_test_report *report,
                      xiz_error *err);
 
+/* Progress over a whole operation, in uncompressed bytes. A nonzero return cancels it: the call
+ * returns XIZ_E_CALLBACK. Called often (every frame or write), so it should be cheap. */
+typedef int (*xiz_progress_fn)(void *ctx, uint64_t done, uint64_t total);
+
+/* xiz_test with progress and cancellation; `ctx` goes to both callbacks. */
+XIZ_API int xiz_test_progress(xiz_archive *a, int frames_only, xiz_problem_fn problem, xiz_progress_fn progress,
+                              void *ctx, xiz_test_report *report, xiz_error *err);
+
 /* ------------------------------------------------------------------ forensic profile (§20) */
 
 /* One record of a segment's forensic block. `value` is NUL-terminated (JSON records are text). */
@@ -310,6 +318,15 @@ XIZ_API int xiz_recovery_remove(const char *path, int *removed, xiz_error *err);
 #define XIZ_EXTRACT_OWNER              0x10u  /* restore uid/gid (POSIX, needs privileges) */
 #define XIZ_EXTRACT_NO_SYMLINKS        0x20u  /* skip every symlink */
 #define XIZ_EXTRACT_CONTINUE           0x40u  /* go on after a damaged file (it is removed) */
+#define XIZ_EXTRACT_FOLD_CASE          0x80u  /* names equal but for case (or that Windows makes equal) get
+                                                 "name (2).ext"; always on for Windows and for a
+                                                 case-insensitive destination on macOS */
+
+/* Answers of the `conflict` callback. */
+#define XIZ_CONFLICT_SKIP       0  /* leave the existing file, report the entry as skipped */
+#define XIZ_CONFLICT_OVERWRITE  1  /* replace it (never through a symlink; a folder is never replaced) */
+#define XIZ_CONFLICT_RENAME     2  /* write the entry as "name (2).ext", the first free number */
+#define XIZ_CONFLICT_CANCEL     3  /* stop: xiz_extract returns XIZ_E_CALLBACK */
 
 typedef struct xiz_extract_options {
     unsigned flags;
@@ -321,12 +338,23 @@ typedef struct xiz_extract_options {
     /* Called after each entry is written. */
     void (*progress)(void *ctx, const char *path, uint64_t bytes);
     void *ctx;
+    /* Bytes written over the whole selection (declared total); nonzero cancels: the file being
+     * written is removed and xiz_extract returns XIZ_E_CALLBACK. Optional. */
+    xiz_progress_fn bytes;
+    /* After each file, folder or link is created: `disk_path` is the name it got, relative to the
+     * destination, '/'-separated, UTF-8 (differs from `path` when made valid for Windows or
+     * renamed). Optional. */
+    void (*written)(void *ctx, const char *path, const char *disk_path);
+    /* When a file or link to create already exists; returns XIZ_CONFLICT_*. NULL: the
+     * XIZ_EXTRACT_OVERWRITE flag decides. */
+    int (*conflict)(void *ctx, const char *path, const char *disk_path);
 } xiz_extract_options;
 
 typedef struct xiz_extract_report {
     uint64_t files, directories, symlinks, bytes;
     uint64_t skipped;            /* unsafe paths, unsafe symlinks, existing files */
     uint64_t failed;             /* damaged content (with XIZ_EXTRACT_CONTINUE) */
+    uint64_t renamed;            /* written under another name: case collisions, conflicts answered RENAME */
 } xiz_extract_report;
 
 /* Extracts into `dest` (created if missing). Declared sizes are compared with max_bytes before

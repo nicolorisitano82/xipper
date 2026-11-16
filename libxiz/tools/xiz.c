@@ -76,7 +76,8 @@ static const char *usage =
     "  info    <archive>                       superblock, footer, segments, groups, signatures\n"
     "  test    [--frames] <archive>            check every frame and every file's digest\n"
     "  extract [-d DIR] [--overwrite] [--allow-external-symlinks] [--no-symlinks]\n"
-    "          [--no-permissions] [--no-times] [--continue] <archive> [entry...]\n"
+    "          [--no-permissions] [--no-times] [--continue] [--keep-both] [--fold-case]\n"
+    "          <archive> [entry...]\n"
     "  cat     <archive> <entry>               write one entry to standard output\n"
     "  history <archive>                       segment signatures (XIZ 1.3)\n"
     "  forensic [--records] <archive>          forensic profile (XIZ 1.10): segments, frame hashes,\n"
@@ -439,6 +440,18 @@ static void on_skip(void *ctx, const char *path, int code, const char *reason) {
     fprintf(stderr, "skipped %s: %s (%s)\n", path, reason, xiz_status_name(code));
 }
 
+static int answer_rename(void *ctx, const char *path, const char *disk) {
+    (void)ctx;
+    (void)path;
+    (void)disk;
+    return XIZ_CONFLICT_RENAME;
+}
+
+static void on_written(void *ctx, const char *path, const char *disk) {
+    (void)ctx;
+    if (strcmp(path, disk) != 0) fprintf(stderr, "renamed %s -> %s\n", path, disk);
+}
+
 static int cmd_extract(int argc, char **argv) {
     xiz_extract_options o;
     memset(&o, 0, sizeof o);
@@ -454,10 +467,14 @@ static int cmd_extract(int argc, char **argv) {
         else if (!strcmp(argv[i], "--no-permissions")) o.flags |= XIZ_EXTRACT_NO_PERMISSIONS;
         else if (!strcmp(argv[i], "--no-times")) o.flags |= XIZ_EXTRACT_NO_TIMES;
         else if (!strcmp(argv[i], "--continue")) o.flags |= XIZ_EXTRACT_CONTINUE;
+        else if (!strcmp(argv[i], "--keep-both")) o.conflict = answer_rename;
+        else if (!strcmp(argv[i], "--fold-case")) o.flags |= XIZ_EXTRACT_FOLD_CASE;
         else if (!path) path = argv[i];
         else sel[nsel++] = argv[i];
     }
     if (!path) die("extract: archive missing");
+    if (o.conflict && (o.flags & XIZ_EXTRACT_OVERWRITE)) die("extract: --keep-both and --overwrite exclude each other");
+    o.written = on_written;
     o.select = sel;
     o.select_count = nsel;
     o.skipped = on_skip;
@@ -466,7 +483,9 @@ static int cmd_extract(int argc, char **argv) {
     xiz_error err;
     int rc = xiz_extract(a, dest, &o, &r, &err);
     printf("%" PRIu64 " files (%" PRIu64 " bytes), %" PRIu64 " folders, %" PRIu64 " links; %" PRIu64 " skipped, %" PRIu64
-           " failed\n", r.files, r.bytes, r.directories, r.symlinks, r.skipped, r.failed);
+           " failed", r.files, r.bytes, r.directories, r.symlinks, r.skipped, r.failed);
+    if (r.renamed) printf(", %" PRIu64 " renamed", r.renamed);
+    printf("\n");
     if (rc) fprintf(stderr, "xiz: %s (%s)\n", err.message, xiz_status_name(rc));
     xiz_close(a);
     free(sel);

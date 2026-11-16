@@ -161,6 +161,12 @@ finestre salvo credenziali, `/t` verifica. `xiz.exe` resta lo strumento per gli 
 
 ## 7. Lavoro da fare in libxiz
 
+**Fase 0 fatta il 16/11/2026** (punti 1–5 e 7): `xiz_test_progress`; in `xiz_extract_options` le
+callback `bytes` (avanzamento e annullamento), `written` (nome su disco) e `conflict`
+(`XIZ_CONFLICT_SKIP/OVERWRITE/RENAME/CANCEL`); collisioni di maiuscole rinominate («nome (2).ext»,
+sempre su Windows, con `XIZ_EXTRACT_FOLD_CASE` altrove); nella CLI `--keep-both` e `--fold-case`.
+Test in `tests/security.c` e in `scripts/windows-wine.sh`. Resta il punto 6.
+
 Piccolo, e utile anche alla CLI:
 
 1. **Annullamento**: la callback `progress` restituisce `void`. Aggiungere un `int (*cancel)(void*)`

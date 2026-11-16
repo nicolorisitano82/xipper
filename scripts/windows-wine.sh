@@ -85,6 +85,14 @@ $X list $F/plain.xiz > raw.txt; wine /w/bin/xiz.exe list $F/plain.xiz > crlf.txt
 [ "$(grep -c "$(printf '\r')\$" crlf.txt)" = "$(wc -l < crlf.txt)" ] && ok text-stdout-crlf || no text-stdout-crlf
 wine /w/bin/xiz.exe cat $F/plain.xiz tree/data/random.bin 2> /dev/null > r.bin; $L cat $F/plain.xiz tree/data/random.bin > r2.bin
 cmp -s r.bin r2.bin && ok cat-binary-stdout || no cat-binary-stdout
+mkdir -p cs/Docs; printf '1\n' > cs/Ab.txt; printf '2\n' > cs/AB.TXT; printf '3\n' > cs/docs; printf '4\n' > cs/Docs/in.txt
+printf '5\n' > cs/CON
+$L create cs.xiz cs > /dev/null
+$X extract -d csx cs.xiz > cs.log 2>&1
+[ -f csx/cs/Docs/in.txt ] && [ "$(ls csx/cs | grep -ci '^ab')" = 2 ] && [ -f 'csx/cs/docs (2)' ] && [ -f csx/cs/_CON ] &&
+    grep -q '2 renamed' cs.log && ok case-collisions-renamed || { cat cs.log; no case-collisions-renamed; }
+$X extract -d csx --keep-both cs.xiz > kb.log 2>&1
+[ -f 'csx/cs/Docs/in (2).txt' ] && [ -f 'csx/cs/_CON (2)' ] && ok keep-both || { cat kb.log; no keep-both; }
 echo "windows extras: $extra passed, $bad failed"
 [ $fx = 0 ] && [ $bad = 0 ]
 EOF

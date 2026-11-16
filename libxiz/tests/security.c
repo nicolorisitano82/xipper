@@ -546,6 +546,167 @@ static void test_extraction(const char *scratch) {
     CHECK(r.skipped == 1 && r.files == 0);
 }
 
+/* ------------------------------------------------------------------ callbacks (app API) */
+
+typedef struct {
+    int conflict_answer;
+    int conflicts;
+    uint64_t last_done, last_total;
+    int byte_calls;
+    int cancel_after;            /* > 0: cancel at that byte call */
+    char written[8][256];
+    int n_written;
+} cb_state;
+
+static int cb_bytes(void *ctx, uint64_t done, uint64_t total) {
+    cb_state *s = ctx;
+    s->byte_calls++;
+    if (done < s->last_done || done > total) s->last_done = UINT64_MAX;  /* monotonic, within total */
+    else s->last_done = done;
+    s->last_total = total;
+    return s->cancel_after && s->byte_calls >= s->cancel_after;
+}
+
+static void cb_written(void *ctx, const char *path, const char *disk) {
+    (void)path;
+    cb_state *s = ctx;
+    if (s->n_written < 8) snprintf(s->written[s->n_written++], 256, "%s", disk);
+}
+
+static int cb_conflict(void *ctx, const char *path, const char *disk) {
+    (void)path;
+    (void)disk;
+    cb_state *s = ctx;
+    s->conflicts++;
+    return s->conflict_answer;
+}
+
+static int extract_cb(const fentry *es, size_t n, const char *dest, unsigned flags, cb_state *s,
+                      xiz_extract_report *rep) {
+    knobs k = {0};
+    k.codec = -1;
+    wbuf b = forge(es, n, &k);
+    xiz_archive *a;
+    xiz_error e;
+    int rc = open_mem(&b, &a, &e);
+    CHECK(rc == XIZ_OK);
+    if (rc) { wb_free(&b); return rc; }
+    xiz_extract_options o;
+    memset(&o, 0, sizeof o);
+    o.flags = flags;
+    o.ctx = s;
+    o.bytes = cb_bytes;
+    o.written = cb_written;
+    o.conflict = s->conflict_answer >= 0 ? cb_conflict : NULL;
+    memset(rep, 0, sizeof *rep);
+    rc = xiz_extract(a, dest, &o, rep, &e);
+    xiz_close(a);
+    wb_free(&b);
+    return rc;
+}
+
+static int has_written(const cb_state *s, const char *disk) {
+    for (int i = 0; i < s->n_written; i++)
+        if (strcmp(s->written[i], disk) == 0) return 1;
+    return 0;
+}
+
+static void test_callbacks(const char *scratch) {
+    char root[1024], dest[1100], p[1200];
+    snprintf(root, sizeof root, "%s/cbXXXXXX", scratch);
+    mkdir(scratch, 0755);
+    if (!mkdtemp(root)) { CHECK(0); return; }
+    xiz_extract_report r;
+    cb_state s;
+    struct stat st;
+
+    /* Byte progress reaches the declared total; written() gives the disk names. */
+    static const fentry two[] = {{0, "d/one.txt", "first file\n", 0, NULL}, {0, "two.txt", "second\n", 0, NULL}};
+    snprintf(dest, sizeof dest, "%s/progress", root);
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = -1;
+    CHECK(extract_cb(two, 2, dest, 0, &s, &r) == XIZ_OK);
+    CHECK(s.last_done == 18 && s.last_total == 18);
+    CHECK(has_written(&s, "d/one.txt") && has_written(&s, "two.txt"));
+    CHECK(r.files == 2);
+
+    /* Conflicts: skip, rename, overwrite, cancel. */
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = XIZ_CONFLICT_SKIP;
+    CHECK(extract_cb(two, 2, dest, 0, &s, &r) == XIZ_OK);
+    CHECK(s.conflicts == 2 && r.skipped == 2 && r.files == 0);
+    CHECK(s.last_done == 18);  /* skipped files still advance the progress */
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = XIZ_CONFLICT_RENAME;
+    CHECK(extract_cb(two, 2, dest, 0, &s, &r) == XIZ_OK);
+    CHECK(r.files == 2 && r.renamed == 2);
+    CHECK(has_written(&s, "d/one (2).txt") && has_written(&s, "two (2).txt"));
+    snprintf(p, sizeof p, "%s/d/one (2).txt", dest);
+    CHECK(exists(p));
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = XIZ_CONFLICT_RENAME;
+    CHECK(extract_cb(two, 1, dest, 0, &s, &r) == XIZ_OK);
+    CHECK(has_written(&s, "d/one (3).txt"));
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = XIZ_CONFLICT_OVERWRITE;
+    CHECK(extract_cb(two, 2, dest, 0, &s, &r) == XIZ_OK);
+    CHECK(r.files == 2 && r.renamed == 0);
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = XIZ_CONFLICT_CANCEL;
+    CHECK(extract_cb(two, 2, dest, 0, &s, &r) == XIZ_E_CALLBACK);
+    CHECK(s.conflicts == 1);
+
+    /* Cancelling from the byte callback removes the file being written. */
+    static const fentry big[] = {{0, "big.bin", "0123456789abcdef0123456789abcdef", 0, NULL}};
+    snprintf(dest, sizeof dest, "%s/cancel", root);
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = -1;
+    s.cancel_after = 2;  /* call 1: before anything, call 2: after the first write */
+    CHECK(extract_cb(big, 1, dest, 0, &s, &r) == XIZ_E_CALLBACK);
+    snprintf(p, sizeof p, "%s/big.bin", dest);
+    CHECK(!exists(p));
+    CHECK(r.files == 0);
+
+    /* Names equal but for case: a folder wins, then the first file. */
+    static const fentry cases[] = {
+        {0, "Readme.txt", "first\n", 0, NULL},
+        {0, "README.TXT", "second\n", 0, NULL},
+        {0, "readme.txt", "third\n", 0, NULL},
+        {0, "docs", "a file named like a folder\n", 0, NULL},
+        {0, "DOCS/inside.txt", "in the folder\n", 0, NULL},
+        {0, "Readme (2).txt", "already this name\n", 0, NULL},
+    };
+    snprintf(dest, sizeof dest, "%s/case", root);
+    memset(&s, 0, sizeof s);
+    s.conflict_answer = -1;
+    CHECK(extract_cb(cases, 6, dest, XIZ_EXTRACT_FOLD_CASE, &s, &r) == XIZ_OK);
+    CHECK(r.files == 6 && r.skipped == 0 && r.renamed == 3);
+    CHECK(has_written(&s, "Readme.txt"));
+    CHECK(has_written(&s, "Readme (2).txt"));
+    CHECK(has_written(&s, "README (3).TXT"));
+    CHECK(has_written(&s, "readme (4).txt"));
+    CHECK(has_written(&s, "docs (2)"));
+    CHECK(has_written(&s, "DOCS/inside.txt"));
+    snprintf(p, sizeof p, "%s/DOCS", dest);
+    CHECK(stat(p, &st) == 0 && S_ISDIR(st.st_mode));
+
+    /* xiz_test with progress and cancellation. */
+    knobs k = {0};
+    k.codec = -1;
+    wbuf b = forge(two, 2, &k);
+    xiz_archive *a;
+    xiz_error e;
+    CHECK(open_mem(&b, &a, &e) == XIZ_OK);
+    memset(&s, 0, sizeof s);
+    CHECK(xiz_test_progress(a, 0, NULL, cb_bytes, &s, NULL, &e) == XIZ_OK);
+    CHECK(s.last_total == 36 && s.last_done == 36);  /* frames (18) + files (18) */
+    memset(&s, 0, sizeof s);
+    s.cancel_after = 1;
+    CHECK(xiz_test_progress(a, 0, NULL, cb_bytes, &s, NULL, &e) == XIZ_E_CALLBACK);
+    xiz_close(a);
+    wb_free(&b);
+}
+
 /* ------------------------------------------------------------------ fixtures */
 
 static uint8_t *slurp(const char *path, size_t *n) {
@@ -822,6 +983,7 @@ int main(int argc, char **argv) {
     test_jpeg(argv[1]);
     test_preflate(argv[1]);
     test_extraction(argv[2]);
+    test_callbacks(argv[2]);
     test_fixture_flips(argv[1]);
     test_erased_slot(argv[1]);
     if (failures) { fprintf(stderr, "security: %d of %d checks failed\n", failures, checks); return 1; }

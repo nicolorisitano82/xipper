@@ -259,20 +259,48 @@ int xiz_read_entry_alloc(xiz_archive *a, size_t index, uint64_t max, uint8_t **d
 
 /* ------------------------------------------------------------------ test */
 
+typedef struct {
+    xiz_progress_fn progress;
+    void *ctx;
+    uint64_t done, total;
+} test_progress;
+
+static int count_write(void *ctx, const void *d, size_t n) {
+    (void)d;
+    test_progress *t = ctx;
+    t->done += n;
+    return t->progress(t->ctx, t->done, t->total) != 0;
+}
+
 int xiz_test(xiz_archive *a, int frames_only, xiz_problem_fn problem, void *ctx, xiz_test_report *rep,
              xiz_error *err) {
+    return xiz_test_progress(a, frames_only, problem, NULL, ctx, rep, err);
+}
+
+int xiz_test_progress(xiz_archive *a, int frames_only, xiz_problem_fn problem, xiz_progress_fn progress, void *ctx,
+                      xiz_test_report *rep, xiz_error *err) {
     if (!a) return FAIL(XIZ_E_ARG, "no archive");
     xiz_test_report r = {0};
+    test_progress tp = {progress, ctx, 0, 0};
+    if (progress) {
+        for (uint32_t i = 0; i < a->cat.n_frames; i++)
+            if (frame_can_open(a, i)) tp.total += a->cat.frames[i].usize;
+        if (!frames_only)
+            for (size_t i = 0; i < a->cat.n_entries; i++)
+                if (a->cat.entries[i].type == XIZ_TYPE_FILE) tp.total += a->cat.entries[i].size;
+    }
     uint8_t *bad = calloc(a->cat.n_frames + 1, 1);
     if (!bad) return FAIL(XIZ_E_NOMEM, "out of memory");
     xiz_error e;
     for (uint32_t i = 0; i < a->cat.n_frames; i++) {
         if (!frame_can_open(a, i)) { r.frames_skipped++; continue; }
+        if (progress && progress(ctx, tp.done, tp.total)) { free(bad); return FAIL(XIZ_E_CALLBACK, "cancelled"); }
         const uint8_t *d;
         size_t n;
         int rc = frame_get(a, i, &d, &n, &e);
         if (rc == XIZ_E_NOMEM) { free(bad); return FAIL(rc, "%s", e.message); }
         r.frames_checked++;
+        tp.done += a->cat.frames[i].usize;
         if (rc) {
             r.frames_failed++;
             bad[i] = 1;
@@ -290,17 +318,22 @@ int xiz_test(xiz_archive *a, int frames_only, xiz_problem_fn problem, void *ctx,
         r.files_checked++;
         if (damaged) {
             r.files_failed++;
+            tp.done += frames_only ? 0 : en->size;
             if (problem) problem(ctx, -1, (long)i, XIZ_E_CORRUPT, "content in a damaged frame");
             continue;
         }
         if (frames_only) continue;
-        int rc = stream_entry(a, i, NULL, NULL, NULL, &e);
+        uint64_t before = tp.done;
+        int rc = progress ? stream_entry(a, i, count_write, &tp, NULL, &e) : stream_entry(a, i, NULL, NULL, NULL, &e);
         if (rc == XIZ_E_NOMEM) { free(bad); return FAIL(rc, "%s", e.message); }
+        if (rc == XIZ_E_CALLBACK) { free(bad); return FAIL(XIZ_E_CALLBACK, "cancelled"); }
+        tp.done = before + en->size;
         if (rc) {
             r.files_failed++;
             if (problem) problem(ctx, -1, (long)i, rc, e.message);
         }
     }
+    if (progress) progress(ctx, tp.total, tp.total);
     free(bad);
     if (rep) *rep = r;
     if (r.frames_failed || r.files_failed)

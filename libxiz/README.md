@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ 1.9** di Xipper (fino alla 1.8 in lettura), scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ** di Xipper (lettura fino alla 1.14, scrittura 1.0), scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -32,7 +32,10 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
 | 1.7: destinatari e custodi post-quantum X-Wing (§17) | lettura completa: ML-KEM-768 di mlkem-native + X25519, `--identity` con `XIZ-SECRET-KEY-PQ-1-…` |
 | 1.8: frame LZRAVEN e LZMESH (§18) | lettura su macOS 27 (framework Compression), rifiutati altrove |
-| 1.9: documenti con i flussi Deflate ricompressi (§19) | non ancora: rifiutati con un errore chiaro (bit 0x0100) |
+| 1.9: documenti con i flussi Deflate ricompressi (§19) | lettura completa (preflate in C++, opzione `XIZ_PREFLATE`) |
+| 1.11: tabelle delimitate e pesi di modelli in frame OpenZL (§21) | lettura completa (opzione `XIZ_OPENZL`) |
+| 1.12: firme ibride Ed25519 + ML-DSA-65 (§22) | verifica completa |
+| 1.13: firme Secure Enclave, P-256 + ML-DSA-65 (§23) | verifica completa (algoritmo 5) |
 | 1.14: commitment delle chiavi (stanza 9), password con secondo fattore (stanza 8) (§24) | lettura completa: ogni chiave aperta è confrontata col commitment, un archivio ≥ 1.14 senza commitment è rifiutato; `--factor` con `XIZ-FACTOR-1-…`. Password NFC: vedi Limiti noti |
 | 1.10: profilo forense (§20): directory v3, blocchi forensi, segmenti di custodia, immagini | lettura e verifica (`xiz forensic`): hash firmati di ogni frame, Merkle, custodia, immagine contro lo SHA-256 della sorgente, acquisizioni logiche contro l'inventario firmato; MD5 e SHA-1 non verificati |
 
@@ -60,8 +63,10 @@ Opzioni: `-DCMAKE_BUILD_TYPE=Debug` attiva AddressSanitizer e UBSan (`XIZ_SANITI
 `-DXIZ_WERROR=ON` rende errori i warning (`-Wall -Wextra -Wpedantic -Wshadow -Wformat=2 …`);
 `-DXIZ_FUZZ=ON` costruisce i fuzzer (serve un clang con libFuzzer: su macOS quello di Homebrew,
 `-DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang`); `XIZ_VENDOR_DIR` indica un'altra copia di
-`Vendor/`; `-DXIZ_JPEG=OFF` toglie brunsli e il C++: gli archivi con la feature `jpeg` vengono
-rifiutati con un errore chiaro e `xiz_has_jpeg()` restituisce 0.
+`Vendor/`; `-DXIZ_JPEG=OFF` toglie brunsli: gli archivi con la feature `jpeg` vengono
+rifiutati con un errore chiaro e `xiz_has_jpeg()` restituisce 0. Allo stesso modo
+`-DXIZ_PREFLATE=OFF` (feature `deflate`) e `-DXIZ_OPENZL=OFF` (feature `tables`); senza brunsli e
+preflate la libreria è solo C.
 
 Piattaforme provate:
 
@@ -85,7 +90,8 @@ xiz list    [-l] <archive>
 xiz info    <archive>
 xiz test    [--frames] <archive>
 xiz extract [-d DIR] [--overwrite] [--allow-external-symlinks] [--no-symlinks]
-            [--no-permissions] [--no-times] [--continue] <archive> [entry...]
+            [--no-permissions] [--no-times] [--continue] [--keep-both] [--fold-case]
+            <archive> [entry...]
 xiz cat     <archive> <entry>
 xiz history <archive>                    firme dei segmenti (non servono chiavi)
 xiz verify-proof <proof.json> <file>
@@ -140,8 +146,14 @@ Funzioni principali:
 - apertura: `xiz_open`, `xiz_open_file`, `xiz_close`, `xiz_get_info`;
 - voci: `xiz_entry_count`, `xiz_get_entry`, `xiz_get_xattr`, `xiz_find`, `xiz_read_entry`
   (streaming, digest verificato alla fine), `xiz_read_entry_alloc`;
-- verifica: `xiz_test` (callback per ogni problema, rapporto finale);
-- estrazione: `xiz_extract` con `xiz_extract_options` (flag, selezione, limite di byte, callback);
+- verifica: `xiz_test` (callback per ogni problema, rapporto finale), `xiz_test_progress` (anche
+  avanzamento in byte e annullamento);
+- estrazione: `xiz_extract` con `xiz_extract_options`: flag, selezione, limite di byte e callback
+  `skipped`, `progress` (per voce), `bytes` (avanzamento in byte su tutta la selezione; un valore
+  diverso da 0 annulla, il file a metà viene tolto e la funzione restituisce `XIZ_E_CALLBACK`),
+  `written` (il nome reale su disco, dopo `xiz_windows_name` o una rinomina: serve per esempio a
+  copiare il Mark of the Web), `conflict` (destinazione esistente: `XIZ_CONFLICT_SKIP`,
+  `_OVERWRITE`, `_RENAME` → «nome (2).ext», `_CANCEL`);
 - 1.3: `xiz_group_count`/`xiz_get_group`/`xiz_group_prefix`, `xiz_stanza_count`/`xiz_get_stanza`,
   `xiz_signature_count`/`xiz_get_signature`, `xiz_check_tree`, `xiz_check_inclusion`,
   `xiz_verify_proof`; `XIZ_OPEN_NO_KEYS` apre un archivio 1.3 cifrato senza credenziali, per
@@ -173,6 +185,11 @@ volta per thread.
   dispositivo (`CON`, `COM1`…) sono resi validi (`xiz_windows_name`). I controlli Windows non sono
   atomici come `openat` (TOCTOU possibile se un altro processo modifica la destinazione durante
   l'estrazione).
+- Nomi uguali a meno di maiuscole (o resi uguali da `xiz_windows_name`): su Windows, su una
+  destinazione macOS che non distingue le maiuscole e con `XIZ_EXTRACT_FOLD_CASE` (`--fold-case`)
+  una cartella vince su un file con lo stesso nome, poi vince la prima voce del catalogo; le altre
+  diventano «nome (2).ext» con un numero che nessun'altra voce usa, contate in `renamed`. Su Windows
+  il confronto è Unicode (`LCMapStringEx`), altrove solo ASCII.
 
 Limiti del decodificatore: frame ≤ 64 MiB, catalogo ≤ 1 GiB (configurabile più basso con
 `max_catalog`, e comunque allocato man mano che si decomprime), keys block ≤ 64 KiB, parametri
