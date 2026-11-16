@@ -14,6 +14,22 @@ fail() { printf 'FAIL %s\n' "$1"; fails=$((fails + 1)); }
 export PW='correct horse battery staple' WRONG='not the password'
 export XIZ_PW_A='alpha secret' XIZ_PW_B='beta secret' XIZ_PW_C1='custodian one' XIZ_PW_C2='custodian two' XIZ_PW_C3='custodian three'
 
+# XIZ_WINDOWS=1 (xiz.exe, scripts/windows-wine.sh): Windows keeps no mode bits but read-only and
+# makes no symbolic links without privilege (Wine never does), so the trees are compared on paths,
+# types, mtimes, contents and the read-only flag; symbolic links are left out.
+normalize() {
+    if [ -n "${XIZ_WINDOWS:-}" ]; then
+        awk -F '\t' 'BEGIN { OFS = "\t" }
+            { split($2, a, " ") }
+            a[1] == "l" { next }
+            a[1] == "d" { sub(/^d [0-7]+/, "d 0755", $2) }
+            a[1] == "f" { w = substr(a[2], 2, 1); sub(/^f [0-7]+/, (w == "2" || w == "3" || w == "6" || w == "7") ? "f 0644" : "f 0444", $2) }
+            { print }' "$1"
+    else
+        cat "$1"
+    fi
+}
+
 # extract_cmp NAME ARCHIVE MANIFEST [manifest options] -- [xiz options]
 extract_cmp() {
     name=$1 archive=$2 manifest=$3; shift 3
@@ -28,7 +44,8 @@ extract_cmp() {
     fi
     "$M" $mopt "$d" > "$W/$name.m"
     if [ -n "$skiproot" ]; then grep -v "^tree	" "$W/$name.m" > "$W/$name.m2"; mv "$W/$name.m2" "$W/$name.m"; fi
-    if diff "$W/$name.m" "$F/$manifest" > "$W/$name.diff"; then pass "$name"; else fail "$name: tree differs"; head -5 "$W/$name.diff"; fi
+    normalize "$W/$name.m" > "$W/$name.mn"; normalize "$F/$manifest" > "$W/$name.fn"
+    if diff "$W/$name.mn" "$W/$name.fn" > "$W/$name.diff"; then pass "$name"; else fail "$name: tree differs"; head -5 "$W/$name.diff"; fi
 }
 
 expect_code() {  # NAME CODE command...

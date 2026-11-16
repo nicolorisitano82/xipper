@@ -34,7 +34,9 @@ static void file_close(void *ctx) { CloseHandle((HANDLE)ctx); }
 int xiz_source_file(xiz_source *out, const char *path, xiz_error *err) {
     wchar_t *w = xiz_utf8_to_wide(path);
     if (!w) return FAIL(XIZ_E_ARG, "invalid path");
-    HANDLE h = CreateFileW(w, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
+    /* FILE_SHARE_WRITE: an append or a repair opens the same file for writing while it is open
+     * here; without it Windows refuses that second handle (sharing violation). */
+    HANDLE h = CreateFileW(w, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL, NULL);
     free(w);
     if (h == INVALID_HANDLE_VALUE) return FAIL(XIZ_E_IO, "cannot open %s (error %lu)", path, GetLastError());

@@ -494,8 +494,19 @@ int xiz_writer_remove(xiz_writer *w, const char *path, xiz_error *err) {
     return found ? XIZ_OK : FAIL(XIZ_E_NOT_FOUND, "no entry %s", path);
 }
 
-#if !defined(_WIN32)
 static int cmp_names(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+#if defined(_WIN32)
+/* Windows has no mode bits: folders 0755, files 0644, read-only files 0444; mtime from the
+ * last-write FILETIME (100 ns ticks since 1601). */
+static void win_meta(DWORD attrs, const FILETIME *ft, xiz_entry_meta *m) {
+    memset(m, 0, sizeof *m);
+    m->mode = (attrs & FILE_ATTRIBUTE_DIRECTORY) ? 0755 : (attrs & FILE_ATTRIBUTE_READONLY) ? 0444 : 0644;
+    uint64_t t = (uint64_t)ft->dwHighDateTime << 32 | ft->dwLowDateTime;
+    m->mtime_sec = (int64_t)(t / 10000000u) - 11644473600LL;
+    m->mtime_nsec = (uint32_t)(t % 10000000u) * 100u;
+}
+#else
 
 static void meta_of(const struct stat *st, xiz_entry_meta *m) {
     memset(m, 0, sizeof *m);
@@ -515,10 +526,13 @@ int xiz_writer_add_tree(xiz_writer *w, const char *path, const char *disk_path, 
     TRY(check_writer(w, err));
 #if defined(_WIN32)
     wchar_t *wp = xiz_utf8_to_wide(disk_path);
-    DWORD at = wp ? GetFileAttributesW(wp) : INVALID_FILE_ATTRIBUTES;
-    if (at == INVALID_FILE_ATTRIBUTES) { free(wp); return FAIL(XIZ_E_IO, "cannot stat %s", disk_path); }
-    if (!(at & FILE_ATTRIBUTE_DIRECTORY)) { free(wp); return xiz_writer_add_file(w, path, disk_path, NULL, err); }
-    TRY(xiz_writer_add_directory(w, path, NULL, err));
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (!wp || !GetFileAttributesExW(wp, GetFileExInfoStandard, &fa)) { free(wp); return FAIL(XIZ_E_IO, "cannot stat %s", disk_path); }
+    xiz_entry_meta m;
+    win_meta(fa.dwFileAttributes, &fa.ftLastWriteTime, &m);
+    if (!(fa.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) { free(wp); return xiz_writer_add_file(w, path, disk_path, &m, err); }
+    int rc = xiz_writer_add_directory(w, path, &m, err);
+    if (rc) { free(wp); return rc; }
     size_t wl = wcslen(wp);
     wchar_t *pat = malloc((wl + 3) * sizeof(wchar_t));
     if (!pat) { free(wp); return FAIL(XIZ_E_NOMEM, "out of memory"); }
@@ -528,23 +542,38 @@ int xiz_writer_add_tree(xiz_writer *w, const char *path, const char *disk_path, 
     HANDLE h = FindFirstFileW(pat, &fd);
     free(pat);
     free(wp);
-    int rc = XIZ_OK;
     if (h == INVALID_HANDLE_VALUE) return XIZ_OK;
+    char **names = NULL;
+    size_t n = 0, cap = 0;
     do {
         if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;  /* links are not followed */
         char name[1024];
         if (!WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, name, sizeof name, NULL, NULL)) continue;
-        size_t n1 = strlen(path) + strlen(name) + 2, n2 = strlen(disk_path) + strlen(name) + 2;
+        if (n == cap) {
+            cap = cap ? cap * 2 : 32;
+            char **nn = realloc(names, cap * sizeof *names);
+            if (!nn) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
+            names = nn;
+        }
+        names[n] = malloc(strlen(name) + 1);
+        if (!names[n]) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
+        strcpy(names[n++], name);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    if (n) qsort(names, n, sizeof *names, cmp_names);  /* reproducible order, as on POSIX */
+    for (size_t i = 0; i < n && !rc; i++) {
+        size_t n1 = strlen(path) + strlen(names[i]) + 2, n2 = strlen(disk_path) + strlen(names[i]) + 2;
         char *ap = malloc(n1), *dp = malloc(n2);
         if (!ap || !dp) { free(ap); free(dp); rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
-        snprintf(ap, n1, "%s/%s", path, name);
-        snprintf(dp, n2, "%s\\%s", disk_path, name);
+        snprintf(ap, n1, "%s/%s", path, names[i]);
+        snprintf(dp, n2, "%s\\%s", disk_path, names[i]);
         rc = xiz_writer_add_tree(w, ap, dp, err);
         free(ap);
         free(dp);
-    } while (!rc && FindNextFileW(h, &fd));
-    FindClose(h);
+    }
+    for (size_t i = 0; i < n; i++) free(names[i]);
+    free(names);
     return rc;
 #else
     struct stat st;

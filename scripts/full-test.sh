@@ -25,6 +25,8 @@
 #   forensic     scripts/forensic-validation.sh: V01–V13 (disks, E01, custody…)
 #   portable     xiz cross-built for Linux and Windows with zig
 #   linux        the Linux xiz run in a container (needs a running Docker daemon)
+#   windows      scripts/windows-wine.sh: the Windows xiz under Wine in a Debian container, the
+#                whole fixture suite plus Windows-only cases (needs a running Docker daemon)
 #   powercut     scripts/vm/powercut.sh: the little-space conversion in a macOS VM switched off
 #                at random (needs the VM of scripts/vm, set up once; skipped by --quick)
 set -uo pipefail
@@ -119,7 +121,7 @@ cross_read() {
 }
 
 interop() { bash scripts/interop.sh; }
-lowspace() { [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }; bash scripts/lowspace-crash.sh 30; }
+lowspace() { [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }; bash scripts/lowspace-crash.sh 30 && FORMAT=tar bash scripts/lowspace-crash.sh 15; }
 forensic() { [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }; bash scripts/forensic-validation.sh; }
 
 portable() {
@@ -146,6 +148,11 @@ linux() {
         echo "linux ok: X-Wing recipients, hybrid signatures, tampering, OpenZL tables, documents, forensic"'
 }
 
+windows() {
+    [ -f "$ROOT/.build/xiz-portable/windows-x86_64/xiz.exe" ] || { skip "no Windows build (portable step skipped)"; return 77; }
+    bash scripts/windows-wine.sh
+}
+
 powercut() {
     [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }
     [ -f "$HOME/XipperVM/macos/Disk.img" ] || { skip "no test VM (scripts/vm/xipper-vm install)"; return 77; }
@@ -162,10 +169,11 @@ step fuzz       "Readers under mutation (release)" fuzz
 step libxiz     "libxiz with AddressSanitizer and UBSan (ctest)" libxiz
 step cross-read "libxiz reads back the matrix and the dialects" cross_read
 step interop    "Xipper's archives read by the other tools" interop
-step lowspace   "Little-space conversion killed at random (30 rounds)" lowspace
+step lowspace   "Little-space conversion killed at random (30 ZIP + 15 tar rounds)" lowspace
 step forensic   "Forensic validation V01–V13" forensic
 step portable   "xiz cross-built for Linux and Windows" portable
 step linux      "Linux xiz in a container" linux
+step windows    "Windows xiz under Wine in a container" windows
 step powercut   "Little-space conversion in a VM switched off at random (20 rounds)" powercut
 
 {

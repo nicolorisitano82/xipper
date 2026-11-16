@@ -8,8 +8,65 @@
 #include <time.h>
 
 #if defined(_WIN32)
+#  define WIN32_LEAN_AND_MEAN
 #  include <fcntl.h>
 #  include <io.h>
+#  include <windows.h>
+#  include <shellapi.h>
+
+/* Windows hands main() its arguments and getenv() its values in the ANSI code page: names like
+ * "città.xiz" arrive mangled and a password typed as "pässwörd" would not be the UTF-8 bytes
+ * Xipper uses. xiz works in UTF-8 throughout: arguments come from the wide command line,
+ * environment values from _wgetenv, files open through _wfopen, the console prints UTF-8. */
+static char *utf8_of(const wchar_t *w) {
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *s = n > 0 ? malloc((size_t)n) : NULL;
+    if (s && WideCharToMultiByte(CP_UTF8, 0, w, -1, s, n, NULL, NULL) <= 0) { free(s); s = NULL; }
+    return s;
+}
+
+static wchar_t *wide_of(const char *s) {
+    int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1, NULL, 0);
+    wchar_t *w = n > 0 ? malloc((size_t)n * sizeof(wchar_t)) : NULL;
+    if (w && MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1, w, n) <= 0) { free(w); w = NULL; }
+    return w;
+}
+
+static FILE *open_file(const char *path, const char *mode) {
+    wchar_t *wp = wide_of(path), *wm = wide_of(mode);
+    FILE *f = wp && wm ? _wfopen(wp, wm) : NULL;
+    free(wp);
+    free(wm);
+    return f;
+}
+
+static const char *env_utf8(const char *name) {
+    wchar_t *wn = wide_of(name);
+    const wchar_t *v = wn ? _wgetenv(wn) : NULL;
+    free(wn);
+    return v ? utf8_of(v) : NULL;  /* kept for the life of the process, like getenv's */
+}
+
+static UINT saved_cp;
+static void restore_console(void) { SetConsoleOutputCP(saved_cp); }
+
+static void utf8_args(int *argc, char ***argv) {
+    int n;
+    wchar_t **wv = CommandLineToArgvW(GetCommandLineW(), &n);
+    if (!wv) return;
+    char **v = calloc((size_t)n + 1, sizeof *v);
+    for (int i = 0; v && i < n; i++)
+        if (!(v[i] = utf8_of(wv[i]))) { free(v); v = NULL; }
+    LocalFree(wv);
+    if (!v) return;  /* keep the ANSI ones */
+    *argc = n;
+    *argv = v;
+    saved_cp = GetConsoleOutputCP();  /* 0 when there is no console (output redirected) */
+    if (saved_cp && saved_cp != CP_UTF8 && SetConsoleOutputCP(CP_UTF8)) atexit(restore_console);
+}
+#else
+#  define open_file fopen
+#  define env_utf8 getenv
 #endif
 
 static const char *usage =
@@ -113,7 +170,7 @@ static int age_identity(const char *s, int *pq, uint8_t out[32]) {
 /* A key file holds one secret: X25519 (XIZ-SECRET-KEY-1-) or X-Wing (XIZ-SECRET-KEY-PQ-1-), 32 bytes in
  * base64url, or an age identity (AGE-SECRET-KEY-1…, AGE-SECRET-KEY-PQ-1…). */
 static void load_identity(const char *path) {
-    FILE *f = fopen(path, "r");
+    FILE *f = open_file(path, "r");
     if (!f) die("cannot read identity file");
     char line[512];
     static const char *prefixes[2] = {"XIZ-SECRET-KEY-PQ-1-", "XIZ-SECRET-KEY-1-"};
@@ -174,7 +231,7 @@ static int take_credentials(int argc, char **argv) {
     int o = 1;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--password-env") && i + 1 < argc) {
-            const char *v = getenv(argv[++i]);
+            const char *v = env_utf8(argv[++i]);
             if (!v) die("password environment variable not set");
             if (n_passwords < MAX_PW) passwords[n_passwords++] = v;
         } else if (!strcmp(argv[i], "--password-stdin")) {
@@ -518,7 +575,7 @@ static int cmd_forensic(int argc, char **argv) {
 }
 
 static uint8_t *slurp(const char *path, size_t *len) {
-    FILE *f = fopen(path, "rb");
+    FILE *f = open_file(path, "rb");
     if (!f) return NULL;
     size_t cap = 1 << 16, n = 0;
     uint8_t *b = malloc(cap);
@@ -612,12 +669,20 @@ static int cmd_append(int argc, char **argv) {
         if (!strcmp(argv[i], "--add") && i + 1 < argc) {
             char *spec = argv[++i], *colon = strrchr(spec, ':');
             char disk[4096], inner[4096];
+#if defined(_WIN32)
+            /* C:\dir\file: the drive's colon is not the FILE:PATH separator. */
+            if (colon == spec + 1 && ((spec[0] | 0x20) >= 'a' && (spec[0] | 0x20) <= 'z')) colon = NULL;
+#endif
             if (colon && colon != spec && colon[1]) {
                 snprintf(disk, sizeof disk, "%.*s", (int)(colon - spec), spec);
                 snprintf(inner, sizeof inner, "%s", colon + 1);
             } else {
                 snprintf(disk, sizeof disk, "%s", spec);
                 const char *b = strrchr(spec, '/');
+#if defined(_WIN32)
+                const char *bs = strrchr(spec, '\\');
+                if (bs && (!b || bs > b)) b = bs;
+#endif
                 snprintf(inner, sizeof inner, "%s", b ? b + 1 : spec);
             }
             xiz_writer_remove(w, inner, NULL);
@@ -686,6 +751,9 @@ static int cmd_recovery(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+#if defined(_WIN32)
+    utf8_args(&argc, &argv);
+#endif
     argc = take_credentials(argc, argv);
     if (argc < 2 || !strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) { fputs(usage, argc < 2 ? stderr : stdout); return argc < 2 ? 2 : 0; }
     if (!strcmp(argv[1], "--version")) { printf("xiz %s (XIZ 1.%d)\n", xiz_version(), XIZ_FORMAT_MINOR); return 0; }

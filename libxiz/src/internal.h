@@ -42,7 +42,7 @@ extern const uint8_t XIZ_SUPER_MAGIC[8];
 /* ------------------------------------------------------------------ errors */
 
 int xiz_fail(xiz_error *err, int code, const char *fmt, ...)
-#if defined(__MINGW32__)
+#if defined(__MINGW32__) && !defined(__clang__)
     __attribute__((format(gnu_printf, 3, 4)))  /* with __USE_MINGW_ANSI_STDIO */
 #elif defined(__GNUC__)
     __attribute__((format(printf, 3, 4)))

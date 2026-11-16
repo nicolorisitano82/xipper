@@ -201,6 +201,7 @@ add_executable(xiz_cli tools/xiz.c)
 set_target_properties(xiz_cli PROPERTIES OUTPUT_NAME xiz)
 if(WIN32)
   target_compile_definitions(xiz_cli PRIVATE __USE_MINGW_ANSI_STDIO=1 _CRT_SECURE_NO_WARNINGS)
+  target_link_libraries(xiz_cli PRIVATE shell32)  # CommandLineToArgvW: UTF-8 arguments
 endif()
 target_link_libraries(xiz_cli PRIVATE xiz)
 target_compile_options(xiz_cli PRIVATE ${XIZ_WARNINGS} ${XIZ_SAN_FLAGS})

@@ -69,9 +69,13 @@ Piattaforme provate:
   build con `-Werror`, `ctest` verde.
 - **Linux x86_64** (stesso container, emulato): gcc 14 Release e Debug con ASan/UBSan, `ctest`
   verde (copre anche il CRC-32C a tabelle, senza istruzioni ARM).
-- **Windows**: cross-compilazione con MinGW-w64 senza warning (`-Werror`). **Non eseguita**: il
-  codice Windows (API wide, `CreateFileW`, link simbolici, nomi riservati) è compilato ma non
-  provato su una macchina Windows.
+- **Windows**: cross-compilazione con MinGW-w64 e zig senza warning (`-Werror`). Dalla 3.4
+  `xiz.exe` (x86_64) **gira sotto Wine 10** in un container Debian (`scripts/windows-wine.sh`):
+  tutte le fixture di `run_fixtures.sh` (`XIZ_WINDOWS=1`: alberi confrontati su percorso, tipo,
+  mtime, SHA-256 e sola lettura) più 11 controlli propri di Windows (nomi e password non ASCII,
+  percorsi con lettera di unità, file di chiavi con CRLF, archivi scritti da `xiz.exe` riletti
+  dal `xiz` di Linux), 114 su 114. Wine non è Windows: niente NTFS, ACL, link simbolici (Wine
+  finge di crearli), console vera; aarch64 compila ma sotto Wine arm64 non parte.
 
 ## CLI `xiz`
 
@@ -250,6 +254,7 @@ Le fixture (`tests/fixtures`, ~550 KB, contenuto sintetico) si rigenerano con
 - Il writer non produce strutture 1.3 né dizionari o LZMA2; l'append su archivi 1.3 è rifiutato.
 - Il writer deduplica per file intero (SHA-256), non per chunk a contenuto variabile.
 - La decompressione è a thread singolo (un archivio per thread); niente prefetch parallelo dei frame.
-- Su Windows: non provato su una macchina reale; link simbolici solo con privilegio o Developer
+- Su Windows: provato sotto Wine, non su una macchina reale; `--password-stdin` legge ancora nella
+  code page ANSI; link simbolici solo con privilegio o Developer
   Mode; i permessi POSIX diventano al più l'attributo sola lettura.
 - Gli xattr sono letti ed esposti (`xiz_get_xattr`) ma non applicati in estrazione.
