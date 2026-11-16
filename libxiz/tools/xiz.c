@@ -117,139 +117,39 @@ static void die(const char *msg) {
     exit(2);
 }
 
-static int b64v(int c) {
-    if (c >= 'A' && c <= 'Z') return c - 'A';
-    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
-    if (c >= '0' && c <= '9') return c - '0' + 52;
-    if (c == '-' || c == '+') return 62;
-    if (c == '_' || c == '/') return 63;
-    return -1;
+/* A key file: an X25519 or X-Wing identity (Xipper's or age's) or a second factor (XIZ 1.14). */
+static int load_secret(const char *path, uint8_t out[32]) {
+    FILE *f = open_file(path, "rb");
+    if (!f) die("cannot read key file");
+    char buf[4096];
+    size_t n = fread(buf, 1, sizeof buf, f);
+    fclose(f);
+    int kind = xiz_parse_secret(buf, n, out);
+    for (volatile char *w = buf; w < buf + sizeof buf; w++) *w = 0;
+    return kind;
 }
 
-/* age's identities (the same keys): Bech32 as in BIP 173 without the length limit, upper or lower
- * case, HRP "age-secret-key-pq-" (X-Wing seed) or "age-secret-key-" (X25519), 32 bytes. */
-static int age_identity(const char *s, int *pq, uint8_t out[32]) {
-    static const char cs[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-    static const uint32_t gen[5] = {0x3b6a57b2u, 0x26508e6du, 0x1ea119fau, 0x3d4233ddu, 0x2a1462b3u};
-    char low[128];
-    size_t n = 0;
-    int up = 0, lo = 0;
-    for (; s[n] && s[n] != '\n' && s[n] != '\r' && s[n] != ' ' && s[n] != '\t'; n++) {
-        if (n + 1 >= sizeof low) return 0;
-        char c = s[n];
-        if (c >= 'A' && c <= 'Z') { up = 1; c = (char)(c - 'A' + 'a'); }
-        else if (c >= 'a' && c <= 'z') lo = 1;
-        low[n] = c;
-    }
-    low[n] = 0;
-    if (up && lo) return 0;
-    char *sep = strrchr(low, '1');
-    if (!sep || sep == low || (size_t)(low + n - sep - 1) < 6) return 0;
-    size_t hl = (size_t)(sep - low);
-    if (hl == 18 && !memcmp(low, "age-secret-key-pq-", 18)) *pq = 1;
-    else if (hl == 15 && !memcmp(low, "age-secret-key-", 15)) *pq = 0;
-    else return 0;
-    uint32_t chk = 1;
-#define POLY(x) do { uint32_t t_ = chk >> 25; chk = (chk & 0x1ffffffu) << 5 ^ (uint32_t)(x); \
-                     for (int i_ = 0; i_ < 5; i_++) if ((t_ >> i_) & 1) chk ^= gen[i_]; } while (0)
-    for (size_t i = 0; i < hl; i++) POLY((unsigned char)low[i] >> 5);
-    POLY(0);
-    for (size_t i = 0; i < hl; i++) POLY((unsigned char)low[i] & 31);
-    size_t nd = (size_t)(low + n - sep - 1), k = 0;
-    uint32_t acc = 0;
-    int bits = 0;
-    for (size_t i = 0; i < nd; i++) {
-        const char *q = strchr(cs, sep[1 + i]);
-        if (!q || !sep[1 + i]) return 0;
-        uint32_t v = (uint32_t)(q - cs);
-        POLY(v);
-        if (i + 6 >= nd) continue;  /* the checksum */
-        acc = acc << 5 | v;
-        bits += 5;
-        if (bits >= 8) { bits -= 8; if (k == 32) return 0; out[k++] = (uint8_t)(acc >> bits); }
-    }
-#undef POLY
-    return chk == 1 && k == 32 && bits < 5 && (acc & ((1u << bits) - 1)) == 0;
-}
-
-/* A key file holds one secret: X25519 (XIZ-SECRET-KEY-1-) or X-Wing (XIZ-SECRET-KEY-PQ-1-), 32 bytes in
- * base64url, or an age identity (AGE-SECRET-KEY-1…, AGE-SECRET-KEY-PQ-1…). */
 static void load_identity(const char *path) {
-    FILE *f = open_file(path, "r");
-    if (!f) die("cannot read identity file");
-    char line[512];
-    static const char *prefixes[2] = {"XIZ-SECRET-KEY-PQ-1-", "XIZ-SECRET-KEY-1-"};
-    while (fgets(line, sizeof line, f)) {
-        char *g = strstr(line, "AGE-SECRET-KEY-");
-        if (!g) g = strstr(line, "age-secret-key-");
-        if (g) {
-            uint8_t out[32];
-            int pq = 0;
-            if (!age_identity(g, &pq, out)) die("invalid age identity in the identity file");
-            size_t *count = pq ? &n_pq_identities : &n_identities;
-            if (*count == MAX_ID) die("too many identities");
-            memcpy(pq ? pq_identities[(*count)++] : identities[(*count)++], out, 32);
-            for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
-            fclose(f);
-            return;
-        }
-        for (int k = 0; k < 2; k++) {
-            char *p = strstr(line, prefixes[k]);
-            if (!p) continue;
-            p += strlen(prefixes[k]);
-            uint8_t out[48];
-            size_t n = 0;
-            uint32_t acc = 0;
-            int bits = 0;
-            for (; *p && b64v((unsigned char)*p) >= 0 && n < sizeof out; p++) {
-                acc = acc << 6 | (uint32_t)b64v((unsigned char)*p);
-                bits += 6;
-                if (bits >= 8) { bits -= 8; out[n++] = (uint8_t)(acc >> bits); }
-            }
-            size_t *count = k == 0 ? &n_pq_identities : &n_identities;
-            if (n != 32 || *count == MAX_ID) die("invalid identity file");
-            memcpy(k == 0 ? pq_identities[(*count)++] : identities[(*count)++], out, 32);
-            for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
-            fclose(f);
-            return;
-        }
-    }
-    fclose(f);
-    die("no XIZ-SECRET-KEY-1-, XIZ-SECRET-KEY-PQ-1- or AGE-SECRET-KEY- line in the identity file");
+    uint8_t out[32];
+    int kind = load_secret(path, out);
+    if (kind == XIZ_E_NOT_FOUND || kind == XIZ_SECRET_FACTOR)
+        die("no XIZ-SECRET-KEY-1-, XIZ-SECRET-KEY-PQ-1- or AGE-SECRET-KEY- line in the identity file");
+    if (kind < 0) die("invalid identity file");
+    size_t *count = kind == XIZ_SECRET_XWING ? &n_pq_identities : &n_identities;
+    if (*count == MAX_ID) die("too many identities");
+    memcpy(kind == XIZ_SECRET_XWING ? pq_identities[(*count)++] : identities[(*count)++], out, 32);
+    for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
 }
 
-/* A factor file (§24.3): one line `XIZ-FACTOR-1-` + base64url of 32 bytes, no padding; other lines
- * and surrounding blanks are ignored. */
+/* A factor file (§24.3): one line `XIZ-FACTOR-1-` + base64url of 32 bytes, no padding. */
 static void load_factor(const char *path) {
-    FILE *f = open_file(path, "r");
-    if (!f) die("cannot read factor file");
-    char line[512];
-    static const char prefix[] = "XIZ-FACTOR-1-";
-    while (fgets(line, sizeof line, f)) {
-        char *p = line;
-        while (*p == ' ' || *p == '\t') p++;
-        if (strncmp(p, prefix, sizeof prefix - 1) != 0) continue;
-        p += sizeof prefix - 1;
-        uint8_t out[33];
-        size_t n = 0;
-        uint32_t acc = 0;
-        int bits = 0, bad = 0;
-        for (; *p && b64v((unsigned char)*p) >= 0; p++) {
-            if (n == sizeof out) { bad = 1; break; }
-            acc = acc << 6 | (uint32_t)b64v((unsigned char)*p);
-            bits += 6;
-            if (bits >= 8) { bits -= 8; out[n++] = (uint8_t)(acc >> bits); }
-        }
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-        if (bad || *p || n != 32 || (acc & ((1u << bits) - 1)) != 0) die("invalid factor file (XIZ-FACTOR-1-…)");
-        if (n_factors == MAX_ID) die("too many factors");
-        memcpy(factors[n_factors++], out, 32);
-        for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
-        fclose(f);
-        return;
-    }
-    fclose(f);
-    die("no XIZ-FACTOR-1- line in the factor file");
+    uint8_t out[32];
+    int kind = load_secret(path, out);
+    if (kind == XIZ_E_NOT_FOUND || (kind > 0 && kind != XIZ_SECRET_FACTOR)) die("no XIZ-FACTOR-1- line in the factor file");
+    if (kind < 0) die("invalid factor file (XIZ-FACTOR-1-…)");
+    if (n_factors == MAX_ID) die("too many factors");
+    memcpy(factors[n_factors++], out, 32);
+    for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
 }
 
 static void read_stdin_passwords(void) {

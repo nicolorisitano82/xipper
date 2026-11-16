@@ -1,0 +1,19 @@
+#pragma once
+
+#define IDI_APP 1
+#define IDI_XIZ 2
+
+#define IDD_PASSWORD 100
+#define IDC_PW_LABEL 101
+#define IDC_PW_EDIT 102
+#define IDC_PW_SHOW 103
+#define IDC_FACTOR_LABEL 104
+#define IDC_FACTOR_EDIT 105
+#define IDC_FACTOR_BROWSE 106
+#define IDC_PW_ERROR 107
+
+#define IDD_EXTRACT 200
+#define IDC_DEST_LABEL 201
+#define IDC_DEST_EDIT 202
+#define IDC_DEST_BROWSE 203
+#define IDC_OPEN_AFTER 204

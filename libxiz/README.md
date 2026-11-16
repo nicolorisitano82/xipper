@@ -154,6 +154,8 @@ Funzioni principali:
   `written` (il nome reale su disco, dopo `xiz_windows_name` o una rinomina: serve per esempio a
   copiare il Mark of the Web), `conflict` (destinazione esistente: `XIZ_CONFLICT_SKIP`,
   `_OVERWRITE`, `_RENAME` → «nome (2).ext», `_CANCEL`);
+- file di chiave: `xiz_parse_secret` (identità X25519 e X-Wing di Xipper o di age, fattori
+  `XIZ-FACTOR-1-…`), lo stesso codice della CLI;
 - 1.3: `xiz_group_count`/`xiz_get_group`/`xiz_group_prefix`, `xiz_stanza_count`/`xiz_get_stanza`,
   `xiz_signature_count`/`xiz_get_signature`, `xiz_check_tree`, `xiz_check_inclusion`,
   `xiz_verify_proof`; `XIZ_OPEN_NO_KEYS` apre un archivio 1.3 cifrato senza credenziali, per

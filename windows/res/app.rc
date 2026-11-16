@@ -1,0 +1,62 @@
+#include <windows.h>
+#include "../src/resource.h"
+
+#pragma code_page(65001)
+
+IDI_APP ICON "app.ico"
+IDI_XIZ ICON "xiz.ico"
+1 RT_MANIFEST "app.manifest"
+
+/* Texts are set at run time (src/strings.cpp), in the user's language. */
+IDD_PASSWORD DIALOGEX 0, 0, 260, 122
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "", IDC_PW_LABEL, 7, 7, 246, 18
+    EDITTEXT        IDC_PW_EDIT, 7, 27, 246, 14, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "", IDC_PW_SHOW, 7, 44, 246, 10, WS_TABSTOP
+    LTEXT           "", IDC_FACTOR_LABEL, 7, 59, 246, 9
+    EDITTEXT        IDC_FACTOR_EDIT, 7, 70, 190, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON      "", IDC_FACTOR_BROWSE, 201, 70, 52, 14, WS_TABSTOP
+    LTEXT           "", IDC_PW_ERROR, 7, 88, 246, 10
+    DEFPUSHBUTTON   "OK", IDOK, 149, 102, 50, 14, WS_TABSTOP
+    PUSHBUTTON      "", IDCANCEL, 203, 102, 50, 14, WS_TABSTOP
+END
+
+IDD_EXTRACT DIALOGEX 0, 0, 300, 72
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "", IDC_DEST_LABEL, 7, 7, 286, 9
+    EDITTEXT        IDC_DEST_EDIT, 7, 18, 230, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON      "", IDC_DEST_BROWSE, 241, 18, 52, 14, WS_TABSTOP
+    AUTOCHECKBOX    "", IDC_OPEN_AFTER, 7, 37, 286, 10, WS_TABSTOP
+    DEFPUSHBUTTON   "", IDOK, 189, 52, 50, 14, WS_TABSTOP
+    PUSHBUTTON      "", IDCANCEL, 243, 52, 50, 14, WS_TABSTOP
+END
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     XIZW_VERSION_COMMAS
+PRODUCTVERSION  XIZW_VERSION_COMMAS
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Xipper"
+            VALUE "FileDescription", "Xipper XIZ: opens XIZ archives"
+            VALUE "FileVersion", XIZW_VERSION_STRING
+            VALUE "InternalName", "XipperXIZ"
+            VALUE "LegalCopyright", "MIT License"
+            VALUE "OriginalFilename", "XipperXIZ.exe"
+            VALUE "ProductName", "Xipper XIZ"
+            VALUE "ProductVersion", XIZW_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

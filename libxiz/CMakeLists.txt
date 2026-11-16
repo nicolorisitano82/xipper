@@ -160,7 +160,7 @@ endif()
 
 add_library(xiz STATIC
   src/util.c src/crypto.c src/format.c src/codec.c src/keys.c src/reader.c src/data.c
-  src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c src/forensic.c
+  src/io.c src/extract.c src/sign.c src/writer.c src/recovery.c src/forensic.c src/keyfile.c
   $<TARGET_OBJECTS:xiz_zstd> $<TARGET_OBJECTS:xiz_lzma> $<TARGET_OBJECTS:xiz_argon2> $<TARGET_OBJECTS:xiz_crypto>
   $<TARGET_OBJECTS:xiz_mldsa>
   $<TARGET_OBJECTS:xiz_mlkem>

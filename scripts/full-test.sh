@@ -27,6 +27,8 @@
 #   linux        the Linux xiz run in a container (needs a running Docker daemon)
 #   windows      scripts/windows-wine.sh: the Windows xiz under Wine in a Debian container, the
 #                whole fixture suite plus Windows-only cases (needs a running Docker daemon)
+#   windows-app  windows/test-wine.sh: Xipper XIZ for Windows (built for x86_64 and ARM64) under
+#                Wine: extraction, passwords, factor, NFC, conflicts, verification, association
 #   powercut     scripts/vm/powercut.sh: the little-space conversion in a macOS VM switched off
 #                at random (needs the VM of scripts/vm, set up once; skipped by --quick)
 set -uo pipefail
@@ -153,6 +155,12 @@ windows() {
     bash scripts/windows-wine.sh
 }
 
+windows_app() {
+    command -v zig > /dev/null || { skip "zig not installed"; return 77; }
+    windows/build.sh x86_64 aarch64 > /dev/null || return 1
+    windows/test-wine.sh --no-build --no-shots
+}
+
 powercut() {
     [ $QUICK = 1 ] && { skip "skipped by --quick"; return 77; }
     [ -f "$HOME/XipperVM/macos/Disk.img" ] || { skip "no test VM (scripts/vm/xipper-vm install)"; return 77; }
@@ -174,6 +182,7 @@ step forensic   "Forensic validation V01–V13" forensic
 step portable   "xiz cross-built for Linux and Windows" portable
 step linux      "Linux xiz in a container" linux
 step windows    "Windows xiz under Wine in a container" windows
+step windows-app "Xipper XIZ for Windows under Wine" windows_app
 step powercut   "Little-space conversion in a VM switched off at random (20 rounds)" powercut
 
 {

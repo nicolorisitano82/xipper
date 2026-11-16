@@ -231,6 +231,16 @@ Proposta per Xipper Mac:
 
 ## 11. Fasi e stima
 
+**Fase 1 fatta il 16/11/2026**, in `windows/` con nome di lavoro «Xipper XIZ» (`XipperXIZ.exe`,
+versione 0.1.0, 3,7 MB x86_64, 3,2 MB ARM64): finestra con elenco (ListView virtuale, icone di
+sistema), Apri / trascinamento, password in NFC, secondo fattore, Estrai / Estrai selezione con
+destinazione, avanzamento e Annulla (anche sulla barra delle applicazioni), conflitti con «Sostituisci /
+Mantieni entrambi / Salta / per tutti», Verifica, Mark of the Web, associazione `.xiz` per utente con
+«Estrai qui» ed «Estrai in…», modalità `/x`, `/xto`, `/t`, `/register`; testi italiano e inglese;
+DPI per monitor. Build dal Mac: `windows/build.sh [--pack]`; prove: `windows/test-wine.sh` (16 controlli
+più schermate in `.build/windows-app/shots/`), passo `windows-app` della campagna. Non provata su
+Windows vero: Mark of the Web, menu di Esplora file e SmartScreen restano da vedere lì.
+
 | Fase | Contenuto | Stima |
 |---|---|---|
 | 0 | API di libxiz del §7 (punti 1–5), README aggiornato | 2–3 giorni |

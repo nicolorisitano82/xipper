@@ -1,0 +1,37 @@
+Xipper XIZ per Windows
+======================
+
+Apre, verifica ed estrae gli archivi XIZ creati con Xipper (macOS). Non crea archivi (per ora).
+
+Uso
+---
+- Doppio clic su XipperXIZ.exe, poi Apri… o trascina un file .xiz nella finestra.
+- File > "Apri i file .xiz con Xipper XIZ": i file .xiz si aprono con un doppio clic, e il menu
+  di Esplora file offre "Estrai qui" ed "Estrai in…" (su Windows 11 sotto "Mostra altre opzioni").
+  Non servono diritti di amministratore; File > "Rimuovi l'associazione" la toglie.
+- Archivi protetti: password e, se richiesto, il file del secondo fattore (.xizfactor).
+- I file estratti da un archivio scaricato da Internet ricevono lo stesso contrassegno
+  (Mark of the Web): Windows continua ad avvisare prima di aprire un programma.
+
+Riga di comando
+---------------
+  XipperXIZ archivio.xiz                 apre la finestra
+  XipperXIZ /x archivio.xiz [/d CARTELLA] estrae (default: una cartella col nome dell'archivio)
+  XipperXIZ /xto archivio.xiz            chiede dove estrarre
+  XipperXIZ /t archivio.xiz              verifica
+  XipperXIZ /register | /unregister      associa i file .xiz, o no
+Per gli script c'è anche xiz.exe (xiz --help).
+
+Avviso al primo avvio
+---------------------
+L'eseguibile non ha una firma commerciale: Windows può mostrare "Windows ha protetto il PC".
+Controlla lo SHA-256 del file scaricato (pubblicato accanto allo zip), poi "Ulteriori
+informazioni" > "Esegui comunque".
+
+Limiti
+------
+- Gli archivi compressi con LZRAVEN o LZMESH (codec Apple, solo macOS 27) non si aprono.
+- Chiavi, custodi, gruppi di accesso e firme arrivano nella prossima versione.
+
+Licenza MIT. Sorgenti: https://github.com/nicolorisitano82/xipper (windows/, libxiz/).
+Le licenze delle librerie incluse sono nella cartella licenses.

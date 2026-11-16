@@ -111,6 +111,15 @@ typedef struct xiz_open_options {
  * version_minor >= 14 without one is refused (XIZ_E_CORRUPT). Passwords are used as the bytes given:
  * libxiz does not normalize Unicode, so pass them in NFC (§24.2), as Xipper writes them. */
 
+/* Key files (the text Xipper writes): returns the kind and the 32 secret bytes, XIZ_E_ARG for a
+ * malformed key, XIZ_E_NOT_FOUND when the text holds none. Recognized, one per file:
+ * XIZ-SECRET-KEY-1-… and AGE-SECRET-KEY-1… (X25519, for `identities`), XIZ-SECRET-KEY-PQ-1-… and
+ * AGE-SECRET-KEY-PQ-1… (X-Wing seed, for `pq_identities`), XIZ-FACTOR-1-… (for `factors`). */
+#define XIZ_SECRET_X25519 1
+#define XIZ_SECRET_XWING  2
+#define XIZ_SECRET_FACTOR 3
+XIZ_API int xiz_parse_secret(const char *text, size_t len, uint8_t out[32]);
+
 /* Accept 0.1 beta archives (§9). */
 #define XIZ_OPEN_ALLOW_BETA 1u
 /* Open an encrypted XIZ 1.3 archive without credentials: structure, groups and signatures
