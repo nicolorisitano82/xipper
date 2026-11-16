@@ -34,6 +34,8 @@ usage: xipper <command> [options]
           --password-stdin read the password from the first line of stdin
           --weak-password-ok  accept a password that is guessed quickly (refused by default: under
                            45 bits by zxcvbn's estimate; `xipper passphrase` makes a strong one)
+          --kdf strong     xiz: slower key derivation (Argon2id 1 GiB, 4 passes, about 1 s per attempt
+                           instead of 256 MiB, 3 passes): about 2.5 bits more against guessing
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
           --windows-names  zip, 7z: rename entries Windows cannot extract (a:b, why?, CON.txt, trailing dots, case clashes)
@@ -72,6 +74,10 @@ usage: xipper <command> [options]
   factor -o FILE.xizfactor  a second factor for XIZ passwords: `create -f xiz -p --factor FILE`
                          makes an archive that opens only with the password and the file
                          (XIZ 1.14, Xipper 3.5+); give it to extract, test, list… with --factor FILE
+  rekey   [-p | --password-stdin] [--new-password] [--kdf standard|strong] <archive.xiz>
+                         rewrap the password in place with new Argon2id parameters (and, with
+                         --new-password, a new password: second line on stdin). Content, other
+                         recipients and signatures stay; a recovery record is rebuilt
   passphrase [--words N] [--lang it|en]   a Diceware passphrase (6 words, 77 bits) and how
                          strong a password is: `xipper passphrase --strength` reads one
   hash    [-a ALG[,ALG…]] [--contents] [--bsd] [-o LIST] <file|folder|archive>...
@@ -165,13 +171,13 @@ let knownFlags: Set<String> = command == "bgzip"
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--models", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon",
-                         "--online", "--no-trusted-list", "--parallel", "--nested", "--secure-enclave", "--weak-password-ok", "--strength"])
+                         "--online", "--no-trusted-list", "--parallel", "--nested", "--secure-enclave", "--weak-password-ok", "--strength", "--new-password"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
-       "--names-encoding", "--version", "--country", "--certificate", "--tsa-user", "--words", "--lang", "--factor"]
+       "--names-encoding", "--version", "--country", "--certificate", "--tsa-user", "--words", "--lang", "--factor", "--kdf"]
 do {
     var i = 0
     while i < args.count {
@@ -244,17 +250,33 @@ let workload: Workload = {
         return line
     }
     guard flag("-p", "--password") else { return nil }
-    func ask(_ prompt: String) -> String {
-        var buf = [CChar](repeating: 0, count: 1024)
-        guard readpassphrase(prompt, &buf, buf.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil else { fail("cannot read password") }
-        defer { memset_s(&buf, buf.count, 0, buf.count) }
-        return String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-    }
+    let ask = askPassword
     let pw = ask("Password: ")
     if pw.isEmpty { fail("empty password") }
     if confirm && ask("Repeat password: ") != pw { fail("passwords do not match") }
     if confirm { checkNewPassword(pw) }
     return pw
+}
+
+func askPassword(_ prompt: String) -> String {
+    var buf = [CChar](repeating: 0, count: 1024)
+    guard readpassphrase(prompt, &buf, buf.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil else { fail("cannot read password") }
+    defer { memset_s(&buf, buf.count, 0, buf.count) }
+    return String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+}
+
+/// `--kdf standard|strong` (XIZ passwords, 3.5); nil when not given.
+@MainActor func kdfProfile() -> XizKDFProfile? {
+    guard let v = value("--kdf") else { return nil }
+    guard let p = XizKDFProfile(rawValue: v) else { fail("--kdf: standard or strong", code: 2) }
+    if p == .strong && !XizKDFProfile.strongIsAvailable { fail("--kdf strong needs 1 GiB per attempt: this Mac has less than 8 GB of memory", code: 2) }
+    return p
+}
+
+/// A note on stderr when an XIZ archive has a password stanza with cheap Argon2id parameters.
+func warnWeakKDF(_ path: String) {
+    guard let w = (try? Xipper.xizInfo(URL(fileURLWithPath: path)))?.weakKDF else { return }
+    fputs("xipper: warning: this archive's password uses weak key derivation (\(w)): `xipper rekey -p \(path)` strengthens it\n", stderr)
 }
 
 /// A new archive's password: refused when it is guessed quickly, unless --weak-password-ok.
@@ -467,6 +489,10 @@ case "create", "c":
     if o.xizSigner != nil && o.format != .xiz && o.format != .appleArchive { fail("--sign needs the xiz or aar format", code: 2) }
     if o.xizSigner?.timestampURL != nil && o.format == .appleArchive { fail("--timestamp is for xiz only (AEA has no place for it)", code: 2) }
     o.password = o.xizAccess != nil && !flag("-p", "--password", "--password-stdin") ? nil : readPassword(confirm: true)
+    if let k = kdfProfile() {
+        guard o.format == .xiz, o.password != nil || o.xizAccess != nil else { fail("--kdf is for xiz archives with a password", code: 2) }
+        o.xizKDFProfile = k
+    }
     if let f = allValues("--factor").first {
         guard o.format == .xiz, o.password != nil else { fail("--factor binds the password of a xiz archive: use it with -f xiz and -p", code: 2) }
         do { o.xizPasswordFactor = try XizFactor(contentsOf: URL(fileURLWithPath: f)).bytes } catch { fail("\(f): \(error)") }
@@ -547,6 +573,7 @@ case "test", "t":
             return
         }
         for f in r.failures { print("FAILED \(f.path): \(f.reason)") }
+        warnWeakKDF(positional[0])
         print(r.isOK ? "OK: \(r.entries) entries, \(r.bytes.bytesText) verified in \(String(format: "%.2f", r.elapsed))s"
                      : "\(r.failures.count) of \(r.entries) entries failed")
         if !r.isOK { exit(3) }
@@ -662,6 +689,37 @@ case "list", "l":
                 print(name)
             }
         }
+    }
+
+case "rekey":
+    guard positional.count == 1 else { fail("rekey needs one archive.xiz", code: 2) }
+    let path = positional[0]
+    let change = flag("--new-password")
+    let old: String, new: String?
+    if flag("--password-stdin") {
+        guard let a = readLine(strippingNewline: true), !a.isEmpty else { fail("no password on stdin") }
+        old = a
+        if change {
+            guard let b = readLine(strippingNewline: true), !b.isEmpty else { fail("--new-password: the new password is the second line on stdin") }
+            new = b
+        } else { new = nil }
+    } else {
+        old = askPassword("Password: ")
+        if old.isEmpty { fail("empty password") }
+        if change {
+            let a = askPassword("New password: ")
+            if a.isEmpty { fail("empty password") }
+            if askPassword("Repeat new password: ") != a { fail("passwords do not match") }
+            new = a
+        } else { new = nil }
+    }
+    if let new { checkNewPassword(new) }
+    let profile = kdfProfile() ?? .standard
+    run {
+        let before = (try? Xipper.xizInfo(URL(fileURLWithPath: path)))?.passwordKDFs ?? []
+        let n = try Xipper.xizRekey(URL(fileURLWithPath: path), password: old, newPassword: new, profile: profile)
+        let was = Set(before.map(\.description)).sorted().joined(separator: "; ")
+        print("\(n) password stanza\(n == 1 ? "" : "s") rewrapped (\(was) → \(profile.rawValue))\(new != nil ? ", new password" : "")")
     }
 
 case "versions":

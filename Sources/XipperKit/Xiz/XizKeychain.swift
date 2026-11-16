@@ -139,6 +139,11 @@ public struct XizArchiveInfo: Sendable {
     public var provable: Bool
     /// At least one segment is signed.
     public var signed: Bool
+    /// Argon2id parameters of every password stanza (3.5).
+    public var passwordKDFs: [XizKDFParameters] = []
+
+    /// The cheapest weak password stanza, if any: an attacker guesses against that one.
+    public var weakKDF: XizKDFParameters? { passwordKDFs.filter(\.isWeak).min { $0.cost < $1.cost } }
 
     /// Whether one of these identities (public key texts) can open it.
     public func matches(publicKeys: [String]) -> Bool {

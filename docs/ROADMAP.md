@@ -560,7 +560,8 @@ Dallo studio [STUDIO_XIZ_ATTACCHI.md](STUDIO_XIZ_ATTACCHI.md): chi ha l'archivio
 |---|---|---|
 | **A. Password migliori** | stima con zxcvbn, frasi Diceware, conferma sotto 45 bit | ✅ |
 | **C. XIZ 1.14** | key commitment, password in NFC, password con file chiave | ✅ |
-| B, D, E dello studio | profili KDF più pesanti, destinatario Secure Enclave, avviso di rollback | non scelte |
+| **B. Profili KDF (ridotta)** | profilo Forte, avviso sui parametri deboli, «Cifra di nuovo» / `xipper rekey` | ✅ in sviluppo |
+| D, E dello studio | destinatario Secure Enclave, avviso di rollback | non scelte (D: meglio il file chiave nel Portachiavi) |
 
 #### A. Password migliori — ✅ (16/11/2026)
 - **zxcvbn-c 2.7** (MIT, approvato il 16/11/2026) compilato nell'app con il suo dizionario (inglese: Wikipedia, password comuni, nomi, cognomi, film; rigenerabile con `scripts/make-zxcvbn-dict.sh`). `PasswordStrength` stima i bit della forma NFC e di quella senza accenti e tiene la più debole («pässwörd» non conta come forte). Tempo mostrato: contro 1000 GPU a 500 tentativi al secondo ciascuna, su un XIZ con Argon2id standard;
@@ -575,6 +576,13 @@ Spec in [XIZ_SPEC.md §24](XIZ_SPEC.md).
 - **password con file chiave** (stanza 8): KEK = HKDF(Argon2id(password) ‖ fattore); `XizFactor` (`XIZ-FACTOR-1-…`, file `.xizfactor` 0600); `xipper factor -o`, `--factor`; nell'app «Richiedi anche un file chiave» (salvataggio del file dove sceglie l'utente) e «Scegli il file chiave…» in apertura; senza il file l'errore dice che manca il file, non «password errata»;
 - test: `XizKeyHardeningTests` (commitment alterato o tolto, due destinatari con chiavi diverse, NFC/NFD anche nei gruppi, fattore giusto/sbagliato/mancante, stime, frasi, liste uguali a quelle dell'app);
 - **libxiz**: controlla il commitment (anche su ogni chiave di ogni bundle, in tempo costante), apre la stanza 8 con `--factor` (errore `XIZ_E_FACTOR_REQUIRED`, codice 3), `xiz info` nomina le stanze 8 e 9; fixture `password-114.xiz`, `factor.xiz` (116 controlli), `security.c` con commitment alterato, spostato, contato male e tolto (109 controlli); verde con ASan/UBSan, `-Werror`, su Linux e su Windows sotto Wine. Niente normalizzazione Unicode in C: libxiz usa i byte della password così come arrivano. Lo scrittore di libxiz non scrive ancora il commitment (i suoi archivi restano 1.0, validi).
+
+#### B. Profili KDF, versione ridotta — ✅ (16/11/2026, non rilasciata)
+Scelta del proprietario: solo le parti utili, senza calibrazione automatica né profilo «lungo termine» (2–3 bit in più non valgono la complessità).
+- **profilo Forte** (Argon2id 1 GiB, t=4, p=4; circa 1 s per tentativo, ~2,5 bit in più): `CreateOptions.xizKDFProfile`, `xipper create --kdf strong`, nell'app «Protezione più lenta da forzare» nel foglio della password XIZ; offerto solo su Mac con almeno 8 GB. Il predefinito resta Standard (256 MiB, t=3). Tutte le stanze password di un archivio usano gli stessi parametri (era già così);
+- **parametri deboli**: sotto 64 MiB o sotto 64 MiB × 3 passaggi (altri writer, vecchie impostazioni di test). `XizArchiveInfo.passwordKDFs` / `weakKDF` dalle parti pubbliche; `xipper test` avvisa su stderr, l'app mostra un avviso arancione nel browser;
+- **rekey sul posto** (`Xipper.xizRekey`, `xipper rekey [--new-password] [--kdf strong]`, pulsante «Cifra di nuovo»): riscrive solo le stanze password (tipi 1, 2, 5 con password, 8 con il file chiave) che la password apre, con nuovo sale, nuovi parametri e volendo una nuova password. Stessa lunghezza, quindi blocco chiavi e resto dell'archivio invariati; le firme non coprono il blocco chiavi; il recovery record viene ricostruito. Prima di scrivere: verifica che il nuovo blocco apra le stesse chiavi. Durante la scrittura una copia del blocco vecchio sta in `archivio.xiz.keys-backup`; se il processo si interrompe, il rekey successivo la rimette a posto quando il blocco su disco non torna;
+- test: `rekeyInPlace`, `rekeyAccessArchives`, `interruptedRekeyIsRecovered`; un archivio di libxiz con Argon2id minimo, dopo il rekey, si rilegge con libxiz.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 

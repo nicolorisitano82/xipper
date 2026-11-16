@@ -22,6 +22,7 @@ Check with `xipper help`.
 | `--background` | Run on the efficiency cores at low priority |
 | `-q`, `--quiet` | No progress output |
 | `--factor FILE` | A `.xizfactor` key file (XIZ 1.14): with `create -f xiz -p` the password is bound to it; when opening, it is given with the password. Repeatable |
+| `--kdf strong` | XIZ: heavier key derivation for the password (Argon2id 1 GiB, 4 passes, about 1 s per try) |
 | `--weak-password-ok` | Accept a new password that zxcvbn rates as weak (under 45 bits); refused otherwise |
 | `--identity FILE` | An XIZ identity to open archives with. `keychain:NAME` takes one from the Keychain, `keychain:*` takes all; repeatable |
 
@@ -191,6 +192,7 @@ xipper erase archive.xiz path/in/archive...      # archives created with "erasab
 xipper passphrase [--words N] [--lang it|en]     # a Diceware passphrase: 6 words, 77 bits
 xipper passphrase --strength                     # rate a password (typed, or one line on stdin); exit 1 if weak
 xipper factor -o FILE.xizfactor                  # a key file for XIZ passwords (--factor)
+xipper rekey -p [--new-password] [--kdf strong] archive.xiz   # rewrap the password in place: new settings, new password
 ```
 
 ## Signed documents

@@ -209,6 +209,11 @@ public struct CreateOptions: Sendable {
     public var encryptFileNames = true
     /// XIZ key derivation (tests use the cheapest parameters a reader accepts).
     var xizKDF = XizKeys.KDF.standard
+    /// XIZ key derivation profile for passwords (3.5): standard (256 MiB, t=3) or strong (1 GiB, t=4).
+    public var xizKDFProfile: XizKDFProfile {
+        get { xizKDF == .strong ? .strong : .standard }
+        set { xizKDF = newValue.kdf }
+    }
     /// 7z: ARM64 branch filter for arm64 executables (Mach-O, ELF): smaller binaries.
     public var executableFilter = true
     /// 7z and ZIP: split into volumes of this many bytes (7z: `name.7z.001`, `.002`, …; ZIP: see
@@ -605,19 +610,31 @@ public enum Xipper {
         let r = try FileReader(path: path)
         let sbBytes = try r.read(at: 0, count: Xiz.superblockSize)
         let sb = try Xiz.Superblock.decode(sbBytes)
+        let keysBlock = sb.keysLength > 0 ? try r.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength)) : []
+        let kdfs = XizRekey.passwordKDFs(keysBlock)
         guard sb.required.contains(.directory) else {
             return XizArchiveInfo(hasDirectory: false, encrypted: sb.required.contains(.encrypted),
                                   recipients: sb.required.contains(.encrypted) ? [XizRecipientInfo(label: "", kind: .password)] : [],
-                                  erasable: false, provable: false, signed: false)
+                                  erasable: false, provable: false, signed: false, passwordKDFs: kdfs)
         }
-        let recipients = sb.keysLength > 0 ? try XizAccessKeys.describe(try r.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength))) : []
+        let recipients = keysBlock.isEmpty ? [] : try XizAccessKeys.describe(keysBlock)
         let (start, footer) = try XizArchive.lastFooter(r, dataStart: Int64(Xiz.superblockSize) + Int64(sb.keysLength))
         _ = start
         let dir = try XizDirectory.decode(try r.read(at: footer.catalogOffset, count: Int(footer.catalogCSize)))
         let history = (try? XizSignature.history(path)) ?? []
         return XizArchiveInfo(hasDirectory: true, encrypted: sb.required.contains(.encrypted), recipients: recipients,
                               erasable: dir.flags & XizDirectory.erasableFlag != 0, provable: dir.version >= 2 && dir.leafCount > 0,
-                              signed: history.contains(where: \.signed))
+                              signed: history.contains(where: \.signed), passwordKDFs: kdfs)
+    }
+
+    /// XIZ (3.5): rewraps, in place, every password stanza `password` opens (with the key files
+    /// given to `XizCredentials` for passwords bound to one), with the Argon2id parameters of
+    /// `profile`, a new salt and, when given, `newPassword`. The keys and the content do not change;
+    /// other recipients keep theirs; a recovery record is rebuilt. Returns how many stanzas changed.
+    @discardableResult
+    public static func xizRekey(_ archive: URL, password: String, newPassword: String? = nil, profile: XizKDFProfile = .standard) throws -> Int {
+        try XizRekey.rekey(archive.standardizedFileURL.path, password: password, newPassword: newPassword,
+                           factors: XizCredentials.shared.factors, kdf: profile.kdf)
     }
 
     /// XIZ 1.3: which access groups the credentials open (names; "" is the main group) and how

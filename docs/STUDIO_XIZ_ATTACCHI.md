@@ -120,6 +120,6 @@ Nuovo tipo di stanza: **password + segreto**.
 | **D** | Destinatario Secure Enclave (P-256 nel chip + ML-KEM-768), con stanza di recupero obbligatoria | 1.14 | prova su Mac veri (Touch ID) |
 | **E** | Avviso di versione più vecchia (Portachiavi), padding opzionale | — / 1.14 | — |
 
-**Stato (16/11/2026):** il proprietario ha scelto A e C, fatte nella 3.5 ([ROADMAP](ROADMAP.md)). Il fattore della stanza 8 è un file `.xizfactor`; Portachiavi e Secure Enclave restano per dopo.
+**Stato (16/11/2026):** il proprietario ha scelto A e C, fatte nella 3.5 ([ROADMAP](ROADMAP.md)), poi B in forma ridotta (profilo Forte, avviso sui parametri deboli, rekey sul posto; niente calibrazione né profilo lungo termine). D rinviata: per il secondo fattore senza file conviene tenere il `.xizfactor` nel Portachiavi. Il fattore della stanza 8 è un file `.xizfactor`; Portachiavi e Secure Enclave restano per dopo.
 
 Ordine consigliato: A → C (commitment e NFC) → B → C (password + segreto) → D → E. Le fasi A e B danno quasi tutto il guadagno contro la forza bruta senza toccare il formato. Il key commitment invece chiude una debolezza del formato, anche se poco probabile nella pratica.

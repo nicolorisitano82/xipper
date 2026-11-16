@@ -591,8 +591,14 @@ struct XizKeys: @unchecked Sendable {
         var parallelism: UInt32
         /// RFC 9106 second recommended profile, about 0.2 s on Apple Silicon.
         static let standard = KDF(memoryKiB: 256 << 10, iterations: 3, parallelism: 4)
+        /// 3.5: 1 GiB, 4 passes, about 1 s on Apple Silicon (5–6 times the standard cost: about
+        /// 2.5 bits more against guessing). Chosen by the user, never the default.
+        static let strong = KDF(memoryKiB: 1 << 20, iterations: 4, parallelism: 4)
         /// The cheapest parameters a reader accepts (tests only).
         static let minimum = KDF(memoryKiB: 19 << 10, iterations: 1, parallelism: 1)
+        /// Cheaper than RFC 9106's low-memory profile (64 MiB, t=3): another writer, or an old
+        /// test setting. Xipper suggests re-encrypting the password stanza (3.5).
+        var isWeak: Bool { memoryKiB < 64 << 10 || UInt64(memoryKiB) * UInt64(iterations) < 192 << 10 }
         /// Bounds a decoder accepts (DoS protection, OWASP minimum).
         var isAcceptable: Bool {
             (19 << 10...(2 << 20)).contains(memoryKiB) && (1...10).contains(iterations) && (1...16).contains(parallelism)

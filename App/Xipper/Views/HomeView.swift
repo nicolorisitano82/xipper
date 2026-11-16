@@ -23,6 +23,7 @@ struct HomeView: View {
     @State private var password: String?
     /// XIZ: bind the password to a key file (XIZ 1.14 second factor).
     @State private var useFactor = false
+    @State private var useStrongKDF = false
     @State private var rememberPassword = false
     @State private var legacyZipCrypto = false
     @State private var askPassword = false
@@ -97,6 +98,7 @@ struct HomeView: View {
             PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }
             }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil, factorChoice: format == .xiz ? $useFactor : nil,
+               strongKDF: format == .xiz ? $useStrongKDF : nil,
                minimumLength: format == .appleArchive ? AppleArchiveWriter.minimumPasswordLength : 1)
         }
         #if DEBUG
@@ -530,6 +532,10 @@ struct HomeView: View {
             guard let factor = saveNewFactor() else { return }
             if xiz == nil { xiz = XizExtras() }
             xiz?.factor = factor.bytes
+        }
+        if format == .xiz, password != nil, useStrongKDF {
+            if xiz == nil { xiz = XizExtras() }
+            xiz?.kdf = .strong
         }
         let dest = uniqueURL(folder.appendingPathComponent(archiveName))
         let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password, xiz: xiz),

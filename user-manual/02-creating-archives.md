@@ -60,6 +60,19 @@ Whoever has a copy of an encrypted archive can try passwords on it as long as th
 - **Generate Secure Password** makes a **passphrase of 6 words** (Italian or English, 77 bits: billions of years) or random characters.
 - A **weak** password (under 45 bits) asks for confirmation before it is used. From the command line it is refused unless you add `--weak-password-ok`; `xipper passphrase` makes a passphrase and `xipper passphrase --strength` rates a password.
 
+### Slower to crack (XIZ)
+
+**Slower to Crack** under the password uses heavier key derivation: each guess costs about 1 second and 1 GB of memory instead of a fifth of a second and 256 MB. It slows an attacker about five times, the same as making the password about 2–3 bits longer, and opening the archive takes that second too. A good password matters much more. From the command line: `xipper create -f xiz -p --kdf strong`. Offered on Macs with at least 8 GB.
+
+When an archive made by another program uses much cheaper settings, Xipper says so above the file list and offers **Re-Encrypt**. It rewrites only the few bytes that protect the key, in place, without touching the content. `xipper rekey` does the same, and with `--new-password` it changes the password:
+
+```bash
+xipper rekey -p archive.xiz                         # standard settings, same password
+xipper rekey -p --new-password --kdf strong archive.xiz
+```
+
+Other recipients and signatures stay as they are, and the recovery data is rebuilt. While it writes, Xipper keeps the old key bytes in `archive.xiz.keys-backup`. If it is interrupted, the next `xipper rekey` puts them back when needed and deletes the file.
+
 ### A key file as well (XIZ)
 
 For XIZ, **Also Require a Key File** binds the password to a small file you save elsewhere (a `.xizfactor`, for example on a USB stick). The archive opens only with both. Whoever steals the archive alone cannot even try passwords, so a short password is enough. Keep a copy of the file: without it the archive does not open. When you open such an archive Xipper asks for the file (**Choose Key File…**). It needs Xipper 3.5 or later.

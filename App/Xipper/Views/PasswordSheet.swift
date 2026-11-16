@@ -13,6 +13,8 @@ struct PasswordSheet: View {
     var legacyZipCrypto: Binding<Bool>?
     /// XIZ creation: bind the password to a key file (XIZ 1.14 second factor).
     var factorChoice: Binding<Bool>?
+    /// XIZ creation: the strong key derivation profile (3.5).
+    var strongKDF: Binding<Bool>?
     /// Apple Archive (AEA) needs at least 20 characters.
     var minimumLength = 1
     /// Opening: the archive, to tell whether it also needs a key file (factor).
@@ -100,6 +102,13 @@ struct PasswordSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Richiedi anche un file chiave", isOn: factorChoice)
                     Text("L'archivio si aprirà solo con la password e con un file che salverai a parte: chi ruba l'archivio non può provare password.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if isCreate, let strongKDF, XizKDFProfile.strongIsAvailable {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Protezione più lenta da forzare", isOn: strongKDF)
+                    Text("Ogni tentativo costa circa 1 secondo e 1 GB di memoria, anche a chi apre l'archivio. Aiuta poco: una buona password conta molto di più.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }

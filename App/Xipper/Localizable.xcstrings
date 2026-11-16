@@ -9078,6 +9078,86 @@
         }
       }
     },
+    "Chi ha una copia dell'archivio può provare password molto in fretta (%@). Apri i file con la password per poterla cifrare di nuovo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone with a copy of the archive can try passwords very quickly (%@). Open the files with the password to re-encrypt it."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wer eine Kopie des Archivs hat, kann sehr schnell Passwörter ausprobieren (%@). Öffne die Dateien mit dem Passwort, um es neu zu verschlüsseln."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiconque possède une copie de l'archive peut essayer des mots de passe très rapidement (%@). Ouvrez les fichiers avec le mot de passe pour la chiffrer à nouveau."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quien tenga una copia del archivo puede probar contraseñas muy rápido (%@). Abre los archivos con la contraseña para volver a cifrarlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブのコピーを持つ人は、パスワードを非常に速く試せます（%@）。再暗号化するには、パスワードでファイルを開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拥有归档副本的人可以非常快地尝试密码（%@）。请用密码打开文件，以便重新加密。"
+          }
+        }
+      }
+    },
+    "Chi ha una copia dell'archivio può provare password molto in fretta (%@). Cifrarla di nuovo cambia solo la chiave, non il contenuto." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone with a copy of the archive can try passwords very quickly (%@). Re-encrypting changes only the key, not the content."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wer eine Kopie des Archivs hat, kann sehr schnell Passwörter ausprobieren (%@). Neu verschlüsseln ändert nur den Schlüssel, nicht den Inhalt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiconque possède une copie de l'archive peut essayer des mots de passe très rapidement (%@). Chiffrer à nouveau ne change que la clé, pas le contenu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quien tenga una copia del archivo puede probar contraseñas muy rápido (%@). Volver a cifrar solo cambia la clave, no el contenido."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブのコピーを持つ人は、パスワードを非常に速く試せます（%@）。再暗号化で変わるのは鍵だけで、内容は変わりません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拥有归档副本的人可以非常快地尝试密码（%@）。重新加密只更换密钥，不改变内容。"
+          }
+        }
+      }
+    },
     "Chi possiede anche uno solo dei file in chiaro (per esempio un PDF già inviato per email) può ricavare la chiave e aprire tutto l'archivio in pochi minuti." : {
       "localizations" : {
         "de" : {
@@ -9799,6 +9879,46 @@
         }
       }
     },
+    "Cifra di nuovo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-encrypt"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu verschlüsseln"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiffrer à nouveau"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a cifrar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再暗号化"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加密"
+          }
+        }
+      }
+    },
     "Cifrato" : {
       "localizations" : {
         "de" : {
@@ -9915,6 +10035,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加密"
+          }
+        }
+      }
+    },
+    "Cifratura…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypting…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschlüsseln…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiffrement…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cifrando…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加密…"
           }
         }
       }
@@ -22509,6 +22669,46 @@
         }
       }
     },
+    "La password di questo archivio è protetta da parametri deboli" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive's password is protected by weak parameters"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Passwort dieses Archivs ist mit schwachen Parametern geschützt"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe de cette archive est protégé par des paramètres faibles"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La contraseña de este archivo está protegida con parámetros débiles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアーカイブのパスワードは弱いパラメータで保護されています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此归档的密码使用了较弱的参数保护"
+          }
+        }
+      }
+    },
     "La password scelta con il pulsante Password apre tutto l'archivio." : {
       "localizations" : {
         "de" : {
@@ -26531,6 +26731,46 @@
         }
       }
     },
+    "Non è stato possibile cifrare di nuovo l'archivio." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive could not be re-encrypted."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Archiv konnte nicht neu verschlüsselt werden."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de chiffrer à nouveau l'archive."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se ha podido volver a cifrar el archivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブを再暗号化できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法重新加密归档。"
+          }
+        }
+      }
+    },
     "Non è un file chiave di Xipper." : {
       "localizations" : {
         "de" : {
@@ -27127,6 +27367,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每个文件都有各自的密钥：“永久抹掉”会使其在归档的所有版本中都无法读取。抹掉之前制作的副本仍保留该文件。"
+          }
+        }
+      }
+    },
+    "Ogni tentativo costa circa 1 secondo e 1 GB di memoria, anche a chi apre l'archivio. Aiuta poco: una buona password conta molto di più." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each attempt costs about 1 second and 1 GB of memory, also for whoever opens the archive. It helps little: a good password matters much more."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Versuch kostet etwa 1 Sekunde und 1 GB Speicher, auch beim Öffnen des Archivs. Es hilft wenig: Ein gutes Passwort zählt viel mehr."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque essai coûte environ 1 seconde et 1 Go de mémoire, y compris pour qui ouvre l'archive. Cela aide peu : un bon mot de passe compte bien plus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada intento cuesta alrededor de 1 segundo y 1 GB de memoria, también para quien abre el archivo. Ayuda poco: una buena contraseña importa mucho más."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試行ごとに約1秒と1 GBのメモリが必要で、アーカイブを開く人も同じです。効果は小さく、良いパスワードのほうがはるかに重要です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次尝试约需 1 秒和 1 GB 内存，打开归档的人也一样。作用有限：好密码重要得多。"
           }
         }
       }
@@ -29213,6 +29493,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用密码保护（AES-256）"
+          }
+        }
+      }
+    },
+    "Protezione più lenta da forzare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slower to Crack"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schwerer zu knacken (langsamer)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus lent à forcer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más lenta de forzar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "総当たりを遅くする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更难暴力破解（更慢）"
           }
         }
       }

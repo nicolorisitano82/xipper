@@ -26,6 +26,8 @@ struct XizExtras: @unchecked Sendable {
     var signer: XizSigner?
     /// XIZ 1.14: the password is bound to this factor (saved by the user as a .xizfactor file).
     var factor: [UInt8]?
+    /// 3.5: the strong Argon2id profile for the password.
+    var kdf: XizKDFProfile?
 }
 
 /// One background operation shown in the jobs HUD.
@@ -363,6 +365,7 @@ final class JobCenter {
             options.xizAccess = xiz?.access
             options.xizSigner = xiz?.signer
             options.xizPasswordFactor = xiz?.factor
+            if let kdf = xiz?.kdf { options.xizKDFProfile = kdf }
             options.legacyZipCrypto = legacyZipCrypto
             let recovery = Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate)
             // XIZ keeps its recovery data inside (2.7); the other formats get PAR2 files.

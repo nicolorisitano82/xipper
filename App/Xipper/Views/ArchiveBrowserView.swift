@@ -29,6 +29,7 @@ struct ArchiveBrowserView: View {
     @State private var passwordPrompt: PasswordPrompt?
     /// An edit, recovery or repair in progress (shown in the status bar).
     @State private var working: String?
+    @State private var rekeying = false
     /// Bumped when recovery files appear, so the inspector looks again.
     @State private var recoveryRevision = 0
     /// XIZ 1.3: unlocking with several credentials (custodians, identities).
@@ -227,6 +228,46 @@ struct ArchiveBrowserView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(.orange.opacity(0.12))
+    }
+
+    /// 3.5: a password stanza with cheap Argon2id parameters (another writer, an old test setting):
+    /// rewrapped in place with the standard ones, with the password the archive was opened with.
+    private func weakKDFBanner(_ k: XizKDFParameters) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "lock.trianglebadge.exclamationmark").foregroundStyle(.orange).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("La password di questo archivio è protetta da parametri deboli").fontWeight(.semibold)
+                Text(model.password == nil
+                     ? "Chi ha una copia dell'archivio può provare password molto in fretta (\(k.description)). Apri i file con la password per poterla cifrare di nuovo."
+                     : "Chi ha una copia dell'archivio può provare password molto in fretta (\(k.description)). Cifrarla di nuovo cambia solo la chiave, non il contenuto.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if let pw = model.password {
+                Button(rekeying ? String(localized: "Cifratura…") : String(localized: "Cifra di nuovo")) {
+                    rekeying = true
+                    let url = url
+                    Task {
+                        do {
+                            try await Task.detached { try Xipper.xizRekey(url, password: pw) }.value
+                            await model.load()
+                        } catch {
+                            let alert = NSAlert()
+                            alert.messageText = String(localized: "Non è stato possibile cifrare di nuovo l'archivio.")
+                            alert.informativeText = (error as? XipperError)?.description ?? error.localizedDescription
+                            alert.runModal()
+                        }
+                        rekeying = false
+                    }
+                }
+                .disabled(rekeying)
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.12))
+        .accessibilityElement(children: .combine)
     }
 
     /// Names disguised as documents ("fattura.pdf.app", right-to-left override): shown before
@@ -543,6 +584,7 @@ struct ArchiveBrowserView: View {
                 VStack(spacing: 0) {
                     if let pending = interrupted { interruptedBanner(pending) }
                     if !model.deceptive.isEmpty { deceptiveBanner }
+                    if let weak = model.xizInfo?.weakKDF { weakKDFBanner(weak) }
                     pathBar
                 }
             }

@@ -144,6 +144,66 @@ struct XizKeyHardeningTests {
         #expect(throws: XipperError.self) { _ = try create(t, "c.xiz", password: "z", access: acc) }
     }
 
+    /// Phase B (3.5): weak parameters are reported; rekey rewraps in place, with a new password
+    /// or stronger parameters, keeping content, other recipients and the recovery record.
+    @Test func rekeyInPlace() throws {
+        let t = TempDir()
+        let a = try create(t, "r.xiz", password: "vecchia frase lunga")
+        let weak = try #require(try Xipper.xizInfo(a).weakKDF)
+        #expect(weak.memoryKiB == 19 << 10 && weak.iterations == 1)
+        _ = try Xipper.addXizRecovery(a, redundancy: 10)
+        let size = try FileManager.default.attributesOfItem(atPath: a.path)[.size] as? Int
+        #expect(throws: XipperError.wrongPassword(entry: "r.xiz")) { try Xipper.xizRekey(a, password: "sbagliata") }
+        #expect(try Xipper.xizRekey(a, password: "vecchia frase lunga", newPassword: "nuova frase lunga") == 1)
+        let info = try Xipper.xizInfo(a)
+        #expect(info.weakKDF == nil && info.passwordKDFs.map(\.profile) == [.standard])
+        #expect(try FileManager.default.attributesOfItem(atPath: a.path)[.size] as? Int == size)
+        #expect(throws: XipperError.self) { _ = try Xipper.list(a, password: "vecchia frase lunga") }
+        #expect(try Xipper.test(a, password: "nuova frase lunga").isOK)
+        #expect(try Xipper.scrubXiz(a).damagedRanges.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: a.path + ".keys-backup"))
+        // NFD given, NFC stored: both open after a rekey.
+        let nfd = "citta\u{0300} nuova e\u{0301}terna"
+        try Xipper.xizRekey(a, password: "nuova frase lunga", newPassword: nfd)
+        #expect(try Xipper.test(a, password: nfd.precomposedStringWithCanonicalMapping).isOK)
+    }
+
+    @Test func rekeyAccessArchives() throws {
+        let t = TempDir()
+        defer { XizCredentials.shared.removeAll() }
+        var acc = XizAccess()
+        acc.recipients = [.init(label: "anna", credential: .password("password di anna"))]
+        let a = try create(t, "g.xiz", password: "password principale", access: acc)
+        #expect(try Xipper.xizInfo(a).passwordKDFs.count == 2)
+        #expect(try Xipper.xizRekey(a, password: "password di anna", newPassword: "nuova di anna") == 1)
+        #expect(try Xipper.test(a, password: "password principale").isOK)
+        #expect(try Xipper.test(a, password: "nuova di anna").isOK)
+        #expect(Set(try Xipper.xizInfo(a).passwordKDFs.map(\.isWeak)) == [false, true])
+        // A password bound to a key file: rewrapped only with the file.
+        let f = XizFactor()
+        let b = try create(t, "f.xiz", password: "corta", factor: f)
+        #expect(throws: XipperError.self) { try Xipper.xizRekey(b, password: "corta") }
+        XizCredentials.shared.add(factor: f.bytes)
+        #expect(try Xipper.xizRekey(b, password: "corta", newPassword: "ancora corta") == 1)
+        #expect(try Xipper.test(b, password: "ancora corta").isOK)
+    }
+
+    /// A rekey cut short after the backup: the next one puts the old block back if the one on
+    /// disk does not check.
+    @Test func interruptedRekeyIsRecovered() throws {
+        let t = TempDir()
+        let a = try create(t, "i.xiz", password: "frase di prova lunga")
+        let (sb, old) = try keys(a)
+        _ = sb
+        try Data(old).write(to: URL(fileURLWithPath: a.path + ".keys-backup"))
+        let h = try FileHandle(forUpdating: a)
+        try h.seek(toOffset: UInt64(Xiz.superblockSize + 20)); try h.write(contentsOf: Data([0xFF, 0x00, 0xAA])); try h.close()
+        #expect(throws: XipperError.self) { _ = try Xipper.list(a, password: "frase di prova lunga") }
+        try Xipper.xizRekey(a, password: "frase di prova lunga")
+        #expect(try Xipper.test(a, password: "frase di prova lunga").isOK)
+        #expect(!FileManager.default.fileExists(atPath: a.path + ".keys-backup"))
+    }
+
     @Test func strengthEstimates() {
         #expect(PasswordStrength.estimate("Password2026!").isWeak)
         #expect(PasswordStrength.estimate("Estate2026!").isWeak)

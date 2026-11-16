@@ -222,7 +222,10 @@ and no associated data. The wrapped key is `AES-GCM(KEK, nonce, file key)` with 
 unwrapping fail. A wrong password is detected by the tag; there is no separate verifier.
 
 Readers **must** refuse memory outside 19,456–2,097,152 KiB, iterations outside 1–10 and parallelism
-outside 1–16. Writers use 262,144 KiB, 3 iterations, parallelism 4. Unknown stanza types are
+outside 1–16. Writers use 262,144 KiB, 3 iterations, parallelism 4 (Xipper 3.5 also
+offers 1,048,576 KiB, 4 iterations, parallelism 4). A writer may rewrap a password stanza in place:
+same key, new salt, parameters and password, same length, so nothing else in the file changes
+(Xipper's `rekey`; a recovery record, §15, is then rebuilt). Unknown stanza types are
 skipped; an archive with no stanza a reader can open is refused.
 
 ### 6.3 Digests and chunking
