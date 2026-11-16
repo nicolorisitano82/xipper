@@ -619,6 +619,53 @@ struct XizKeys: @unchecked Sendable {
                                          outputByteCount: 32)
     }
 
+    /// The forms of a password to try when opening (§24.2): as given, then NFC if that differs.
+    /// Writers since 1.14 use the NFC form.
+    static func passwordForms(_ p: String) -> [String] {
+        // Byte comparison: Swift's == treats canonically equivalent strings as equal.
+        let nfc = p.precomposedStringWithCanonicalMapping
+        return Array(nfc.utf8) == Array(p.utf8) ? [p] : [p, nfc]
+    }
+
+    /// Key commitment (§24.1): HKDF-SHA-256(key, salt = archive_id, info "xiz/1.14/commit").
+    static func commitment(_ key: SymmetricKey, archiveID: [UInt8]) -> [UInt8] {
+        HKDF<SHA256>.deriveKey(inputKeyMaterial: key, salt: Data(archiveID), info: Data("xiz/1.14/commit".utf8), outputByteCount: 32)
+            .withUnsafeBytes { Array($0) }
+    }
+
+    /// Body of a type 9 stanza: count, then (group, commitment) for every key.
+    static func commitmentStanza(_ keys: [(UInt16, SymmetricKey)], archiveID: [UInt8]) -> [UInt8] {
+        var w = ByteWriter(capacity: 2 + keys.count * 34)
+        w.u16(UInt16(keys.count))
+        for (g, k) in keys.sorted(by: { $0.0 < $1.0 }) { w.u16(g); w.append(commitment(k, archiveID: archiveID)) }
+        return w.bytes
+    }
+
+    /// Parses a type 9 stanza body.
+    static func parseCommitments(_ body: [UInt8]) throws -> [UInt16: [UInt8]] {
+        try body.withUnsafeBytes { raw in
+            var r = ByteReader(raw)
+            var out: [UInt16: [UInt8]] = [:]
+            for _ in 0..<Int(try r.u16()) { out[try r.u16()] = Array(try r.bytes(32)) }
+            guard r.remaining == 0 else { throw XipperError.corrupt("XIZ key commitment stanza") }
+            return out
+        }
+    }
+
+    /// Checks unwrapped keys against the type 9 stanza (§24.1): every key must have a matching
+    /// commitment when the stanza is there; archives of 1.14 or later must have it.
+    static func checkCommitments(_ keys: [UInt16: SymmetricKey], stanza: [UInt16: [UInt8]]?, superblock: [UInt8]) throws {
+        let minor = UInt16(superblock[10]) | UInt16(superblock[11]) << 8
+        guard let stanza else {
+            if minor >= 14, !keys.isEmpty { throw XipperError.corrupt("XIZ 1.14 archive without key commitment") }
+            return
+        }
+        let id = Array(superblock[16..<32])
+        for (g, k) in keys where stanza[g] != commitment(k, archiveID: id) {
+            throw XipperError.corrupt("XIZ key commitment mismatch: this archive would open differently for different recipients")
+        }
+    }
+
     static func argon2id(_ password: String, salt: [UInt8], _ kdf: KDF) throws -> SymmetricKey {
         var out = [UInt8](repeating: 0, count: 32)
         let pw = Array(password.utf8)
@@ -635,23 +682,26 @@ struct XizKeys: @unchecked Sendable {
 
     // MARK: keys block
 
-    /// "XKEY" (4) + count (2) + one password stanza (1 + 2 + 104) + CRC-32C (4).
-    static let keysBlockSize = 117
+    /// "XKEY" (4) + count (2) + one password stanza (1 + 2 + 104) + the key commitment (1 + 2 + 36,
+    /// 1.14) + CRC-32C (4).
+    static let keysBlockSize = 156
 
     /// "XKEY", count, one password stanza (type 1: Argon2id), CRC-32C. The stanza wraps the file key
     /// with AES-256-GCM under the Argon2id key, authenticating the superblock and the KDF parameters.
     static func keysBlock(password: String, fileKey: SymmetricKey, superblock: [UInt8], kdf: KDF = .standard) throws -> [UInt8] {
         var salt = [UInt8](repeating: 0, count: 32)
         arc4random_buf(&salt, 32)
-        let kek = try argon2id(password, salt: salt, kdf)
+        let kek = try argon2id(password.precomposedStringWithCanonicalMapping, salt: salt, kdf)
         var stanza = ByteWriter(capacity: 104)
         stanza.u32(kdf.memoryKiB); stanza.u32(kdf.iterations); stanza.u32(kdf.parallelism); stanza.append(salt)
         let aad = Array(superblock[0..<60]) + [1] + stanza.bytes
         let sealed = try fileKey.withUnsafeBytes { try AES.GCM.seal(Data($0), using: kek, authenticating: Data(aad)) }
         stanza.append(Array(sealed.nonce)); stanza.append(Array(sealed.ciphertext)); stanza.append(Array(sealed.tag))
-        var w = ByteWriter(capacity: 128)
-        w.append(Xiz.keysMagic); w.u16(1)
+        let commit = commitmentStanza([(0, fileKey)], archiveID: Array(superblock[16..<32]))
+        var w = ByteWriter(capacity: keysBlockSize)
+        w.append(Xiz.keysMagic); w.u16(2)
         w.u8(1); w.u16(UInt16(stanza.bytes.count)); w.append(stanza.bytes)
+        w.u8(9); w.u16(UInt16(commit.count)); w.append(commit)
         w.u32(Xiz.crc32c(w.bytes))
         return w.bytes
     }
@@ -665,10 +715,14 @@ struct XizKeys: @unchecked Sendable {
             var r = ByteReader(UnsafeRawBufferPointer(rebasing: raw[..<(raw.count - 4)]), at: 4)
             let count = Int(try r.u16())
             var sawPassword = false
+            var stanzas: [(UInt8, [UInt8])] = []
             for _ in 0..<count {
                 let type = try r.u8(), len = Int(try r.u16())
-                let body = Array(try r.bytes(len))
-                guard type == 1 else { continue }  // other stanza types (keyfile, public key): later versions
+                stanzas.append((type, Array(try r.bytes(len))))
+            }
+            let commitments = try stanzas.first { $0.0 == 9 }.map { try parseCommitments($0.1) }
+            for (type, body) in stanzas {
+                guard type == 1 else { continue }  // other stanza types: 9 (commitment) above; the rest need a directory
                 sawPassword = true
                 guard body.count == 104 else { throw XipperError.corrupt("XIZ password stanza") }
                 let kdf = body.withUnsafeBytes { p in
@@ -678,14 +732,14 @@ struct XizKeys: @unchecked Sendable {
                 }
                 guard kdf.isAcceptable else { throw XipperError.limitExceeded("XIZ key derivation parameters") }
                 let salt = Array(body[12..<44])
-                let kek = try argon2id(password, salt: salt, kdf)
                 let aad = Array(superblock[0..<60]) + [1] + Array(body[0..<44])
-                do {
+                for form in passwordForms(password) {
+                    let kek = try argon2id(form, salt: salt, kdf)
                     let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: body[44..<56]), ciphertext: body[56..<88], tag: body[88..<104])
-                    let key = try AES.GCM.open(box, using: kek, authenticating: Data(aad))
-                    return SymmetricKey(data: key)
-                } catch {
-                    continue
+                    guard let plain = try? AES.GCM.open(box, using: kek, authenticating: Data(aad)) else { continue }
+                    let key = SymmetricKey(data: plain)
+                    try checkCommitments([0: key], stanza: commitments, superblock: superblock)
+                    return key
                 }
             }
             if !sawPassword { throw XipperError.unsupported("XIZ key stanza (made by a newer Xipper)") }

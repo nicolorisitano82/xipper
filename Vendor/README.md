@@ -2,7 +2,9 @@
 
 Xipper is self-contained: these sources are compiled into the app by SwiftPM. There are no
 runtime dependencies besides macOS itself (Foundation, CommonCrypto, libz, libbz2).
-Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
+Only permissive licenses are allowed here; GPL/LGPL code is never vendored. One exception, for data
+only: the Italian passphrase word list (GPL-3.0), a separate file read at run time, never compiled in
+(`wordlists/README.md`, owner's decision of 16/11/2026).
 
 | Library | Version | License | Path | Used for |
 |---|---|---|---|---|
@@ -17,6 +19,8 @@ Only permissive licenses are allowed here; GPL/LGPL code is never vendored.
 | [preflate](https://github.com/deus-libri/preflate) | 0.3.5 (`609eefa`, 2018-09-29) | Apache-2.0 (`preflate/LICENSE`) | `preflate/src`, `preflate/shim`, `preflate/include` (C++17) | XIZ 1.9: Deflate streams of PNG, PDF and Office/EPUB files split into data and reconstruction information, rebuilt bit for bit; run in the sandboxed `xipper-decoder` helper |
 | [brunsli](https://github.com/google/brunsli) | `c18b962` (2026-09-10; last release v0.1) | MIT (`brunsli/LICENSE`) | `brunsli/c/common`, `brunsli/c/dec`, `brunsli/c/enc`, `brunsli/c/include` (C++17) | XIZ 1.6: lossless JPEG recompression (about −20%, rebuilt byte for byte), run in the sandboxed `xipper-decoder` helper because its internal checks `abort()` |
 | [OpenZL](https://github.com/facebook/openzl) | 0.3.0 (`32246b4`, 2026-09-29) | BSD-3-Clause (`openzl/LICENSE`) | `openzl/src`, `openzl/include` (C11), `openzl/custom_parsers/csv` and `shared_components` (C, C++17), `openzl/shim` | XIZ 1.11: CSV, TSV and BED tables compressed column by column (CSV profile) and OpenZL's universal decoder, in process; also built into libxiz |
+| [zxcvbn-c](https://github.com/tsyrogit/zxcvbn-c) | 2.7 (`4011582`) | MIT (`zxcvbn/LICENSE`) | `zxcvbn/src/zxcvbn.c`, `zxcvbn/include/zxcvbn.h`, `zxcvbn/src/dict-src.h` (generated from `zxcvbn/words` by `scripts/make-zxcvbn-dict.sh`) | password strength estimate (3.5): guesses needed with dictionaries, names, keyboard patterns, dates, l33t |
+| Word lists | EFF large (2016), Gamberini Italian v4 (2019) | CC BY 3.0 US; GPL-3.0-or-later (`wordlists/`) | `wordlists/` (data, bundled as files) | Diceware passphrases (3.5) |
 | [Argon2](https://github.com/P-H-C/phc-winner-argon2) (PHC reference) | 20190702 (`62358ba`) | CC0 1.0 or Apache-2.0 (`argon2/LICENSE`) | `argon2/include`, `argon2/src` (portable `ref.c`, BLAKE2b, threads) | Argon2id password KDF of encrypted XIZ archives |
 
 From the system (part of macOS, not vendored): zlib (streaming inflate, chunked deflate,

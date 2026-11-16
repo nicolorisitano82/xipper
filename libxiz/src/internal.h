@@ -263,6 +263,7 @@ typedef struct {
     size_t n_stanzas;
     int any_known;               /* a stanza type this reader implements */
     int partial_threshold;       /* index+1 of a threshold with some but not enough shares */
+    int missing_factor;          /* index+1 of a password-with-factor stanza whose factor was not given */
 } keys_opened;
 
 int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int has_dir,

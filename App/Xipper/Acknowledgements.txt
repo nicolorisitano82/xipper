@@ -919,6 +919,49 @@ express Statement of Purpose.
 
 
 ================================================================================
+zxcvbn-c 2.7 (Tony Evans; password strength estimation)
+https://github.com/tsyrogit/zxcvbn-c
+================================================================================
+
+The MIT License
+
+Copyright (c) 2015-2017 Tony Evans
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+
+================================================================================
+Word lists for passphrases (data files in Contents/Resources, not compiled in)
+================================================================================
+
+eff_large_wordlist.txt: EFF's large word list for random passphrases, by the Electronic
+Frontier Foundation (https://www.eff.org/dice), licensed under CC BY 3.0 US
+(https://creativecommons.org/licenses/by/3.0/us/).
+
+word_list_diceware_it-IT-4.txt: Lista di parole Diceware in italiano, version 4,
+Copyright (C) 2007-2019 Tarin Gamberini (https://www.taringamberini.com), free software under
+the GNU General Public License version 3 or later; the file is distributed unmodified, and
+the license text is GPL-3.0.txt next to it.
+
+
+================================================================================
 LZMA SDK 26.05 (Igor Pavlov; PPMd by Dmitry Shkarin)
 https://www.7-zip.org/sdk.html
 ================================================================================

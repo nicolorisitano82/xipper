@@ -50,6 +50,9 @@ XIZ access and signatures (create, edit, and everything that opens an archive):
 
 /// Loads the `--identity` files into the credentials XIZ tries.
 @MainActor func loadXizIdentities() {
+    for path in allValues("--factor") {
+        do { XizCredentials.shared.add(factor: try XizFactor(contentsOf: URL(fileURLWithPath: path)).bytes) } catch { fail("\(path): \(error)") }
+    }
     for path in allValues("--identity") {
         if path.hasPrefix("keychain:") {
             let name = String(path.dropFirst("keychain:".count))

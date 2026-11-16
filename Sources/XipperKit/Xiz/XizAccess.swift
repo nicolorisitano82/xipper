@@ -38,6 +38,8 @@ public struct XizAccess: Sendable {
     public enum Credential: Sendable, Equatable {
         case password(String)
         case publicKey([UInt8])
+        /// A password bound to a 32-byte factor kept elsewhere (key file, Keychain): XIZ 1.14, §24.3.
+        case passwordWithFactor(String, factor: [UInt8])
     }
 
     public struct Recipient: Sendable {
@@ -313,12 +315,18 @@ public final class XizCredentials: @unchecked Sendable {
     private let lock = NSLock()
     private var _identities: [XizIdentity] = []
     private var _passwords: [String] = []
+    private var _factors: [[UInt8]] = []
 
     public func add(identity: XizIdentity) { lock.withLock { _identities.append(identity) } }
     public func add(password: String) { lock.withLock { _passwords.append(password) } }
-    public func removeAll() { lock.withLock { _identities = []; _passwords = [] } }
+    /// A second factor (§24.3) for passwords bound to it.
+    public func add(factor: [UInt8]) { lock.withLock { if !_factors.contains(factor) { _factors.append(factor) } } }
+    public func removeAll() { lock.withLock { _identities = []; _passwords = []; _factors = [] } }
+    /// Whether the factor with this id (hex, `XizFactor.id`) was given.
+    public func hasFactor(id: String) -> Bool { lock.withLock { _factors.contains { (try? XizFactor(bytes: $0))?.id == id } } }
     var identities: [XizIdentity] { lock.withLock { _identities } }
     var passwords: [String] { lock.withLock { _passwords } }
+    var factors: [[UInt8]] { lock.withLock { _factors } }
 }
 
 /// One segment's signature, as `Xipper.xizHistory` reports it.
@@ -452,7 +460,19 @@ enum Shamir {
 // MARK: - Keys block (1.3)
 
 enum XizAccessKeys {
-    enum StanzaType: UInt8 { case passwordRecipient = 2, keyRecipient = 3, threshold = 4, share = 5, pqKeyRecipient = 6, pqShare = 7 }
+    enum StanzaType: UInt8 {
+        case passwordRecipient = 2, keyRecipient = 3, threshold = 4, share = 5, pqKeyRecipient = 6, pqShare = 7
+        case passwordFactor = 8, commitment = 9
+    }
+
+    static func factorID(_ factor: [UInt8]) -> [UInt8] { Array(Array(SHA256.hash(data: factor)).prefix(8)) }
+
+    /// KEK of a type 8 stanza: HKDF-SHA-256(Argon2id(password) ‖ factor, salt = archive_id).
+    static func factorKEK(_ argon: SymmetricKey, factor: [UInt8], archiveID: [UInt8]) -> SymmetricKey {
+        let ikm = argon.withUnsafeBytes { Array($0) } + factor
+        return HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: ikm), salt: Data(archiveID),
+                                      info: Data("xiz/1.14/password+factor".utf8), outputByteCount: 32)
+    }
 
     static func bundle(_ keys: [(UInt16, SymmetricKey)]) -> [UInt8] {
         var w = ByteWriter(capacity: 2 + keys.count * 34)
@@ -486,15 +506,25 @@ enum XizAccessKeys {
         var header: [UInt8]
         var kek: SymmetricKey
         var plaintext: [UInt8]
-        var size: Int { 1 + 2 + header.count + 12 + plaintext.count + 16 }
+        /// Written as is, not sealed (type 9, the key commitment).
+        var raw: [UInt8]? = nil
+        var size: Int { raw.map { 1 + 2 + $0.count } ?? 1 + 2 + header.count + 12 + plaintext.count + 16 }
     }
 
     static func keyID(_ publicKey: [UInt8]) -> [UInt8] { Array(Array(SHA256.hash(data: publicKey)).prefix(8)) }
 
     /// KEK and header fields for a password (Argon2id), an X25519 public key (to an ephemeral key)
     /// or an X-Wing public key (encapsulation: ciphertext ‖ key id, §17).
-    static func credentialKEK(_ c: XizAccess.Credential, kdf: XizKeys.KDF) throws -> (header: [UInt8], kek: SymmetricKey) {
+    static func credentialKEK(_ c: XizAccess.Credential, kdf: XizKeys.KDF, archiveID: [UInt8] = []) throws -> (header: [UInt8], kek: SymmetricKey) {
         switch c {
+        case let .passwordWithFactor(p, factor):
+            guard factor.count == 32, archiveID.count == 16 else { throw XipperError.invalidArgument("a password factor is 32 bytes") }
+            var salt = [UInt8](repeating: 0, count: 32)
+            arc4random_buf(&salt, 32)
+            var w = ByteWriter(capacity: 52)
+            w.u32(kdf.memoryKiB); w.u32(kdf.iterations); w.u32(kdf.parallelism); w.append(salt); w.append(factorID(factor))
+            let argon = try XizKeys.argon2id(p.precomposedStringWithCanonicalMapping, salt: salt, kdf)
+            return (w.bytes, factorKEK(argon, factor: factor, archiveID: archiveID))
         case let .publicKey(pub) where pub.count == XizIdentity.xwingPublicKeySize:
             let r = try XWingMLKEM768X25519.PublicKey(rawRepresentation: pub).encapsulate()
             let id = keyID(pub)
@@ -504,7 +534,7 @@ enum XizAccessKeys {
             arc4random_buf(&salt, 32)
             var w = ByteWriter(capacity: 44)
             w.u32(kdf.memoryKiB); w.u32(kdf.iterations); w.u32(kdf.parallelism); w.append(salt)
-            return (w.bytes, try XizKeys.argon2id(p, salt: salt, kdf))
+            return (w.bytes, try XizKeys.argon2id(p.precomposedStringWithCanonicalMapping, salt: salt, kdf))
         case let .publicKey(pub):
             let recipient = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: pub)
             let eph = Curve25519.KeyAgreement.PrivateKey()
@@ -549,8 +579,12 @@ enum XizAccessKeys {
         }
         var out: [Pending] = []
         for r in access.recipients {
-            let (header, kek) = try credentialKEK(r.credential, kdf: kdf)
-            let type: StanzaType = if case .password = r.credential { .passwordRecipient } else if isPostQuantum(r.credential) { .pqKeyRecipient } else { .keyRecipient }
+            let (header, kek) = try credentialKEK(r.credential, kdf: kdf, archiveID: archiveID)
+            let type: StanzaType = switch r.credential {
+            case .password: .passwordRecipient
+            case .passwordWithFactor: .passwordFactor
+            case .publicKey: isPostQuantum(r.credential) ? .pqKeyRecipient : .keyRecipient
+            }
             out.append(Pending(type: type, header: header + label(r.label), kek: kek, plaintext: bundle(try keys(r.groups))))
         }
         for (tid, t) in access.thresholds.enumerated() {
@@ -563,6 +597,9 @@ enum XizAccessKeys {
             out.append(Pending(type: .threshold, header: [UInt8(tid), UInt8(t.k), UInt8(n)] + label(t.label),
                                kek: thresholdKEK(secret, archiveID: archiveID), plaintext: bundle(try keys(t.groups))))
             for (i, (c, share)) in zip(t.custodians, Shamir.split(secret, k: t.k, n: n)).enumerated() {
+                if case .passwordWithFactor = c.credential {
+                    throw XipperError.invalidArgument("custodian \"\(c.label)\": a password with a factor opens a recipient, not a share")
+                }
                 let (header, kek) = try credentialKEK(c.credential, kdf: kdf)
                 if isPostQuantum(c.credential) {  // a type of its own: older readers skip it (§17)
                     out.append(Pending(type: .pqShare, header: [UInt8(tid), UInt8(i + 1)] + header + label(c.label), kek: kek, plaintext: share))
@@ -574,6 +611,9 @@ enum XizAccessKeys {
             secret.withUnsafeMutableBytes { _ = memset_s($0.baseAddress, $0.count, 0, $0.count) }
         }
         guard !out.isEmpty else { throw XipperError.invalidArgument("an access policy needs at least one recipient") }
+        // Key commitment of every group key (§24.1).
+        out.append(Pending(type: .commitment, header: [], kek: SymmetricKey(size: .bits256), plaintext: [],
+                           raw: XizKeys.commitmentStanza(groupKeys.map { ($0.key, $0.value) }, archiveID: archiveID)))
         return out
     }
 
@@ -583,6 +623,7 @@ enum XizAccessKeys {
         var w = ByteWriter(capacity: size(stanzas))
         w.append(Xiz.keysMagic); w.u16(UInt16(stanzas.count))
         for s in stanzas {
+            if let raw = s.raw { w.u8(s.type.rawValue); w.u16(UInt16(raw.count)); w.append(raw); continue }
             let aad = Array(superblock[0..<60]) + [s.type.rawValue] + s.header
             let box = try AES.GCM.seal(s.plaintext, using: s.kek, authenticating: Data(aad))
             let body = s.header + Array(box.nonce) + Array(box.ciphertext) + Array(box.tag)
@@ -598,10 +639,12 @@ enum XizAccessKeys {
         var stanzas = 0
         /// Thresholds: label, k, how many shares were opened.
         var thresholds: [(label: String, k: Int, opened: Int)] = []
+        /// Labels of password-with-factor stanzas whose factor was not given (§24.3).
+        var missingFactors: [String] = []
     }
 
     /// Opens every stanza the credentials fit and unions the group keys.
-    static func open(_ b: [UInt8], superblock: [UInt8], passwords: [String], identities: [XizIdentity]) throws -> Opened {
+    static func open(_ b: [UInt8], superblock: [UInt8], passwords: [String], identities: [XizIdentity], factors: [[UInt8]] = []) throws -> Opened {
         guard b.count >= 10, b.starts(with: Xiz.keysMagic) else { throw XipperError.corrupt("XIZ keys block") }
         let crc = b.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: b.count - 4, as: UInt32.self).littleEndian }
         guard crc == Xiz.crc32c(Array(b[..<(b.count - 4)])) else { throw XipperError.corrupt("XIZ keys block checksum mismatch") }
@@ -616,7 +659,7 @@ enum XizAccessKeys {
         }
         let prefix = Array(superblock[0..<60])
         var result = Opened()
-        var argonCache: [[UInt8]: [String: SymmetricKey]] = [:]  // KDF header → password → KEK
+        var argonCache: [[UInt8]: [[UInt8]: SymmetricKey]] = [:]  // KDF header → password bytes → KEK (bytes: NFC and NFD differ)
 
         /// Header length of a credential: 44 (password) or 40 (public key); kind 1 or 2.
         func credentialKEKs(_ kind: UInt8, _ body: [UInt8], at p: Int) throws -> (Int, [SymmetricKey]) {
@@ -630,10 +673,10 @@ enum XizAccessKeys {
                 }
                 guard kdf.isAcceptable else { throw XipperError.limitExceeded("XIZ key derivation parameters") }
                 var keks: [SymmetricKey] = []
-                for pw in passwords {
-                    if let k = argonCache[h]?[pw] { keks.append(k); continue }
+                for pw in passwords.flatMap(XizKeys.passwordForms) {
+                    if let k = argonCache[h]?[Array(pw.utf8)] { keks.append(k); continue }
                     let k = try XizKeys.argon2id(pw, salt: Array(h[12..<44]), kdf)
-                    argonCache[h, default: [:]][pw] = k
+                    argonCache[h, default: [:]][Array(pw.utf8)] = k
                     keks.append(k)
                 }
                 return (44, keks)
@@ -678,12 +721,28 @@ enum XizAccessKeys {
             return p + 1 + Int(body[p])
         }
 
+        var commitments: [UInt16: [UInt8]]?
         var shares: [UInt8: [(x: UInt8, y: [UInt8])]] = [:]
         var thresholdStanzas: [(id: UInt8, k: Int, label: String, body: [UInt8], headerEnd: Int)] = []
         for (type, body) in stanzas {
             guard let t = StanzaType(rawValue: type) else { continue }  // unknown types are skipped (§6.2)
             result.stanzas += 1
             switch t {
+            case .commitment:
+                result.stanzas -= 1
+                commitments = try XizKeys.parseCommitments(body)
+            case .passwordFactor:
+                // Argon2id parameters, salt, factor id, label (§24.3).
+                guard body.count >= 52 else { throw XipperError.corrupt("XIZ stanza") }
+                let id = Array(body[44..<52])
+                let end = try labelEnd(body, at: 52)
+                let matching = factors.filter { factorID($0) == id }
+                if matching.isEmpty { result.missingFactors.append(String(decoding: body[53..<end], as: UTF8.self)); continue }
+                let (_, argons) = try credentialKEKs(1, body, at: 0)
+                let keks = argons.flatMap { a in matching.map { factorKEK(a, factor: $0, archiveID: Array(superblock[16..<32])) } }
+                if let plain = openBox(type, body, headerEnd: end, keks: keks) {
+                    result.groupKeys.merge(try unbundle(plain)) { a, _ in a }
+                }
             case .passwordRecipient, .keyRecipient, .pqKeyRecipient:
                 let (n, keks) = try credentialKEKs(t == .passwordRecipient ? 1 : t == .keyRecipient ? 2 : 3, body, at: 0)
                 let end = try labelEnd(body, at: n)
@@ -717,6 +776,7 @@ enum XizAccessKeys {
                 result.groupKeys.merge(try unbundle(plain)) { a, _ in a }
             }
         }
+        try XizKeys.checkCommitments(result.groupKeys, stanza: commitments, superblock: superblock)
         return result
     }
 }

@@ -232,7 +232,7 @@ struct XizTests {
         smallTexts(t)
         try createWithDictionary(t, password: password)
         let bytes = try [UInt8](Data(contentsOf: t.url("d.xiz")))
-        #expect(Array(bytes[10..<12]) == [2, 0] && bytes[12] & 0x02 != 0)  // XIZ 1.2, feature "dictionaries"
+        #expect(Array(bytes[10..<12]) == [password == nil ? 2 : 14, 0] && bytes[12] & 0x02 != 0)  // XIZ 1.2, feature "dictionaries" (1.14 when encrypted: key commitment)
         let a = try XizArchive(path: t.url("d.xiz").path, password: password)
         #expect(a.dictionaries == [XizDictionary.id: 0])
         #expect(a.catalog.frames.dropFirst().allSatisfy { $0.dictionary == XizDictionary.id })
@@ -288,7 +288,7 @@ struct XizTests {
         o.xizKDF = .minimum
         try Xipper.create(from: [t.url("src")], to: t.url("l.xiz"), options: o)
         let bytes = try [UInt8](Data(contentsOf: t.url("l.xiz")))
-        #expect(Array(bytes[10..<12]) == [4, 0] && bytes[12] & 0x20 != 0)  // XIZ 1.4, feature "lzma2"
+        #expect(Array(bytes[10..<12]) == [password == nil ? 4 : 14, 0] && bytes[12] & 0x20 != 0)  // XIZ 1.4, feature "lzma2" (1.14 when encrypted)
         return try XizArchive(path: t.url("l.xiz").path, password: password)
     }
 

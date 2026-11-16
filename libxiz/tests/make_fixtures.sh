@@ -12,7 +12,7 @@ trap 'rm -rf "$work"' EXIT
 [ -x "$X" ] || { echo "build xipper first: swift build -c release --product xipper" >&2; exit 2; }
 [ -x "$M" ] || { echo "build xiz_manifest first (cmake)" >&2; exit 2; }
 mkdir -p "$out"
-rm -f "$out"/*.xiz "$out"/*.manifest "$out"/*.json "$out"/*.txt
+rm -f "$out"/*.xiz "$out"/*.manifest "$out"/*.json "$out"/*.txt "$out"/*.xizfactor
 find "$out" -name "*.key" ! -name age-pq.key -delete
 
 # ---------------------------------------------------------------- the synthetic tree
@@ -54,8 +54,8 @@ mkdir -p "$work/arm/exe"; cp "$t/bin/hello" "$work/arm/exe/hello"
 cp "$t/bin/hello" "$work/arm/exe/hello2"; printf '\001' >> "$work/arm/exe/hello2"
 "$X" create -q -f xiz --lzma2 "$out/lzma2-arm64.xiz" "$work/arm/exe"
 "$M" "$work/arm" > "$out/arm64.manifest"
-printf '%s\n' "$pw" | "$X" create -q -f xiz --password-stdin "$out/password.xiz" "$t"
-printf '%s\n' "$pw" | "$X" create -q -f xiz --lzma2 --password-stdin "$out/password-lzma2.xiz" "$t"
+printf '%s\n' "$pw" | "$X" create -q -f xiz --password-stdin --weak-password-ok "$out/password.xiz" "$t"
+printf '%s\n' "$pw" | "$X" create -q -f xiz --lzma2 --password-stdin --weak-password-ok "$out/password-lzma2.xiz" "$t"
 
 # Dictionaries (§12): level ≥ 9 and ≥ 32 MiB of files under 128 KiB.
 d=$work/dict/small
@@ -156,7 +156,7 @@ printf 'notes\n' > "$work/jpeg/photos/notes.txt"
 find "$work/jpeg/photos" -exec touch -h -t 202601020304.05 {} +
 (cd "$work/jpeg" && "$M" "$work/jpeg" | grep -v '\.bmp	') > "$out/jpeg.manifest"
 "$X" create -q -f xiz --jpeg "$out/jpeg.xiz" "$work/jpeg/photos"
-printf '%s\n' "$pw" | "$X" create -q -f xiz --jpeg --password-stdin "$out/password-jpeg.xiz" "$work/jpeg/photos"
+printf '%s\n' "$pw" | "$X" create -q -f xiz --jpeg --password-stdin --weak-password-ok "$out/password-jpeg.xiz" "$work/jpeg/photos"
 
 # ---------------------------------------------------------------- 1.9 documents (preflate, §19)
 # A PNG made by sips (zlib), a PDF with zlib content streams (python's zlib), a DOCX-like ZIP by zip.
@@ -223,6 +223,17 @@ find "$work/models/models" -exec touch -h -t 202601020304.05 {} +
 "$M" "$work/models" > "$out/models.manifest"
 "$X" create -q -f xiz --models "$out/models.xiz" "$work/models/models"
 "$X" create -q -f xiz --tables "$out/tables.xiz" "$work/tables/tables"
+
+# ---------------------------------------------------------------- 1.14 key commitment, second factor (§24)
+# A password archive with its key commitment (type 9) and a directory archive whose only recipient is
+# a password bound to a factor file (type 8). make_114_fixtures does only this section.
+make_114_fixtures() {
+    printf '%s\n' "$pw" | "$X" create -q -f xiz --password-stdin --weak-password-ok "$out/password-114.xiz" "$t"
+    "$X" factor -o "$out/factor.xizfactor" > /dev/null
+    printf '%s\n' "$pw" | "$X" create -q -f xiz --password-stdin --weak-password-ok --factor "$out/factor.xizfactor" \
+        "$out/factor.xiz" "$t"
+}
+make_114_fixtures
 
 # ---------------------------------------------------------------- 1.10 forensic profile (§20)
 sh "$here/make_forensic_fixtures.sh" "$X" "$(dirname "$X")/xipper-forensic" "$M"

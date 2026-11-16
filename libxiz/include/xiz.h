@@ -35,7 +35,7 @@ extern "C" {
 
 #define XIZ_LIB_VERSION "0.1.0"
 /* Highest XIZ minor version this library reads. */
-#define XIZ_FORMAT_MINOR 5
+#define XIZ_FORMAT_MINOR 14
 
 /* ------------------------------------------------------------------ errors */
 
@@ -58,7 +58,8 @@ typedef enum xiz_status {
     XIZ_E_LOCKED = -15,          /* the entry's access group is not held */
     XIZ_E_ERASED = -16,          /* the entry's key slot was erased */
     XIZ_E_EXISTS = -17,          /* destination exists (extraction without overwrite) */
-    XIZ_E_CALLBACK = -18         /* a callback asked to stop */
+    XIZ_E_CALLBACK = -18,        /* a callback asked to stop */
+    XIZ_E_FACTOR_REQUIRED = -19  /* a password is bound to a key file (factor, XIZ 1.14) not given */
 } xiz_status;
 
 typedef struct xiz_error {
@@ -99,7 +100,16 @@ typedef struct xiz_open_options {
     unsigned flags;                     /* XIZ_OPEN_* */
     const uint8_t (*pq_identities)[32]; /* X-Wing secret seeds (XIZ 1.7 post-quantum recipients, §17) */
     size_t pq_identity_count;
+    /* Second factors (XIZ 1.14, §24.3): the 32 bytes of each key file (XIZ-FACTOR-1-…), tried on the
+     * password-with-factor stanzas whose factor id matches. When such a stanza's factor is missing and
+     * nothing else opens the archive, xiz_open fails with XIZ_E_FACTOR_REQUIRED. */
+    const uint8_t (*factors)[32];
+    size_t factor_count;
 } xiz_open_options;
+
+/* XIZ 1.14 (§24): a type 9 key commitment is checked against every unwrapped key, and an archive with
+ * version_minor >= 14 without one is refused (XIZ_E_CORRUPT). Passwords are used as the bytes given:
+ * libxiz does not normalize Unicode, so pass them in NFC (§24.2), as Xipper writes them. */
 
 /* Accept 0.1 beta archives (§9). */
 #define XIZ_OPEN_ALLOW_BETA 1u
@@ -344,7 +354,8 @@ XIZ_API const char *xiz_group_prefix(const xiz_archive *a, size_t i, size_t p);
 
 typedef struct xiz_stanza {
     int type;                    /* 1 password, 2 password recipient, 3 public key, 4 threshold, 5 share,
-                                    6 post-quantum recipient, 7 post-quantum share (§17) */
+                                    6 post-quantum recipient, 7 post-quantum share (§17),
+                                    8 password with factor, 9 key commitment (§24) */
     const char *label;           /* visible label (types 2–7), "" otherwise */
     int opened;                  /* a credential opened it */
     int threshold_id, k, n, x;   /* threshold (4) and share (5, 7) */

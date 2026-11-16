@@ -1,4 +1,4 @@
-# XIZ archive format, version 1.13
+# XIZ archive format, version 1.14
 
 Status: **stable**. 1.0 frozen on 2026-10-22; 1.1 (same day) adds appended segments (§11) and 1.2
 (2026-10-23) zstd dictionaries (§12); older readers refuse both cleanly. **1.3** (2026-10-25, released with
@@ -14,7 +14,7 @@ post-quantum recipients and custodians with the hybrid KEM X-Wing (§17), which 
 cryptographic hash of every frame, unreadable-sector maps, case and custody records. **1.11** (draft, 2026-11-12,
 Xipper 3.1) adds delimited tables (CSV, TSV, BED) compressed column by column with OpenZL (§21). **1.12** (draft,
 2026-11-14, Xipper 3.2) adds hybrid post-quantum segment signatures, Ed25519 + ML-DSA-65 (§22). **1.13** (draft,
-2026-11-14, Xipper 3.3) adds segment signatures by a key in a Mac's Secure Enclave, P-256 + ML-DSA-65 (§23). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
+2026-11-14, Xipper 3.3) adds segment signatures by a key in a Mac's Secure Enclave, P-256 + ML-DSA-65 (§23). **1.14** (draft, 2026-11-16, Xipper 3.5) adds key commitment, NFC passwords and passwords with a second factor (§24). Reference implementation: `Sources/XipperKit/Xiz/` in Xipper (MIT).
 Design rationale (Italian): [reports/Nuovo formato di compressione Xipper.md](reports/Nuovo%20formato%20di%20compressione%20Xipper.md).
 File extension `.xiz`, Uniform Type Identifier `app.xipper.xiz`, media type `application/x-xiz`.
 
@@ -1111,3 +1111,69 @@ the §22 construction with P-256 in place of Ed25519.
 The reference writer signs with CryptoKit (`SecureEnclave.P256.Signing`, `SecureEnclave.MLDSA65`).
 libxiz verifies with BearSSL (`br_ecdsa_i31_vrfy_raw`) and mldsa-native; on the test vectors the two
 agree, and one flipped bit in either half fails the signature.
+
+## 24. Version 1.14: key commitment, normalized passwords, password with a second factor
+
+Three changes against password guessing and crafted archives (study: docs/STUDIO_XIZ_ATTACCHI.md).
+None needs a required feature bit: readers since 1.3 skip the new stanza types and open the
+archive with the credentials they know.
+
+### 24.1 Key commitment (stanza type 9)
+
+AES-GCM does not commit to its key: a sender can build stanzas that unwrap **different** file or
+group keys for different recipients of the same archive, so that each sees other content
+("invisible salamanders"). A 1.14 writer adds one stanza of type 9 to every encrypted archive:
+
+```
+count        u16
+count × (group u16, commitment[32])
+```
+
+with `commitment = HKDF-SHA-256(key, salt = archive_id, info "xiz/1.14/commit", 32 bytes)`, where
+`key` is the file key (§6.1, `group = 0`) or the group key of `group` (§13.3). It is not a secret: it
+is a PRF output under another label.
+
+- A 1.14 reader, when a type 9 stanza is present (whatever `version_minor`), **must** recompute the
+  commitment of every key it unwraps (file key, every group key of every bundle, the
+  threshold-rebuilt keys) and refuse the archive unless each matches the stanza's entry for its
+  group; a key with no entry is refused as well. When `version_minor ≥ 14` and there is no type 9
+  stanza, it **must** refuse the archive.
+- Writers set `version_minor = 14` in every encrypted archive they create (also the forensic
+  profile may carry the stanza with a lower `version_minor`).
+- Archives with `version_minor < 14` have no commitment; readers may say so when an archive has
+  several recipients and no signature.
+- The stanza is outside the AEAD but inside the keys-block CRC; damaging it only makes honest
+  readers refuse the archive. The superblock, and so `version_minor`, is authenticated by every other
+  stanza (§6.2, §13.3): stripping the commitment and lowering the version breaks every honest stanza.
+
+### 24.2 Passwords in NFC
+
+Writers turn a password into UTF-8 **after Unicode normalization form C** (NFC) before Argon2id
+(§6.2, types 2, 5 and 8). The same password typed on systems that compose characters differently
+(macOS file names in NFD, some Linux input methods) then gives the same key.
+
+Readers try the password as given; if that fails and its NFC form differs, they try the NFC form.
+Archives written before 1.14 with a non-NFC password keep opening; the second Argon2id runs only for
+such passwords.
+
+### 24.3 Password with a second factor (stanza type 8)
+
+A password alone can be guessed offline by whoever holds the file. Type 8 binds it to a 32-byte
+random **factor** `S` kept elsewhere (a key file, the Keychain): without `S` no guess can be
+checked, without the password `S` is useless.
+
+| Type | Name | Header | KEK |
+|---:|---|---|---|
+| 8 | password with factor | Argon2id memory u32, iterations u32, parallelism u32, salt[32], factor id[8], label | HKDF-SHA-256(Argon2id(password) ‖ S, salt = archive_id, info `xiz/1.14/password+factor`) |
+
+- `Argon2id(password)` is computed exactly as for type 2 (NFC, §24.2), 32 bytes; the KEK is
+  HKDF over the 64-byte concatenation.
+- The factor id is the first 8 bytes of SHA-256(`S`), so a reader holding several factors tries only
+  the matching one, and a missing factor is reported as such (not as a wrong password).
+- The sealed plaintext is a bundle (§13.3); nonce, associated data and label as for type 2. Like
+  types 2–7 it needs the `directory` feature (§13).
+- **Factor text form**: `XIZ-FACTOR-1-` + base64url of `S` (no padding), one line, in a file of its
+  own (Xipper: `name.xizfactor`) or in the Keychain. Losing the factor loses the stanza: writers
+  should offer a second recipient (another password with its own factor, a public key, custodians).
+- Readers older than 1.14 skip type 8: an archive whose only recipient is of type 8 is refused by
+  them as having no stanza they can open.

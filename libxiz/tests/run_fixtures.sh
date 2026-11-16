@@ -143,6 +143,25 @@ expect_code pq-classic-key 3 "$XIZ" list --identity "$F/identity.key" "$F/access
 if grep -q 'post-quantum recipient "Chiave PQ"' "$W/pq.log" && grep -q 'post-quantum custodian share "C1 PQ"' "$W/pq.log" \
    && grep -q 'format          XIZ 1.7' "$W/pq.log"; then pass pq-stanzas; else fail pq-stanzas; cat "$W/pq.log"; fi
 
+# ---------------------------------------------------------------- 1.14 key commitment, second factor (§24)
+extract_cmp password-114 password-114.xiz tree.manifest -- --password-env PW
+expect_code wrong-password-114 3 "$XIZ" list --password-env WRONG "$F/password-114.xiz"
+extract_cmp factor factor.xiz tree.manifest -- --password-env PW --factor "$F/factor.xizfactor"
+expect_code factor-test 0 "$XIZ" test --password-env PW --factor "$F/factor.xizfactor" "$F/factor.xiz"
+expect_code factor-missing 3 "$XIZ" list --password-env PW "$F/factor.xiz"
+grep -q 'bound to a key file (factor)' "$W/out.log" && pass factor-missing-message || fail "factor-missing-message: $(cat "$W/out.log")"
+expect_code factor-wrong-password 3 "$XIZ" list --password-env WRONG --factor "$F/factor.xizfactor" "$F/factor.xiz"
+grep -q 'wrong password' "$W/out.log" && pass factor-wrong-password-message || fail "factor-wrong-password-message: $(cat "$W/out.log")"
+printf 'XIZ-FACTOR-1-%s\n' AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA > "$W/other.xizfactor"
+expect_code factor-other 3 "$XIZ" list --password-env PW --factor "$W/other.xizfactor" "$F/factor.xiz"
+grep -q 'bound to a key file (factor)' "$W/out.log" && pass factor-other-message || fail "factor-other-message: $(cat "$W/out.log")"
+"$XIZ" info --password-env PW --factor "$F/factor.xizfactor" "$F/factor.xiz" > "$W/f114.log" 2>&1
+if grep -q 'key stanza      password with factor \[opened\]' "$W/f114.log" && grep -q 'key stanza      key commitment' "$W/f114.log" \
+   && grep -q 'format          XIZ 1.14' "$W/f114.log"; then pass factor-stanzas; else fail factor-stanzas; cat "$W/f114.log"; fi
+# Older archives: no commitment, minor < 14, still open.
+expect_code old-access-no-commitment 0 "$XIZ" test --password-env XIZ_PW_A "$F/access.xiz"
+"$XIZ" info --password-env PW "$F/password.xiz" | grep -q 'key commitment' && fail old-password-no-commitment || pass old-password-no-commitment
+
 # ---------------------------------------------------------------- 1.3 signatures, proofs, erasure
 "$XIZ" history "$F/signed.xiz" > "$W/h.log" 2>&1
 if [ "$(grep -c 'signature valid, chain ok' "$W/h.log")" = 2 ] && grep -q 'inclusion tree  ok' "$W/h.log"; then pass history; else fail history; cat "$W/h.log"; fi

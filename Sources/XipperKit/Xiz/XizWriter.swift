@@ -102,6 +102,7 @@ enum XizWriter {
         if let password {
             let fileKey = SymmetricKey(size: .bits256)
             superblock.required.insert(.encrypted)
+            superblock.minor = max(superblock.minor, 14)  // key commitment (§24.1)
             superblock.keysLength = UInt32(XizKeys.keysBlockSize)
             keysBlock = try XizKeys.keysBlock(password: password, fileKey: fileKey, superblock: superblock.encode(), kdf: kdf)
             precondition(keysBlock.count == XizKeys.keysBlockSize)
@@ -624,6 +625,7 @@ enum XizWriter {
             let size = XizAccessKeys.size(stanzas)
             guard size <= Xiz.maxKeysBlock else { throw XipperError.limitExceeded("too many recipients for one XIZ archive") }
             superblock.required.insert(.encrypted)
+            superblock.minor = max(superblock.minor, 14)  // key commitment (§24.1)
             superblock.keysLength = UInt32(size)
             keysBlock = try XizAccessKeys.seal(stanzas, superblock: superblock.encode())
         }

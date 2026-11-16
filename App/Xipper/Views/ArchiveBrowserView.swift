@@ -86,7 +86,7 @@ struct ArchiveBrowserView: View {
                 .environment(jobs)
         }
         .sheet(item: $passwordPrompt) { prompt in
-            PasswordSheet(mode: .open(wrong: prompt.wrong), archiveName: url.lastPathComponent) { pw, remember in
+            PasswordSheet(mode: .open(wrong: prompt.wrong), archiveName: url.lastPathComponent, onDone: { pw, remember in
                 guard let pw else { return }
                 Task {
                     if await model.check(password: pw) {
@@ -97,7 +97,7 @@ struct ArchiveBrowserView: View {
                         passwordPrompt = PasswordPrompt(wrong: true, then: prompt.then)
                     }
                 }
-            }
+            }, archiveURL: url)
         }
         .sheet(isPresented: $showXizUnlock) {
             XizUnlockSheet(model: model) { passwords in

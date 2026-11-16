@@ -1,4 +1,5 @@
-/* Keys block (§6.2, §13.3): password stanzas, recipients, threshold groups and custodian shares. */
+/* Keys block (§6.2, §13.3, §24): password stanzas, recipients, threshold groups, custodian shares,
+ * passwords with a second factor (type 8) and the key commitment (type 9). */
 #include "internal.h"
 
 #include "monocypher.h"
@@ -50,7 +51,25 @@ typedef struct {
     const xiz_open_options *opt;
     const char **passwords;
     size_t n_passwords;
+    const uint8_t *commit;      /* type 9 body after the count: count × (group u16, commitment[32]) */
+    size_t n_commit;            /* entries; commit == NULL: no type 9 stanza */
 } ctx_t;
+
+/* Key commitment (§24.1): HKDF-SHA-256(key, salt = archive_id, info "xiz/1.14/commit"). Every
+ * unwrapped key must match its group's entry when the stanza is present (the last entry of a group
+ * counts, as in the reference reader); a key with no entry is refused. */
+static int check_commitment(const ctx_t *c, uint16_t group, const uint8_t key[32], xiz_error *err) {
+    if (!c->commit) return XIZ_OK;  /* absent: version_minor >= 14 is refused by keys_open */
+    const uint8_t *want = NULL;
+    for (size_t i = 0; i < c->n_commit; i++)
+        if (rd16(c->commit + i * 34) == group) want = c->commit + i * 34 + 2;
+    uint8_t got[32];
+    hkdf_sha256(key, 32, c->sb + 16, 16, "xiz/1.14/commit", got, 32);
+    int ok = want && ct_equal(got, want, 32);
+    secure_zero(got, 32);
+    if (!ok) return FAIL(XIZ_E_CORRUPT, "key commitment mismatch: this archive would open differently for different recipients");
+    return XIZ_OK;
+}
 
 /* Opens `nonce ‖ ciphertext ‖ tag` at body[header_end..] with `kek`; aad = sb[0..60] ‖ type ‖ body[..header_end]. */
 static int open_box(const ctx_t *c, uint8_t type, const uint8_t *body, size_t len, size_t header_end,
@@ -189,7 +208,7 @@ static const char *label_dup(arena *ar, const uint8_t *body, size_t p) {
     return arena_dup(ar, body + p + 1, body[p], 1);
 }
 
-static int add_bundle(keys_opened *out, const uint8_t *b, size_t n, xiz_error *err) {
+static int add_bundle(const ctx_t *c, keys_opened *out, const uint8_t *b, size_t n, xiz_error *err) {
     rbuf r;
     rb_init(&r, b, n);
     uint16_t count = rb_u16(&r);
@@ -200,6 +219,8 @@ static int add_bundle(keys_opened *out, const uint8_t *b, size_t n, xiz_error *e
     for (uint16_t i = 0; i < count; i++) {
         uint16_t g = rb_u16(&r);
         const uint8_t *k = rb_take(&r, 32);
+        int rc = check_commitment(c, g, k, err);  /* every key of every bundle, duplicates included */
+        if (rc) return rc;
         int dup = 0;
         for (size_t j = 0; j < out->n_keys; j++)
             if (out->keys[j].group == g) dup = 1;  /* first one wins */
@@ -216,6 +237,9 @@ typedef struct {
     uint16_t len;
     const uint8_t *body;
 } raw_stanza;
+
+/* Stanzas listed in xiz_get_stanza: type 1 without a directory, 2–8 with one, 9 (commitment) in both. */
+static int listed_type(int has_dir, uint8_t t) { return t == 9 || (has_dir ? (t >= 2 && t <= 8) : t == 1); }
 
 int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], int has_dir,
               const xiz_open_options *opt, keys_opened *out, arena *ar, xiz_error *err) {
@@ -242,7 +266,19 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
     if (opt && opt->password) pw[npw++] = opt->password;
     for (size_t i = 0; opt && i < opt->password_count && npw < 64; i++)
         if (opt->passwords[i]) pw[npw++] = opt->passwords[i];
-    ctx_t c = {sb, opt, pw, npw};
+    ctx_t c = {sb, opt, pw, npw, NULL, 0};
+    /* The key commitment (§24.1), needed before any key is unwrapped. */
+    for (uint16_t i = 0; i < count; i++) {
+        if (st[i].type != 9) continue;
+        const uint8_t *b = st[i].body;
+        if (st[i].len < 2 || st[i].len != 2 + (size_t)rd16(b) * 34) {
+            free(st);
+            return FAIL(XIZ_E_CORRUPT, "keys block: key commitment stanza");
+        }
+        c.commit = b + 2;
+        c.n_commit = rd16(b);
+        break;  /* the first one, as the reference reader */
+    }
 
     int rc = XIZ_OK;
     /* Shares opened per threshold id: x values and y. */
@@ -283,6 +319,11 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
                 memcpy(key, b + 56, 32);
                 if (aes_gcm_open(kek, b + 44, aad, sizeof aad, key, 32, b + 88)) {
                     si->opened = 1;
+                    if ((rc = check_commitment(&c, 0, key, err)) != XIZ_OK) {
+                        secure_zero(kek, 32);
+                        secure_zero(key, 32);
+                        break;
+                    }
                     if (out->n_keys == 0) {
                         out->keys = malloc(sizeof(group_key));
                         if (!out->keys) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
@@ -296,10 +337,57 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             }
             continue;
         }
-        if (!has_dir || st[i].type < 2 || st[i].type > 7) continue;  /* unknown here: skipped (§6.2) */
+        if (st[i].type == 9) {  /* listed, parsed above */
+            out->n_stanzas++;
+            continue;
+        }
+        if (!has_dir || st[i].type < 2 || st[i].type > 8) continue;  /* unknown here: skipped (§6.2) */
         out->any_known = 1;
         out->n_stanzas++;
         switch (st[i].type) {
+        case 8: {
+            /* Argon2id header (44), factor id[8], label; KEK = HKDF(Argon2id ‖ factor) (§24.3). */
+            size_t end = 0;
+            if (len < 53) { rc = FAIL(XIZ_E_CORRUPT, "keys block: password-with-factor stanza truncated"); break; }
+            if ((rc = label_end(b, len, 52, &end, err))) break;
+            si->label = label_dup(ar, b, 52);
+            const uint8_t (*fs)[32] = opt ? opt->factors : NULL;
+            size_t nf = opt && opt->factors ? opt->factor_count : 0, match = 0;
+            for (size_t f = 0; f < nf; f++) {
+                uint8_t h[32];
+                sha256(fs[f], 32, h);
+                if (memcmp(h, b + 44, 8) == 0) match++;
+            }
+            if (!match) {
+                uint32_t mem = rd32(b), it = rd32(b + 4), par = rd32(b + 8);
+                if (!kdf_acceptable(mem, it, par))
+                    rc = FAIL(XIZ_E_LIMIT, "Argon2id parameters out of bounds (memory %u KiB, %u iterations, parallelism %u)",
+                              mem, it, par);
+                else if (!out->missing_factor)
+                    out->missing_factor = (int)out->n_stanzas;
+                break;
+            }
+            rc = credential_keks(&c, 1, b, len, 0, &kk, err);
+            if (rc) break;
+            for (size_t k = 0; k < kk.n && !si->opened; k++) {
+                for (size_t f = 0; f < nf && !si->opened; f++) {
+                    uint8_t h[32], ikm[64], kek[32];
+                    sha256(fs[f], 32, h);
+                    if (memcmp(h, b + 44, 8) != 0) continue;
+                    memcpy(ikm, kk.keks[k], 32);
+                    memcpy(ikm + 32, fs[f], 32);
+                    hkdf_sha256(ikm, 64, sb + 16, 16, "xiz/1.14/password+factor", kek, 32);
+                    secure_zero(ikm, sizeof ikm);
+                    if (open_box(&c, 8, b, len, end, kek, plain, &plain_len)) {
+                        si->opened = 1;
+                        rc = add_bundle(&c, out, plain, plain_len, err);
+                    }
+                    secure_zero(kek, 32);
+                }
+            }
+            if (kk.keks) secure_zero(kk.keks, kk.n * 32);
+            break;
+        }
         case 2:
         case 3:
         case 6: {
@@ -311,7 +399,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             for (size_t k = 0; k < kk.n && !si->opened; k++) {
                 if (open_box(&c, st[i].type, b, len, end, kk.keks[k], plain, &plain_len)) {
                     si->opened = 1;
-                    rc = add_bundle(out, plain, plain_len, err);
+                    rc = add_bundle(&c, out, plain, plain_len, err);
                 }
             }
             break;
@@ -366,7 +454,7 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
         /* Find the raw stanza again (same order, skipping unknown ones). */
         size_t seen = 0;
         for (uint16_t j = 0; j < count; j++) {
-            if (!(has_dir ? (st[j].type >= 2 && st[j].type <= 7) : st[j].type == 1)) continue;
+            if (!listed_type(has_dir, st[j].type)) continue;
             if (seen++ != i) continue;
             uint8_t secret[32], kek[32];
             shamir_combine(share_x[t], (const uint8_t(*)[32])share_y[t], (size_t)si->k, secret);
@@ -374,13 +462,16 @@ int keys_open(const uint8_t *block, size_t n, const uint8_t sb[XIZ_SUPERBLOCK], 
             size_t end = 4 + st[j].body[3];
             if (open_box(&c, 4, st[j].body, st[j].len, end, kek, plain, &plain_len)) {
                 si->opened = 1;
-                rc = add_bundle(out, plain, plain_len, err);
+                rc = add_bundle(&c, out, plain, plain_len, err);
             }
             secure_zero(secret, 32);
             secure_zero(kek, 32);
             break;
         }
     }
+    /* A 1.14 archive must carry its key commitment (§24.1). */
+    if (rc == XIZ_OK && !c.commit && out->n_keys && rd16(sb + 10) >= 14)
+        rc = FAIL(XIZ_E_CORRUPT, "XIZ 1.%u archive without key commitment", rd16(sb + 10));
     secure_zero(plain, sizeof plain);
     secure_zero(share_y, 256 * sizeof *share_y);
     free(share_y);

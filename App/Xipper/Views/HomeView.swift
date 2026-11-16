@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var saveFolder: URL?
     @State private var targeted = false
     @State private var password: String?
+    /// XIZ: bind the password to a key file (XIZ 1.14 second factor).
+    @State private var useFactor = false
     @State private var rememberPassword = false
     @State private var legacyZipCrypto = false
     @State private var askPassword = false
@@ -94,7 +96,7 @@ struct HomeView: View {
         .sheet(isPresented: $askPassword) {
             PasswordSheet(mode: .create, archiveName: archiveName, onDone: { pw, remember in
                 if let pw { password = pw; rememberPassword = remember }
-            }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil,
+            }, legacyZipCrypto: format == .zip ? $legacyZipCrypto : nil, factorChoice: format == .xiz ? $useFactor : nil,
                minimumLength: format == .appleArchive ? AppleArchiveWriter.minimumPasswordLength : 1)
         }
         #if DEBUG
@@ -522,12 +524,33 @@ struct HomeView: View {
     }
 
     private func start(xiz: XizExtras?) {
+        var xiz = xiz
+        if format == .xiz, password != nil, useFactor {
+            // The key file is written first, where the user chooses (not next to the archive).
+            guard let factor = saveNewFactor() else { return }
+            if xiz == nil { xiz = XizExtras() }
+            xiz?.factor = factor.bytes
+        }
         let dest = uniqueURL(folder.appendingPathComponent(archiveName))
         let started = jobs.start(.create(sources: items, destination: dest, format: format, preset: preset, password: password, xiz: xiz),
                                  legacyZipCrypto: format == .zip && password != nil && legacyZipCrypto)
         started.rememberPassword = password != nil && rememberPassword
         jobs.focused.insert(started.id)
         job = started
+    }
+
+    /// A new XIZ factor saved where the user chooses; nil if cancelled or not written.
+    private func saveNewFactor() -> XizFactor? {
+        let panel = NSSavePanel()
+        panel.title = String(localized: "Salva il file chiave")
+        panel.message = String(localized: "Senza questo file la password non basta ad aprire l'archivio. Tienilo lontano dall'archivio (per esempio su una chiavetta) e fanne una copia.")
+        panel.nameFieldStringValue = (archiveName as NSString).deletingPathExtension + "." + XizFactor.fileExtension
+        panel.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        let factor = XizFactor()
+        try? FileManager.default.removeItem(at: url)  // the save panel already asked to replace it
+        do { try factor.write(to: url) } catch { NSSound.beep(); return nil }
+        return factor
     }
 
     /// "Nascondi": the job continues in the HUD.

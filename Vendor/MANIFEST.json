@@ -4293,6 +4293,68 @@
      "sha256": "bcfdcf785218cf897f05b144e80b659e611188fee3887d533bdcb7a6aa4c336b"
     }
    }
+  },
+  {
+   "name": "zxcvbn",
+   "version": "2.7",
+   "upstream": "https://github.com/tsyrogit/zxcvbn-c",
+   "ref": "v2.7 (4011582)",
+   "files": {
+    "zxcvbn/LICENSE": {
+     "sha256": "f898e43b397754b7d345d38f6d37803fa5939e9f8d73a231669f9c39c79fee75"
+    },
+    "zxcvbn/include/zxcvbn.h": {
+     "sha256": "f2524090cc1bb4d2e31d0ae9456f1817961fbe12e042c386b26191457aafe10e"
+    },
+    "zxcvbn/src/dict-src.h": {
+     "sha256": "f40f3f22ab0d7e6ec1b79817fc02f3645cd001b7442ba74ad612f8e468b39cf9",
+     "ours": true
+    },
+    "zxcvbn/src/zxcvbn.c": {
+     "sha256": "97e1ee396d6ecc190534a8a1dc0b488c78e7cc649758e21a0051e344c6103c7b"
+    },
+    "zxcvbn/words/dict-generate.cpp": {
+     "sha256": "3a9b3fff84b40402003faf6996f903819453f45d53fe522d8f778b89c3a00a9b"
+    },
+    "zxcvbn/words/words-eng_wiki.txt": {
+     "sha256": "d328355469e93df15b091fd20a8fd171e056e5a870b65bcf08298a4eb93a6160"
+    },
+    "zxcvbn/words/words-female.txt": {
+     "sha256": "9067937d9acdafb6c92683ce343dff785db5224b40df05723964adb3d41055ae"
+    },
+    "zxcvbn/words/words-male.txt": {
+     "sha256": "cc68490c2ef895961f568833130f90f43a41f0a4fffb1990d84bbadd0b405c63"
+    },
+    "zxcvbn/words/words-passwd.txt": {
+     "sha256": "b7173d5bc1c8a9b07eebbfc51259e4f52706c5005cde9b0c5914e099b7870c73"
+    },
+    "zxcvbn/words/words-surname.txt": {
+     "sha256": "4ec7babc98a4ed0347b97fe26d7df34520c577c4e587abf8924e8ddd6939a01d"
+    },
+    "zxcvbn/words/words-tv_film.txt": {
+     "sha256": "086b2b3ae62290f1120e7eb78727d0d3dc5404bcd6a590c33cad5ab22ae83ede"
+    }
+   }
+  },
+  {
+   "name": "wordlists",
+   "version": "2016-07 / 4 (2019-09-29)",
+   "upstream": "https://www.eff.org/dice ; https://www.taringamberini.com/it/diceware_it_IT/lista-di-parole-diceware-in-italiano",
+   "ref": "eff_large_wordlist.txt; word_list_diceware_it-IT-4.txt",
+   "files": {
+    "wordlists/GPL-3.0.txt": {
+     "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    "wordlists/README.md": {
+     "sha256": "f391c91d89960832b0214fa811e61d2cc21b713e573c969a8c8f9ccf3011fe13"
+    },
+    "wordlists/eff_large_wordlist.txt": {
+     "sha256": "addd35536511597a02fa0a9ff1e5284677b8883b83e986e43f15a3db996b903e"
+    },
+    "wordlists/word_list_diceware_it-IT-4.txt": {
+     "sha256": "b441559b64fb7041b9bbcecb3c43111f2523ec84e172670409f40c462eda0b93"
+    }
+   }
   }
  ]
 }

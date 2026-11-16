@@ -177,6 +177,9 @@ public struct CreateOptions: Sendable {
     /// XIZ 1.3: access groups, recipients and threshold custodians (the password, if any, is one
     /// more recipient opening everything).
     public var xizAccess: XizAccess?
+    /// XIZ 1.14 (§24.3): the password is bound to this 32-byte factor (`XizFactor`): the archive
+    /// opens only with both.
+    public var xizPasswordFactor: [UInt8]?
     /// XIZ 1.3: signs the archive (and, in `Xipper.edit`, each change appended to it). Apple Archive:
     /// signs it with a P-256 key derived from this one (AEA profile 0, not encrypted; no time-stamp).
     public var xizSigner: XizSigner?
@@ -331,11 +334,18 @@ public enum Xipper {
         case .cpio:
             return try CpioWriter.write(items: items, to: path, overwrite: options.overwrite, progress: progress, cancel: cancel)
         case .xiz:
+            var access = options.xizAccess, password = options.password
+            if let factor = options.xizPasswordFactor, let pw = password {
+                var policy = access ?? XizAccess()
+                policy.recipients.insert(XizAccess.Recipient(label: "", credential: .passwordWithFactor(pw, factor: factor)), at: 0)
+                access = policy
+                password = nil
+            }
             var report = try XizWriter.write(items: items, to: path, level: options.level ?? 3, lzma2: options.xizCodec == .lzma2, appleCodec: options.xizCodec.appleFrameCodec,
-                                       jpeg: options.xizJPEG, deflate: options.xizDocuments, tables: options.xizTables, models: options.xizModels, password: options.password, kdf: options.xizKDF,
+                                       jpeg: options.xizJPEG, deflate: options.xizDocuments, tables: options.xizTables, models: options.xizModels, password: password, kdf: options.xizKDF,
                                        extendedAttributes: options.storeExtendedAttributes,
                                        dictionaryThreshold: options.xizDictionary ? options.xizDictionaryThreshold ?? XizDictionary.minimumSmallBytes : .max,
-                                       access: options.xizAccess, signer: options.xizSigner,
+                                       access: access, signer: options.xizSigner,
                                        workload: options.workload, overwrite: options.overwrite, progress: progress, cancel: cancel)
             if options.xizRecovery > 0 {
                 report.outputBytes += try XizRecovery.add(path, redundancy: options.xizRecovery, progress: nil, cancel: cancel).recordBytes

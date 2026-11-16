@@ -699,9 +699,124 @@ static void test_pq_stanza(const char *dir) {
     free(b);
 }
 
+/* Body offset (inside the keys block) of the first stanza of `type`, 0 if none. */
+static size_t find_stanza(const uint8_t *blk, size_t klen, uint8_t type) {
+    size_t at = 6;
+    for (uint16_t i = 0, count = rd16(blk + 4); i < count && at + 3 <= klen - 4; i++) {
+        if (blk[at] == type) return at + 3;
+        at += 3 + rd16(blk + at + 1);
+    }
+    return 0;
+}
+
+static void fix_keys_crc(uint8_t *blk, size_t klen) {
+    uint32_t crc = xiz_crc32c(0, blk, klen - 4);
+    blk[klen - 4] = (uint8_t)crc; blk[klen - 3] = (uint8_t)(crc >> 8);
+    blk[klen - 2] = (uint8_t)(crc >> 16); blk[klen - 1] = (uint8_t)(crc >> 24);
+}
+
+static int open_creds(const uint8_t *b, size_t n, const char *pw, const uint8_t *factor, xiz_error *e) {
+    xiz_open_options o;
+    memset(&o, 0, sizeof o);
+    o.password = pw;
+    o.factors = (const uint8_t(*)[32])factor;
+    o.factor_count = factor ? 1 : 0;
+    xiz_source s;
+    xiz_source_memory(&s, b, n);
+    xiz_archive *a = NULL;
+    int rc = xiz_open(&a, &s, &o, e);
+    if (a) xiz_close(a);
+    return rc;
+}
+
+/* XIZ 1.14 (§24): the key commitment (type 9) on a password archive (file key, group 0) and on a
+ * directory archive whose recipient is a password with a factor (type 8). The CRC is fixed after each
+ * change, so only the commitment rule can refuse. */
+static void test_commitment(const char *dir) {
+    static const char *pw = "correct horse battery staple";
+    char path[1024];
+    uint8_t factor[32];
+    snprintf(path, sizeof path, "%s/factor.xizfactor", dir);
+    CHECK(key_from_file(path, "XIZ-FACTOR-1-", factor));
+    for (int which = 0; which < 2; which++) {
+        snprintf(path, sizeof path, "%s/%s", dir, which ? "factor.xiz" : "password-114.xiz");
+        const uint8_t *f = which ? factor : NULL;
+        size_t n;
+        uint8_t *b = slurp(path, &n);
+        CHECK(b != NULL);
+        if (!b) continue;
+        xiz_error e;
+        uint8_t *blk = b + XIZ_SUPERBLOCK;
+        size_t klen = rd32(b + 32);
+        CHECK(rd16(b + 10) >= 14);
+        CHECK(klen > 10 && XIZ_SUPERBLOCK + klen <= n);
+        size_t c = klen > 10 && XIZ_SUPERBLOCK + klen <= n ? find_stanza(blk, klen, 9) : 0;
+        CHECK(c != 0 && rd16(blk + c - 2) == 36 && rd16(blk + c) == 1 && rd16(blk + c + 2) == 0);
+        if (!c) { free(b); continue; }
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_OK);
+        /* One byte of the commitment: refused. */
+        blk[c + 4 + 17] ^= 0x40;
+        fix_keys_crc(blk, klen);
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_E_CORRUPT && strstr(e.message, "commitment"));
+        blk[c + 4 + 17] ^= 0x40;
+        /* The entry moved to another group: the key has no entry, refused. */
+        blk[c + 2] = 1;
+        fix_keys_crc(blk, klen);
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_E_CORRUPT);
+        blk[c + 2] = 0;
+        /* A count that does not match the length. */
+        blk[c] = 2;
+        fix_keys_crc(blk, klen);
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_E_CORRUPT);
+        blk[c] = 1;
+        /* The stanza removed (retyped to an unknown type, so the layout stays): a 1.14 archive without
+         * commitment is refused; lowering version_minor too breaks the stanza's associated data. */
+        blk[c - 3] = 0xEE;
+        fix_keys_crc(blk, klen);
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_E_CORRUPT && strstr(e.message, "without key commitment"));
+        uint8_t minor = b[10];
+        b[10] = 13;
+        CHECK(open_creds(b, n, pw, f, &e) != XIZ_OK);
+        b[10] = minor;
+        blk[c - 3] = 9;
+        fix_keys_crc(blk, klen);
+        CHECK(open_creds(b, n, pw, f, &e) == XIZ_OK);
+        if (which) {
+            /* Type 8 without its factor, or with another one: reported as such, not as a wrong password. */
+            CHECK(open_creds(b, n, pw, NULL, &e) == XIZ_E_FACTOR_REQUIRED);
+            uint8_t other[32];
+            memcpy(other, factor, 32);
+            other[0] ^= 1;
+            CHECK(open_creds(b, n, pw, other, &e) == XIZ_E_FACTOR_REQUIRED);
+            CHECK(open_creds(b, n, "not the password", factor, &e) == XIZ_E_WRONG_PASSWORD);
+            /* A factor whose id matches but whose bytes differ cannot be forged; a damaged factor id
+             * in the stanza makes the factor missing. */
+            size_t t8 = find_stanza(blk, klen, 8);
+            CHECK(t8 != 0);
+            if (t8) {
+                blk[t8 + 44] ^= 1;
+                fix_keys_crc(blk, klen);
+                CHECK(open_creds(b, n, pw, factor, &e) == XIZ_E_FACTOR_REQUIRED);
+                blk[t8 + 44] ^= 1;
+                fix_keys_crc(blk, klen);
+            }
+        }
+        free(b);
+    }
+    /* Older archives (minor < 14, no commitment) open as before. */
+    snprintf(path, sizeof path, "%s/password.xiz", dir);
+    size_t n;
+    uint8_t *b = slurp(path, &n);
+    CHECK(b != NULL && rd16(b + 10) < 14);
+    xiz_error e;
+    if (b) CHECK(open_creds(b, n, pw, NULL, &e) == XIZ_OK);
+    free(b);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) { fprintf(stderr, "usage: xiz_security FIXTURES SCRATCH\n"); return 2; }
     test_pq_stanza(argv[1]);
+    test_commitment(argv[1]);
     test_structure();
     test_lzma2();
     test_jpeg(argv[1]);

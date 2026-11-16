@@ -114,6 +114,8 @@ public enum XizKeychain {
 public struct XizRecipientInfo: Sendable, Hashable {
     public enum Kind: Sendable, Hashable {
         case password
+        /// A password bound to a key file (XIZ 1.14): the factor's id (8 bytes).
+        case passwordWithFactor(factorID: [UInt8])
         /// The first 8 bytes of SHA-256 of the recipient's public key.
         case publicKey(keyID: [UInt8])
         /// A k-of-n group: its custodians follow as `.custodian`.
@@ -172,6 +174,9 @@ extension XizAccessKeys {
                 }
                 switch StanzaType(rawValue: type) {
                 case .passwordRecipient?: out.append(XizRecipientInfo(label: label(at: 44), kind: .password))
+                case .passwordFactor?:
+                    guard body.count >= 52 else { continue }
+                    out.append(XizRecipientInfo(label: label(at: 52), kind: .passwordWithFactor(factorID: Array(body[44..<52]))))
                 case .keyRecipient?:
                     guard body.count >= 40 else { continue }
                     out.append(XizRecipientInfo(label: label(at: 40), kind: .publicKey(keyID: Array(body[32..<40]))))

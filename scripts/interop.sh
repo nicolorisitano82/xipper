@@ -67,7 +67,7 @@ mk() { # case, xipper create args... (archive path last-but-one is the case's ar
     if (cd "$WORK" && "$X" create --overwrite "$@") >"$WORK/log-$c-create" 2>&1; then return 0
     else report FAIL "$c" "xipper create" "$WORK/log-$c-create"; return 1; fi
 }
-mkpw() { local c=$1; shift; (cd "$WORK" && echo "$PW" | "$X" create --overwrite --password-stdin "$@") >"$WORK/log-$c-create" 2>&1 \
+mkpw() { local c=$1; shift; (cd "$WORK" && echo "$PW" | "$X" create --overwrite --password-stdin --weak-password-ok "$@") >"$WORK/log-$c-create" 2>&1 \
     || { report FAIL "$c" "xipper create" "$WORK/log-$c-create"; return 1; }; }
 
 echo "==> ZIP"

@@ -551,6 +551,29 @@ Decisione del proprietario: niente VM Windows. `xiz.exe` x86_64 (zig) gira sotto
 - macOS: `ctest` 3/3, `-Werror` pulito anche nella build incrociata;
 - limiti: Wine non è Windows (niente NTFS, ACL, flussi alternativi, nomi riservati e maiuscole/minuscole; i link simbolici Wine finge di crearli; output su pipe, non console); `--password-stdin` legge ancora nella code page ANSI; la build aarch64 compila ma sotto Wine arm64 non parte.
 
+### 3.5 — password più robuste e XIZ 1.14 (piano del 16/11/2026)
+Dallo studio [STUDIO_XIZ_ATTACCHI.md](STUDIO_XIZ_ATTACCHI.md): chi ha l'archivio attacca offline, quindi conta l'entropia del segreto più del costo di Argon2id. Il proprietario ha scelto le fasi A e C.
+
+| Fase | Contenuto | Stato |
+|---|---|---|
+| **A. Password migliori** | stima con zxcvbn, frasi Diceware, conferma sotto 45 bit | ✅ |
+| **C. XIZ 1.14** | key commitment, password in NFC, password con file chiave | ✅ |
+| B, D, E dello studio | profili KDF più pesanti, destinatario Secure Enclave, avviso di rollback | non scelte |
+
+#### A. Password migliori — ✅ (16/11/2026)
+- **zxcvbn-c 2.7** (MIT, approvato il 16/11/2026) compilato nell'app con il suo dizionario (inglese: Wikipedia, password comuni, nomi, cognomi, film; rigenerabile con `scripts/make-zxcvbn-dict.sh`). `PasswordStrength` stima i bit della forma NFC e di quella senza accenti e tiene la più debole («pässwörd» non conta come forte). Tempo mostrato: contro 1000 GPU a 500 tentativi al secondo ciascuna, su un XIZ con Argon2id standard;
+- **frasi Diceware** (`Passphrase`): lista grande dell'EFF (CC BY 3.0 US) e lista italiana di Tarin Gamberini v4 (GPL-3.0+, file di dati separato, mai compilato: decisione del 16/11/2026), 7776 parole ciascuna, 6 parole = 77 bit, generatore sicuro del sistema;
+- **app:** «Robustezza» con zxcvbn e il tempo stimato; «Genera password sicura» propone frase italiana, inglese o caratteri casuali; sotto 45 bit, «Password debole» chiede conferma (non con il file chiave);
+- **CLI:** una nuova password debole viene rifiutata senza `--weak-password-ok`; `xipper passphrase [--words N] [--lang it|en]`, `xipper passphrase --strength`.
+
+#### C. XIZ 1.14 — ✅ (16/11/2026)
+Spec in [XIZ_SPEC.md §24](XIZ_SPEC.md).
+- **key commitment** (stanza 9): HKDF della chiave del file o di ogni chiave di gruppo; ogni archivio cifrato è 1.14. Un lettore 1.14 rifiuta chiavi che non corrispondono (archivio costruito per mostrare contenuti diversi a destinatari diversi) e gli archivi 1.14 senza stanza; i lettori fino alla 3.4 aprono gli archivi nuovi come prima;
+- **password in NFC** prima di Argon2id; in lettura si prova anche la forma NFC. **Trovato e corretto:** la cache di Argon2id in lettura usava la password come chiave di un dizionario Swift, che considera uguali NFC e NFD, quindi la seconda forma riusava la chiave della prima;
+- **password con file chiave** (stanza 8): KEK = HKDF(Argon2id(password) ‖ fattore); `XizFactor` (`XIZ-FACTOR-1-…`, file `.xizfactor` 0600); `xipper factor -o`, `--factor`; nell'app «Richiedi anche un file chiave» (salvataggio del file dove sceglie l'utente) e «Scegli il file chiave…» in apertura; senza il file l'errore dice che manca il file, non «password errata»;
+- test: `XizKeyHardeningTests` (commitment alterato o tolto, due destinatari con chiavi diverse, NFC/NFD anche nei gruppi, fattore giusto/sbagliato/mancante, stime, frasi, liste uguali a quelle dell'app);
+- **libxiz**: controlla il commitment (anche su ogni chiave di ogni bundle, in tempo costante), apre la stanza 8 con `--factor` (errore `XIZ_E_FACTOR_REQUIRED`, codice 3), `xiz info` nomina le stanze 8 e 9; fixture `password-114.xiz`, `factor.xiz` (116 controlli), `security.c` con commitment alterato, spostato, contato male e tolto (109 controlli); verde con ASan/UBSan, `-Werror`, su Linux e su Windows sotto Wine. Niente normalizzazione Unicode in C: libxiz usa i byte della password così come arrivano. Lo scrittore di libxiz non scrive ancora il commitment (i suoi archivi restano 1.0, validi).
+
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 
 **Decisione del 10/11/2026:** il forense è un **prodotto derivato e separato, `xipper-forensic`**, che fa parte della famiglia Xipper. Ha una sua app con un'interfaccia pensata solo per questo lavoro: caso, dispositivo, acquisizione, verifica e catena di custodia, non il browser di archivi. Condivide con Xipper XipperKit e il formato XIZ; l'app Xipper resta un archiviatore e non mostra funzioni forensi.

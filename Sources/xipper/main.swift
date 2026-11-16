@@ -32,6 +32,8 @@ usage: xipper <command> [options]
                            XIZ 1.11, read by Xipper 3.1+)
           --recovery N     xiz: append N percent of Reed–Solomon recovery data (XIZ 1.5, readable by any XIZ reader)
           --password-stdin read the password from the first line of stdin
+          --weak-password-ok  accept a password that is guessed quickly (refused by default: under
+                           45 bits by zxcvbn's estimate; `xipper passphrase` makes a strong one)
           --zip64          always write ZIP64 structures
           --keep-mac-files keep .DS_Store, ._* and similar files
           --windows-names  zip, 7z: rename entries Windows cannot extract (a:b, why?, CON.txt, trailing dots, case clashes)
@@ -67,6 +69,11 @@ usage: xipper <command> [options]
                          the directory is rebuilt from the local headers, entries are copied without
                          recompressing, those failing their CRC are left out. The original is untouched
                          (default output: "name (riparato).zip").
+  factor -o FILE.xizfactor  a second factor for XIZ passwords: `create -f xiz -p --factor FILE`
+                         makes an archive that opens only with the password and the file
+                         (XIZ 1.14, Xipper 3.5+); give it to extract, test, list… with --factor FILE
+  passphrase [--words N] [--lang it|en]   a Diceware passphrase (6 words, 77 bits) and how
+                         strong a password is: `xipper passphrase --strength` reads one
   hash    [-a ALG[,ALG…]] [--contents] [--bsd] [-o LIST] <file|folder|archive>...
                          digests of files (folders walked), or with --contents of the files inside
                          archives. ALG: sha256 (default), sha512, sha3-256, blake3, xxh128, xxh3, sha1,
@@ -158,13 +165,13 @@ let knownFlags: Set<String> = command == "bgzip"
                          "--allow-external-symlinks", "--no-quarantine", "--long", "--sha256", "--plain-names", "--no-dictionary", "--lzma2", "--lzraven", "--lzmesh", "--jpeg", "--documents", "--tables", "--models", "--apple-double", "--recompress-all", "--no-bgzf", "--bgzf-index", "--zipcrypto", "--flatten", "--contents", "--bsd", "-r", "--recursive", "--keep-nested",
                          "--read-only", "--discard", "--compact", "--numbered", "--signing", "--pq",
                          "--dry-run", "--json", "--encrypt", "--trash-original", "--accept-losses", "--repair", "--little-space", "--abandon",
-                         "--online", "--no-trusted-list", "--parallel", "--nested", "--secure-enclave"])
+                         "--online", "--no-trusted-list", "--parallel", "--nested", "--secure-enclave", "--weak-password-ok", "--strength"])
 let valueOptions: Set<String> = command == "bgzip"
     ? ["-I", "--index-name", "-@", "-l", "--compress-level", "-j", "--threads"]
     : ["-f", "--format", "-l", "--level", "-m", "--method", "-d", "--dest", "-j", "--threads", "--overwrite", "-a", "--algorithm", "-c", "--check",
        "--solid", "-v", "--volume", "--at", "--redundancy", "--delete", "--rename", "--add", "--mkdir",
        "--recovery", "--access", "--identity", "--sign", "--signer", "--timestamp", "--aea-pem", "-o", "--output", "--keychain", "--to",
-       "--names-encoding", "--version", "--country", "--certificate", "--tsa-user"]
+       "--names-encoding", "--version", "--country", "--certificate", "--tsa-user", "--words", "--lang", "--factor"]
 do {
     var i = 0
     while i < args.count {
@@ -233,6 +240,7 @@ let workload: Workload = {
         guard let line = readLine(strippingNewline: true), !line.isEmpty else { fail("no password on stdin") }
         // Further lines: more passwords (custodians of an XIZ k-of-n group).
         while let more = readLine(strippingNewline: true) { if !more.isEmpty { XizCredentials.shared.add(password: more) } }
+        if confirm { checkNewPassword(line) }
         return line
     }
     guard flag("-p", "--password") else { return nil }
@@ -245,7 +253,60 @@ let workload: Workload = {
     let pw = ask("Password: ")
     if pw.isEmpty { fail("empty password") }
     if confirm && ask("Repeat password: ") != pw { fail("passwords do not match") }
+    if confirm { checkNewPassword(pw) }
     return pw
+}
+
+/// A new archive's password: refused when it is guessed quickly, unless --weak-password-ok.
+@MainActor func checkNewPassword(_ pw: String) {
+    let s = PasswordStrength.estimate(pw)
+    // A password bound to a factor (--factor) cannot be guessed from the archive alone.
+    guard s.isWeak, !flag("--weak-password-ok"), allValues("--factor").isEmpty else { return }
+    fail("this password is weak (about \(Int(s.bits)) bits: found in \(durationText(s.crackSeconds)) with 1000 GPUs). "
+         + "Use a longer one (`xipper passphrase` makes one) or add --weak-password-ok", code: 2)
+}
+
+func durationText(_ seconds: Double) -> String {
+    if seconds >= 31_557_600 * 1e6 { return "more than a million years" }
+    let units: [(Double, String)] = [(31_557_600, "years"), (86_400, "days"), (3600, "hours"), (60, "minutes")]
+    for (u, name) in units where seconds >= u { return "\(Int((seconds / u).rounded())) \(name)" }
+    return seconds < 1 ? "less than a second" : "\(Int(seconds)) seconds"
+}
+
+/// `xipper factor -o FILE`: a new second factor for XIZ passwords (§24.3).
+@MainActor func runFactor() -> Never {
+    guard let out = value("-o", "--output") else { fail("factor needs -o FILE (name.xizfactor)", code: 2) }
+    let f = XizFactor()
+    do { try f.write(to: URL(fileURLWithPath: out)) } catch { fail("\(error)") }
+    print("factor \(f.id) written to \(out): keep it apart from the archives it opens, and a copy somewhere safe")
+    exit(0)
+}
+
+@MainActor func runPassphrase() -> Never {
+    if flag("--strength") {
+        let pw = flag("--password-stdin") || isatty(STDIN_FILENO) == 0 ? (readLine(strippingNewline: true) ?? "") : {
+            var buf = [CChar](repeating: 0, count: 1024)
+            guard readpassphrase("Password: ", &buf, buf.count, RPP_ECHO_OFF | RPP_REQUIRE_TTY) != nil else { fail("cannot read password") }
+            defer { memset_s(&buf, buf.count, 0, buf.count) }
+            return String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        }()
+        let s = PasswordStrength.estimate(pw)
+        print("\(["", "weak", "fair", "good", "excellent"][s.level.rawValue]): about \(Int(s.bits)) bits, found in \(durationText(s.crackSeconds)) with 1000 GPUs against an encrypted XIZ")
+        exit(s.isWeak ? 1 : 0)
+    }
+    let words = value("--words").map { Int($0) ?? 0 } ?? Passphrase.defaultWords
+    guard (4...20).contains(words) else { fail("--words: 4 to 20", code: 2) }
+    let language: Passphrase.Language
+    switch value("--lang") {
+    case nil: language = .preferred
+    case "it"?: language = .italian
+    case "en"?: language = .english
+    default: fail("--lang: it or en", code: 2)
+    }
+    guard let p = Passphrase.generate(words: words, language: language) else { fail("the word list is not installed") }
+    print(p)
+    if !flag("-q", "--quiet") { fputs("\(words) words, \(Int(Passphrase.bits(words: words))) bits\n", stderr) }
+    exit(0)
 }
 
 // MARK: progress & cancellation
@@ -254,6 +315,8 @@ let cancel = CancellationToken()
 let sigint = cancelOnInterrupt(cancel)
 loadXizIdentities()
 if command == "keygen" { runKeygen() }
+if command == "passphrase" { runPassphrase() }
+if command == "factor" { runFactor() }
 if command == "sig" { runSignature() }
 if command == "history" { runHistory() }
 if command == "erase" { runErase() }
@@ -404,6 +467,10 @@ case "create", "c":
     if o.xizSigner != nil && o.format != .xiz && o.format != .appleArchive { fail("--sign needs the xiz or aar format", code: 2) }
     if o.xizSigner?.timestampURL != nil && o.format == .appleArchive { fail("--timestamp is for xiz only (AEA has no place for it)", code: 2) }
     o.password = o.xizAccess != nil && !flag("-p", "--password", "--password-stdin") ? nil : readPassword(confirm: true)
+    if let f = allValues("--factor").first {
+        guard o.format == .xiz, o.password != nil else { fail("--factor binds the password of a xiz archive: use it with -f xiz and -p", code: 2) }
+        do { o.xizPasswordFactor = try XizFactor(contentsOf: URL(fileURLWithPath: f)).bytes } catch { fail("\(f): \(error)") }
+    }
     if o.format == .zip, let pw = o.password, pw.utf8.contains(where: { $0 >= 0x80 }) {
         fputs("xipper: warning: non-ASCII passwords cannot be entered in 7-Zip\n", stderr)
     }
@@ -719,6 +786,7 @@ case "convert":
         let b = String(decoding: again.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         memset_s(&buf, buf.count, 0, buf.count); memset_s(&again, again.count, 0, again.count)
         guard !a.isEmpty, a == b else { fail("passwords empty or different") }
+        checkNewPassword(a)
         o.password = a
     }
     if flag("--little-space") {

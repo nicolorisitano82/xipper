@@ -108,6 +108,16 @@ let package = Package(
             ],
             linkerSettings: [.linkedLibrary("z")]
         ),
+        // zxcvbn-c 2.7 (MIT): password strength estimate; dictionary generated from its word lists
+        // (Vendor/zxcvbn/words, `scripts/make-zxcvbn-dict.sh`).
+        .target(
+            name: "CZxcvbn",
+            path: "Vendor/zxcvbn",
+            exclude: ["LICENSE", "words"],
+            sources: ["src/zxcvbn.c"],
+            publicHeadersPath: "include",
+            cSettings: [.unsafeFlags(["-Wno-everything"])]
+        ),
         // Argon2id (password KDF of encrypted XIZ archives): P-H-C reference code, portable C, CC0/Apache-2.0.
         .target(
             name: "CArgon2",
@@ -184,7 +194,7 @@ let package = Package(
         // MARK: Swift
         .target(
             name: "XipperKit",
-            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli", "CPreflate", "COpenZL"],
+            dependencies: ["CZstd", "CDeflate", "CLZMA", "CLzmaSDK", "CXipShims", "CArgon2", "CHtsCodecs", "CArchive", "CLZ4", "CBrotli", "CBrunsli", "CPreflate", "COpenZL", "CZxcvbn"],
             linkerSettings: [.linkedFramework("NetFS")]  // mounting archives (Mount/)
         ),
         // MCP server (STUDIO.md §6-ter): JSON-RPC over stdio, Foundation only.

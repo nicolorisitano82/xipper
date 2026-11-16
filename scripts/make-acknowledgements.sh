@@ -31,6 +31,21 @@ section() {  # title, source, license file
     section "preflate (Dirk Steinke; Deflate stream reconstruction)" "https://github.com/deus-libri/preflate" Vendor/preflate/LICENSE
     section "OpenZL 0.3.0 (Meta Platforms; format-aware compression of tables)" "https://github.com/facebook/openzl" Vendor/openzl/LICENSE
     section "Argon2 (reference implementation, used under CC0 1.0)" "https://github.com/P-H-C/phc-winner-argon2" Vendor/argon2/LICENSE
+    section "zxcvbn-c 2.7 (Tony Evans; password strength estimation)" "https://github.com/tsyrogit/zxcvbn-c" Vendor/zxcvbn/LICENSE
+    print -r -- "================================================================================"
+    print -r -- "Word lists for passphrases (data files in Contents/Resources, not compiled in)"
+    print -r -- "================================================================================"
+    print
+    print -r -- "eff_large_wordlist.txt: EFF's large word list for random passphrases, by the Electronic"
+    print -r -- "Frontier Foundation (https://www.eff.org/dice), licensed under CC BY 3.0 US"
+    print -r -- "(https://creativecommons.org/licenses/by/3.0/us/)."
+    print
+    print -r -- "word_list_diceware_it-IT-4.txt: Lista di parole Diceware in italiano, version 4,"
+    print -r -- "Copyright (C) 2007-2019 Tarin Gamberini (https://www.taringamberini.com), free software under"
+    print -r -- "the GNU General Public License version 3 or later; the file is distributed unmodified, and"
+    print -r -- "the license text is GPL-3.0.txt next to it."
+    print
+    print
     print -r -- "================================================================================"
     print -r -- "LZMA SDK 26.05 (Igor Pavlov; PPMd by Dmitry Shkarin)"
     print -r -- "https://www.7-zip.org/sdk.html"

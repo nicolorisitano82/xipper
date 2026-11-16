@@ -1,4 +1,5 @@
 import SwiftUI
+import XipperKit
 
 /// Password entry (system sheet: already glass, no custom glass inside).
 struct PasswordSheet: View {
@@ -10,20 +11,37 @@ struct PasswordSheet: View {
     let onDone: (String?, _ remember: Bool) -> Void
     /// ZIP creation only: AES-256 (false) or ZipCrypto (true), offered with a warning (UI_SPEC 2.7).
     var legacyZipCrypto: Binding<Bool>?
+    /// XIZ creation: bind the password to a key file (XIZ 1.14 second factor).
+    var factorChoice: Binding<Bool>?
     /// Apple Archive (AEA) needs at least 20 characters.
     var minimumLength = 1
+    /// Opening: the archive, to tell whether it also needs a key file (factor).
+    var archiveURL: URL?
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirm = ""
     /// Shown while the fields still hold it: a generated password must be seen to be kept.
     @State private var generated: String?
+    @State private var confirmWeak = false
+    @State private var factorTick = 0
     @AppStorage("rememberArchivePasswords") private var remember = false
 
     private var isCreate: Bool { if case .create = mode { true } else { false } }
     private var nonASCII: Bool { password.unicodeScalars.contains { !$0.isASCII } }
     private var valid: Bool {
-        !password.isEmpty && password.utf8.count >= minimumLength && (!isCreate || password == confirm)
+        !password.isEmpty && password.utf8.count >= minimumLength && (!isCreate || password == confirm) && !factorMissing
     }
+
+    private var factorOn: Bool { factorChoice?.wrappedValue == true }
+
+    /// Opening an archive whose password is bound to a key file not given yet.
+    private var factorMissing: Bool {
+        _ = factorTick
+        guard !isCreate, let archiveURL else { return false }
+        let ids = XizFactor.required(by: archiveURL)
+        return !ids.isEmpty && !ids.contains(where: XizCredentials.shared.hasFactor(id:))
+    }
+
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -35,6 +53,7 @@ struct PasswordSheet: View {
                           : String(localized: "\(archiveName) è protetto. Inserisci la password per continuare."))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !isCreate, let archiveURL { FactorPicker(archive: archiveURL, onChange: { factorTick += 1 }) }
             if case .open(wrong: true) = mode {
                 Label("Password errata, riprova.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
@@ -43,7 +62,7 @@ struct PasswordSheet: View {
                 SecureField("Password", text: $password)
                 if isCreate {
                     SecureField("Ripeti password", text: $confirm)
-                    StrengthMeter(password: password)
+                    StrengthMeter(strength: strength)
                 }
             }
             .textFieldStyle(.roundedBorder)
@@ -64,13 +83,24 @@ struct PasswordSheet: View {
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
                 } else {
-                    Button("Genera password sicura", systemImage: "wand.and.stars") {
-                        let g = Self.generatePassword()
-                        password = g
-                        confirm = g
-                        generated = g
+                    Menu("Genera password sicura", systemImage: "wand.and.stars") {
+                        if Passphrase.wordList(.italian) != nil {
+                            Button("Frase di 6 parole italiane") { use(Passphrase.generate(language: .italian)) }
+                        }
+                        if Passphrase.wordList(.english) != nil {
+                            Button("Frase di 6 parole inglesi") { use(Passphrase.generate(language: .english)) }
+                        }
+                        Button("Caratteri casuali") { use(Self.generatePassword()) }
                     }
-                    .buttonStyle(.borderless)
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+            if isCreate, let factorChoice {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Richiedi anche un file chiave", isOn: factorChoice)
+                    Text("L'archivio si aprirà solo con la password e con un file che salverai a parte: chi ruba l'archivio non può provare password.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             if isCreate, let legacyZipCrypto {
@@ -117,7 +147,9 @@ struct PasswordSheet: View {
                         .keyboardShortcut(.defaultAction)
                         .disabled(!valid)
                 } else {
-                    Button(isCreate ? String(localized: "Usa password") : String(localized: "Apri")) { onDone(password, remember); dismiss() }
+                    Button(isCreate ? String(localized: "Usa password") : String(localized: "Apri")) {
+                        if isCreate && strength.isWeak && !factorOn { confirmWeak = true } else { onDone(password, remember); dismiss() }
+                    }
                         .buttonStyle(.glassProminent)
                         .keyboardShortcut(.defaultAction)
                         .disabled(!valid)
@@ -126,6 +158,23 @@ struct PasswordSheet: View {
         }
         .padding(24)
         .frame(width: 440)
+        .alert("Password debole", isPresented: $confirmWeak) {
+            Button("Cambia password", role: .cancel) {}
+            Button("Usa comunque", role: .destructive) { onDone(password, remember); dismiss() }
+        } message: {
+            Text("Chi ha l'archivio può provare password senza limiti: questa si indovina in \(StrengthMeter.duration(strength.crackSeconds)) con 1000 GPU. Una frase di 6 parole resiste per miliardi di anni.")
+        }
+    }
+
+    private var strength: PasswordStrength {
+        PasswordStrength.estimate(password, userWords: [(archiveName as NSString).deletingPathExtension])
+    }
+
+    private func use(_ g: String?) {
+        guard let g else { return }
+        password = g
+        confirm = g
+        generated = g
     }
 
     /// Four groups of six characters (about 138 bits) from an alphabet without look-alikes
@@ -137,31 +186,87 @@ struct PasswordSheet: View {
     }
 }
 
-/// Rough strength estimate: length and character classes (no network, no dictionary).
+/// zxcvbn's estimate (XipperKit `PasswordStrength`): guesses an attacker with dictionaries and
+/// rules needs, shown as the time 1000 GPUs take against an encrypted XIZ.
 private struct StrengthMeter: View {
-    let password: String
+    let strength: PasswordStrength
 
-    private var score: Int {
-        guard !password.isEmpty else { return 0 }
-        var classes = 0
-        if password.contains(where: \.isLowercase) { classes += 1 }
-        if password.contains(where: \.isUppercase) { classes += 1 }
-        if password.contains(where: \.isNumber) { classes += 1 }
-        if password.contains(where: { !$0.isLetter && !$0.isNumber }) { classes += 1 }
-        let bits = Double(password.count) * log2(Double([0, 26, 52, 62, 94][classes]))
-        return bits < 40 ? 1 : bits < 60 ? 2 : bits < 80 ? 3 : 4
-    }
+    private var score: Int { strength.bits == 0 ? 0 : strength.level.rawValue }
 
     var body: some View {
-        LabeledContent("Robustezza") {
-            HStack(spacing: 4) {
-                ForEach(1...4, id: \.self) { i in
-                    Capsule().fill(i <= score ? color : Color.secondary.opacity(0.2)).frame(width: 34, height: 6)
+        VStack(alignment: .leading, spacing: 4) {
+            LabeledContent("Robustezza") {
+                HStack(spacing: 4) {
+                    ForEach(1...4, id: \.self) { i in
+                        Capsule().fill(i <= score ? color : Color.secondary.opacity(0.2)).frame(width: 34, height: 6)
+                    }
+                    Text(["", "Debole", "Discreta", "Buona", "Ottima"][score]).font(.caption).foregroundStyle(.secondary)
                 }
-                Text(["", "Debole", "Discreta", "Buona", "Ottima"][score]).font(.caption).foregroundStyle(.secondary)
+            }
+            if score > 0 {
+                Text("Si indovina in \(Self.duration(strength.crackSeconds)) con 1000 GPU")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private var color: Color { [.clear, .red, .orange, .yellow, .green][score] }
+
+    /// "3 giorni", "12 anni", "più di un milione di anni".
+    static func duration(_ seconds: Double) -> String {
+        let year = 31_557_600.0
+        if seconds >= year * 1e6 { return String(localized: "più di un milione di anni") }
+        if seconds < 1 { return String(localized: "meno di un secondo") }
+        let f = DateComponentsFormatter()
+        f.unitsStyle = .full
+        f.maximumUnitCount = 1
+        f.allowedUnits = seconds >= year ? [.year] : [.day, .hour, .minute, .second]
+        if seconds >= year {
+            var c = DateComponents()
+            c.year = Int((seconds / year).rounded())
+            return f.string(from: c) ?? ""
+        }
+        return f.string(from: seconds) ?? ""
+    }
+}
+
+/// For an archive whose password is bound to a key file (XIZ 1.14): says so and lets the user
+/// choose the `.xizfactor` file; nothing when the archive needs none or it was already given.
+struct FactorPicker: View {
+    let archive: URL
+    var onChange: () -> Void = {}
+    @State private var tick = 0
+    @State private var failed = false
+
+    private var missing: Bool {
+        _ = tick
+        let ids = XizFactor.required(by: archive)
+        return !ids.isEmpty && !ids.contains(where: XizCredentials.shared.hasFactor(id:))
+    }
+
+    var body: some View {
+        if missing {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Questo archivio si apre con la password e con il suo file chiave.", systemImage: "key.fill")
+                Button("Scegli il file chiave…") { choose() }
+                if failed { Text("Non è un file chiave di Xipper.").foregroundStyle(.red) }
+            }
+            .font(.callout)
+        }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Scegli il file chiave")
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            XizCredentials.shared.add(factor: try XizFactor(contentsOf: url).bytes)
+            failed = false
+        } catch {
+            failed = true
+        }
+        tick += 1
+        onChange()
+    }
 }

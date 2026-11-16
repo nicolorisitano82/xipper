@@ -94,6 +94,8 @@ static const char *usage =
     "  --identity FILE       secret key: X25519 (XIZ-SECRET-KEY-1-…) or post-quantum\n"
     "                        X-Wing (XIZ-SECRET-KEY-PQ-1-…), or age's (AGE-SECRET-KEY-1…,\n"
     "                        AGE-SECRET-KEY-PQ-1…), repeatable\n"
+    "  --factor FILE         key file (XIZ-FACTOR-1-…) of a password with a second factor\n"
+    "                        (XIZ 1.14), repeatable; passwords are used as typed (NFC)\n"
     "  --beta                accept 0.1 beta archives\n";
 
 #define MAX_PW 32
@@ -105,6 +107,8 @@ static uint8_t identities[MAX_ID][32];
 static size_t n_identities;
 static uint8_t pq_identities[MAX_ID][32];
 static size_t n_pq_identities;
+static uint8_t factors[MAX_ID][32];
+static size_t n_factors;
 static unsigned open_flags;
 
 static void die(const char *msg) {
@@ -213,6 +217,40 @@ static void load_identity(const char *path) {
     die("no XIZ-SECRET-KEY-1-, XIZ-SECRET-KEY-PQ-1- or AGE-SECRET-KEY- line in the identity file");
 }
 
+/* A factor file (§24.3): one line `XIZ-FACTOR-1-` + base64url of 32 bytes, no padding; other lines
+ * and surrounding blanks are ignored. */
+static void load_factor(const char *path) {
+    FILE *f = open_file(path, "r");
+    if (!f) die("cannot read factor file");
+    char line[512];
+    static const char prefix[] = "XIZ-FACTOR-1-";
+    while (fgets(line, sizeof line, f)) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (strncmp(p, prefix, sizeof prefix - 1) != 0) continue;
+        p += sizeof prefix - 1;
+        uint8_t out[33];
+        size_t n = 0;
+        uint32_t acc = 0;
+        int bits = 0, bad = 0;
+        for (; *p && b64v((unsigned char)*p) >= 0; p++) {
+            if (n == sizeof out) { bad = 1; break; }
+            acc = acc << 6 | (uint32_t)b64v((unsigned char)*p);
+            bits += 6;
+            if (bits >= 8) { bits -= 8; out[n++] = (uint8_t)(acc >> bits); }
+        }
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (bad || *p || n != 32 || (acc & ((1u << bits) - 1)) != 0) die("invalid factor file (XIZ-FACTOR-1-…)");
+        if (n_factors == MAX_ID) die("too many factors");
+        memcpy(factors[n_factors++], out, 32);
+        for (volatile uint8_t *w = out; w < out + sizeof out; w++) *w = 0;
+        fclose(f);
+        return;
+    }
+    fclose(f);
+    die("no XIZ-FACTOR-1- line in the factor file");
+}
+
 static void read_stdin_passwords(void) {
     char line[4096];
     while (n_passwords < MAX_PW && fgets(line, sizeof line, stdin)) {
@@ -238,6 +276,8 @@ static int take_credentials(int argc, char **argv) {
             read_stdin_passwords();
         } else if (!strcmp(argv[i], "--identity") && i + 1 < argc) {
             load_identity(argv[++i]);
+        } else if (!strcmp(argv[i], "--factor") && i + 1 < argc) {
+            load_factor(argv[++i]);
         } else if (!strcmp(argv[i], "--beta")) {
             open_flags |= XIZ_OPEN_ALLOW_BETA;
         } else {
@@ -262,13 +302,15 @@ static xiz_archive *open_archive_flags(const char *path, unsigned extra) {
     opt.identity_count = n_identities;
     opt.pq_identities = (const uint8_t(*)[32])pq_identities;
     opt.pq_identity_count = n_pq_identities;
+    opt.factors = (const uint8_t(*)[32])factors;
+    opt.factor_count = n_factors;
     opt.flags = open_flags | extra;
     xiz_archive *a;
     xiz_error err;
     int rc = xiz_open_file(&a, path, &opt, &err);
     if (rc) {
         fprintf(stderr, "xiz: %s: %s (%s)\n", path, err.message, xiz_status_name(rc));
-        exit(rc == XIZ_E_PASSWORD_REQUIRED || rc == XIZ_E_WRONG_PASSWORD ? 3 : 1);
+        exit(rc == XIZ_E_PASSWORD_REQUIRED || rc == XIZ_E_WRONG_PASSWORD || rc == XIZ_E_FACTOR_REQUIRED ? 3 : 1);
     }
     return a;
 }
@@ -355,8 +397,9 @@ static int cmd_info(int argc, char **argv) {
         xiz_stanza st;
         xiz_get_stanza(a, s, &st);
         static const char *names[] = {"?", "password", "password recipient", "public-key recipient", "threshold", "custodian share",
-                                     "post-quantum recipient", "post-quantum custodian share"};
-        printf("key stanza      %s%s%s%s", names[st.type <= 7 ? st.type : 0], *st.label ? " \"" : "", st.label, *st.label ? "\"" : "");
+                                     "post-quantum recipient", "post-quantum custodian share", "password with factor",
+                                     "key commitment"};
+        printf("key stanza      %s%s%s%s", names[st.type <= 9 ? st.type : 0], *st.label ? " \"" : "", st.label, *st.label ? "\"" : "");
         if (st.type == 4) printf(" (%d of %d)", st.k, st.n);
         printf("%s\n", st.opened ? " [opened]" : "");
     }

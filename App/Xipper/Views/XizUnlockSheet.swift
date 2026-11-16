@@ -44,6 +44,7 @@ struct XizUnlockSheet: View {
                 }
             }
             .textFieldStyle(.roundedBorder)
+            FactorPicker(archive: model.url)
             HStack {
                 Button("Annulla", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
                 if myKeys {
@@ -73,6 +74,7 @@ struct XizUnlockSheet: View {
         let name = r.label.isEmpty ? String(localized: "senza nome") : r.label
         switch r.kind {
         case .password: return String(localized: "\(name) · password")
+        case .passwordWithFactor: return String(localized: "\(name) · password e file chiave")
         case .publicKey: return String(localized: "\(name) · chiave pubblica")
         case let .threshold(k, n): return String(localized: "\(name) · \(k) custodi su \(n) insieme")
         case let .custodian(_, id): return id == nil ? String(localized: "\(name) · password") : String(localized: "\(name) · chiave pubblica")
@@ -82,6 +84,7 @@ struct XizUnlockSheet: View {
     private func symbol(_ r: XizRecipientInfo) -> String {
         switch r.kind {
         case .password: "key.horizontal"
+        case .passwordWithFactor: "key.horizontal.fill"
         case .publicKey: "person.crop.circle.badge.checkmark"
         case .threshold: "person.3"
         case .custodian: "person"

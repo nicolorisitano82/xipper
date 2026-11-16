@@ -129,7 +129,7 @@ struct XizPQTests {
         let a = t.url("pq.xiz")
         try Xipper.create(from: [t.url("src")], to: a, options: o)
         let sb = try Xiz.Superblock.decode(try FileReader(path: a.path).read(at: 0, count: 64))
-        #expect(sb.minor == 7 && sb.required == [.encrypted, .directory])
+        #expect(sb.minor == 14 && sb.required == [.encrypted, .directory])  // 1.7 stanzas, 1.14 key commitment
 
         let all: Set = ["src/indice.txt", "src/referti/r1.txt", "src/dati/g.bin"]
         XizCredentials.shared.add(identity: lab)

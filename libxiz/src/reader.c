@@ -588,7 +588,11 @@ int xiz_open(xiz_archive **out, const xiz_source *src, const xiz_open_options *o
         a->n_stanzas = ko.n_stanzas;
         if (!ko.any_known) { rc = FAIL(XIZ_E_UNSUPPORTED, "no key stanza this reader implements"); goto fail; }
         if (!ko.n_keys && !structure) {
-            if (ko.partial_threshold) {
+            if (ko.missing_factor) {
+                const stanza_info *t = &ko.stanzas[ko.missing_factor - 1];
+                rc = FAIL(XIZ_E_FACTOR_REQUIRED, "the password%s%s%s is bound to a key file (factor) that was not given",
+                          *t->label ? " \"" : "", t->label, *t->label ? "\"" : "");
+            } else if (ko.partial_threshold) {
                 const stanza_info *t = &ko.stanzas[ko.partial_threshold - 1];
                 rc = FAIL(XIZ_E_WRONG_PASSWORD, "\"%s\" needs %d custodians", t->label, t->k);
             } else {

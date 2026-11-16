@@ -33,6 +33,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | 1.7: destinatari e custodi post-quantum X-Wing (§17) | lettura completa: ML-KEM-768 di mlkem-native + X25519, `--identity` con `XIZ-SECRET-KEY-PQ-1-…` |
 | 1.8: frame LZRAVEN e LZMESH (§18) | lettura su macOS 27 (framework Compression), rifiutati altrove |
 | 1.9: documenti con i flussi Deflate ricompressi (§19) | non ancora: rifiutati con un errore chiaro (bit 0x0100) |
+| 1.14: commitment delle chiavi (stanza 9), password con secondo fattore (stanza 8) (§24) | lettura completa: ogni chiave aperta è confrontata col commitment, un archivio ≥ 1.14 senza commitment è rifiutato; `--factor` con `XIZ-FACTOR-1-…`. Password NFC: vedi Limiti noti |
 | 1.10: profilo forense (§20): directory v3, blocchi forensi, segmenti di custodia, immagini | lettura e verifica (`xiz forensic`): hash firmati di ogni frame, Merkle, custodia, immagine contro lo SHA-256 della sorgente, acquisizioni logiche contro l'inventario firmato; MD5 e SHA-1 non verificati |
 
 ## Build
@@ -100,9 +101,10 @@ dell'altro. `append` toglie il record (§15.4): va riaggiunto dopo.
 Credenziali: `--password-env VAR`, `--password-stdin` (una password per riga: più custodi di una
 soglia), `--identity FILE` (chiave segreta X25519 `XIZ-SECRET-KEY-1-…` o post-quantum X-Wing
 `XIZ-SECRET-KEY-PQ-1-…`, oppure un'identità di age `AGE-SECRET-KEY-1…` / `AGE-SECRET-KEY-PQ-1…`,
-ripetibile). Codici di
-uscita: 0 ok, 1 errore o archivio danneggiato, 2 uso, 3 password mancante o sbagliata, 4 voci
-saltate durante l'estrazione.
+ripetibile), `--factor FILE` (file del secondo fattore di una password, `XIZ-FACTOR-1-…` come lo
+scrive `xipper factor`, ripetibile; XIZ 1.14). Codici di
+uscita: 0 ok, 1 errore o archivio danneggiato, 2 uso, 3 password o fattore mancante o sbagliato,
+4 voci saltate durante l'estrazione.
 
 ## API
 
@@ -118,6 +120,7 @@ xiz_open_options o = {0};
 o.password = "…";                       /* facoltativa */
 o.identities = x25519;  o.identity_count = 1;        /* chiavi X25519 da 32 byte, facoltative */
 o.pq_identities = seeds; o.pq_identity_count = 1;  /* seed X-Wing da 32 byte (§17), facoltativi */
+o.factors = factors; o.factor_count = 1;  /* fattori da 32 byte (§24.3); manca → XIZ_E_FACTOR_REQUIRED */
 xiz_archive *a;
 xiz_error err;
 if (xiz_open_file(&a, "dati.xiz", &o, &err) != XIZ_OK) { fprintf(stderr, "%s\n", err.message); return 1; }
@@ -217,7 +220,7 @@ usa il linker C++ (CMake lo fa da solo).
 
 - `tests/unit.c`: vettori pubblicati (CRC-32C, SHA-256, HMAC, HKDF RFC 5869, AES-GCM NIST),
   Merkle, nomi Windows.
-- `tests/run_fixtures.sh`: 60+ controlli end-to-end sulle fixture scritte da Xipper — estrazione
+- `tests/run_fixtures.sh`: 100+ controlli end-to-end sulle fixture scritte da Xipper — estrazione
   confrontata con l'albero originale (contenuto, permessi, mtime, link), zstd, livello 19,
   dizionari, LZMA2, ARM64 + LZMA2, password, segmenti aggiunti, append interrotto, gruppi di
   accesso (tutto / solo gruppo 0 / identità X25519 / 2 custodi su 3 / un custode solo), firme e
@@ -229,7 +232,9 @@ usa il linker C++ (CMake lo fa da solo).
   oltre 64 MiB, `catalog_usize` falso, LZMA2 senza feature, con dati dopo l'end marker o senza);
   **ogni singolo byte alterato** di un archivio viene rilevato e ogni troncamento rifiutato;
   path traversal, link simbolici verso l'esterno, catene di link, link preesistenti nella
-  destinazione, bit setuid; slot di chiave alterato o azzerato.
+  destinazione, bit setuid; slot di chiave alterato o azzerato; commitment delle chiavi (1.14)
+  alterato, spostato su un altro gruppo, con conteggio sbagliato o tolto (CRC ricalcolato),
+  fattore mancante, diverso o con id alterato.
 - `fuzz/fuzz_open.c` (tutto il percorso di lettura su un archivio in memoria) e
   `fuzz/fuzz_catalog.c` (parser e decodificatori singoli, prove JSON), con `fuzz/xiz.dict`.
   Prima campagna (02/11/2026, macOS, 4 worker, ASan+UBSan): 4 minuti di `fuzz_open` a partire
@@ -246,7 +251,9 @@ libxiz/build-fuzz/fuzz_open -dict=libxiz/fuzz/xiz.dict -max_len=150000 CORPUS_DI
 
 Le fixture (`tests/fixtures`, ~550 KB, contenuto sintetico) si rigenerano con
 `tests/make_fixtures.sh` (serve la CLI Swift: `swift build -c release --product xipper`). Le chiavi
-`identity.key`, `identity-pq.key`, `custodian-pq.key` e `signing.key` lì dentro sono chiavi di prova, generate per le fixture.
+`identity.key`, `identity-pq.key`, `custodian-pq.key`, `signing.key` e `factor.xizfactor` lì dentro sono chiavi di prova, generate per le fixture.
+Le sole fixture 1.14 (`password-114.xiz`, `factor.xiz`, `factor.xizfactor`) corrispondono alla
+funzione `make_114_fixtures` dello script.
 
 ## Limiti noti
 
@@ -257,4 +264,9 @@ Le fixture (`tests/fixtures`, ~550 KB, contenuto sintetico) si rigenerano con
 - Su Windows: provato sotto Wine, non su una macchina reale; `--password-stdin` legge ancora nella
   code page ANSI; link simbolici solo con privilegio o Developer
   Mode; i permessi POSIX diventano al più l'attributo sola lettura.
+- Password e Unicode: libxiz usa i byte della password così come arrivano, senza normalizzazione
+  (nessuna libreria Unicode). Xipper 1.14 scrive le password in NFC (§24.2) e da lettore prova anche
+  la forma NFC; libxiz no: la password va data in NFC, che è la norma delle tastiere macOS e Linux.
+  Una password con caratteri composti diversamente (per esempio copiata da un nome di file NFD)
+  risulta sbagliata.
 - Gli xattr sono letti ed esposti (`xiz_get_xattr`) ma non applicati in estrazione.

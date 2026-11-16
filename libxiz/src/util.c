@@ -41,6 +41,7 @@ const char *xiz_status_name(int code) {
     case XIZ_E_ERASED: return "entry erased";
     case XIZ_E_EXISTS: return "already exists";
     case XIZ_E_CALLBACK: return "stopped by callback";
+    case XIZ_E_FACTOR_REQUIRED: return "key file (factor) required";
     default: return "unknown error";
     }
 }

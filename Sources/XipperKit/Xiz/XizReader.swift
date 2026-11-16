@@ -211,8 +211,12 @@ final class XizArchive: @unchecked Sendable {
             guard !passwords.isEmpty || !identities.isEmpty else { throw XipperError.passwordRequired(entry: name) }
             guard dataStart + Int64(Xiz.footerSize) <= reader.size else { throw XipperError.corrupt("XIZ keys block") }
             let block = try reader.read(at: Int64(Xiz.superblockSize), count: Int(sb.keysLength))
-            let opened = try XizAccessKeys.open(block, superblock: sbBytes, passwords: passwords, identities: identities)
+            let opened = try XizAccessKeys.open(block, superblock: sbBytes, passwords: passwords, identities: identities,
+                                                factors: XizCredentials.shared.factors)
             guard !opened.groupKeys.isEmpty else {
+                if let label = opened.missingFactors.first {
+                    throw XipperError.invalidArgument("\(name): the password is bound to a key file (factor)\(label.isEmpty ? "" : " \"\(label)\""): add it with --factor or choose it")
+                }
                 if let t = opened.thresholds.first(where: { $0.opened > 0 && $0.opened < $0.k }) {
                     throw XipperError.invalidArgument("\(name): \(t.label) needs \(t.k) custodians, \(t.opened) unlocked")
                 }

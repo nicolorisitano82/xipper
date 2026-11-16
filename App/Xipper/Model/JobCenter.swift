@@ -24,6 +24,8 @@ struct ExtractRequest: @unchecked Sendable {
 struct XizExtras: @unchecked Sendable {
     var access: XizAccess?
     var signer: XizSigner?
+    /// XIZ 1.14: the password is bound to this factor (saved by the user as a .xizfactor file).
+    var factor: [UInt8]?
 }
 
 /// One background operation shown in the jobs HUD.
@@ -360,6 +362,7 @@ final class JobCenter {
             var options = Preferences.createOptions(format: format, preset: preset, password: password)
             options.xizAccess = xiz?.access
             options.xizSigner = xiz?.signer
+            options.xizPasswordFactor = xiz?.factor
             options.legacyZipCrypto = legacyZipCrypto
             let recovery = Preferences.defaults.bool(forKey: PrefKey.recoveryAfterCreate)
             // XIZ keeps its recovery data inside (2.7); the other formats get PAR2 files.

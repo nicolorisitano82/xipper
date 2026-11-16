@@ -967,6 +967,46 @@
         }
       }
     },
+    "%@ · password e file chiave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Passwort und Schlüsseldatei"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · password and key file"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · contraseña y archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · mot de passe et fichier clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · パスワードとキーファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 密码和密钥文件"
+          }
+        }
+      }
+    },
     "%@ · verificato senza scrivere su disco · %@ s · %@/s" : {
       "localizations" : {
         "de" : {
@@ -7732,6 +7772,46 @@
         }
       }
     },
+    "Cambia password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwort ändern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Password"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer le mot de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを変更"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改密码"
+          }
+        }
+      }
+    },
     "Cambio di formato" : {
       "localizations" : {
         "de" : {
@@ -8008,6 +8088,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在抹掉…"
+          }
+        }
+      }
+    },
+    "Caratteri casuali" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zufällige Zeichen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Random characters"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres aleatorios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caractères aléatoires"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ランダムな文字"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随机字符"
           }
         }
       }
@@ -8874,6 +8994,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "证书：%@"
+          }
+        }
+      }
+    },
+    "Chi ha l'archivio può provare password senza limiti: questa si indovina in %@ con 1000 GPU. Una frase di 6 parole resiste per miliardi di anni." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wer das Archiv hat, kann unbegrenzt Passwörter ausprobieren. Dauer, bis dieses mit 1000 GPUs erraten ist: %@. Eine Passphrase aus 6 Wörtern hält Milliarden Jahre stand."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever has the archive can try passwords without limit: this one is guessed in %@ with 1000 GPUs. A 6-word passphrase holds for billions of years."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quien tenga el archivo puede probar contraseñas sin límite: esta se adivina en %@ con 1000 GPU. Una frase de 6 palabras resiste miles de millones de años."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qui possède l'archive peut essayer des mots de passe sans limite : celui-ci est deviné en %@ avec 1000 GPU. Une phrase de 6 mots tient des milliards d'années."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブを持つ人は無制限にパスワードを試せます。このパスワードは1000台のGPUで%@で推測されます。6単語のパスフレーズなら数十億年耐えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拿到归档的人可以无限次尝试密码：用 1000 块 GPU，这个密码 %@ 就会被猜出。6 个单词的密码短语可以坚持数十亿年。"
           }
         }
       }
@@ -18481,6 +18641,86 @@
         }
       }
     },
+    "Frase di 6 parole inglesi" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passphrase aus 6 englischen Wörtern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6-word English passphrase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frase de 6 palabras inglesas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phrase de 6 mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英語6単語のパスフレーズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 个英语单词的密码短语"
+          }
+        }
+      }
+    },
+    "Frase di 6 parole italiane" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passphrase aus 6 italienischen Wörtern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6-word Italian passphrase"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frase de 6 palabras italianas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phrase de 6 mots italiens"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "イタリア語6単語のパスフレーズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 个意大利语单词的密码短语"
+          }
+        }
+      }
+    },
     "Genera password sicura" : {
       "localizations" : {
         "de" : {
@@ -21545,6 +21785,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "归档未签名：没有人为此证明担保。"
+          }
+        }
+      }
+    },
+    "L'archivio si aprirà solo con la password e con un file che salverai a parte: chi ruba l'archivio non può provare password." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Archiv öffnet sich nur mit dem Passwort und einer Datei, die du getrennt sicherst: Wer das Archiv stiehlt, kann keine Passwörter ausprobieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive will open only with the password and a file you save separately: whoever steals the archive cannot try passwords."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo solo se abrirá con la contraseña y un archivo que guardarás aparte: quien robe el archivo no puede probar contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'archive ne s'ouvrira qu'avec le mot de passe et un fichier que vous enregistrez à part : qui vole l'archive ne peut pas essayer de mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブはパスワードと別に保存するファイルの両方でのみ開きます。アーカイブを盗んでもパスワードを試せません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "归档只能用密码加上你另外保存的文件打开：偷走归档的人无法尝试密码。"
           }
         }
       }
@@ -26251,6 +26531,46 @@
         }
       }
     },
+    "Non è un file chiave di Xipper." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist keine Schlüsseldatei von Xipper."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is not a Xipper key file."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es un archivo de clave de Xipper."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce n'est pas un fichier clé de Xipper."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xipperのキーファイルではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是 Xipper 的密钥文件。"
+          }
+        }
+      }
+    },
     "Normale" : {
       "localizations" : {
         "de" : {
@@ -27407,6 +27727,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密码"
+          }
+        }
+      }
+    },
+    "Password debole" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schwaches Passwort"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weak password"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contraseña débil"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe faible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱いパスワード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱密码"
           }
         }
       }
@@ -29257,6 +29617,46 @@
         }
       }
     },
+    "Questo archivio si apre con la password e con il suo file chiave." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Archiv öffnet sich mit dem Passwort und seiner Schlüsseldatei."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive opens with the password and its key file."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo se abre con la contraseña y su archivo de clave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette archive s'ouvre avec le mot de passe et son fichier clé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアーカイブはパスワードとそのキーファイルで開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此归档需要密码和它的密钥文件才能打开。"
+          }
+        }
+      }
+    },
     "Questo archivio si apre con una password, una chiave o più custodi insieme." : {
       "localizations" : {
         "de" : {
@@ -29693,6 +30093,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "吊销"
+          }
+        }
+      }
+    },
+    "Richiedi anche un file chiave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zusätzlich eine Schlüsseldatei verlangen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also Require a Key File"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pedir también un archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exiger aussi un fichier clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルも必須にする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时要求密钥文件"
           }
         }
       }
@@ -31057,6 +31497,46 @@
         }
       }
     },
+    "Salva il file chiave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei sichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the Key File"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar el archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer le fichier clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを保存"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存密钥文件"
+          }
+        }
+      }
+    },
     "Salva in" : {
       "localizations" : {
         "de" : {
@@ -31773,6 +32253,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选取该证明所对应的文件。"
+          }
+        }
+      }
+    },
+    "Scegli il file chiave" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the Key File"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir el archivo de clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir le fichier clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择密钥文件"
+          }
+        }
+      }
+    },
+    "Scegli il file chiave…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsseldatei wählen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Key File…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir archivo de clave…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir le fichier clé…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルを選択…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择密钥文件…"
           }
         }
       }
@@ -32704,6 +33264,46 @@
         }
       }
     },
+    "Senza questo file la password non basta ad aprire l'archivio. Tienilo lontano dall'archivio (per esempio su una chiavetta) e fanne una copia." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne diese Datei reicht das Passwort nicht, um das Archiv zu öffnen. Bewahre sie getrennt vom Archiv auf (zum Beispiel auf einem USB-Stick) und mache eine Kopie."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without this file the password is not enough to open the archive. Keep it away from the archive (on a USB stick, for example) and make a copy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin este archivo la contraseña no basta para abrir el archivo. Guárdalo lejos del archivo (por ejemplo en una memoria USB) y haz una copia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans ce fichier, le mot de passe ne suffit pas pour ouvrir l'archive. Gardez-le loin de l'archive (par exemple sur une clé USB) et faites-en une copie."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルがないとパスワードだけではアーカイブを開けません。アーカイブとは別の場所（USBメモリなど）に保管し、コピーも作ってください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有这个文件，仅凭密码无法打开归档。请把它和归档分开存放（例如放在 U 盘上），并做一份备份。"
+          }
+        }
+      }
+    },
     "Sequenze di riferimento" : {
       "localizations" : {
         "de" : {
@@ -32900,6 +33500,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法读取的扇区：%@"
+          }
+        }
+      }
+    },
+    "Si indovina in %@ con 1000 GPU" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit 1000 GPUs erraten in: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guessed in %@ with 1000 GPUs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se adivina en %@ con 1000 GPU"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deviné en %@ avec 1000 GPU"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1000台のGPUで%@で推測されます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 1000 块 GPU %@ 可猜出"
           }
         }
       }
@@ -34772,6 +35412,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 ZipCrypto"
+          }
+        }
+      }
+    },
+    "Usa comunque" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trotzdem verwenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Anyway"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar de todos modos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser quand même"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "それでも使用"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然使用"
           }
         }
       }
@@ -38443,6 +39123,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以创建归档。拖放归档即可将其打开。"
+          }
+        }
+      }
+    },
+    "più di un milione di anni" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mehr als eine Million Jahre"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "more than a million years"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "más de un millón de años"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "plus d'un million d'années"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "100万年以上"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超过一百万年"
           }
         }
       }
