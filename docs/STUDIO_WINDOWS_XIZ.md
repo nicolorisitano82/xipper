@@ -231,6 +231,9 @@ Proposta per Xipper Mac:
 
 ## 11. Fasi e stima
 
+**0.4.0 (16/11/2026)**: finestra come Esplora file (albero delle cartelle, contenuto della cartella
+aperta, indirizzo, Indietro e Su, colonna Tipo, ordinamento), dopo la prova con Barrique.
+
 **Fase 3 fatta il 16/11/2026** (0.3.0): lingue tedesco, spagnolo, francese, giapponese, cinese
 semplificato oltre a italiano e inglese, coi termini dell'app Mac (`windows/check-strings.py`
 controlla a ogni build i segnaposto); doppio clic su un file per aprirlo e trascinamento verso

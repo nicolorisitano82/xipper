@@ -14,6 +14,8 @@ Opens, verifies and extracts the XIZ archives made with Xipper (macOS). It does 
   (Alt+Enter).
 - Verify also checks the recovery record; a damaged but repairable archive gets "Repair a copy",
   which writes "name (repaired).xiz" and leaves the original alone.
+- Browse the archive as in File Explorer: folders on the left, contents on the right, Back and Up
+  (Alt+Left, Alt+Up, Backspace), sortable columns.
 - Double-click a file in the list to open it with its program; drag the selection to File Explorer
   to extract it there. Both go through a private temporary folder, removed on exit.
 - Files extracted from an archive downloaded from the Internet keep its Mark of the Web.

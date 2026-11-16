@@ -16,6 +16,8 @@ Uso
 - Verifica controlla anche il recovery record; se l'archivio è danneggiato e riparabile, "Ripara
   una copia" crea "nome (riparato).xiz" senza toccare l'originale.
 - File > "Verifica una prova di inclusione": un file e la sua prova .json, senza l'archivio.
+- L'archivio si sfoglia come in Esplora file: cartelle a sinistra, contenuto a destra, Indietro e
+  Su (Alt+Freccia sinistra, Alt+Freccia su, Backspace), colonne ordinabili.
 - Doppio clic su un file dell'elenco: lo apre col suo programma. Trascinando la selezione su
   Esplora file la si estrae lì. In entrambi i casi i file passano da una cartella temporanea
   privata, cancellata alla chiusura.
