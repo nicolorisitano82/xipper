@@ -19,7 +19,7 @@
     X(MenuVerify, L"&Verifica\tCtrl+T", L"&Verify\tCtrl+T") \
     X(MenuAssociate, L"Apri i file .xiz con Xipper XIZ", L"Open .xiz files with Xipper XIZ") \
     X(MenuUnassociate, L"Rimuovi l'associazione dei file .xiz", L"Remove the .xiz file association") \
-    X(MenuExit, L"E&sci", L"E&xit") \
+    X(MenuExit, L"Es&ci", L"E&xit") \
     X(MenuHelp, L"&Aiuto", L"&Help") \
     X(MenuAbout, L"&Informazioni su Xipper XIZ", L"&About Xipper XIZ") \
     X(ColName, L"Nome", L"Name") \
@@ -75,7 +75,94 @@
     X(VerbExtractTo, L"Estrai in…", L"Extract to…") \
     X(FileType, L"Archivio XIZ", L"XIZ archive") \
     X(About, L"Xipper XIZ %ls\nApre ed estrae gli archivi XIZ di Xipper.\n\nlibxiz (MIT) con zstd, liblzma, Argon2, BearSSL, Monocypher, mlkem-native, mldsa-native, brunsli, Brotli, preflate e OpenZL.\nhttps://github.com/nicolorisitano82/xipper", L"Xipper XIZ %ls\nOpens and extracts Xipper's XIZ archives.\n\nlibxiz (MIT) with zstd, liblzma, Argon2, BearSSL, Monocypher, mlkem-native, mldsa-native, brunsli, Brotli, preflate and OpenZL.\nhttps://github.com/nicolorisitano82/xipper") \
-    X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify\n  /register, /unregister   associate .xiz files, or not")
+    X(CrTitle, L"Credenziali", L"Credentials") \
+    X(CrHeader, L"«%ls» si apre con:", L"“%ls” opens with:") \
+    X(CrPassword, L"Password:", L"Password:") \
+    X(CrAddPw, L"Aggiungi", L"Add") \
+    X(CrAddKey, L"Aggiungi file di chiave…", L"Add key file…") \
+    X(CrGiven, L"Credenziali fornite:", L"Credentials given:") \
+    X(CrRemove, L"Rimuovi", L"Remove") \
+    X(CrOpen, L"Apri", L"Open") \
+    X(CrNotEnough, L"Le credenziali fornite non aprono l'archivio.", L"The credentials given do not open the archive.") \
+    X(CrKeyInvalid, L"Il file scelto non contiene una chiave XIZ o age, né un fattore.", L"The chosen file holds no XIZ or age key and no factor.") \
+    X(KeyFilter, L"File di chiave (*.key, *.xizfactor, *.txt)", L"Key files (*.key, *.xizfactor, *.txt)") \
+    X(GivenPassword, L"Password %u", L"Password %u") \
+    X(GivenKey, L"Chiave: %ls", L"Key: %ls") \
+    X(GivenKeyPq, L"Chiave post-quantum: %ls", L"Post-quantum key: %ls") \
+    X(GivenFactor, L"Fattore: %ls", L"Factor: %ls") \
+    X(AccPassword, L"una password", L"a password") \
+    X(AccPasswordLabel, L"la password «%ls»", L"the password “%ls”") \
+    X(AccPasswordFactor, L"una password con il suo file di secondo fattore", L"a password with its second factor key file") \
+    X(AccKey, L"la chiave «%ls»", L"the key “%ls”") \
+    X(AccKeyPq, L"la chiave post-quantum «%ls»", L"the post-quantum key “%ls”") \
+    X(AccThreshold, L"%d custodi su %d: %ls", L"%d custodians of %d: %ls") \
+    X(AccOpened, L" ✓", L" ✓") \
+    X(MenuUnlock, L"S&blocca altri gruppi…", L"&Unlock more groups…") \
+    X(HiddenGroups, L"%u gruppi bloccati", L"%u locked groups") \
+    X(ColGroup, L"Gruppo", L"Group") \
+    X(GroupDefault, L"(principale)", L"(main)") \
+    X(Signatures, L"Firme", L"Signatures") \
+    X(MenuSignatures, L"&Firme…", L"Si&gnatures…") \
+    X(MenuProperties, L"&Proprietà…\tAlt+Invio", L"&Properties…\tAlt+Enter") \
+    X(MenuProof, L"Verifica una p&rova di inclusione…", L"Check an inclusion p&roof…") \
+    X(SigTitle, L"Firme dei segmenti", L"Segment signatures") \
+    X(SigColSegment, L"Segmento", L"Segment") \
+    X(SigColSigner, L"Firmatario", L"Signer") \
+    X(SigColDate, L"Data", L"Date") \
+    X(SigColKind, L"Tipo", L"Kind") \
+    X(SigColState, L"Stato", L"State") \
+    X(SigColFingerprint, L"Impronta", L"Fingerprint") \
+    X(SigUnsigned, L"non firmato", L"unsigned") \
+    X(SigValid, L"valida", L"valid") \
+    X(SigInvalid, L"NON VALIDA", L"INVALID") \
+    X(SigBroken, L"valida, catena INTERROTTA", L"valid, chain BROKEN") \
+    X(SigUnknown, L"algoritmo sconosciuto, non verificata", L"unknown algorithm, not verified") \
+    X(SigTimestamp, L" + marca temporale (non verificata)", L" + time-stamp (not verified)") \
+    X(SigNote, L"Le firme con certificato sono verificate con la chiave del certificato: se l'emittente è affidabile lo decidi tu, dall'impronta SHA-256. Le marche temporali sono mostrate, non verificate.", L"Certificate signatures are checked with the certificate's key: whether the issuer is trusted is up to you, from its SHA-256 fingerprint. Time-stamps are shown, not verified.") \
+    X(NoSignatures, L"L'archivio non ha firme.", L"The archive has no signatures.") \
+    X(AlgEd25519, L"Ed25519", L"Ed25519") \
+    X(AlgP256, L"ECDSA P-256, certificato", L"ECDSA P-256, certificate") \
+    X(AlgRsa, L"RSA, certificato", L"RSA, certificate") \
+    X(AlgHybrid, L"Ed25519 + ML-DSA-65 (post-quantum)", L"Ed25519 + ML-DSA-65 (post-quantum)") \
+    X(AlgEnclave, L"Secure Enclave P-256 + ML-DSA-65", L"Secure Enclave P-256 + ML-DSA-65") \
+    X(PropTitle, L"Proprietà", L"Properties") \
+    X(PropFormat, L"Formato: XIZ %u.%u", L"Format: XIZ %u.%u") \
+    X(PropId, L"Identificativo: %ls", L"Archive id: %ls") \
+    X(PropEncrypted, L"Cifrato: %ls", L"Encrypted: %ls") \
+    X(Yes, L"sì", L"yes") \
+    X(No, L"no", L"no") \
+    X(PropSegments, L"Segmenti: %u (%u firmati)", L"Segments: %u (%u signed)") \
+    X(PropEntries, L"Elementi: %u (%llu visibili)", L"Items: %u (%llu visible)") \
+    X(PropBytes, L"Dimensione dei file: %ls", L"Size of the files: %ls") \
+    X(PropFile, L"Dimensione dell'archivio: %ls", L"Size of the archive: %ls") \
+    X(PropGroups, L"Gruppi di accesso:", L"Access groups:") \
+    X(PropLocked, L"bloccato", L"locked") \
+    X(PropAccess, L"Si apre con:", L"Opens with:") \
+    X(PropRecovery, L"Recovery record: ripara fino a %u blocchi da %u KiB", L"Recovery record: repairs up to %u blocks of %u KiB") \
+    X(PropNoRecovery, L"Recovery record: assente", L"Recovery record: none") \
+    X(PropWindows, L"Leggibile su Windows e Linux: %ls", L"Readable on Windows and Linux: %ls") \
+    X(PropAppleNo, L"no (codec Apple LZRAVEN o LZMESH)", L"no (Apple's LZRAVEN or LZMESH codec)") \
+    X(RecOk, L"Recovery record: nessun danno.", L"Recovery record: no damage.") \
+    X(RecDamaged, L"Recovery record: %u blocchi danneggiati, %ls.", L"Recovery record: %u damaged blocks, %ls.") \
+    X(RecRepairable, L"riparabili", L"repairable") \
+    X(RecNotRepairable, L"troppi per ripararli", L"too many to repair") \
+    X(RepairCopy, L"Ripara una copia", L"Repair a copy") \
+    X(Repairing, L"Riparazione in corso…", L"Repairing…") \
+    X(RepairedTitle, L"Copia riparata", L"Copy repaired") \
+    X(RepairedText, L"La copia riparata è «%ls». L'originale non è stato toccato.", L"The repaired copy is “%ls”. The original was not touched.") \
+    X(RepairFail, L"Non è stato possibile riparare l'archivio.", L"The archive could not be repaired.") \
+    X(RepairedSuffix, L" (riparato)", L" (repaired)") \
+    X(OpenCopy, L"Apri la copia", L"Open the copy") \
+    X(DamagedRepairable, L"L'archivio ha un recovery record: puoi ripararne una copia.", L"The archive has a recovery record: you can repair a copy.") \
+    X(ProofPickJson, L"Scegli la prova (.json)", L"Choose the proof (.json)") \
+    X(ProofPickFile, L"Scegli il file da controllare", L"Choose the file to check") \
+    X(ProofFilter, L"Prove di inclusione (*.json)", L"Inclusion proofs (*.json)") \
+    X(ProofOkTitle, L"La prova è valida", L"The proof is valid") \
+    X(ProofOkText, L"«%ls» (%llu byte) era nell'archivio, segmento %u.", L"“%ls” (%llu bytes) was in the archive, segment %u.") \
+    X(ProofSigned, L"Segmento firmato da %ls il %ls (%ls).", L"Segment signed by %ls on %ls (%ls).") \
+    X(ProofUnsigned, L"Il segmento non è firmato: la prova lega il file all'albero, non a una persona.", L"The segment is not signed: the proof ties the file to the tree, not to a person.") \
+    X(ProofBadTitle, L"La prova non corrisponde", L"The proof does not match") \
+    X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica (e recovery record)\n  /repair archivio            ripara una copia col recovery record\n  /info archivio              proprietà e firme\n  /passenv VAR, /identity FILE, /factor FILE   credenziali (ripetibili)\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify (and the recovery record)\n  /repair archive          repair a copy with the recovery record\n  /info archive            properties and signatures\n  /passenv VAR, /identity FILE, /factor FILE   credentials (repeatable)\n  /register, /unregister   associate .xiz files, or not")
 
 enum class S {
 #define XIZW_ENUM(id, it, en) id,

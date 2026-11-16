@@ -17,3 +17,22 @@
 #define IDC_DEST_EDIT 202
 #define IDC_DEST_BROWSE 203
 #define IDC_OPEN_AFTER 204
+
+#define IDD_CREDS 300
+#define IDC_CR_HEADER 301
+#define IDC_CR_ACCESS 302
+#define IDC_CR_PWLABEL 303
+#define IDC_CR_PW 304
+#define IDC_CR_ADDPW 305
+#define IDC_CR_ADDKEY 306
+#define IDC_CR_GIVEN 307
+#define IDC_CR_LIST 308
+#define IDC_CR_REMOVE 309
+#define IDC_CR_ERROR 310
+
+#define IDD_SIGS 400
+#define IDC_SIG_LIST 401
+#define IDC_SIG_NOTE 402
+
+#define IDD_PROPS 500
+#define IDC_PROP_TEXT 501

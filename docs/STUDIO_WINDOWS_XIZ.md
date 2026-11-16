@@ -231,8 +231,17 @@ Proposta per Xipper Mac:
 
 ## 11. Fasi e stima
 
+**Fase 2 fatta il 16/11/2026**: finestra delle credenziali per gli archivi 1.3 (elenca come si apre
+l'archivio dalle stanza: password con etichetta, chiavi, chiavi post-quantum, custodi k di n; si
+aggiungono password e file di chiave XIZ o age, fattori); gruppi bloccati segnalati, colonna Gruppo,
+«Sblocca altri gruppi»; Firme (Ed25519, certificati, ibride, Secure Enclave, catena, marca temporale
+non verificata); Proprietà (Alt+Invio); Verifica col recovery record e «Ripara una copia»
+(anche quando l'archivio non si apre per danni); verifica delle prove di inclusione; `/info`,
+`/repair`, credenziali ripetibili. 32 controlli sotto Wine. Restano: voci cancellate (§13.7) non
+distinte nell'elenco, nessun PAR2.
+
 **Fase 1 fatta il 16/11/2026**, in `windows/` con nome di lavoro «Xipper XIZ» (`XipperXIZ.exe`,
-versione 0.1.0, 3,7 MB x86_64, 3,2 MB ARM64): finestra con elenco (ListView virtuale, icone di
+versione 0.1.0, 3,7 MB x86_64, 3,2 MB ARM64; 0.2.0 con la fase 2): finestra con elenco (ListView virtuale, icone di
 sistema), Apri / trascinamento, password in NFC, secondo fattore, Estrai / Estrai selezione con
 destinazione, avanzamento e Annulla (anche sulla barra delle applicazioni), conflitti con «Sostituisci /
 Mantieni entrambi / Salta / per tutti», Verifica, Mark of the Web, associazione `.xiz` per utente con

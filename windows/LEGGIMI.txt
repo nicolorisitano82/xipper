@@ -9,7 +9,13 @@ Uso
 - File > "Apri i file .xiz con Xipper XIZ": i file .xiz si aprono con un doppio clic, e il menu
   di Esplora file offre "Estrai qui" ed "Estrai in…" (su Windows 11 sotto "Mostra altre opzioni").
   Non servono diritti di amministratore; File > "Rimuovi l'associazione" la toglie.
-- Archivi protetti: password e, se richiesto, il file del secondo fattore (.xizfactor).
+- Archivi protetti: password e, se richiesto, il file del secondo fattore (.xizfactor). Per gli
+  archivi con destinatari o custodi la finestra elenca come si aprono: si aggiungono password e file
+  di chiave (XIZ-SECRET-KEY-…, AGE-SECRET-KEY-…). Con un gruppo bloccato, File > "Sblocca altri gruppi".
+- File > Firme: chi ha firmato ogni segmento e se la firma è valida. File > Proprietà (Alt+Invio).
+- Verifica controlla anche il recovery record; se l'archivio è danneggiato e riparabile, "Ripara
+  una copia" crea "nome (riparato).xiz" senza toccare l'originale.
+- File > "Verifica una prova di inclusione": un file e la sua prova .json, senza l'archivio.
 - I file estratti da un archivio scaricato da Internet ricevono lo stesso contrassegno
   (Mark of the Web): Windows continua ad avvisare prima di aprire un programma.
 
@@ -18,7 +24,10 @@ Riga di comando
   XipperXIZ archivio.xiz                 apre la finestra
   XipperXIZ /x archivio.xiz [/d CARTELLA] estrae (default: una cartella col nome dell'archivio)
   XipperXIZ /xto archivio.xiz            chiede dove estrarre
-  XipperXIZ /t archivio.xiz              verifica
+  XipperXIZ /t archivio.xiz              verifica (anche il recovery record)
+  XipperXIZ /repair archivio.xiz         ripara una copia
+  XipperXIZ /info archivio.xiz           proprietà e firme
+  credenziali: /passenv VARIABILE, /identity FILE, /factor FILE (ripetibili)
   XipperXIZ /register | /unregister      associa i file .xiz, o no
 Per gli script c'è anche xiz.exe (xiz --help).
 
@@ -31,7 +40,8 @@ informazioni" > "Esegui comunque".
 Limiti
 ------
 - Gli archivi compressi con LZRAVEN o LZMESH (codec Apple, solo macOS 27) non si aprono.
-- Chiavi, custodi, gruppi di accesso e firme arrivano nella prossima versione.
+- Le marche temporali RFC 3161 sono mostrate, non verificate; la catena dei certificati non è
+  validata (l'impronta SHA-256 permette di confrontarla).
 
 Licenza MIT. Sorgenti: https://github.com/nicolorisitano82/xipper (windows/, libxiz/).
 Le licenze delle librerie incluse sono nella cartella licenses.

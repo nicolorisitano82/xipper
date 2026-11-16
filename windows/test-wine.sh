@@ -26,7 +26,8 @@ W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/bin" "$W/in"
 cp "$APP/XipperXIZ.exe" "$APP/xiz.exe" "$W/bin/"
-cp libxiz/tests/fixtures/{plain,password,factor,password-114}.xiz libxiz/tests/fixtures/factor.xizfactor "$W/in/"
+cp libxiz/tests/fixtures/{plain,password,factor,password-114,access,access-pq,age-pq,signed,signed-pq,signed-pq-tampered,signed-se}.xiz \
+   libxiz/tests/fixtures/{factor.xizfactor,identity.key,identity-pq.key,custodian-pq.key,age-pq.key} "$W/in/"
 # An archive with Apple's LZRAVEN frames, which no Windows build can read (made here, macOS 27).
 if [ -x .build/release/xipper ]; then
     mkdir -p "$W/src/d" && echo hi > "$W/src/d/a.txt"
@@ -45,6 +46,7 @@ tree() { (cd "$1" && find . -type f -exec sha256sum {} + | sort); }
 wineboot -i > /dev/null 2>&1; wineserver -w
 mkdir -p ref out
 export PW='correct horse battery staple' WRONG='not the password'
+export XIZ_PW_A='alpha secret' XIZ_PW_B='beta secret' XIZ_PW_C1='custodian one' XIZ_PW_C2='custodian two' XIZ_PW_C3='custodian three'
 
 $X extract -d ref/plain in/plain.xiz > /dev/null 2>&1
 $A /x in/plain.xiz /d out/plain /quiet /log plain.log; wineserver -w
@@ -88,6 +90,48 @@ fi
 $A /x in/missing.xiz /quiet /log missing.log; wineserver -w
 code missing.log 1 && ok missing-archive || { cat missing.log; no missing-archive; }
 
+# Phase 2: groups, keys, custodians, signatures, recovery record.
+$X extract -d ref/all --password-env XIZ_PW_A in/access.xiz > /dev/null 2>&1
+$X extract -d ref/g1 --identity in/identity.key in/access.xiz > /dev/null 2>&1
+$A /x in/access.xiz /d out/all /passenv XIZ_PW_A /quiet /log all.log; wineserver -w
+code all.log 0 && [ "$(tree out/all)" = "$(tree ref/all)" ] && ok groups-all || { cat all.log; no groups-all; }
+$A /x in/access.xiz /d out/key /identity in/identity.key /quiet /log key.log; wineserver -w
+code key.log 0 && [ "$(tree out/key)" = "$(tree ref/g1)" ] && ok recipient-key || { cat key.log; no recipient-key; }
+$A /x in/access.xiz /d out/thr /passenv XIZ_PW_C1 /passenv XIZ_PW_C3 /quiet /log thr.log; wineserver -w
+code thr.log 0 && [ "$(tree out/thr)" = "$(tree ref/g1)" ] && ok custodians-2-of-3 || { cat thr.log; no custodians-2-of-3; }
+$A /x in/access.xiz /d out/one /passenv XIZ_PW_C2 /quiet /log one.log; wineserver -w
+code one.log 3 && ok one-custodian-refused || { cat one.log; no one-custodian-refused; }
+$A /info in/access.xiz /passenv XIZ_PW_B /quiet /log partial.log; wineserver -w
+grep -q '(locked)' partial.log && grep -q 'custodians of 3' partial.log && ok locked-group-and-access || { cat partial.log; no locked-group-and-access; }
+$X extract -d ref/pq --identity in/identity-pq.key in/access-pq.xiz > /dev/null 2>&1
+$A /x in/access-pq.xiz /d out/pq /identity in/identity-pq.key /quiet /log pq.log; wineserver -w
+code pq.log 0 && [ "$(tree out/pq)" = "$(tree ref/pq)" ] && ok post-quantum-key || { cat pq.log; no post-quantum-key; }
+$A /x in/access-pq.xiz /d out/pqc /identity in/custodian-pq.key /passenv XIZ_PW_C2 /quiet /log pqc.log; wineserver -w
+code pqc.log 0 && ok post-quantum-custodians || { cat pqc.log; no post-quantum-custodians; }
+$A /x in/age-pq.xiz /d out/age /identity in/age-pq.key /quiet /log age.log; wineserver -w
+code age.log 0 && [ "$(cat out/age/referti/r2.txt 2> /dev/null)" = "referto 2" ] && ok age-identity || { cat age.log; no age-identity; }
+$A /info in/signed.xiz /quiet /log sig.log; wineserver -w
+grep -q 'Ed25519  valid' sig.log && ok signatures-ed25519 || { cat sig.log; no signatures-ed25519; }
+$A /info in/signed-pq.xiz /quiet /log sigpq.log; wineserver -w
+grep -q 'ML-DSA-65 (post-quantum)  valid' sigpq.log && ok signatures-hybrid || { cat sigpq.log; no signatures-hybrid; }
+$A /info in/signed-pq-tampered.xiz /quiet /log sigt.log; wineserver -w
+grep -q 'INVALID' sigt.log && ok signatures-tampered || { cat sigt.log; no signatures-tampered; }
+$A /info in/signed-se.xiz /quiet /log sigse.log; wineserver -w
+grep -q 'Secure Enclave P-256 + ML-DSA-65  valid' sigse.log && ok signatures-enclave || { cat sigse.log; no signatures-enclave; }
+cp in/plain.xiz in/rec.xiz
+$X recovery add --redundancy 10 in/rec.xiz > /dev/null 2>&1
+$A /t in/rec.xiz /quiet /log rec.log; wineserver -w
+code rec.log 0 && grep -q '^record-damage 0' rec.log && ok record-intact || { cat rec.log; no record-intact; }
+printf '\377\377\377\377\377\377\377\377' | dd of=in/rec.xiz bs=1 seek=300 conv=notrunc 2> /dev/null
+cp in/rec.xiz in/rec-damaged-copy.xiz
+$A /t in/rec.xiz /quiet /log recd.log; wineserver -w
+code recd.log 1 && grep -q '^repairable 1' recd.log && ok record-damage-found || { cat recd.log; no record-damage-found; }
+$A /repair in/rec.xiz /quiet /log rep.log; wineserver -w
+code rep.log 0 && [ -f 'in/rec (repaired).xiz' ] && $X test 'in/rec (repaired).xiz' > /dev/null 2>&1 && cmp -s in/rec.xiz in/rec-damaged-copy.xiz \
+    && ok repaired-copy-original-untouched || { cat rep.log; no repaired-copy-original-untouched; }
+$A /info in/rec.xiz /quiet /log recinfo.log; wineserver -w
+grep -q 'Recovery record: repairs up to' recinfo.log && ok properties-record || { cat recinfo.log; no properties-record; }
+
 $A /register /quiet; wineserver -w
 wine reg query 'HKCU\Software\Classes\.xiz' 2> /dev/null | grep -q XipperXIZ.Archive &&
     wine reg query 'HKCU\Software\Classes\XipperXIZ.Archive\shell\extracthere\command' 2> /dev/null | grep -q '/x' && ok register || no register
@@ -107,6 +151,13 @@ if [ "${SHOTS:-1}" = 1 ]; then
     xdotool key ctrl+t 2> /dev/null; shot verify-result 6
     wineserver -k; sleep 1
     $A in/password.xiz & shot password 8
+    wineserver -k; sleep 1
+    $A in/access.xiz & shot credentials 8
+    xdotool type --delay 50 'beta secret' 2> /dev/null; xdotool key Return 2> /dev/null; shot partial 5
+    xdotool key alt+Return 2> /dev/null; shot properties 3
+    wineserver -k; sleep 1
+    $A in/signed-pq.xiz & sleep 8
+    xdotool key alt+f 2> /dev/null; sleep 1; xdotool key g 2> /dev/null; shot signatures 3
     wineserver -k; sleep 1
     $A & shot empty 8
     wineserver -k

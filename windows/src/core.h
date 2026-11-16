@@ -25,15 +25,28 @@ std::wstring exe_path();
 // "12,3 MB" in the user's locale.
 std::wstring byte_size(uint64_t n);
 
+using Secret = std::array<uint8_t, 32>;
+
 struct Credentials {
-    std::string password;                        // NFC, UTF-8; empty: none
-    std::vector<std::array<uint8_t, 32>> factors;
+    std::vector<std::string> passwords;  // NFC, UTF-8: the password, or several custodians'
+    std::vector<Secret> identities;      // X25519 secret keys (XIZ 1.3 recipients)
+    std::vector<Secret> pq_identities;   // X-Wing seeds (XIZ 1.7)
+    std::vector<Secret> factors;         // second factors (XIZ 1.14)
+    std::vector<std::wstring> given;     // what the user gave, for the dialogs (no secrets)
+    std::vector<int> kinds;              // for each `given`: 0 password, else XIZ_SECRET_*
+    bool empty() const { return passwords.empty() && identities.empty() && pq_identities.empty() && factors.empty(); }
+    void add_password(const std::wstring &typed);
+    // A key file of any kind; returns its XIZ_SECRET_* kind or a negative status.
+    int add_key_file(const std::wstring &path);
     void wipe();
+    Credentials() = default;
+    Credentials(const Credentials &) = default;
+    Credentials &operator=(const Credentials &) = default;
     ~Credentials() { wipe(); }
 };
 
 // Reads a key file; returns its kind (XIZ_SECRET_*) or a negative xiz status.
-int read_secret(const std::wstring &path, std::array<uint8_t, 32> &out);
+int read_secret(const std::wstring &path, Secret &out);
 
 struct Entry {
     std::wstring path;   // '\'-separated for display
@@ -41,6 +54,7 @@ struct Entry {
     uint64_t size;
     int64_t mtime;
     int type;
+    uint16_t group;      // access group (XIZ 1.3)
 };
 
 struct Archive {
@@ -53,8 +67,24 @@ struct Archive {
     ~Archive() { if (a) xiz_close(a); }
 };
 
-// Opens with the given credentials; on success fills `out` (entries, info, zone).
-int open_archive(const std::wstring &path, const Credentials &c, Archive &out, xiz_error *err);
+// Opens with the given credentials; on success fills `out` (entries, info, zone). `flags`: XIZ_OPEN_*.
+int open_archive(const std::wstring &path, const Credentials &c, Archive &out, xiz_error *err, unsigned flags = 0);
+// The ways an archive opens (its stanzas), one line each, in the user's language.
+std::vector<std::wstring> access_lines(xiz_archive *a);
+// Whether the stanzas need more than a password (recipients, custodians: XIZ 1.3).
+bool needs_keys(xiz_archive *a);
+// Name of an access group, or the default group's name.
+std::wstring group_name(xiz_archive *a, uint16_t id);
+
+struct SigRow {
+    uint32_t segment = 0;
+    bool is_signed = false, valid = false, chained = false, unknown = false, timestamp = false;
+    std::wstring signer, date, algorithm, fingerprint;
+};
+std::vector<SigRow> signatures(xiz_archive *a);
+// Everything about an archive, as text for the Properties window and the /info log.
+std::wstring properties_text(const Archive &ar);
+std::wstring date_time(int64_t unix_seconds);
 // A message for a failed open, in the user's language (Apple codecs, newer version, damage…).
 std::wstring open_error(const std::wstring &path, int rc, const xiz_error &err);
 
@@ -70,7 +100,8 @@ struct Conflict {
 };
 
 struct Job {
-    enum Kind { Extract, Test } kind = Extract;
+    enum Kind { Extract, Test, Repair } kind = Extract;
+    std::wstring path;              // the archive (Test: its recovery record; Repair: the original)
     HWND notify = nullptr;          // receives WM_JOB_*; nullptr: run quietly
     xiz_archive *a = nullptr;
     std::wstring dest;              // extraction folder
@@ -83,6 +114,9 @@ struct Job {
     xiz_error err{};
     xiz_extract_report rep{};
     xiz_test_report trep{};
+    bool has_record = false;        // Test, Repair: the archive has a recovery record (§15)
+    xiz_recovery_report rrep{};
+    std::wstring repaired;          // Repair: the repaired copy
     std::vector<std::wstring> problems;
     // private
     int sticky = -1;
