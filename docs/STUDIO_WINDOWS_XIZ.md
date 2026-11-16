@@ -1,0 +1,242 @@
+# Studio: un'app Windows che apre gli archivi XIZ
+
+Stato: analisi, 16/11/2026. Nessun codice scritto.
+
+## 1. Scopo e confini
+
+Chi riceve un `.xiz` su Windows oggi può solo usare `xiz.exe` dal prompt. Serve un'app che:
+
+- **apra ed estragga** gli archivi XIZ con doppio clic o dal menu di Esplora file;
+- gestisca **tutte le opzioni del formato che un destinatario incontra**: password, chiavi, fattori,
+  custodi, gruppi, firme, recovery record, codec diversi;
+- **non crei** archivi e non diventi un secondo Xipper. Niente ZIP, 7z o altri formati.
+
+Fuori dallo scopo: creazione, append, profilo forense come prodotto (quello è xipper-forensic),
+Linux (c'è già `xiz`), store di Microsoft.
+
+## 2. Da dove si parte
+
+Quasi tutto il lavoro difficile esiste già in **libxiz** (`libxiz/`, C99, MIT):
+
+- implementazione **indipendente** dalla spec, non dal codice Swift; legge fino alla 1.14;
+- **API C con handle opachi** (`include/xiz.h`), I/O tramite callback, `xiz_source_file` già con le
+  API wide di Windows;
+- **estrazione sicura già pensata per Windows**: prefisso `\\?\`, niente reparse point nei
+  componenti, nomi resi validi (`xiz_windows_name`: `<>:"|?*\`, `CON`, `COM1`, punti e spazi finali);
+- tutta la crittografia **portabile e compilata dai sorgenti** (BearSSL, Monocypher, mlkem-native,
+  mldsa-native, Argon2 di riferimento): niente CryptoKit, niente dipendenze di sistema;
+- `xiz.exe` x86_64 **già costruito** da `scripts/build-xiz-portable.sh` (zig, dal Mac) e pubblicato
+  (`dist/xiz-campaign/xiz-campaign-windows-x86_64.zip`, 1,4 MB con brunsli, preflate e OpenZL);
+- **già provato sotto Wine 10**: 114 controlli su 114 (`scripts/windows-wine.sh`), compresi nomi e
+  password non ASCII e lettere di unità.
+
+L'app Windows è quindi soprattutto **un'interfaccia sopra libxiz**, più l'integrazione con Windows.
+Il formato non va reimplementato.
+
+## 3. Le opzioni del formato e cosa deve fare l'app
+
+| Opzione XIZ | Dove nella spec | libxiz oggi | Cosa fa l'app |
+|---|---|---|---|
+| Archivio in chiaro, zstd, store | §4 | sì | apre senza chiedere nulla |
+| Dizionari zstd | §12 | sì | trasparente |
+| LZMA2, ARM64 + LZMA2 | §14 | sì | trasparente |
+| JPEG ricompressi (brunsli) | §16 | sì (`XIZ_JPEG`) | trasparente; build con C++ |
+| Documenti con Deflate ricompresso (preflate) | §19 | sì (`XIZ_PREFLATE`) | trasparente; build con C++ |
+| Tabelle e pesi di modelli (OpenZL) | §21 | sì (`XIZ_OPENZL`) | trasparente |
+| **LZRAVEN, LZMESH** (codec Apple) | §18 | **solo macOS 27** | **impossibile su Windows**: messaggio chiaro, vedi §9 |
+| Bit `genomic_codecs` (XIG) | §3 | non specificato | rifiuto con messaggio |
+| Password (Argon2id, AES-GCM) | §6 | sì | finestra password |
+| Profilo Forte (1 GiB, t=4) | §6.2 | sì | serve RAM libera: avviso se < 2 GiB disponibili |
+| Password in NFC | §24.2 | **no**, byte così come arrivano | **l'app normalizza**: `NormalizeString(NormalizationC)` di Win32, poi UTF-8 |
+| Password con secondo fattore (stanza 8) | §24.3 | sì (`factors`) | chiede il file `.xizfactor` quando l'archivio lo richiede |
+| Commitment delle chiavi (stanza 9) | §24.1 | sì | trasparente; un archivio ≥ 1.14 senza commitment è rifiutato |
+| Destinatari X25519, identità age | §13.3 | sì (`identities`) | «Apri con file di chiave…» |
+| Destinatari post-quantum X-Wing | §17 | sì (`pq_identities`) | come sopra, `XIZ-SECRET-KEY-PQ-1-…` |
+| Soglie k-di-n (custodi, Shamir) | §13.3 | sì | raccoglie più password o chiavi, mostra «2 di 3 forniti» |
+| Gruppi di accesso | §13.2 | sì | mostra solo le cartelle che le credenziali aprono, le altre come «bloccate» |
+| `XIZ_OPEN_NO_KEYS` | §13 | sì | senza credenziali mostra comunque struttura, gruppi e firme |
+| Firme dei segmenti (Ed25519, P-256 + X.509, RSA) | §13.5 | sì | pannello «Firme» con firmatario e catena |
+| Firme ibride Ed25519 + ML-DSA-65 | §22 | sì | come sopra, etichetta «post-quantum» |
+| Firme Secure Enclave (P-256 + ML-DSA-65) | §23 | sì (algoritmo 5) | come sopra |
+| Marca temporale RFC 3161 | §13.5 | rilevata, **non verificata** | la mostra come «presente, non verificata» |
+| Prove di inclusione (`xiz-proof-1`) | §13.6 | sì | «Verifica prova…»: file JSON + file |
+| Voci cancellabili, slot azzerati | §13.7 | sì | voce mostrata come «cancellata» |
+| Segmenti aggiunti, append interrotto | §11 | sì | trasparente; cronologia nel pannello Firme |
+| Recovery record | §15 | sì (scrub e riparazione) | «Verifica» e, se danneggiato, «Ripara» (con copia di sicurezza) |
+| PAR2 accanto all'archivio | §3 | no | fuori scopo: si indica lo strumento PAR2 |
+| Profilo forense | §20 | lettura e verifica | estrazione normale; la verifica forense resta a xipper-forensic |
+| xattr macOS | §5.2 | letti, non applicati | ignorati; mai in ADS (vedi §5) |
+
+Riassunto: **tutte le opzioni tranne i codec Apple sono già decodificabili da libxiz**. L'unico
+pezzo crittografico mancante è la normalizzazione NFC, che su Windows dà il sistema.
+
+## 4. Architettura raccomandata
+
+### Scelta: app nativa Win32 in C++, libxiz collegata staticamente
+
+```
+XipperReader.exe  (un solo file, ~4 MB, nessun runtime)
+├─ UI Win32 + Common Controls v6 (ListView, TreeView, TaskDialog, IFileDialog)
+├─ thread di lavoro: apertura, test, estrazione (un xiz_archive per thread)
+├─ integrazione shell: associazione .xiz, verbi «Estrai qui» / «Estrai in…» (HKCU)
+└─ libxiz statica (+ zstd, liblzma, Argon2, brunsli, preflate, OpenZL)
+```
+
+Perché:
+
+- **si costruisce dal Mac** con la stessa catena zig di `build-xiz-portable.sh` (`zig c++ -target
+  x86_64-windows-gnu` e `aarch64-windows-gnu`): niente macchina Windows per compilare;
+- **un eseguibile portabile**, nessun .NET da installare, avvio istantaneo;
+- stesso linguaggio di libxiz: niente marshalling e niente copia delle stringhe UTF-8;
+- superficie d'attacco minima: l'app legge file non fidati, meno strati meglio.
+
+### Alternative scartate
+
+| Opzione | Contro principale |
+|---|---|
+| C# / WPF o WinUI 3 + `xiz.dll` via P/Invoke | runtime .NET o pacchetto self-contained da 60–150 MB; WinUI 3 vuole il Windows App SDK; due linguaggi da mantenere |
+| Electron / Tauri | peso, WebView, superficie d'attacco per un semplice estrattore |
+| Solo `xiz.exe` + script `.bat` di associazione | nessuna gestione interattiva di password, custodi, gruppi, conflitti |
+| Plugin per 7-Zip | lo usa solo chi ha 7-Zip; la sua API dei plugin è pensata per formati senza identità e firme |
+| Port di XipperKit in Swift per Windows | Swift su Windows è immaturo per la UI; XipperKit dipende da CryptoKit e Foundation di Apple |
+
+Un **plugin per 7-Zip** resta una seconda fase possibile per gli archivi semplici (solo password),
+come canale di diffusione: non sostituisce l'app.
+
+## 5. Interfaccia e flussi
+
+**Apertura** (doppio clic, trascinamento, `XipperReader.exe archivio.xiz`):
+
+1. `xiz_open` con `XIZ_OPEN_NO_KEYS` se l'archivio ha la directory (§13): si legge struttura e firme
+   prima di chiedere credenziali.
+2. Dalle stanza (`xiz_get_stanza`) l'app capisce **cosa chiedere**, invece di una finestra generica:
+   - solo password → campo password;
+   - password con fattore → campo password + «File del secondo fattore…»;
+   - destinatari a chiave → «File di chiave…» (con elenco dei key id attesi);
+   - soglia → elenco dei custodi, ciascuno con password o chiave, contatore «k di n»;
+   - più gruppi → si apre con quello che si ha, il resto appare bloccato.
+3. Errori distinti: password sbagliata, fattore mancante (`XIZ_E_FACTOR_REQUIRED`), fattore
+   sbagliato, codec non disponibile, versione più nuova.
+
+**Finestra principale**: albero delle cartelle + elenco (nome, dimensione, data, gruppo, stato);
+barra con *Estrai tutto*, *Estrai selezione*, *Verifica*, *Firme*, *Proprietà*. Trascinamento verso
+Esplora file tramite estrazione in una cartella temporanea (`IDataObject` con `CFSTR_FILEDESCRIPTOR`
+in una fase successiva).
+
+**Estrazione**: destinazione proposta «accanto all'archivio, in una cartella col suo nome»;
+conflitti con «Sovrascrivi / Salta / Rinomina / per tutti»; avanzamento in byte, annullabile;
+rapporto finale con le voci saltate e il perché (percorso non sicuro, nome reso valido, link non
+creato).
+
+**Verifica**: `xiz_test` con avanzamento; se l'archivio ha un recovery record, `xiz scrub` e
+proposta di riparazione **su una copia** (mai sul file originale senza conferma).
+
+**Firme**: per ogni segmento algoritmo, firmatario (certificato o key id), stato (valida, non
+valida, algoritmo sconosciuto), catena, marca temporale «presente, non verificata».
+
+**Lingue**: le 6 dell'app Mac, stesse stringhe dove possibile (riuso del catalogo).
+
+**Riga di comando** dell'app, per l'integrazione: `/x <archivio> [/d DIR]` estrai qui senza
+finestre salvo credenziali, `/t` verifica. `xiz.exe` resta lo strumento per gli script.
+
+## 6. Cose specifiche di Windows
+
+| Tema | Decisione |
+|---|---|
+| **Mark of the Web** | se l'archivio ha lo stream `Zone.Identifier`, copiarlo su ogni file estratto (come Esplora file e 7-Zip). È **sicurezza**: senza, un `.exe` scaricato dentro un `.xiz` perde l'avviso di SmartScreen. Default attivo |
+| Percorsi lunghi | già `\\?\` in libxiz; manifest con `longPathAware` |
+| Nomi non validi, nomi riservati | già `xiz_windows_name`; il rapporto elenca i nomi cambiati |
+| **Maiuscole e minuscole** | NTFS non distingue `A.txt` da `a.txt`: rilevare le collisioni prima di scrivere e rinominare la seconda (`a (2).txt`), con avviso |
+| Link simbolici | servono privilegio o Modalità sviluppatore: se mancano, saltati e riportati; mai giunzioni |
+| Permessi POSIX | solo «sola lettura»; setuid ecc. già azzerati |
+| xattr macOS | ignorati; niente ADS (scrivere stream arbitrari da un archivio è un rischio senza beneficio) |
+| Date | mtime ripristinata; creazione = ora dell'estrazione |
+| Password non ASCII | campo UTF-16 → NFC con `NormalizeString` → UTF-8 a libxiz. Risolve anche il limite noto della code page ANSI di `--password-stdin` |
+| Memoria per Argon2id | 1 GiB del profilo Forte: controllo con `GlobalMemoryStatusEx` e messaggio chiaro invece di un crash |
+| Console | l'app è GUI (`/SUBSYSTEM:WINDOWS`); `xiz.exe` resta per la console |
+| ARM64 (Snapdragon) | build nativa aarch64; sotto Wine non parte, va provata su macchina vera |
+| Defender | la scansione rallenta l'estrazione di molti file piccoli: niente da fare, solo misurarlo |
+
+## 7. Lavoro da fare in libxiz
+
+Piccolo, e utile anche alla CLI:
+
+1. **Annullamento**: la callback `progress` restituisce `void`. Aggiungere un `int (*cancel)(void*)`
+   o far restituire `int` a una nuova callback, controllata tra un frame e l'altro.
+2. **Avanzamento in byte dentro un file**: oggi arriva dopo ogni voce; un file da 10 GB resta fermo.
+3. **Percorso su disco nella callback**: l'app deve sapere il nome reale scritto (dopo
+   `xiz_windows_name`) per copiare il Mark of the Web e per il rapporto.
+4. **Conflitti interattivi**: callback «esiste già: sovrascrivi / salta / rinomina» invece del solo
+   flag `XIZ_EXTRACT_OVERWRITE`.
+5. **Collisioni di maiuscole** su Windows (vedi §6), dentro `extract.c` dove si conoscono tutti i nomi.
+6. **Estrazione parallela** (facoltativa): un `xiz_archive` per thread, voci divise per frame.
+   Utile sugli archivi grandi; non blocca la prima versione.
+7. **Aggiornare `libxiz/README.md`**: la tabella dice ancora preflate «non ancora» e non cita
+   OpenZL, firme ibride e Secure Enclave, che invece sono supportati.
+
+Nessuna nuova libreria esterna: `NormalizeString`, `IFileDialog`, `TaskDialog` sono di Windows.
+
+## 8. Build, firma, distribuzione
+
+- **Build**: nuovo target `xipper-reader` in `libxiz/` o in `windows/`, CMake + zig, x86_64 e aarch64,
+  aggiunto a `build-xiz-portable.sh` e alla campagna (passo `windows`).
+- **Risorse**: manifest (DPI per monitor, `longPathAware`, Common Controls v6), icona `.xiz`
+  ricavata dalle icone dell'app Mac, versione nei metadati.
+- **Firma**: coerente con la distribuzione attuale, **nessun certificato commerciale**. Conseguenza:
+  SmartScreen mostra «Windows ha protetto il PC» al primo avvio finché l'eseguibile non acquista
+  reputazione. Alternativa a pagamento (Azure Trusted Signing o un certificato OV): decisione tua.
+- **Pacchetti**: ZIP portabile (eseguibile + `xiz.exe` + licenze) e installer per utente, senza
+  diritti di amministratore, che registra `.xiz` in `HKCU\Software\Classes`. Per l'installer serve
+  uno strumento esterno (Inno Setup o WiX): da approvare, oppure un `/register` scritto nell'app
+  stessa, che evita l'installer.
+- **Menu contestuale**: verbi classici in HKCU. Su Windows 11 compaiono sotto «Mostra altre
+  opzioni»; il menu moderno (`IExplorerCommand`) richiede un pacchetto MSIX firmato: rinviato.
+- **Rilascio** accanto a Xipper Forensic su GitHub, con SHA-256.
+- **Licenze**: riconoscimenti di BearSSL, Monocypher, mlkem-native, mldsa-native, zstd, liblzma,
+  brunsli, Brotli, preflate, OpenZL, Argon2 in una finestra «Informazioni».
+
+## 9. Codec Apple: rimedio lato Xipper
+
+LZRAVEN e LZMESH esistono solo nel framework Compression di macOS 27: nessuna implementazione
+pubblica, quindi **un archivio così non si apre su Windows né su Linux**. Oggi sono opzionali
+(`--lzraven`, `--lzmesh`, default zstd), ma chi li sceglie potrebbe non saperlo.
+
+Proposta per Xipper Mac:
+
+- avviso nel pannello di creazione e nella CLI: «non leggibile fuori da macOS 27»;
+- in Proprietà dell'archivio: riga «Leggibile su Windows e Linux: sì / no (motivo)»;
+- `xipper convert --to xiz` ricomprime in zstd (firme e gruppi di accesso si perdono, serve
+  `--accept-losses`): l'app Windows nel messaggio d'errore indica al destinatario di chiedere al
+  mittente questo comando, o meglio di ricreare l'archivio senza codec Apple.
+
+## 10. Test
+
+- **Wine in container** (già esistente): avvio dell'app in modalità `/x` e `/t` senza finestre, sulle
+  fixture di `run_fixtures.sh` e sulla matrice della campagna. La parte grafica non si prova lì.
+- **Windows reale**: indispensabile per NTFS, ACL, link simbolici, Mark of the Web, SmartScreen,
+  DPI, ARM64. Opzione più semplice dal Mac: Windows 11 ARM in una VM (UTM/Parallels) per le prove
+  manuali prima di ogni rilascio; x86_64 in emulazione o su un PC.
+- **Matrice delle opzioni**: per ogni riga della tabella del §3 una fixture e un controllo, comprese
+  quelle negative (fattore sbagliato, k-1 custodi, codec Apple, bit sconosciuto).
+- **Fuzzing**: già coperto da libxiz (`fuzz_open`); l'app non aggiunge parser propri.
+- **Interop inversa**: archivi creati da ogni versione di Xipper 3.x aperti dall'app.
+
+## 11. Fasi e stima
+
+| Fase | Contenuto | Stima |
+|---|---|---|
+| 0 | API di libxiz del §7 (punti 1–5), README aggiornato | 2–3 giorni |
+| 1 | App minima: apertura, password con NFC, fattore, elenco, estrai tutto/selezione, avanzamento, annullamento, Mark of the Web, associazione `.xiz` | 1–2 settimane |
+| 2 | Chiavi, custodi, gruppi, pannello Firme, Verifica e riparazione, collisioni, conflitti | 1–2 settimane |
+| 3 | Lingue, menu contestuale, trascinamento verso Esplora file, aarch64, prove su Windows reale | 1 settimana |
+| 4 (facoltativa) | Plugin 7-Zip per gli archivi semplici; estrazione parallela | da valutare |
+
+Più l'avviso sui codec Apple in Xipper Mac (§9): mezza giornata.
+
+## 12. Decisioni aperte
+
+1. Nome dell'app: «Xipper Reader», «XIZ Viewer», altro.
+2. Firma del codice: restare self-signed (avviso SmartScreen) o pagare un certificato.
+3. Installer: strumento esterno (Inno Setup / WiX, da approvare) o registrazione fatta dall'app.
+4. Macchina Windows per le prove: VM sul Mac o PC fisico.
+5. Se la verifica forense (§20) deve comparire anche qui o restare solo in xipper-forensic.
