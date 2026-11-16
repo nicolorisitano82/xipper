@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "core.h"
+#include "dragdrop.h"
 #include "resource.h"
 #include "strings.h"
 
@@ -834,6 +835,29 @@ void add_columns() {
     }
 }
 
+std::vector<std::string> selected_paths() {
+    std::vector<std::string> sel;
+    for (int i = -1; (i = ListView_GetNextItem(M.list, i, LVNI_SELECTED)) >= 0;) sel.push_back(M.ar->entries[(size_t)i].stored);
+    return sel;
+}
+
+// Double-click or Enter on a file: extracted to a temporary folder and opened with its program.
+void open_item(int index) {
+    if (index < 0 || (size_t)index >= M.ar->entries.size()) return;
+    const Entry &e = M.ar->entries[(size_t)index];
+    if (e.type != XIZ_TYPE_FILE) return;
+    SetCursor(LoadCursorW(nullptr, IDC_WAIT));
+    SetWindowTextW(M.status, T(S::Preparing));
+    UpdateWindow(M.status);
+    std::wstring dir, error;
+    std::vector<std::wstring> paths;
+    bool ok = extract_temp(M.ar->a, M.ar->zone, {e.stored}, dir, paths, error);
+    SetWindowTextW(M.status, M.idle_status.c_str());
+    SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+    if (!ok) { task_dialog(M.wnd, TD_ERROR_ICON, T(S::FailTitle), error); return; }
+    ShellExecuteW(M.wnd, nullptr, paths[0].c_str(), nullptr, dir.c_str(), SW_SHOWNORMAL);
+}
+
 HMENU build_menu() {
     HMENU bar = CreateMenu(), file = CreatePopupMenu(), help = CreatePopupMenu();
     AppendMenuW(file, MF_STRING, ID_OPEN, T(S::MenuOpen));
@@ -966,6 +990,20 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
         }
+        if (h->idFrom == ID_LIST && h->code == LVN_ITEMACTIVATE && M.ar && !M.job) {
+            open_item(ListView_GetNextItem(M.list, -1, LVNI_FOCUSED));
+            return 0;
+        }
+        if (h->idFrom == ID_LIST && h->code == LVN_BEGINDRAG && M.ar && !M.job) {
+            std::vector<std::string> sel = selected_paths();
+            if (!sel.empty())
+                drag_out(M.ar->a, M.ar->zone, sel, [](bool b) {
+                    SetCursor(LoadCursorW(nullptr, b ? IDC_WAIT : IDC_ARROW));
+                    SetWindowTextW(M.status, b ? T(S::Preparing) : M.idle_status.c_str());
+                    UpdateWindow(M.status);
+                });
+            return 0;
+        }
         if (h->idFrom == ID_LIST && h->code == LVN_ITEMCHANGED)
             EnableWindow(M.buttons[2], !M.job && ListView_GetSelectedCount(M.list) > 0);
         break;
@@ -992,6 +1030,7 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_DESTROY:
         M.ar.reset();
+        clean_temp();
         PostQuitMessage(0);
         return 0;
     }
@@ -1140,6 +1179,20 @@ int run_command(const Args &a) {
         return pw ? EXIT_PASSWORD : EXIT_ERROR;
     }
     c.wipe();
+    if (a.mode == L"/temp-extract") {  // tests: what a double-click or a drag would produce
+        std::wstring dir, error;
+        std::vector<std::wstring> paths;
+        bool ok = extract_temp(ar.a, ar.zone, {utf8(a.dest)}, dir, paths, error);
+        std::string log = std::string("exit ") + (ok ? "0" : "1") + "\n";
+        for (auto &p : paths) log += "path " + utf8(p) + "\n";
+        if (!ok) log += "error " + utf8(error) + "\n";
+        write_log(a.log, log);
+        clean_temp();
+        log = "";
+        for (auto &p : paths) log += GetFileAttributesW(p.c_str()) == INVALID_FILE_ATTRIBUTES ? "" : "left " + utf8(p) + "\n";
+        if (!log.empty()) write_log(a.log + L".left", log);
+        return ok ? EXIT_OK : EXIT_ERROR;
+    }
     if (a.mode == L"/info") {
         std::wstring text = properties_text(ar);
         write_log(a.log, utf8(text));
@@ -1200,7 +1253,7 @@ int run_command(const Args &a) {
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     g_inst = inst;
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    OleInitialize(nullptr);  // COM, plus OLE drag and drop
     INITCOMMONCONTROLSEX icc{sizeof icc, ICC_LISTVIEW_CLASSES | ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&icc);
 
@@ -1224,7 +1277,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     for (int i = 1; i < argc; i++) {
         std::wstring s = argv[i];
         auto next = [&](std::wstring &dst) { if (i + 1 < argc) dst = argv[++i]; };
-        if (s == L"/x" || s == L"/xto" || s == L"/t" || s == L"/repair" || s == L"/info") { a.mode = s; next(a.archive); }
+        if (s == L"/x" || s == L"/xto" || s == L"/t" || s == L"/repair" || s == L"/info" || s == L"/temp-extract") { a.mode = s; next(a.archive); }
         else if (s == L"/register" || s == L"/unregister") a.mode = s;
         else if (s == L"/d") next(a.dest);
         else if (s == L"/passenv") { std::wstring v; next(v); a.passenv.push_back(v); }
@@ -1238,7 +1291,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     LocalFree(argv);
     if (!a.mode.empty()) {
         int code = run_command(a);
-        CoUninitialize();
+        OleUninitialize();
         return code;
     }
 
@@ -1267,6 +1320,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     }
     DestroyAcceleratorTable(accel);
     if (M.taskbar) M.taskbar->Release();
-    CoUninitialize();
+    OleUninitialize();
     return 0;
 }

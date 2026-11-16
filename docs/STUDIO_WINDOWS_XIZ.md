@@ -231,6 +231,15 @@ Proposta per Xipper Mac:
 
 ## 11. Fasi e stima
 
+**Fase 3 fatta il 16/11/2026** (0.3.0): lingue tedesco, spagnolo, francese, giapponese, cinese
+semplificato oltre a italiano e inglese, coi termini dell'app Mac (`windows/check-strings.py`
+controlla a ogni build i segnaposto); doppio clic su un file per aprirlo e trascinamento verso
+Esplora file (estrazione in una cartella temporanea privata, al rilascio, col Mark of the Web);
+README inglese nel pacchetto. Prove: 40 controlli sotto Wine in Docker con schermate per lingua, e
+`windows/test-barrique.sh` con la Wine nativa per Apple Silicon di `~/Work/wine` (build aarch64 nella VM
+e x86_64 tramite FEX). Resta rinviato il menu moderno di Windows 11 (`IExplorerCommand`, serve un
+pacchetto MSIX firmato) e la prova su un Windows vero.
+
 **Fase 2 fatta il 16/11/2026**: finestra delle credenziali per gli archivi 1.3 (elenca come si apre
 l'archivio dalle stanza: password con etichetta, chiavi, chiavi post-quantum, custodi k di n; si
 aggiungono password e file di chiave XIZ o age, fattori); gruppi bloccati segnalati, colonna Gruppo,

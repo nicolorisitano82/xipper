@@ -24,6 +24,7 @@ printf '#!/bin/sh\nexec zig ar "$@"\n' > "$WORK/bin/zig-ar"
 printf '#!/bin/sh\nexec zig ranlib "$@"\n' > "$WORK/bin/zig-ranlib"
 chmod +x "$WORK/bin/"*
 
+python3 -I windows/check-strings.py || { echo "translations: placeholders differ from English"; exit 1; }
 IFS=. read -r V1 V2 V3 <<< "$VERSION"
 for arch in "${ARCHS[@]}"; do
     target=$arch-windows-gnu
@@ -47,7 +48,7 @@ for arch in "${ARCHS[@]}"; do
     zig c++ -target "$target" -std=c++17 -O2 -municode -Wall -Wextra -Werror -Wno-missing-field-initializers \
         -DUNICODE -D_UNICODE \
         -DXIZW_VERSION="\"$VERSION\"" \
-        -Ilibxiz/include windows/src/main.cpp windows/src/core.cpp windows/src/strings.cpp "$WORK/$arch/app.res" \
+        -Ilibxiz/include windows/src/main.cpp windows/src/core.cpp windows/src/strings.cpp windows/src/strings_i18n.cpp windows/src/dragdrop.cpp "$WORK/$arch/app.res" \
         "$lib/libxiz.a" -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -luxtheme -lnormaliz -lbcrypt -ladvapi32 -lgdi32 -luser32 \
         -Wl,--subsystem,windows -s -o "$WORK/$arch/XipperXIZ.exe"
     cp "$lib/xiz.exe" "$WORK/$arch/xiz.exe"
@@ -62,7 +63,7 @@ if [ $PACK = 1 ]; then
         rm -rf "$stage" && mkdir -p "$stage/licenses"
         cp "$WORK/$arch/XipperXIZ.exe" "$WORK/$arch/xiz.exe" "$stage/"
         cp LICENSE "$stage/LICENSE.txt"
-        cp windows/LEGGIMI.txt "$stage/" 2>/dev/null || true
+        cp windows/LEGGIMI.txt windows/README.txt "$stage/"
         for f in libxiz/third_party/*/LICEN* Vendor/zstd/LICENSE Vendor/xz/COPYING* Vendor/argon2/LICENSE Vendor/brunsli/LICENSE \
                  Vendor/brotli/LICENSE Vendor/preflate/LICENSE* Vendor/openzl/LICENSE; do
             [ -f "$f" ] && cp "$f" "$stage/licenses/$(echo "$f" | tr '/' '_')"

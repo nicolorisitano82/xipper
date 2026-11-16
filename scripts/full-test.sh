@@ -28,7 +28,8 @@
 #   windows      scripts/windows-wine.sh: the Windows xiz under Wine in a Debian container, the
 #                whole fixture suite plus Windows-only cases (needs a running Docker daemon)
 #   windows-app  windows/test-wine.sh: Xipper XIZ for Windows (built for x86_64 and ARM64) under
-#                Wine: extraction, passwords, factor, NFC, conflicts, verification, association
+#                Wine: extraction, passwords, factor, NFC, conflicts, verification, association;
+#                also windows/test-barrique.sh when ~/Work/wine has a Barrique build
 #   powercut     scripts/vm/powercut.sh: the little-space conversion in a macOS VM switched off
 #                at random (needs the VM of scripts/vm, set up once; skipped by --quick)
 set -uo pipefail
@@ -158,7 +159,9 @@ windows() {
 windows_app() {
     command -v zig > /dev/null || { skip "zig not installed"; return 77; }
     windows/build.sh x86_64 aarch64 > /dev/null || return 1
-    windows/test-wine.sh --no-build --no-shots
+    windows/test-wine.sh --no-build --no-shots || return 1
+    # Also under Barrique (~/Work/wine), the native Apple Silicon Wine, when it is built.
+    if [ -x "$HOME/Work/wine/build-arm64ec/wine" ]; then windows/test-barrique.sh || return 1; fi
 }
 
 powercut() {

@@ -162,6 +162,7 @@
     X(ProofSigned, L"Segmento firmato da %ls il %ls (%ls).", L"Segment signed by %ls on %ls (%ls).") \
     X(ProofUnsigned, L"Il segmento non è firmato: la prova lega il file all'albero, non a una persona.", L"The segment is not signed: the proof ties the file to the tree, not to a person.") \
     X(ProofBadTitle, L"La prova non corrisponde", L"The proof does not match") \
+    X(Preparing, L"Preparazione dei file…", L"Preparing the files…") \
     X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica (e recovery record)\n  /repair archivio            ripara una copia col recovery record\n  /info archivio              proprietà e firme\n  /passenv VAR, /identity FILE, /factor FILE   credenziali (ripetibili)\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify (and the recovery record)\n  /repair archive          repair a copy with the recovery record\n  /info archive            properties and signatures\n  /passenv VAR, /identity FILE, /factor FILE   credentials (repeatable)\n  /register, /unregister   associate .xiz files, or not")
 
 enum class S {
@@ -172,5 +173,7 @@ enum class S {
 };
 
 const wchar_t *T(S id);
+// The language in use: "it", "en", "de", "es", "fr", "ja" or "zh-Hans" (XIZW_LANG overrides).
+const char *language();
 std::wstring fmt(S id, ...);
 std::wstring vfmt(const wchar_t *f, ...);

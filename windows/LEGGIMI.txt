@@ -16,6 +16,11 @@ Uso
 - Verifica controlla anche il recovery record; se l'archivio è danneggiato e riparabile, "Ripara
   una copia" crea "nome (riparato).xiz" senza toccare l'originale.
 - File > "Verifica una prova di inclusione": un file e la sua prova .json, senza l'archivio.
+- Doppio clic su un file dell'elenco: lo apre col suo programma. Trascinando la selezione su
+  Esplora file la si estrae lì. In entrambi i casi i file passano da una cartella temporanea
+  privata, cancellata alla chiusura.
+- Lingue: italiano, inglese, tedesco, spagnolo, francese, giapponese e cinese semplificato,
+  secondo la lingua di Windows.
 - I file estratti da un archivio scaricato da Internet ricevono lo stesso contrassegno
   (Mark of the Web): Windows continua ad avvisare prima di aprire un programma.
 

@@ -16,9 +16,9 @@ command -v docker > /dev/null || { echo "SKIP: docker not installed"; exit 77; }
 docker info > /dev/null 2>&1 || { echo "SKIP: Docker daemon not running"; exit 77; }
 [ $BUILD = 1 ] && { windows/build.sh x86_64 || exit 1; }
 APP="$ROOT/.build/windows-app/x86_64"
-IMAGE=xipper-wine-gui:trixie
+IMAGE=xipper-wine-gui:trixie-cjk
 if ! docker image inspect "$IMAGE" > /dev/null 2>&1; then
-    printf 'FROM debian:trixie\nRUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wine wine64 xvfb imagemagick xdotool fonts-dejavu-core && rm -rf /var/lib/apt/lists/*\n' |
+    printf 'FROM debian:trixie\nRUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wine wine64 xvfb imagemagick xdotool fonts-dejavu-core fonts-wqy-microhei && rm -rf /var/lib/apt/lists/*\n' |
         docker build --platform linux/amd64 -t "$IMAGE" - > /dev/null 2>&1 || { echo "cannot build $IMAGE"; exit 1; }
 fi
 
@@ -132,6 +132,16 @@ code rep.log 0 && [ -f 'in/rec (repaired).xiz' ] && $X test 'in/rec (repaired).x
 $A /info in/rec.xiz /quiet /log recinfo.log; wineserver -w
 grep -q 'Recovery record: repairs up to' recinfo.log && ok properties-record || { cat recinfo.log; no properties-record; }
 
+# Phase 3: what a double-click or a drag extracts (private temporary folder, cleaned after), languages.
+$A /temp-extract in/plain.xiz /d tree/docs/a.md /quiet /log tmp1.log; wineserver -w
+code tmp1.log 0 && grep -q '^path .*XipperXIZ.*\\tree\\docs\\a.md$' tmp1.log && [ ! -f tmp1.log.left ] && ok temp-extract-file || { cat tmp1.log tmp1.log.left 2> /dev/null; no temp-extract-file; }
+$A /temp-extract in/plain.xiz /d tree/docs /quiet /log tmp2.log; wineserver -w
+code tmp2.log 0 && grep -q '^path .*\\tree\\docs$' tmp2.log && ok temp-extract-folder || { cat tmp2.log; no temp-extract-folder; }
+for l in de:geöffnet es:abrir fr:ouvrir ja:開けません zh:无法打开 it:aprire; do
+    XIZW_LANG=${l%%:*} $A /x in/missing.xiz /quiet /log lang.log; wineserver -w
+    grep -q "^message .*${l#*:}" lang.log && ok "language-${l%%:*}" || { cat lang.log; no "language-${l%%:*}"; }
+done
+
 $A /register /quiet; wineserver -w
 wine reg query 'HKCU\Software\Classes\.xiz' 2> /dev/null | grep -q XipperXIZ.Archive &&
     wine reg query 'HKCU\Software\Classes\XipperXIZ.Archive\shell\extracthere\command' 2> /dev/null | grep -q '/x' && ok register || no register
@@ -160,6 +170,16 @@ if [ "${SHOTS:-1}" = 1 ]; then
     xdotool key alt+f 2> /dev/null; sleep 1; xdotool key g 2> /dev/null; shot signatures 3
     wineserver -k; sleep 1
     $A & shot empty 8
+    wineserver -k; sleep 1
+    # Windows links a CJK font to the UI fonts; under Wine the UI fonts are replaced by WenQuanYi (from
+    # the image) for these shots, which has Latin, kana and Han.
+    for f in Tahoma 'Segoe UI' 'MS Shell Dlg' 'MS Shell Dlg 2'; do
+        wine reg add 'HKLM\Software\Microsoft\Windows NT\CurrentVersion\FontSubstitutes' /v "$f" /t REG_SZ \
+            /d 'WenQuanYi Micro Hei' /f > /dev/null 2>&1
+    done
+    wineserver -w
+    for l in de ja zh-Hans; do XIZW_LANG=$l $A in/plain.xiz & shot "main-$l" 8; wineserver -k; sleep 1; done
+    XIZW_LANG=fr $A in/access.xiz & shot credentials-fr 8
     wineserver -k
 fi
 [ $bad = 0 ]
