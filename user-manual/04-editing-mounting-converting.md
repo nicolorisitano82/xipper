@@ -66,13 +66,13 @@ xipper convert --to xiz --trash-original photos.zip
 
 ## Converting with little free space
 
-From ZIP or 7z to XIZ, when the disk cannot hold both archives at once, **Change Format…** offers **Convert with Little Free Space**.
+From ZIP, 7z or uncompressed tar to XIZ, when the disk cannot hold both archives at once, **Change Format…** offers **Convert with Little Free Space**. Compressed tars (`.tar.gz`, `.tar.zst`…) can only be read from the start, so they need the usual conversion.
 
 - **How it works:** Xipper converts one batch of files at a time. As each batch is safe in the new archive, it frees the corresponding space in the original. At the end the original is removed.
 - **If the conversion stops** (you cancel it, the Mac sleeps, the power goes out), reopening the original shows a banner with **Resume**. Before any of the original was freed you can also cancel, and the original stays as it was.
 - **A password on the new archive:** resume in Terminal with `xipper convert --to xiz --little-space --encrypt`.
 
-This was tested by killing the conversion at random 30 times, and by switching off a macOS virtual machine at random 20 times during the conversion, sometimes twice in a row. Every time it resumed and ended with an archive identical to the original.
+This was tested by killing the conversion at random 30 times (and 30 more from a tar), and by switching off a macOS virtual machine at random 20 times during the conversion, sometimes twice in a row. Every time it resumed and ended with an archive identical to the original.
 
 From the command line:
 

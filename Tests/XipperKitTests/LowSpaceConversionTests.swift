@@ -13,7 +13,7 @@ struct LowSpaceConversionTests {
         var o = CreateOptions()
         o.format = format
         if format == .sevenZip { o.solidBlockSize = solid ? 2 << 20 : 0 }
-        let url = t.url(format == .zip ? "a.zip" : "a.7z")
+        let url = t.url(format == .zip ? "a.zip" : format == .tar ? "a.tar" : "a.7z")
         try Xipper.create(from: [t.url("src")], to: url, options: o)
         return url
     }
@@ -44,9 +44,9 @@ struct LowSpaceConversionTests {
         return try body()
     }
 
-    static let sources: [(ArchiveFormat, Bool)] = [(.zip, false), (.sevenZip, false), (.sevenZip, true)]
+    static let sources: [(ArchiveFormat, Bool)] = [(.zip, false), (.sevenZip, false), (.sevenZip, true), (.tar, false)]
 
-    @Test(arguments: [0, 1, 2])
+    @Test(arguments: [0, 1, 2, 3])
     func convertsAndRemovesTheOriginal(kind: Int) throws {
         let (format, solid) = Self.sources[kind]
         let t = TempDir()
@@ -64,7 +64,7 @@ struct LowSpaceConversionTests {
         try extractsToSource(t, target)
     }
 
-    @Test(arguments: [0, 2])
+    @Test(arguments: [0, 2, 3])
     func resumesAfterReleasingPartOfTheOriginal(kind: Int) throws {
         let (format, solid) = Self.sources[kind]
         let t = TempDir()
@@ -140,6 +140,56 @@ struct LowSpaceConversionTests {
         try withHooks { _ = try Xipper.resumeConversion(journal) }
         #expect(!FileManager.default.fileExists(atPath: leftover))
         #expect(!FileManager.default.fileExists(atPath: journal.path))
+        #expect(!FileManager.default.fileExists(atPath: a.path))
+        try extractsToSource(t, target)
+    }
+
+    /// Tar (3.4): the plan lives in the journal, since a partly released tar no longer reads from
+    /// the start; long names (pax), links, empty files and folders come through; resuming after
+    /// each step.
+    @Test(arguments: ["batch0-written", "batch1-released", "batch3-written", "verified", "renamed"])
+    func tarResumesAfterEachStep(step: String) throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 2 << 20)
+        for i in 0..<12 { t.write("src/many/f\(i).bin", sampleData(350_000 + i * 9_000, seed: UInt64(i + 7))) }
+        let long = "src/" + String(repeating: "cartella-lunga/", count: 9) + "nome-molto-lungo-àèìòù.txt"
+        t.write(long, "lungo\n")
+        t.symlink("src/link", to: "many/f1.bin")
+        var o = CreateOptions()
+        o.format = .tar
+        let a = t.url("a.tar")
+        try Xipper.create(from: [t.url("src")], to: a, options: o)
+        let target = t.url("a.xiz")
+        #expect(throws: XipperError.cancelled) {
+            try withHooks(stop: step) { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
+        }
+        let j = try LowSpaceConverter.read(LowSpaceConverter.journalURL(a.standardizedFileURL))
+        #expect(j.sourceFormat == "tar" && j.units?.isEmpty == false)
+        _ = try withHooks { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
+        #expect(!FileManager.default.fileExists(atPath: a.path))
+        try extractsToSource(t, target)
+    }
+
+    /// A tar made by `tar -cf a.tar .` names its members "./…": the plan and the new archive must
+    /// still agree (found by scripts/lowspace-crash.sh, 3.4).
+    @Test func tarWithDotSlashNames() throws {
+        let t = TempDir()
+        makeTree(t, bigSize: 2 << 20)
+        for i in 0..<10 { t.write("src/many/f\(i).bin", sampleData(400_000, seed: UInt64(i + 40))) }
+        let a = t.url("a.tar")
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        p.currentDirectoryURL = t.url("src")
+        p.arguments = ["-cf", a.path, "--no-xattrs", "."]
+        p.environment = ["COPYFILE_DISABLE": "1"]
+        try p.run()
+        p.waitUntilExit()
+        #expect(p.terminationStatus == 0)
+        let target = t.url("a.xiz")
+        #expect(throws: XipperError.cancelled) {
+            try withHooks(stop: "batch2-released") { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
+        }
+        _ = try withHooks { try Xipper.convertWithLittleSpace(a, to: target, options: xiz()) }
         #expect(!FileManager.default.fileExists(atPath: a.path))
         try extractsToSource(t, target)
     }

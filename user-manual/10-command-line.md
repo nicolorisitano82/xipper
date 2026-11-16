@@ -127,7 +127,7 @@ xipper convert --to FMT [options] <archive>
 | `--dry-run`, `--json` | Show the plan: what is copied, what is recompressed, the space needed |
 | `--trash-original` | Move the original to the Trash once the new archive is verified |
 | `--accept-losses` | Go on when signatures, access groups or the password would be lost |
-| `--little-space` | ZIP or 7z to XIZ when the disk can't hold both. The same command resumes an interrupted conversion |
+| `--little-space` | ZIP, 7z or uncompressed tar to XIZ when the disk can't hold both. The same command resumes an interrupted conversion |
 | `--abandon` | Give up an interrupted little-space conversion, before any of the original was freed |
 | `--lzma2` … `--models` | XIZ options, as in create |
 

@@ -501,8 +501,8 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 | **A. libxiz e X-Wing** | il lettore indipendente apre le stanze 6 e 7 (destinatari e custodi post-quantum, §17) | mlkem-native (approvato il 15/11/2026) | ✅ |
 | **B. Rifinire le firme 3.3** | firma XIZ con certificato provata a mano nell'app; firma di prova (in locale) su un `.p7m` vero; importazione delle chiavi `age1pq1…` di age 1.3 | — | ✅ |
 | **C. ISO 9660/UDF e DMG in sola lettura** | dal backlog: ISO 9660 con libarchive, UDF e DMG con hdiutil (scelta del proprietario: ibrido) | — | ✅ |
-| **D. «Cambia formato» v2** | journal, ripresa, rollback, `F_PUNCHHOLE` | la VM per la prova di corrente | |
-| **E. `xiz` per Windows** | prova su Windows 11 ARM | l'ISO di Windows 11 ARM | |
+| **D. «Cambia formato» v2** | journal, ripresa, rollback e `F_PUNCHHOLE` c'erano già dalla 3.0: resta togliere i limiti (tar come sorgente) | — (decisione del 16/11/2026: niente VM, solo `kill -9`) | ✅ |
+| **E. `xiz` per Windows** | prova sotto Wine invece che su Windows 11 ARM | — (decisione del 16/11/2026: niente VM) | ✅ |
 
 - ✅ **3.4.0 rilasciata il 16/11/2026** con le fasi A, B e C (D ed E restano: servono la VM per la prova di corrente e l'ISO di Windows 11 ARM); campagna completa verde (418 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti, interop, 30 giri con 52 kill, validazione forense, `xiz` su Linux; prova di corrente saltata, nessuna VM).
 
@@ -530,6 +530,25 @@ Scelta del proprietario (16/11/2026): **ibrido**. libarchive non legge né UDF n
 - trovato e aggirato: `FileManager.destinationOfSymbolicLink` va in errore fatale («Invalid posix errno 10000») su un collegamento di un volume UDF: si usa `readlink(2)`;
 - 5 test (ISO 9660, UDF e ponte, DMG compresso e `.cdr`, DMG cifrato, file che non sono immagini) e prova nell'app; nessuna immagine resta montata;
 - limite: ogni elenco o estrazione monta e smonta l'immagine (circa un secondo); un'immagine che macOS non sa montare non si apre.
+
+#### D. «Cambia formato» con poco spazio dai tar — ✅ fatto (16/11/2026)
+Journal, ripresa, ritorno all'originale e `F_PUNCHHOLE` c'erano già dalla 3.0 (2.x F, sopra); la v2 toglie il limite più frequente: **anche i tar non compressi** si convertono in XIZ con poco spazio. Decisione del proprietario: niente VM, solo prove con `kill -9`.
+- un membro tar (header pax/GNU e dati) è un intervallo di byte che si libera da solo; un tar liberato in parte non si legge più dall'inizio (i blocchi liberati si leggono come zeri, cioè come la fine dell'archivio), quindi **il piano sta nel journal** (`sourceFormat`, `units`, `entries`: intervalli, nomi, dimensioni) e ogni blocco si legge membro per membro al suo offset (`TarRangesReader`), attraverso la stessa estrazione sicura;
+- collegamenti simbolici, file vuoti e `._nome` viaggiano nel blocco di ciò che descrivono; cartelle create nel primo blocco; hard link e file speciali: conversione normale;
+- **trovato e corretto:** i tar fatti con `tar -cf a.tar .` hanno nomi `./…`, il nuovo archivio no: la verifica finale non trovava i file e la cartella vuota non veniva creata. Ora il confronto toglie `./` (anche nei journal già scritti);
+- test: `LowSpaceConversionTests` con il tar fra le sorgenti (conversione, ripresa dopo il rilascio), ripresa dopo ogni passo con nomi pax lunghi, e un tar di `/usr/bin/tar` con nomi `./`; `FORMAT=tar scripts/lowspace-crash.sh`: 30 giri su 30 con 40 `kill -9`, e i 10 giri ZIP di controllo;
+- restano fuori: tar compressi (`.tar.gz`, `.tar.zst`…: uno stream si legge solo dall'inizio), volumi ZIP e 7z, gruppi di accesso e firma sul nuovo archivio; la prova di corrente in VM non è stata rifatta per i tar.
+
+#### E. `xiz` per Windows sotto Wine — ✅ fatto (16/11/2026)
+Decisione del proprietario: niente VM Windows. `xiz.exe` x86_64 (zig) gira sotto **Wine 10.0** in un container `debian:trixie` amd64 (emulato), con Wine dai repository Debian; solo `libxiz/tests` montato in sola lettura. `scripts/windows-wine.sh` e passo `windows` della campagna (dopo `linux`).
+- **114 controlli su 114**: le 103 fixture di `run_fixtures.sh` (con `XIZ_WINDOWS=1`: alberi confrontati su percorso, tipo, mtime, SHA-256 e sola lettura, link simbolici saltati) e 11 propri di Windows (nomi e password non ASCII, cartelle non ASCII in `create`, archivi di `xiz.exe` riletti dal `xiz` di Linux, sola lettura e mtime registrati, `--add Z:\…`, file di chiavi con CRLF, stdout di testo e `cat` binario);
+- **4 difetti veri corretti** (prima esecuzione: 87 ok, 16 falliti):
+  - `append` e `scrub --repair` fallivano sempre («cannot open … for writing»): il lettore apriva l'archivio senza `FILE_SHARE_WRITE` (`io.c`);
+  - `create` registrava mtime 0 (1970), perdeva la sola lettura e seguiva l'ordine della cartella: ora metadati da `GetFileAttributesExW` e nomi ordinati come su POSIX (`writer.c`);
+  - argomenti, password da variabile d'ambiente e percorsi dei file di chiavi non ASCII rovinati dalla code page ANSI: ora `CommandLineToArgvW` → UTF-8, `_wgetenv`, `_wfopen`, console in UTF-8 (`xiz.c`); una password «pässwörd» scritta da `xiz.exe` si apre con il `xiz` di macOS;
+  - `append --add C:\dir\file`: i due punti dell'unità presi per il separatore FILE:PATH (`xiz.c`);
+- macOS: `ctest` 3/3, `-Werror` pulito anche nella build incrociata;
+- limiti: Wine non è Windows (niente NTFS, ACL, flussi alternativi, nomi riservati e maiuscole/minuscole; i link simbolici Wine finge di crearli; output su pipe, non console); `--password-stdin` legge ancora nella code page ANSI; la build aarch64 compila ma sotto Wine arm64 non parte.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 

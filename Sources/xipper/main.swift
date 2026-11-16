@@ -102,7 +102,7 @@ usage: xipper <command> [options]
           --accept-losses  go on when signatures, access groups or the password would be lost
           --overwrite      replace an existing file at the output path
           --lzma2, --lzraven, --lzmesh, --jpeg, --documents, --tables, --models   XIZ: as in create
-          --little-space   ZIP or 7z → XIZ when the disk cannot hold both archives: a batch at a time,
+          --little-space   ZIP, 7z or tar → XIZ when the disk cannot hold both archives: a batch at a time,
                            each batch's bytes released from the original once it is safe in the new
                            archive; the original is removed at the end. Interrupted (even by a power
                            cut), the same command resumes it

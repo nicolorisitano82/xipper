@@ -136,6 +136,25 @@ enum LowSpaceConverter {
         var extendedAttributes: Bool
         var encrypted: Bool
         var sourceEncrypted: Bool
+        /// 3.4: the original's format ("tar"; nil for ZIP and 7z, which are re-read when resuming).
+        var sourceFormat: String?
+        /// 3.4, tar only: the plan, since a partly released tar can no longer be read from the start.
+        var units: [PlanUnit]?
+        var entries: [PlanEntry]?
+    }
+
+    struct PlanUnit: Codable {
+        var ranges: [Range]
+        var paths: [String]
+        var bytes: Int64
+    }
+
+    struct PlanEntry: Codable {
+        var path: String
+        var kind: String  // file, directory, symlink
+        var size: Int64
+        var mode: UInt16?
+        var mtime: Double?
     }
 
     struct Range: Codable, Hashable {
@@ -184,12 +203,43 @@ enum LowSpaceConverter {
         var entries: [ArchiveEntry]
         var tailStart: Int64
         var size: Int64
+        /// Read member by member at their offsets (uncompressed tar).
+        var isTar = false
+
+        /// The plan kept in a journal (tar).
+        init(journal j: Journal) throws {
+            guard let units = j.units, let entries = j.entries else { throw XipperError.corrupt("conversion journal without its plan") }
+            self.units = units.map { Unit(ranges: $0.ranges, paths: $0.paths, bytes: $0.bytes) }
+            self.entries = entries.map { e in
+                let kind: ArchiveEntry.Kind = e.kind == "directory" ? .directory : e.kind == "symlink" ? .symlink : .file
+                return ArchiveEntry(path: e.path, kind: kind, uncompressedSize: e.size, compressedSize: 0,
+                                    modified: e.mtime.map { Date(timeIntervalSince1970: $0) }, permissions: e.mode,
+                                    encryption: .none, method: "tar", linkTarget: nil)
+            }
+            bare = self.entries.filter { $0.kind == .directory }
+            tailStart = j.tailStart
+            size = j.size
+            isTar = true
+        }
+
+        var planUnits: [PlanUnit] { units.map { PlanUnit(ranges: $0.ranges, paths: $0.paths, bytes: $0.bytes) } }
+        var planEntries: [PlanEntry] {
+            entries.map { e in
+                PlanEntry(path: e.path, kind: e.kind == .directory ? "directory" : e.kind == .symlink ? "symlink" : "file",
+                          size: e.uncompressedSize, mode: e.permissions, mtime: e.modified?.timeIntervalSince1970)
+            }
+        }
 
         init(source: URL, format: ArchiveFormat, password: String?) throws {
             guard format == .xiz else { throw XipperError.unsupported("with little free space Xipper converts only into XIZ") }
-            guard let sf = try ArchiveFormat.detect(source), sf == .zip || sf == .sevenZip else {
-                throw XipperError.unsupported("with little free space Xipper converts only ZIP and 7z archives")
+            guard let sf = try ArchiveFormat.detect(source), sf == .zip || sf == .sevenZip || sf == .tar else {
+                throw XipperError.unsupported("with little free space Xipper converts only ZIP, 7z and uncompressed tar archives")
             }
+            if sf == .tar { try self.init(tar: source.path) } else { try self.init(archive: source, format: sf, password: password) }
+        }
+
+        /// ZIP or 7z: re-read from the central directory or header, which are never released.
+        init(archive source: URL, format sf: ArchiveFormat, password: String?) throws {
             let path = source.path
             let all = try Xipper.list(source, password: password)
             entries = all.filter { !$0.isAppleDoubleMetadata }
@@ -260,6 +310,39 @@ enum LowSpaceConverter {
             self.units = units.sorted { ($0.ranges.map(\.start).min() ?? 0) < ($1.ranges.map(\.start).min() ?? 0) }
             self.bare = bare
             tailStart = max(tail, 0)
+        }
+
+        /// An uncompressed tar: every member but folders is a unit (links and empty files too:
+        /// they are read from their headers), `._name` members travel with what they describe.
+        init(tar path: String) throws {
+            let (members, end) = try LowSpaceTar.scan(path)
+            if members.contains(where: { $0.entry.kind == .hardlink }) { throw XipperError.unsupported("archives with hard links need the usual conversion") }
+            size = (try FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.int64Value ?? 0
+            entries = members.map(\.entry).filter { !$0.isAppleDoubleMetadata }
+            bare = entries.filter { $0.kind == .directory }
+            var units: [Unit] = []
+            var unitOf: [String: Int] = [:]
+            var companions: [LowSpaceTar.Member] = []
+            for m in members where m.entry.kind != .directory {
+                if m.entry.isAppleDoubleMetadata { companions.append(m); continue }
+                unitOf[m.entry.path] = units.count
+                units.append(Unit(ranges: [m.range], paths: [m.entry.path], bytes: m.entry.uncompressedSize))
+            }
+            for c in companions {
+                var p = c.entry.path
+                if p.hasPrefix("__MACOSX/") { p.removeFirst(9) }
+                let dir = (p as NSString).deletingLastPathComponent, name = (p as NSString).lastPathComponent
+                let owner = name.hasPrefix("._") ? (dir.isEmpty ? String(name.dropFirst(2)) : dir + "/" + name.dropFirst(2)) : nil
+                if let o = owner, let u = unitOf[o] {
+                    units[u].ranges.append(c.range)
+                    units[u].paths.append(c.entry.path)
+                } else {
+                    units.append(Unit(ranges: [c.range], paths: [c.entry.path], bytes: 0))
+                }
+            }
+            self.units = units.sorted { ($0.ranges.map(\.start).min() ?? 0) < ($1.ranges.map(\.start).min() ?? 0) }
+            tailStart = end
+            isTar = true
         }
 
         /// Units in order, cut into batches of about `limit` unpacked bytes.
@@ -366,7 +449,8 @@ enum LowSpaceConverter {
                               level: options.level, codec: options.xizCodec.rawValue, jpeg: options.xizJPEG, documents: options.xizDocuments, tables: options.xizTables, models: options.xizModels,
                               recovery: options.xizRecovery, dictionary: options.xizDictionary,
                               extendedAttributes: options.storeExtendedAttributes, encrypted: options.password != nil,
-                              sourceEncrypted: password != nil)
+                              sourceEncrypted: password != nil, sourceFormat: layout.isTar ? "tar" : nil,
+                              units: layout.isTar ? layout.planUnits : nil, entries: layout.isTar ? layout.planEntries : nil)
         let url = journalURL(source)
         try write(journal, to: url)
         return try run(journal, url: url, layout: layout, batches: batches, password: password, newPassword: options.password,
@@ -417,7 +501,7 @@ enum LowSpaceConverter {
               try tailDigest(source.path, from: j.tailStart, size: j.size) == j.tail else {
             throw XipperError.integrity(entry: source.lastPathComponent, detail: "not the original this conversion started from")
         }
-        let layout = try Layout(source: source, format: .xiz, password: password)
+        let layout = j.units != nil ? try Layout(journal: j) : try Layout(source: source, format: .xiz, password: password)
         // The same batches as planned: units are matched by their ranges.
         var byRange: [Range: Layout.Unit] = [:]
         for u in layout.units { byRange[u.ranges[0]] = u }
@@ -446,13 +530,23 @@ enum LowSpaceConverter {
     }
 
     /// Normalized archive path, as compared between the original and the new archive.
-    static func key(_ p: String) -> String { (MountedArchive.normalize(p) ?? p).precomposedStringWithCanonicalMapping }
+    /// A leading "./" (tar made with `tar -cf a.tar .`) is dropped, as the new archive does.
+    static func key(_ p: String) -> String {
+        let p = stripDot(p)
+        return (MountedArchive.normalize(p) ?? p).precomposedStringWithCanonicalMapping
+    }
+
+    static func stripDot(_ p: String) -> String {
+        var p = Substring(p)
+        while p.hasPrefix("./") { p = p.dropFirst(2) }
+        return String(p)
+    }
 
     /// Batches whose files are all in the new archive's catalog (a prefix: they are appended in order).
     static func doneBatches(_ j: Journal, catalog: Set<String>) -> Int {
         var done = 0
         for (i, paths) in j.paths.enumerated() {
-            if i == 0 || paths.allSatisfy(catalog.contains) { done = i + 1 } else { break }
+            if i == 0 || paths.allSatisfy({ catalog.contains(key($0)) }) { done = i + 1 } else { break }
         }
         return done
     }
@@ -562,7 +656,28 @@ enum LowSpaceConverter {
                 try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
                 var selection = units.flatMap(\.paths)
                 if b == 0 { selection += layout.bare.filter { $0.kind != .directory }.map(\.path) }
-                if !selection.isEmpty {
+                if layout.isTar {
+                    // Member by member at their offsets: what is before them may already be released.
+                    var x = ExtractOptions()
+                    x.overwrite = .replace
+                    x.propagateQuarantine = false
+                    x.symlinks = .allowAll
+                    x.workload = workload
+                    x.limits.maxTotalBytes = max(bytes, 1) + (1 << 20)
+                    x.limits.minFreeFraction = 0
+                    let ctx = try ExtractionContext(root: tree.path, archivePath: source.path, options: x)
+                    let reader = try TarRangesReader(path: source.path, ranges: units.flatMap(\.ranges))
+                    let base = completed
+                    let tracker = ProgressTracker(totalBytes: 0, totalEntries: 0, handler: progress.map { p in
+                        { @Sendable (s: ProgressSnapshot) in
+                            var s = s
+                            s.totalBytes = total
+                            s.completedBytes = base + bytes / 4
+                            p(s)
+                        }
+                    })
+                    try TarExtractor.extractEntries(reader, ctx: ctx, tracker: tracker, cancel: cancel, reportCompressed: {})
+                } else if !selection.isEmpty {
                     var x = ExtractOptions()
                     x.password = password
                     x.selection = Set(selection)
@@ -587,7 +702,7 @@ enum LowSpaceConverter {
                 }
                 if b == 0 {
                     for e in layout.entries where e.kind == .directory {
-                        guard let rel = MountedArchive.normalize(e.path), !rel.isEmpty else { continue }
+                        guard let rel = MountedArchive.normalize(stripDot(e.path)), !rel.isEmpty else { continue }
                         let d = tree.appendingPathComponent(rel)
                         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
                         var attrs: [FileAttributeKey: Any] = [:]
@@ -691,7 +806,7 @@ enum LowSpaceConverter {
         if let f = test.failures.first { throw XipperError.integrity(entry: f.path, detail: "the converted archive does not verify: \(f.reason)") }
         var got: [String: ArchiveEntry] = [:]
         for e in try Xipper.list(staged, password: password) where !e.isAppleDoubleMetadata { got[key(e.path)] = e }
-        for p in paths where got[p] == nil { throw XipperError.integrity(entry: p, detail: "missing from the converted archive") }
+        for p in paths where got[key(p)] == nil { throw XipperError.integrity(entry: p, detail: "missing from the converted archive") }
         for e in entries {
             guard let g = got[key(e.path)] else {
                 if e.kind == .directory || key(e.path).isEmpty { continue }

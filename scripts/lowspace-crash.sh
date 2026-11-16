@@ -11,8 +11,12 @@
 # flushed): that needs a VM, see docs/ROADMAP.md (3.0, F).
 #
 # Usage: scripts/lowspace-crash.sh [ROUNDS]   (default 30; uses .build/release/xipper)
+#        FORMAT=tar scripts/lowspace-crash.sh   the same from an uncompressed tar (3.4)
 set -euo pipefail
 ROUNDS=${1:-30}
+FORMAT=${FORMAT:-zip}
+case $FORMAT in zip|tar) ;; *) echo "FORMAT is zip or tar"; exit 2 ;; esac
+A="a.$FORMAT"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 X="$ROOT/.build/release/xipper"
 [ -x "$X" ] || (cd "$ROOT" && swift build -c release --product xipper >/dev/null)
@@ -31,14 +35,18 @@ hdiutil create -quiet -size 300m -fs APFS -volname XLS -type SPARSE "$WORK/vol" 
 hdiutil attach -quiet -nobrowse -mountpoint "$MNT" "$WORK/vol.sparseimage"
 
 make_zip() {
-    rm -rf "$MNT"/*.zip "$MNT"/*.xiz "$MNT"/.*.xipper-partial "$MNT"/*.xipper-resume "$MNT"/.xipper-convert-* 2>/dev/null || true
-    (cd "$WORK/src" && /usr/bin/zip -q -r -0 "$MNT/a.zip" .)
+    rm -rf "$MNT"/*.zip "$MNT"/*.tar "$MNT"/*.xiz "$MNT"/.*.xipper-partial "$MNT"/*.xipper-resume "$MNT"/.xipper-convert-* 2>/dev/null || true
+    if [ "$FORMAT" = tar ]; then
+        (cd "$WORK/src" && COPYFILE_DISABLE=1 /usr/bin/tar -cf "$MNT/$A" --no-xattrs .)
+    else
+        (cd "$WORK/src" && /usr/bin/zip -q -r -0 "$MNT/$A" .)
+    fi
 }
 
 check_result() {
     local out="$WORK/out"
     rm -rf "$out"; mkdir -p "$out"
-    [ ! -e "$MNT/a.zip" ] || { echo "FAIL: original still there"; exit 1; }
+    [ ! -e "$MNT/$A" ] || { echo "FAIL: original still there"; exit 1; }
     "$X" extract -q --into -d "$out" "$MNT/a.xiz" >/dev/null
     (cd "$out" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256) > "$WORK/got.sha"
     cmp -s "$WORK/expected.sha" "$WORK/got.sha" || { echo "FAIL: contents differ"; diff "$WORK/expected.sha" "$WORK/got.sha" | head; exit 1; }
@@ -48,13 +56,13 @@ free_mb() { df -m "$MNT" | awk 'NR==2 {print $4}'; }
 
 echo "== 1. little space"
 make_zip
-echo "   ZIP $(du -m "$MNT/a.zip" | cut -f1) MB, free $(free_mb) MB"
-if "$X" convert -q --to xiz -l 1 "$MNT/a.zip" -o "$MNT/plain.xiz" 2>/dev/null; then
+echo "   $FORMAT $(du -m "$MNT/$A" | cut -f1) MB, free $(free_mb) MB"
+if "$X" convert -q --to xiz -l 1 "$MNT/$A" -o "$MNT/plain.xiz" 2>/dev/null; then
     echo "   (the usual conversion fit anyway)"; rm -f "$MNT/plain.xiz"
 else
     echo "   usual conversion: refused for lack of space, as expected"
 fi
-XIPPER_LOWSPACE_BATCH=$((16 << 20)) "$X" convert -q --to xiz -l 1 --little-space "$MNT/a.zip" -o "$MNT/a.xiz" >/dev/null
+XIPPER_LOWSPACE_BATCH=$((16 << 20)) "$X" convert -q --to xiz -l 1 --little-space "$MNT/$A" -o "$MNT/a.xiz" >/dev/null
 check_result
 echo "   --little-space: ok, XIZ $(du -m "$MNT/a.xiz" | cut -f1) MB, free $(free_mb) MB"
 
@@ -65,7 +73,7 @@ for r in $(seq 1 "$ROUNDS"); do
     tries=0
     while :; do
         tries=$((tries + 1))
-        XIPPER_LOWSPACE_BATCH=$((16 << 20)) "$X" convert -q --to xiz -l 1 --little-space "$MNT/a.zip" -o "$MNT/a.xiz" >/dev/null 2>"$WORK/err" &
+        XIPPER_LOWSPACE_BATCH=$((16 << 20)) "$X" convert -q --to xiz -l 1 --little-space "$MNT/$A" -o "$MNT/a.xiz" >/dev/null 2>"$WORK/err" &
         pid=$!
         # Kill within 0–1.2 s, except every fourth try (and after 12) let it finish.
         if [ $((tries % 4)) -ne 0 ] && [ $tries -lt 12 ]; then
@@ -78,7 +86,7 @@ for r in $(seq 1 "$ROUNDS"); do
             if ! [ -e "$MNT/a.xiz" ]; then echo "FAIL round $r: $(cat "$WORK/err")"; exit 1; fi
             break
         fi
-        if [ -e "$MNT/a.xiz" ] && [ ! -e "$MNT/a.zip.xipper-resume" ]; then break; fi
+        if [ -e "$MNT/a.xiz" ] && [ ! -e "$MNT/$A.xipper-resume" ]; then break; fi
     done
     check_result
     printf "   round %d: ok after %d runs\n" "$r" "$tries"

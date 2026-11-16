@@ -27,7 +27,7 @@
 | An XIZ archive "needs a newer Xipper" | It uses a feature of a later format version: update Xipper ([compatibility](06-xiz.md#compatibility)) |
 | A signature shows "Signed with an algorithm this version does not know" | Made by a newer Xipper: update to check it |
 | "Change Format" was interrupted | Reopen the original: the banner offers **Resume** ([chapter 4](04-editing-mounting-converting.md#converting-with-little-free-space)) |
-| Not enough space to convert | Use **Convert with Little Free Space** (ZIP or 7z to XIZ) |
+| Not enough space to convert | Use **Convert with Little Free Space** (ZIP, 7z or uncompressed tar to XIZ) |
 
 ## Reading XIZ without Xipper
 
