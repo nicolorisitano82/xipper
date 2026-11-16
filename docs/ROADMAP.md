@@ -504,6 +504,8 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 | **D. «Cambia formato» v2** | journal, ripresa, rollback, `F_PUNCHHOLE` | la VM per la prova di corrente | |
 | **E. `xiz` per Windows** | prova su Windows 11 ARM | l'ISO di Windows 11 ARM | |
 
+- ✅ **3.4.0 rilasciata il 16/11/2026** con le fasi A, B e C (D ed E restano: servono la VM per la prova di corrente e l'ISO di Windows 11 ARM); campagna completa verde (418 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti, interop, 30 giri con 52 kill, validazione forense, `xiz` su Linux; prova di corrente saltata, nessuna VM).
+
 #### A. libxiz e X-Wing — ✅ fatto (15/11/2026)
 - mlkem-native 2.0.0 (commit `d1b2fe7`, Apache-2.0/ISC/MIT) in `libxiz/third_party/mlkem-native`: solo `mlkem/` in C portabile, senza `native/` né assembly, senza incapsulamento né API casuali; SHA3-256 e SHAKE-256 dalla stessa libreria;
 - X-Wing nel lettore: il seed si espande con SHAKE-256 (d ‖ z ‖ chiave X25519), decapsulazione ML-KEM-768 + X25519, combinatore SHA3-256 con l'etichetta in coda; confrontato byte per byte con `XWingMLKEM768X25519` di CryptoKit;
