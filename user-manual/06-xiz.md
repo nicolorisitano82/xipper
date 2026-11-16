@@ -8,7 +8,7 @@ What every XIZ archive has:
 - **A SHA-256 of every file**, and a checksum of every frame.
 - **Deduplication:** identical files, and identical pieces of large files (content-defined chunks), are stored once.
 - **A zstd dictionary for many small files**, built automatically.
-- **Encryption with Argon2id and AES-256-GCM** when there is a password. Names, sizes and dates are encrypted too.
+- **Encryption with Argon2id and AES-256-GCM** when there is a password. Names, sizes and dates are encrypted too. Since Xipper 3.5 (XIZ 1.14) the archive also records a *commitment* to its keys, so it cannot be built to show different content to different recipients, and a password can be bound to a key file ([chapter 2](02-creating-archives.md#a-key-file-as-well-xiz)).
 - **Changes appended at the end:** earlier states stay available as versions.
 
 ## Smaller files without losing anything

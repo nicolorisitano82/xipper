@@ -53,6 +53,23 @@ Set a **Password** to encrypt the archive:
 
 Saved passwords live in the Keychain. **Settings › Security** can require Touch ID to use them.
 
+### How strong is a password
+
+Whoever has a copy of an encrypted archive can try passwords on it as long as they like, offline, with rented graphics cards. What protects it is how many guesses the password needs.
+- **Strength** under the password estimates them with zxcvbn, which knows common passwords, names, words, keyboard patterns, dates and substitutions such as `3` for `e`. It also says how long 1000 graphics cards would take against an encrypted XIZ. "Summer2026!" takes seconds, although it has upper case, digits and a symbol.
+- **Generate Secure Password** makes a **passphrase of 6 words** (Italian or English, 77 bits: billions of years) or random characters.
+- A **weak** password (under 45 bits) asks for confirmation before it is used. From the command line it is refused unless you add `--weak-password-ok`; `xipper passphrase` makes a passphrase and `xipper passphrase --strength` rates a password.
+
+### A key file as well (XIZ)
+
+For XIZ, **Also Require a Key File** binds the password to a small file you save elsewhere (a `.xizfactor`, for example on a USB stick). The archive opens only with both. Whoever steals the archive alone cannot even try passwords, so a short password is enough. Keep a copy of the file: without it the archive does not open. When you open such an archive Xipper asks for the file (**Choose Key File…**). It needs Xipper 3.5 or later.
+
+```bash
+xipper factor -o /Volumes/USB/work.xizfactor
+xipper create -f xiz -p --factor /Volumes/USB/work.xizfactor work.xiz Documents/
+xipper extract -p --factor /Volumes/USB/work.xizfactor work.xiz
+```
+
 ## ZIP methods
 
 **Format › More ZIP methods**, or **Settings › Formats › ZIP › Method**:
