@@ -1,4 +1,4 @@
-# Studio: un'app Windows che apre gli archivi XIZ
+# Studio: un'app Windows che apre e crea archivi XIZ
 
 Stato: analisi, 16/11/2026. Nessun codice scritto.
 
@@ -9,10 +9,12 @@ Chi riceve un `.xiz` su Windows oggi può solo usare `xiz.exe` dal prompt. Serve
 - **apra ed estragga** gli archivi XIZ con doppio clic o dal menu di Esplora file;
 - gestisca **tutte le opzioni del formato che un destinatario incontra**: password, chiavi, fattori,
   custodi, gruppi, firme, recovery record, codec diversi;
-- **non crei** archivi e non diventi un secondo Xipper. Niente ZIP, 7z o altri formati.
+- **crei** archivi XIZ con tutto quello che si può fare su Windows (§12), leggibili da Xipper su Mac
+  e da `xiz` ovunque;
+- non diventi un secondo Xipper: niente ZIP, 7z o altri formati.
 
-Fuori dallo scopo: creazione, append, profilo forense come prodotto (quello è xipper-forensic),
-Linux (c'è già `xiz`), store di Microsoft.
+Fuori dallo scopo: profilo forense come prodotto (quello è xipper-forensic), Linux (c'è già `xiz`),
+store di Microsoft.
 
 ## 2. Da dove si parte
 
@@ -230,13 +232,120 @@ Proposta per Xipper Mac:
 | 2 | Chiavi, custodi, gruppi, pannello Firme, Verifica e riparazione, collisioni, conflitti | 1–2 settimane |
 | 3 | Lingue, menu contestuale, trascinamento verso Esplora file, aarch64, prove su Windows reale | 1 settimana |
 | 4 (facoltativa) | Plugin 7-Zip per gli archivi semplici; estrazione parallela | da valutare |
+| C1–C4 | Creazione, vedi §12.6 | 5–8 settimane |
 
 Più l'avviso sui codec Apple in Xipper Mac (§9): mezza giornata.
 
-## 12. Decisioni aperte
+## 12. Creazione di archivi XIZ
 
-1. Nome dell'app: «Xipper Reader», «XIZ Viewer», altro.
+### 12.1 Cosa si può fare su Windows
+
+Il formato è quasi tutto portabile: le uniche parti legate al Mac sono i codec Apple e la Secure
+Enclave. Il resto dipende da librerie C/C++ che sono **già in `Vendor/`** (encoder compresi) o da
+crittografia già in `libxiz/third_party`.
+
+| Opzione | Possibile su Windows | Writer di libxiz oggi | Cosa manca |
+|---|---|---|---|
+| zstd, livelli 1–22, frame da 4 MiB | sì | **sì** | multithread (`threads` «unused for now») |
+| Deduplica | sì | per file intero | per chunk come Xipper: facoltativa |
+| Store per i frame incomprimibili | sì | **sì** (frame per frame) | — |
+| Password, Argon2id Standard | sì | **sì** (scrive 1.0) | — |
+| Profilo Forte (1 GiB, t=4) | sì | sì (parametri liberi) | solo l'interfaccia |
+| **Commitment delle chiavi (1.14)** | sì (HKDF) | **no** | da aggiungere: senza, l'archivio è 1.0 e non ha la protezione del §24.1 |
+| **Password in NFC (1.14)** | sì (`NormalizeString`) | no | nell'app, prima di libxiz |
+| Password con secondo fattore | sì | no | stanza 8 + generazione del file `.xizfactor` |
+| Robustezza della password | sì (zxcvbn-c, C, MIT, già in `Vendor/`) | — | solo l'interfaccia; lista italiana GPL: vedi §12.4 |
+| Recovery record | sì | **sì** (`xiz_recovery_add`, dopo la creazione) | opzione nella finestra di creazione |
+| Append, rimozione, cartelle | sì | **sì** (archivi senza directory) | append su archivi 1.3 |
+| Destinatari X25519 / age | sì (Monocypher) | no | strutture 1.3 (directory) nel writer |
+| Destinatari post-quantum X-Wing | sì (mlkem-native) | no | come sopra + incapsulamento, oggi escluso con `MLK_CONFIG_NO_ENCAPS_API` |
+| Custodi k-di-n (Shamir) | sì (codice proprio) | no | divisione del segreto + strutture 1.3 |
+| Gruppi di accesso | sì | no | strutture 1.3 |
+| Firma Ed25519, ibrida Ed25519 + ML-DSA-65 | sì (Monocypher, mldsa-native) | no | firma e generazione chiavi, oggi escluse con `MLD_CONFIG_NO_KEYPAIR_API` |
+| Firma con certificato (P-256 / RSA + X.509) | sì, dal **certificato Windows** (CNG, smart card, token) | no | BearSSL verifica soltanto: la firma passa da `NCryptSignHash` |
+| Marca temporale RFC 3161 | sì | no | richiesta a un TSA in rete: fase successiva |
+| Prove di inclusione, voci cancellabili | sì | no | strutture 1.3 |
+| Dizionari zstd | sì (`zdict` in `Vendor/zstd`) | no | — |
+| LZMA2 | sì (`Vendor/xz` completo) | no | encoder |
+| ARM64 + LZMA2 | sì | no | utile solo per binari ARM64; poco interesse su Windows |
+| JPEG ricompressi (brunsli) | sì (`Vendor/brunsli`) | no | encoder (C++) |
+| Documenti con Deflate ricompresso (preflate) | sì (`Vendor/preflate`) | no | encoder (C++) + riconoscimento dei formati (DOCX, XLSX, PDF, PNG…) da portare dallo Swift |
+| Tabelle e pesi di modelli (OpenZL) | sì (`Vendor/openzl`) | no | compressore + riconoscimento di CSV/TSV e pesi da portare dallo Swift |
+| **LZRAVEN, LZMESH** | **no**: solo framework Apple | — | mai |
+| **Firme Secure Enclave** | **no** | — | mai: l'equivalente Windows (TPM) non fa ML-DSA, servirebbe un algoritmo nuovo nella spec |
+| Profilo forense | sì, in teoria | no | fuori scopo (xipper-forensic) |
+| xattr | non esistono su Windows | — | niente; gli ADS non si archiviano |
+
+### 12.2 Regole di compatibilità
+
+- **Ogni archivio creato su Windows si apre su Mac e ovunque**: niente codec Apple, per definizione.
+  Va comunque provato a ogni rilascio (§10, interop inversa).
+- **Profilo predefinito**: zstd livello 9, versione 1.14 con commitment, password in NFC, recovery
+  record al 5 %. Il resto si attiva con opzioni, come nell'app Mac.
+- `version_minor` e bit delle feature impostati solo per quello che l'archivio usa davvero, così un
+  archivio semplice resta leggibile anche da Xipper vecchi.
+
+### 12.3 Metadati che vengono da Windows
+
+| Tema | Decisione |
+|---|---|
+| Separatore | `\` → `/`; nel formato `\` è un carattere normale (§5.3) |
+| Nomi | UTF-16 → UTF-8; lettere di unità e prefissi `\\?\` tolti; percorsi sempre relativi |
+| Permessi | Windows non ha i bit POSIX: file `0644`, cartelle `0755`; «sola lettura» → senza `w`. Gli eseguibili restano `0644`: su Mac vanno resi eseguibili a mano. Opzione «rendi eseguibili gli script `.sh`» |
+| Proprietario | uid/gid 0, mai le ACL o i SID |
+| Date | mtime con i 100 ns di Windows convertiti |
+| Link simbolici | archiviati come link; giunzioni e altri reparse point **saltati** con avviso (puntano spesso fuori, a `C:\…`) |
+| File nascosti e di sistema | inclusi; `desktop.ini`, `Thumbs.db` esclusi per default, come `.DS_Store` su Mac |
+| File aperti da altri programmi | lettura con condivisione; se bloccati, saltati e riportati; niente Volume Shadow Copy (servono diritti di amministratore) |
+| ADS e Mark of the Web dei file sorgente | non archiviati |
+
+### 12.4 Interfaccia
+
+- **Creazione**: trascinare file sull'app o «Aggiungi a archivio XIZ…» dal menu di Esplora file;
+  finestra con nome, livello (Veloce / Normale / Massimo), password con indicatore di robustezza,
+  profilo Forte, recovery record, opzioni avanzate (destinatari, custodi, firma, codec
+  specializzati) per le fasi successive.
+- **Archivio esistente**: aggiungere, togliere, nuove cartelle (append, §11).
+- **Chiavi**: generazione delle identità e dei fattori; salvataggio protetto con **DPAPI** o
+  Gestione credenziali di Windows, l'equivalente del Portachiavi.
+- **Passphrase Diceware**: con la lista EFF (CC BY). La lista italiana di Gamberini è **GPL-3.0**:
+  in un'app MIT distribuita come binario va tenuta come file dati separato, come nell'app Mac, o
+  esclusa. Da decidere.
+
+### 12.5 Dove scrivere il codice
+
+Due strade:
+
+1. **Estendere il writer di libxiz** (C) con tutto ciò che manca. Vantaggio: la CLI `xiz` e Linux
+   ottengono le stesse funzioni; è già la seconda implementazione indipendente. Svantaggio: la parte
+   di riconoscimento dei contenuti (documenti, tabelle, modelli) è logica Swift da riscrivere in C.
+2. **Writer nuovo solo per l'app Windows**. Nessun vantaggio reale: scartato.
+
+Scelta: **la 1**, con le funzioni divise in moduli opzionali di CMake come oggi i decoder
+(`XIZ_JPEG`, `XIZ_PREFLATE`, `XIZ_OPENZL`). Ogni archivio scritto da libxiz va riletto da Xipper
+nei test (`XIPPER=…/xipper` in `run_fixtures.sh`, già previsto) e viceversa. Vanno aggiunti a libxiz
+anche gli encoder delle librerie già approvate (xz, brunsli, preflate, OpenZL): sono le stesse
+librerie, ma è una superficie nuova da compilare e testare.
+
+### 12.6 Fasi della creazione
+
+| Fase | Contenuto | Stima |
+|---|---|---|
+| C1 | App: creazione e append con il writer attuale, zstd, password NFC, profilo Forte, robustezza, recovery record, menu «Aggiungi a archivio XIZ» | 1–2 settimane |
+| C1 | libxiz: commitment 1.14, compressione multithread | ~1 settimana |
+| C2 | libxiz: strutture 1.3 (directory, gruppi), destinatari X25519 / age / X-Wing, custodi, secondo fattore; app: chiavi con DPAPI | 2–3 settimane |
+| C3 | Firme Ed25519 e ibride, firma con certificato Windows (CNG); append su archivi 1.3 | 1–2 settimane |
+| C4 | Codec specializzati: LZMA2, dizionari, brunsli, preflate, OpenZL, con il riconoscimento dei contenuti | 2–3 settimane |
+
+C1 da sola copre già il caso comune: un utente Windows che manda una cartella cifrata a un utente Mac.
+
+## 13. Decisioni aperte
+
+1. Nome dell'app: «Xipper Reader», «XIZ Viewer», altro. Con la creazione «Reader» non va più bene:
+   forse «Xipper per Windows» o «XIZ for Windows».
 2. Firma del codice: restare self-signed (avviso SmartScreen) o pagare un certificato.
 3. Installer: strumento esterno (Inno Setup / WiX, da approvare) o registrazione fatta dall'app.
 4. Macchina Windows per le prove: VM sul Mac o PC fisico.
 5. Se la verifica forense (§20) deve comparire anche qui o restare solo in xipper-forensic.
+6. Fin dove arrivare con la creazione: solo C1, fino a C3, o tutto.
+7. Lista Diceware italiana (GPL) nell'app Windows: file dati separato o esclusa.
