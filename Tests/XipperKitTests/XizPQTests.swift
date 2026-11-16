@@ -4,7 +4,7 @@ import Testing
 @testable import XipperKit
 
 /// XIZ 1.7 (§17): post-quantum recipients and custodians with X-Wing (ML-KEM-768 + X25519).
-@Suite("XIZ post-quantum recipients", .serialized)
+@Suite("XIZ post-quantum recipients", .serialized, .sharedCredentials)
 struct XizPQTests {
     func tree(_ t: TempDir) {
         t.write("src/indice.txt", "indice del caso\n")

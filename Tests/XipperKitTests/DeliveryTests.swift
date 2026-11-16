@@ -6,7 +6,7 @@ import Testing
 
 /// Copies for a recipient: the copy (XIZ for a key or a password, raw, E01, files with proofs), the
 /// signed receipt, the custody segment on the original, the case log.
-@Suite("Delivery")
+@Suite("Delivery", .sharedCredentials)
 struct DeliveryTests {
     static let examiner = XizSigner(key: XizSigningKey(), label: "Mario Rossi")
 

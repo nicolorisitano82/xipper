@@ -5,7 +5,7 @@ import Testing
 
 /// XIZ 1.14 (§24) and the password checks of 3.5 (docs/STUDIO_XIZ_ATTACCHI.md): key commitment,
 /// NFC passwords, passwords bound to a second factor; zxcvbn strength and Diceware passphrases.
-@Suite("XIZ 1.14: commitment, NFC, factors; password strength", .serialized)
+@Suite("XIZ 1.14: commitment, NFC, factors; password strength", .serialized, .sharedCredentials)
 struct XizKeyHardeningTests {
     func create(_ t: TempDir, _ name: String, password: String, factor: XizFactor? = nil, access: XizAccess? = nil) throws -> URL {
         t.write("src/a.txt", "riservato\n")

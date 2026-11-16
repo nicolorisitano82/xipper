@@ -552,6 +552,7 @@ Decisione del proprietario: niente VM Windows. `xiz.exe` x86_64 (zig) gira sotto
 - limiti: Wine non è Windows (niente NTFS, ACL, flussi alternativi, nomi riservati e maiuscole/minuscole; i link simbolici Wine finge di crearli; output su pipe, non console); `--password-stdin` legge ancora nella code page ANSI; la build aarch64 compila ma sotto Wine arm64 non parte.
 
 ### 3.5 — password più robuste e XIZ 1.14 (piano del 16/11/2026)
+- ✅ **3.5.1 rilasciata il 16/11/2026** con la fase B ridotta; campagna verde: 430 test (dopo la correzione di una corsa nei test: le suite che cambiano `XizCredentials.shared` ora girano una alla volta, tratto `.sharedCredentials`), matrice esaustiva, fuzzing, libxiz, interop, poco spazio, forense, `xiz` su Linux e Windows sotto Wine; prova di corrente saltata.
 - ✅ **3.5.0 rilasciata il 16/11/2026** con le fasi A e C; campagna completa verde: 427 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti (anche i 1.14 cifrati), interop, 45 giri di poco spazio con 70 kill, validazione forense, `xiz` su Linux e su Windows sotto Wine (127 controlli); prova di corrente saltata.
 
 Dallo studio [STUDIO_XIZ_ATTACCHI.md](STUDIO_XIZ_ATTACCHI.md): chi ha l'archivio attacca offline, quindi conta l'entropia del segreto più del costo di Argon2id. Il proprietario ha scelto le fasi A e C.
@@ -560,7 +561,7 @@ Dallo studio [STUDIO_XIZ_ATTACCHI.md](STUDIO_XIZ_ATTACCHI.md): chi ha l'archivio
 |---|---|---|
 | **A. Password migliori** | stima con zxcvbn, frasi Diceware, conferma sotto 45 bit | ✅ |
 | **C. XIZ 1.14** | key commitment, password in NFC, password con file chiave | ✅ |
-| **B. Profili KDF (ridotta)** | profilo Forte, avviso sui parametri deboli, «Cifra di nuovo» / `xipper rekey` | ✅ in sviluppo |
+| **B. Profili KDF (ridotta)** | profilo Forte, avviso sui parametri deboli, «Cifra di nuovo» / `xipper rekey` | ✅ 3.5.1 |
 | D, E dello studio | destinatario Secure Enclave, avviso di rollback | non scelte (D: meglio il file chiave nel Portachiavi) |
 
 #### A. Password migliori — ✅ (16/11/2026)
@@ -577,7 +578,7 @@ Spec in [XIZ_SPEC.md §24](XIZ_SPEC.md).
 - test: `XizKeyHardeningTests` (commitment alterato o tolto, due destinatari con chiavi diverse, NFC/NFD anche nei gruppi, fattore giusto/sbagliato/mancante, stime, frasi, liste uguali a quelle dell'app);
 - **libxiz**: controlla il commitment (anche su ogni chiave di ogni bundle, in tempo costante), apre la stanza 8 con `--factor` (errore `XIZ_E_FACTOR_REQUIRED`, codice 3), `xiz info` nomina le stanze 8 e 9; fixture `password-114.xiz`, `factor.xiz` (116 controlli), `security.c` con commitment alterato, spostato, contato male e tolto (109 controlli); verde con ASan/UBSan, `-Werror`, su Linux e su Windows sotto Wine. Niente normalizzazione Unicode in C: libxiz usa i byte della password così come arrivano. Lo scrittore di libxiz non scrive ancora il commitment (i suoi archivi restano 1.0, validi).
 
-#### B. Profili KDF, versione ridotta — ✅ (16/11/2026, non rilasciata)
+#### B. Profili KDF, versione ridotta — ✅ (16/11/2026, 3.5.1)
 Scelta del proprietario: solo le parti utili, senza calibrazione automatica né profilo «lungo termine» (2–3 bit in più non valgono la complessità).
 - **profilo Forte** (Argon2id 1 GiB, t=4, p=4; circa 1 s per tentativo, ~2,5 bit in più): `CreateOptions.xizKDFProfile`, `xipper create --kdf strong`, nell'app «Protezione più lenta da forzare» nel foglio della password XIZ; offerto solo su Mac con almeno 8 GB. Il predefinito resta Standard (256 MiB, t=3). Tutte le stanze password di un archivio usano gli stessi parametri (era già così);
 - **parametri deboli**: sotto 64 MiB o sotto 64 MiB × 3 passaggi (altri writer, vecchie impostazioni di test). `XizArchiveInfo.passwordKDFs` / `weakKDF` dalle parti pubbliche; `xipper test` avvisa su stderr, l'app mostra un avviso arancione nel browser;

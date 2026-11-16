@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 @testable import XipperKit
 
 /// Temporary directory removed at deinit.
@@ -121,4 +122,34 @@ func treesEqual(_ a: String, _ b: String) -> (Bool, String) {
     if sa == sb { return (true, "") }
     let keys = Set(sa.keys).union(sb.keys).sorted().filter { sa[$0] != sb[$0] }
     return (false, keys.prefix(10).map { "\($0): \(sa[$0] ?? "missing") vs \(sb[$0] ?? "missing")" }.joined(separator: "\n"))
+}
+
+/// Tests that change `XizCredentials.shared` (one process-wide store) run one at a time, across
+/// suites: without it a suite's `removeAll()` can empty the store while another suite's test uses it.
+struct SharedCredentials: SuiteTrait, TestTrait, TestScoping {
+    var isRecursive: Bool { true }
+
+    actor Gate {
+        private var busy = false
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+        func acquire() async {
+            if !busy { busy = true; return }
+            await withCheckedContinuation { waiting.append($0) }
+        }
+        func release() {
+            if waiting.isEmpty { busy = false } else { waiting.removeFirst().resume() }
+        }
+    }
+    static let gate = Gate()
+
+    func provideScope(for test: Test, testCase: Test.Case?, performing function: @Sendable () async throws -> Void) async throws {
+        guard testCase != nil else { return try await function() }  // the suite itself: its tests take the gate
+        await Self.gate.acquire()
+        do { try await function() } catch { await Self.gate.release(); throw error }
+        await Self.gate.release()
+    }
+}
+
+extension Trait where Self == SharedCredentials {
+    static var sharedCredentials: SharedCredentials { SharedCredentials() }
 }

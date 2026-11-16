@@ -4,7 +4,7 @@ import Testing
 @testable import XipperKit
 
 /// XIZ 1.3 (§13): access groups, recipients, k-of-n custodians, signed and time-stamped changes.
-@Suite("XIZ access groups and signatures", .serialized)
+@Suite("XIZ access groups and signatures", .serialized, .sharedCredentials)
 struct XizAccessTests {
     func tree(_ t: TempDir) {
         t.write("src/indice.txt", "indice del caso\n")
