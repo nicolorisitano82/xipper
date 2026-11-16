@@ -2,7 +2,7 @@
 
 ## Formats Xipper opens
 
-ZIP (also split, Deflate64, bzip2, LZMA, xz, Zstandard, PPMd, AES and ZipCrypto), 7z (also split, self-extracting and encrypted), tar and its compressed forms (gz, bz2, xz, zst, lz4, br), cpio, Apple Archive (also encrypted or signed), XIZ, RAR and RAR5 (read-only, encrypted RAR5 included), and single compressed files (gz, bz2, xz, zst, lz4, br).
+ZIP (also split, Deflate64, bzip2, LZMA, xz, Zstandard, PPMd, AES and ZipCrypto), 7z (also split, self-extracting and encrypted), tar and its compressed forms (gz, bz2, xz, zst, lz4, br), cpio, Apple Archive (also encrypted or signed), XIZ, RAR and RAR5 (read-only, encrypted RAR5 included), disc and disk images (read-only: ISO, UDF, DMG, see [Disc and disk images](#disc-and-disk-images)), and single compressed files (gz, bz2, xz, zst, lz4, br).
 
 ## The browser
 
@@ -72,7 +72,7 @@ From the command line: `xipper extract -r archive.zip`.
 | **Quarantine** | Files extracted from an archive downloaded from the Internet keep macOS's quarantine, so Gatekeeper still checks apps and scripts among them. **Settings › Security** can turn this off |
 | **Permissions** | setuid and setgid bits are removed |
 | **Deceptive names** | Names that hide their real extension (right-to-left override characters, double extensions such as `invoice.pdf.app`) are flagged, with the real name shown in the inspector |
-| **Isolated decoders** | RAR and 7z archives are decoded in a separate, sandboxed process: a malformed archive cannot make Xipper quit or reach your files |
+| **Isolated decoders** | RAR, 7z and ISO 9660 archives are decoded in a separate, sandboxed process: a malformed archive cannot make Xipper quit or reach your files |
 
 Entries that were blocked are listed at the end of the job with the reason.
 
@@ -84,6 +84,14 @@ Old ZIP files write names in a code page, not in UTF-8. Xipper guesses the code 
 
 RAR and RAR5 archives open read-only, split ones too, and encrypted RAR5 archives open with their password. Encrypted RAR 4 archives and encrypted split RAR5 archives are not supported. To change a RAR, convert it to another format ([chapter 4](04-editing-mounting-converting.md#changing-format)).
 
+
+## Disc and disk images
+
+ISO, UDF and Apple disk images open read-only, like an archive: browse, extract, test.
+- **ISO 9660** (with Joliet and Rock Ridge names) is read by Xipper itself, in the isolated decoder.
+- **UDF** discs (DVD and Windows images, also with an ISO 9660 bridge) and **Apple disk images** (`.dmg`, `.sparseimage`, `.cdr`) are attached by macOS read-only and hidden (they never appear in the Finder or on the desktop), read, and ejected when Xipper is done. Encrypted disk images ask for their password.
+
+Double-clicking a `.dmg` or `.iso` still mounts it as usual: open it with Xipper (**Open With**, or drag it onto Xipper) to look inside without mounting it in the Finder. Images cannot be created or changed; to keep the content in an archive, use **Change Format…**. Disk images inside other archives are not attached when nested archives are extracted.
 ## When something goes wrong
 
 Errors come with an action when there is one:

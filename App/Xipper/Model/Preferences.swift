@@ -205,6 +205,8 @@ extension ArchiveFormat {
         case .appleArchive: "Apple Archive (.aar)"
         case .xiz: "XIZ"
         case .rar: "RAR"
+        case .iso: "ISO"
+        case .dmg: "DMG"
         }
     }
 

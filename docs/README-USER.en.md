@@ -2,7 +2,7 @@
 
 *[Italiano](LEGGIMI.md) · English*
 
-Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 26 or later**. It creates, opens, verifies, repairs and extracts archives quickly and safely: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive and XIZ, Xipper's own format; it also opens RAR, encrypted RAR5 included. For genomics it converts BAM ↔ CRAM 3.1 and builds the indexes samtools, bcftools and tabix use.
+Xipper is an archiver for Macs with Apple Silicon (M1 or later) running **macOS 26 or later**. It creates, opens, verifies, repairs and extracts archives quickly and safely: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive and XIZ, Xipper's own format; it also opens RAR, encrypted RAR5 included, and ISO, UDF and DMG images. For genomics it converts BAM ↔ CRAM 3.1 and builds the indexes samtools, bcftools and tabix use.
 
 ## Installing
 1. Open the Xipper `.dmg` file and drag **Xipper** into **Applications**.
@@ -54,7 +54,7 @@ Xipper's Finder menu offers the fitting action first: **Decompress** on archives
 Finder actions always create new files next to the originals and never overwrite anything.
 
 ## Known limits
-- **RAR** opens read-only (multi-volume too); encrypted RAR5 archives open with their password, but not encrypted RAR 4 or encrypted multi-volume ones; ISO, DMG and MPEG-G are planned, with no date yet.
+- **RAR** opens read-only (multi-volume too); encrypted RAR5 archives open with their password, but not encrypted RAR 4 or encrypted multi-volume ones; ISO, UDF and DMG images open read-only (Xipper reads them without mounting them in the Finder); MPEG-G is planned, with no date yet.
 - CRAM files are not browsed like archives: convert them to BAM, with the reference FASTA they were written with.
 - Encrypted Apple Archives need a password of at least 20 characters (a macOS limit).
 - A mounted archive is a local WebDAV volume: the first time a very large file is opened, the Mac reads all of it.

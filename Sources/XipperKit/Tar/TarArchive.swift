@@ -419,12 +419,18 @@ enum TarExtractor {
     }
 
     /// Formats with their own entry reader instead of the decompress-then-tar pipeline.
-    static func isOwnReaderFormat(_ path: String) -> Bool { AppleArchiveReader.isAppleArchive(path) || RarReader.isRAR(path) }
+    static func isOwnReaderFormat(_ path: String) -> Bool {
+        AppleArchiveReader.isAppleArchive(path) || RarReader.isRAR(path) || DiskImage.kind(path) != nil
+    }
 
     static func ownReader(_ path: String, password: String?) throws -> EntryStreamReader? {
         if AppleArchiveReader.isAppleArchive(path) { return try AppleArchiveReader(path: path, password: password) }
         if RarReader.isRAR(path) { return try IsolatedDecoder.rar(path: path, password: password) }
-        return nil
+        switch DiskImage.kind(path) {
+        case .iso9660?: return try IsolatedDecoder.rar(path: path, password: nil)  // libarchive, isolated
+        case .udf?, .appleImage?: return try MountedImageReader(path: path, password: password)
+        case nil: return nil
+        }
     }
 
     static func list(_ path: String, workload: Workload, password: String? = nil) throws -> [ArchiveEntry] {

@@ -243,6 +243,21 @@
 			</array>
 		</dict>
 		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Disk image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.iso-image</string>
+				<string>com.apple.disk-image-udif</string>
+				<string>com.apple.disk-image-sparse</string>
+				<string>com.apple.disk-image-cdr</string>
+			</array>
+		</dict>
+		<dict>
 			<key>CFBundleTypeIconFile</key>
 			<string>xipper-cram</string>
 			<key>CFBundleTypeName</key>
@@ -329,6 +344,8 @@
 				<string>com.facebook.zstandard-archive</string>
 				<string>app.xipper.bgzf</string>
 				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>com.apple.disk-image-udif</string>
 			</array>
 		</dict>
 		<dict>
@@ -360,6 +377,8 @@
 				<string>com.facebook.zstandard-archive</string>
 				<string>app.xipper.bgzf</string>
 				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>com.apple.disk-image-udif</string>
 			</array>
 		</dict>
 	</array>

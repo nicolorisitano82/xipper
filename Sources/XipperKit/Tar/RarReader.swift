@@ -7,6 +7,8 @@ import Foundation
 /// Multi-volume archives (`name.part1.rar`… or `name.rar`, `name.r00`…) are read from any part.
 /// libarchive checks each file's CRC-32 (RAR 4) or CRC-32/BLAKE2sp (RAR5) at the end of its data.
 /// Encrypted RAR5 archives (one volume) are read through `Rar5PlainStream` (Rar5Crypto.swift).
+/// The same reader takes ISO 9660 images (3.4, libarchive's ISO 9660 reader: Joliet, Rock Ridge,
+/// zisofs), so they are decoded in the isolated helper too (DiskImage.swift).
 final class RarReader: EntryStreamReader {
     private let a: OpaquePointer
     private let name: String
@@ -94,6 +96,7 @@ final class RarReader: EntryStreamReader {
         self.a = a
         archive_read_support_format_rar(a)
         archive_read_support_format_rar5(a)
+        archive_read_support_format_iso9660(a)
         if let password { archive_read_add_passphrase(a, password) }
         let files = volumes ?? Self.volumes(for: path)
         let r: Int32
@@ -129,7 +132,7 @@ final class RarReader: EntryStreamReader {
         }
         if let e = plain?.error { throw e }
         if r != ARCHIVE_OK {
-            throw Self.error(Self.message(a), name: name)
+            throw Self.error(Self.message(a), name: name, iso: DiskImage.isISO9660(path))
         }
     }
 
@@ -141,7 +144,7 @@ final class RarReader: EntryStreamReader {
     /// A failure while reading: the decrypting stream's own error (wrong password…) comes first.
     private func failure() -> XipperError {
         if let e = plain?.error as? XipperError { return e }
-        return Self.error(Self.message(a), name: name)
+        return Self.error(Self.message(a), name: name, iso: archive_format(a) & ARCHIVE_FORMAT_BASE_MASK == ARCHIVE_FORMAT_ISO9660)
     }
 
     deinit { archive_read_free(a) }
@@ -150,8 +153,9 @@ final class RarReader: EntryStreamReader {
         archive_error_string(a).map { String(cString: $0) } ?? "unknown error"
     }
 
-    private static func error(_ message: String, name: String) -> XipperError {
+    private static func error(_ message: String, name: String, iso: Bool = false) -> XipperError {
         let m = message.lowercased()
+        if iso { return .corrupt("\(name): invalid ISO 9660 image (\(message))") }
         if m.contains("encrypt") || m.contains("passphrase") {
             return .unsupported("\(name): encrypted RAR 4 archives are not supported yet (RAR5 ones are)")
         }
@@ -176,8 +180,12 @@ final class RarReader: EntryStreamReader {
         path = path.replacingOccurrences(of: "\\", with: "/")
         while path.hasPrefix("./") { path.removeFirst(2) }
         while path.hasSuffix("/") { path.removeLast() }
+        if path == "." { path = "" }  // the root of an ISO 9660 image
         // A name libarchive could not convert is an error, never a silently skipped entry.
-        guard !path.isEmpty else { throw XipperError.corrupt("\(name): an entry name cannot be read (\(Self.message(a)))") }
+        guard !path.isEmpty else {
+            if archive_format(a) & ARCHIVE_FORMAT_BASE_MASK == ARCHIVE_FORMAT_ISO9660 { return try nextEntry() }  // the root "."
+            throw XipperError.corrupt("\(name): an entry name cannot be read (\(Self.message(a)))")
+        }
         let filetype = UInt32(archive_entry_filetype(e))
         let hardlink = archive_entry_hardlink_utf8(e).map { String(cString: $0) }
         let symlink = archive_entry_symlink_utf8(e).map { String(cString: $0) }
@@ -202,7 +210,8 @@ final class RarReader: EntryStreamReader {
                                 uid: 0, gid: 0, mtime: mtime, linkTarget: link)
         pendingData = kind == .file
         if encrypted && kind == .file { pendingData = false }
-        let method = archive_format(a) == ARCHIVE_FORMAT_RAR_V5 ? "rar5" : "rar"
+        let format = archive_format(a)
+        let method = format == ARCHIVE_FORMAT_RAR_V5 ? "rar5" : format & ARCHIVE_FORMAT_BASE_MASK == ARCHIVE_FORMAT_ISO9660 ? "iso9660" : "rar"
         let entry = ArchiveEntry(path: path, kind: kind, uncompressedSize: size, compressedSize: 0, modified: mtime, permissions: header.mode,
                                  encryption: encrypted ? .aes(strength: 3, vendorVersion: 0, actualMethod: 0) : .none, method: method,
                                  linkTarget: kind == .symlink || kind == .hardlink ? link : nil)

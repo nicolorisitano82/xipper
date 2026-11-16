@@ -60,6 +60,7 @@ final class ThumbnailProvider: QLThumbnailProvider {
         case .tarBrotli?, .brotli?: return "br"
         case .cpio?: return "cpio"
         case .rar?: return "rar"
+        case .iso?, .dmg?: return "generic"
         case .appleArchive?: return "aar"
         case .xiz?: return "xiz"
         case .bgzf?: return "bgzf"

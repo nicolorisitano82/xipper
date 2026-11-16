@@ -999,7 +999,7 @@
      "sha256": "30e556b3959e3985d66efefec5eaac51d4995053caa1d3cffe6eb916f146f229"
     },
     "libarchive/include/CArchive.h": {
-     "sha256": "56b8d8804cec428841d0716fe084371ea4f53adf9c7ca557ddd4e5f88a4c3ab7",
+     "sha256": "d430056875b455b4d4e426ee6d6adcce3733a3a94c48a2c9cbca2e4aa7cd5bec",
      "ours": true
     },
     "libarchive/libarchive/archive.h": {
@@ -1166,6 +1166,9 @@
     },
     "libarchive/libarchive/archive_read_support_filter_none.c": {
      "sha256": "98f12fce080fdf2dbb62e5aa1527260c6aa03bc013e83ba76bd17ba65f98191e"
+    },
+    "libarchive/libarchive/archive_read_support_format_iso9660.c": {
+     "sha256": "c8402502d58f205c48e1da5a0a031491e932fd605548e10a710c1b2a7e3002d7"
     },
     "libarchive/libarchive/archive_read_support_format_rar.c": {
      "sha256": "c9afc9af8b2f537f1ecaee4ce521208562b3c37aa103f7d87e8e656e2150ab88"

@@ -10,7 +10,7 @@ This manual covers the app, the Finder integration and the `xipper` command. It 
 |---|---|
 | [1. Getting started](01-getting-started.md) | Requirements, installing, first launch, the Welcome steps, updates, privacy, uninstalling |
 | [2. Creating archives](02-creating-archives.md) | The main window, formats and when to use each, levels, presets, passwords, ZIP methods, 7z options, split archives |
-| [3. Opening and extracting](03-opening-and-extracting.md) | The browser and the inspector, Quick Look, extracting, what Xipper does to keep you safe, RAR, name encodings, nested archives |
+| [3. Opening and extracting](03-opening-and-extracting.md) | The browser and the inspector, Quick Look, extracting, what Xipper does to keep you safe, RAR, disc and disk images, name encodings, nested archives |
 | [4. Editing, mounting and converting](04-editing-mounting-converting.md) | Changing an archive without extracting it, mounting it as a volume, changing its format, converting with little free space |
 | [5. Verifying, repairing and checksums](05-verify-repair-checksums.md) | Verify, recovery data (inside XIZ, PAR2 for the rest), repairing damaged ZIP files, checksum lists |
 | [6. XIZ, Xipper's format](06-xiz.md) | Smaller photos, documents, tables and AI models, Apple codecs, versions, reserved folders, recipients, custodians, erasable files, signatures (also post-quantum), proofs of inclusion, time-stamps, forensic archives, compatibility |

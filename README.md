@@ -2,7 +2,7 @@
 
 *Italiano · [English](README.en.md)*
 
-Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP (anche bzip2, LZMA, xz, zstd, Deflate64 e a volumi), 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive e XIZ, il formato di Xipper ([specifica](docs/XIZ_SPEC.md)); apre anche RAR e RAR5, compresi i RAR5 cifrati. Per la genomica converte BAM ↔ CRAM 3.1, scrive BGZF/bgzip e gli indici di samtools, bcftools e tabix, e verifica VCF/BCF/BAM/CRAM. Modifica gli archivi senza estrarli (ZIP, 7z e XIZ senza ricomprimere quello che non cambia) e li protegge con dati di recupero PAR2. Monta anche un archivio come volume, in lettura e scrittura: lo apri e lo modifichi nel Finder, e alla fine Xipper salva le modifiche nell'archivio. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
+Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra archivi ZIP (anche bzip2, LZMA, xz, zstd, Deflate64 e a volumi), 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive e XIZ, il formato di Xipper ([specifica](docs/XIZ_SPEC.md)); apre anche RAR e RAR5, compresi i RAR5 cifrati, e le immagini ISO, UDF e DMG in sola lettura. Per la genomica converte BAM ↔ CRAM 3.1, scrive BGZF/bgzip e gli indici di samtools, bcftools e tabix, e verifica VCF/BCF/BAM/CRAM. Modifica gli archivi senza estrarli (ZIP, 7z e XIZ senza ricomprimere quello che non cambia) e li protegge con dati di recupero PAR2. Monta anche un archivio come volume, in lettura e scrittura: lo apri e lo modifichi nel Finder, e alla fine Xipper salva le modifiche nell'archivio. Non dipende da software di terzi a runtime: i codec open source sono compilati dentro l'app (vedi [Vendor/README.md](Vendor/README.md)).
 
 - Studio di fattibilità e decisioni: [STUDIO.md](STUDIO.md)
 - Spike delle prestazioni (fase 0): [SPIKE_FASE0.md](SPIKE_FASE0.md)
@@ -39,7 +39,7 @@ Archiviatore nativo per macOS su Apple Silicon: crea, estrae, verifica e cifra a
 
 ```
 Package.swift            SwiftPM: codec C + XipperKit + CLI + test (macOS 26, arm64)
-Vendor/                  zstd, libdeflate, liblzma, LZMA SDK, htscodecs, libarchive (RAR), lz4, brotli, Argon2 (sorgenti vendorizzati)
+Vendor/                  zstd, libdeflate, liblzma, LZMA SDK, htscodecs, libarchive (RAR, ISO 9660), lz4, brotli, Argon2 (sorgenti vendorizzati)
 Sources/CXipShims/       wrapper C su zlib/bzip2 di sistema
 Sources/XipperKit/       core Swift
   Xipper.swift           API pubblica: create / extract / test / list, riconoscimento del formato

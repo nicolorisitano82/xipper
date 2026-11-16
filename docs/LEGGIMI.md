@@ -2,7 +2,7 @@
 
 *Italiano · [English](README-USER.en.md)*
 
-Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica, ripara ed estrae archivi in modo veloce e sicuro: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive e XIZ, il formato di Xipper; apre anche i RAR, compresi i RAR5 cifrati. Per la genomica converte BAM ↔ CRAM 3.1 e crea gli indici che usano samtools, bcftools e tabix.
+Xipper è un archiviatore per Mac con Apple Silicon (M1 o successivi) e **macOS 26 o successivo**. Crea, apre, verifica, ripara ed estrae archivi in modo veloce e sicuro: ZIP, 7z, tar (gz, bz2, xz, zst, lz4, br), lz4, brotli, cpio, Apple Archive e XIZ, il formato di Xipper; apre anche i RAR, compresi i RAR5 cifrati, e le immagini ISO, UDF e DMG. Per la genomica converte BAM ↔ CRAM 3.1 e crea gli indici che usano samtools, bcftools e tabix.
 
 ## Installazione
 1. Apri il file `.dmg` di Xipper e trascina **Xipper** nella cartella **Applicazioni**.
@@ -54,7 +54,7 @@ Il menu di Xipper nel Finder propone per prima l'azione adatta: **Decomprimi** s
 Le azioni dal Finder creano sempre file nuovi accanto agli originali e non sovrascrivono mai nulla.
 
 ## Limiti noti
-- **RAR** si apre in sola lettura (anche a volumi); i RAR5 cifrati si aprono con la loro password, non ancora i RAR 4 cifrati né i RAR5 cifrati a volumi; ISO, DMG e MPEG-G sono in programma, senza una data.
+- **RAR** si apre in sola lettura (anche a volumi); i RAR5 cifrati si aprono con la loro password, non ancora i RAR 4 cifrati né i RAR5 cifrati a volumi; ISO, UDF e DMG si aprono in sola lettura (Xipper li legge senza montarli nel Finder); MPEG-G è in programma, senza una data.
 - I CRAM non si sfogliano come archivi: si convertono in BAM, con il riferimento FASTA usato per scriverli.
 - Gli Apple Archive cifrati richiedono una password di almeno 20 caratteri (limite di macOS).
 - Il volume montato è un volume WebDAV locale: alla prima apertura di un file molto grande il Mac lo legge tutto.

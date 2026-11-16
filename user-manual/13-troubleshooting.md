@@ -3,6 +3,7 @@
 ## Known limits
 
 - **RAR** is read-only. Encrypted RAR 4 archives and encrypted split RAR5 archives are not supported.
+- **Disc and disk images** (ISO, UDF, DMG) are read-only. An image macOS cannot attach (an unknown file system, a damaged image) cannot be opened.
 - **ISO, DMG and MPEG-G** cannot be opened yet.
 - **CRAM** files are not browsed like archives: convert them to BAM.
 - **Encrypted Apple Archives** need a password of at least 20 characters (a macOS limit).

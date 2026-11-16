@@ -500,7 +500,7 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 |---|---|---|---|
 | **A. libxiz e X-Wing** | il lettore indipendente apre le stanze 6 e 7 (destinatari e custodi post-quantum, §17) | mlkem-native (approvato il 15/11/2026) | ✅ |
 | **B. Rifinire le firme 3.3** | firma XIZ con certificato provata a mano nell'app; firma di prova (in locale) su un `.p7m` vero; importazione delle chiavi `age1pq1…` di age 1.3 | — | ✅ |
-| **C. ISO 9660/UDF e DMG in sola lettura** | dal backlog: ISO e UDF con libarchive (già incluso), DMG non cifrati | — | |
+| **C. ISO 9660/UDF e DMG in sola lettura** | dal backlog: ISO 9660 con libarchive, UDF e DMG con hdiutil (scelta del proprietario: ibrido) | — | ✅ |
 | **D. «Cambia formato» v2** | journal, ripresa, rollback, `F_PUNCHHOLE` | la VM per la prova di corrente | |
 | **E. `xiz` per Windows** | prova su Windows 11 ARM | l'ISO di Windows 11 ARM | |
 
@@ -517,6 +517,17 @@ Nessun codec nuovo. Ordine: A → B → C, poi D ed E quando ci sono VM e ISO. X
 - **`.p7m` vero** (copia locale, poi cancellata, di un documento con firma qualificata annidata): firma parallela con marca FreeTSA e firma a matrioska; la firma qualificata originale resta integra e «QES» per Xipper, OpenSSL verifica il CMS, DSS dà alla firma originale lo stesso esito di prima (OUT_OF_BOUNDS_NOT_REVOKED, certificato scaduto) e riconosce la nostra come CAdES-BASELINE-T;
 - **chiavi age** (studio sul codice di age 1.3.2 e su C2SP age.md): `age1pq1…` / `AGE-SECRET-KEY-PQ-1…` sono Bech32 della stessa chiave pubblica X-Wing (1216 byte) e dello stesso seed di 32 byte di CryptoKit; `age1…` / `AGE-SECRET-KEY-1…` sono X25519. Xipper le accetta come destinatari (`--to`, «Accesso») e come identità (`--identity`, «Importa…»), salvate poi in forma XIZ; anche `xiz` di libxiz legge le identità age. Solo le chiavi: gli archivi restano XIZ, i file `.age` non si aprono;
 - test: vettori ufficiali (C2SP e testdata di age: una coppia post-quantum, due classiche), checksum alterato, maiuscole e minuscole miste, HRP sbagliato; fixture libxiz `age-pq.xiz` con la chiave di prova di age.
+
+#### C. Immagini disco in sola lettura — ✅ fatto (16/11/2026)
+Scelta del proprietario (16/11/2026): **ibrido**. libarchive non legge né UDF né i file system dei DMG (HFS+, APFS).
+- **ISO 9660** (Joliet, Rock Ridge, zisofs) senza UDF: `archive_read_support_format_iso9660.c` dallo stesso libarchive 3.8.11 (stesso file del tag, SHA-256 nel manifest), letto dal lettore libarchive già usato per RAR, quindi **nel decoder isolato**;
+- **UDF** (anche con il ponte ISO 9660, come le immagini di Windows e i DVD) e **immagini Apple** (`.dmg` UDIF, `.sparseimage`, `.cdr` grezzi con GPT/APM/HFS+/APFS): `MountedImageReader` le monta con `hdiutil attach -readonly -nobrowse -noautoopen -noautofsck -mountrandom` in una cartella temporanea, le legge come una cartella senza seguire i collegamenti, e le smonta (forzando se serve) togliendo le cartelle con `rmdir` soltanto; il file system lo analizza macOS, come al doppio clic;
+- DMG cifrati: password con `-stdinpass`; senza password «password richiesta», password sbagliata riconosciuta dal messaggio di hdiutil (tradotto nella lingua del sistema: le 7 lingue dell'app);
+- rilevamento dal contenuto (sequenza di riconoscimento dal settore 16, `koly`, `sprs`, `encrcdsa`/`cdsaencr`, firme dei dischi grezzi); formati `iso` e `dmg` in sola lettura; nomi delle cartelle di estrazione senza estensione; i DMG dentro altri archivi non vengono montati dall'estrazione ricorsiva;
+- app: tipo documento «Disk image» (Viewer, rango Alternate: il doppio clic resta a macOS), «Estrai con Xipper» nei Servizi; le estensioni Quick Look e miniature non li gestiscono (sono sandboxed);
+- trovato e aggirato: `FileManager.destinationOfSymbolicLink` va in errore fatale («Invalid posix errno 10000») su un collegamento di un volume UDF: si usa `readlink(2)`;
+- 5 test (ISO 9660, UDF e ponte, DMG compresso e `.cdr`, DMG cifrato, file che non sono immagini) e prova nell'app; nessuna immagine resta montata;
+- limite: ogni elenco o estrazione monta e smonta l'immagine (circa un secondo); un'immagine che macOS non sa montare non si apre.
 
 ### xipper-forensic (prodotto separato, dalla 3.1 prevista in origine)
 
@@ -556,7 +567,7 @@ Creare RAR, ZPAQ, ARC o PEA; autoestraenti (SFX); recupero password a forza brut
 
 Decisione del 23/10/2026: questi formati escono dalla 3.0 e restano in backlog, senza versione né data.
 
-- **ISO 9660/UDF** e **DMG** non cifrati;
+- ~~**ISO 9660/UDF** e **DMG** non cifrati~~: fatti nella 3.4 (fase C), anche i DMG cifrati;
 - **MPEG-G** in sola lettura, fase 1 (rischio brevettuale accettato dal titolare il 23/10/2026): riconoscimento, info, verifica ed esportazione in SAM/BAM/FASTQ/CRAM estendendo Genie. Studio tecnico in [MPEGG_STUDY.md](MPEGG_STUDY.md), stima 35–50 giorni-persona; decisioni aperte nella §7 dello studio.
 
 ---

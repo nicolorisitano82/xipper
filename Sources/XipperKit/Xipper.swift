@@ -30,6 +30,10 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     case appleArchive = "aar"
     /// RAR 1.5–4.x and RAR5, read only (libarchive's readers).
     case rar
+    /// Disc images, read only (3.4): ISO 9660 through libarchive, UDF through hdiutil (DiskImage.swift).
+    case iso
+    /// Apple disk images (`.dmg`, `.sparseimage`), read only (3.4): attached hidden with hdiutil.
+    case dmg
     /// XIZ 1.0, Xipper's own format (docs/XIZ_SPEC.md): independent zstd frames, catalog at the end,
     /// file and chunk dedup, Mac metadata, optional authenticated encryption (Argon2id, AES-256-GCM).
     case xiz
@@ -39,12 +43,14 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
     public var isTar: Bool { [.tar, .tarGzip, .tarBzip2, .tarXz, .tarZstd, .tarLz4, .tarBrotli].contains(self) }
     public var isSingleFile: Bool { [.gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli].contains(self) }
     /// Formats Xipper can write.
-    public var canCreate: Bool { self != .rar }
+    public var canCreate: Bool { ![.rar, .iso, .dmg].contains(self) }
+    /// Read-only formats that are disc or disk images.
+    public var isDiskImage: Bool { self == .iso || self == .dmg }
     public var supportsPassword: Bool { self == .zip || self == .sevenZip || self == .appleArchive || self == .xiz }
 
     var compression: StreamCompression {
         switch self {
-        case .zip, .tar, .sevenZip, .cpio, .appleArchive, .xiz, .rar: return .none
+        case .zip, .tar, .sevenZip, .cpio, .appleArchive, .xiz, .rar, .iso, .dmg: return .none
         case .tarLz4, .lz4: return .lz4
         case .tarBrotli, .brotli: return .brotli
         case .tarGzip, .gzip: return .gzip
@@ -73,7 +79,7 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
             (".tar.gz", .tarGzip), (".tgz", .tarGzip), (".tar.bz2", .tarBzip2), (".tbz2", .tarBzip2), (".tbz", .tarBzip2),
             (".tar.xz", .tarXz), (".txz", .tarXz), (".tar.zst", .tarZstd), (".tzst", .tarZstd),
             (".7z", .sevenZip), (".7z.001", .sevenZip), (".tar.lz4", .tarLz4), (".tlz4", .tarLz4), (".lz4", .lz4),
-            (".tar.br", .tarBrotli), (".br", .brotli), (".cpio", .cpio), (".aar", .appleArchive), (".rar", .rar), (".xiz", .xiz), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
+            (".tar.br", .tarBrotli), (".br", .brotli), (".cpio", .cpio), (".aar", .appleArchive), (".rar", .rar), (".iso", .iso), (".udf", .iso), (".cdr", .dmg), (".dmg", .dmg), (".sparseimage", .dmg), (".xiz", .xiz), (".zip", .zip), (".tar", .tar), (".bgz", .bgzf), (".bam", .bgzf), (".bcf", .bgzf), (".gz", .gzip), (".bz2", .bzip2), (".xz", .xz), (".zst", .zstd),
         ]
         return table.first { n.hasSuffix($0.0) }?.1
     }
@@ -91,6 +97,11 @@ public enum ArchiveFormat: String, Sendable, CaseIterable, Identifiable {
         if head.starts(with: SevenZip.signature) { return .sevenZip }
         if AppleArchiveReader.looksLikeArchive(head) { return .appleArchive }
         if RarReader.looksLikeArchive(head) { return .rar }
+        switch DiskImage.kind(r) {
+        case .iso9660?, .udf?: return .iso
+        case .appleImage?: return .dmg
+        case nil: break
+        }
         if XizArchive.looksLike(head) { return .xiz }
         if Cpio.looksLikeHeader(head) { return .cpio }
         let byName = inferred(fromFileName: url.lastPathComponent)
@@ -330,7 +341,7 @@ public enum Xipper {
                 report.outputBytes += try XizRecovery.add(path, redundancy: options.xizRecovery, progress: nil, cancel: cancel).recordBytes
             }
             return report
-        case .rar:
+        case .rar, .iso, .dmg:
             throw XipperError.unsupported("\(options.format.rawValue) archives can be read but not created")
         case .gzip, .bgzf, .bzip2, .xz, .zstd, .lz4, .brotli:
             guard items.count == 1 else { throw XipperError.invalidArgument("\(options.format.rawValue) compresses a single file; use a tar format for folders") }
@@ -422,7 +433,8 @@ public enum Xipper {
     static func isNestedArchive(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         let lower = name.lowercased()
-        guard let format = ArchiveFormat.inferred(fromFileName: name), format != .bgzf else { return false }
+        // Apple disk images are attached to be read: never as a side effect of extracting something else.
+        guard let format = ArchiveFormat.inferred(fromFileName: name), format != .bgzf, format != .dmg else { return false }
         // Volumes of a split archive (name.7z.001, name.part2.rar): their set is not extracted piecemeal.
         if lower.range(of: #"\.[0-9]{3}$|\.part[0-9]+\.rar$|\.z[0-9]{2}$|\.r[0-9]{2}$"#, options: .regularExpression) != nil { return false }
         // Genomic text compressed for tabix/samtools (sample.vcf.gz): meant to stay compressed.
@@ -490,7 +502,8 @@ public enum Xipper {
            r.lowerBound > archiveName.startIndex {
             return String(archiveName[..<r.lowerBound])
         }
-        for ext in [".7z.001", ".7z", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".zip", ".tar", ".gz", ".bz2", ".xz", ".zst"]
+        for ext in [".7z.001", ".7z", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tgz", ".tbz2", ".tbz", ".txz", ".tzst", ".zip", ".tar", ".gz", ".bz2", ".xz", ".zst",
+                    ".iso", ".udf", ".dmg", ".cdr", ".sparseimage"]
             where lower.hasSuffix(ext) && lower.count > ext.count {
             return String(archiveName.dropLast(ext.count))
         }
@@ -771,6 +784,7 @@ extension Xipper {
             }
             if format == .appleArchive { return try stream(try AppleArchiveReader(path: archivePath, password: password)) }
             if format == .rar { return try stream(try IsolatedDecoder.rar(path: archivePath, password: password)) }
+            if format.isDiskImage, let reader = try TarExtractor.ownReader(archivePath, password: password) { return try stream(reader) }
             let (pipe, source, isTar, _) = try TarExtractor.open(archivePath, workload: workload)
             defer { pipe.close() }
             if !isTar {
