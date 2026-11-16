@@ -120,6 +120,18 @@ typedef struct xiz_open_options {
 #define XIZ_SECRET_FACTOR 3
 XIZ_API int xiz_parse_secret(const char *text, size_t len, uint8_t out[32]);
 
+/* Recipients' public keys (text forms of §13.3, §17): xizpk1… and age1… (X25519, 32 bytes),
+ * xizpq1… and age1pq1… (X-Wing, 1216 bytes). Returns XIZ_SECRET_X25519 or XIZ_SECRET_XWING, the key
+ * in `out` (cap at least 1216) and its length; XIZ_E_ARG when malformed. */
+XIZ_API int xiz_parse_public_key(const char *text, size_t len, uint8_t *out, size_t cap, size_t *out_len);
+/* A new identity: the secret text (XIZ-SECRET-KEY-1-… or XIZ-SECRET-KEY-PQ-1-…, cap 64) and the
+ * public one to give senders (xizpk1…, cap 64; xizpq1…, cap 1700). */
+XIZ_API int xiz_generate_identity(int post_quantum, char *secret, size_t secret_cap, char *pub, size_t pub_cap);
+/* The public text of a secret key text. */
+XIZ_API int xiz_public_from_secret(const char *secret_text, size_t len, char *pub, size_t cap);
+/* A new second factor (§24.3): its text XIZ-FACTOR-1-… (cap 64) and, if `out`, its 32 bytes. */
+XIZ_API int xiz_generate_factor(char *text, size_t cap, uint8_t out[32]);
+
 /* Accept 0.1 beta archives (§9). */
 #define XIZ_OPEN_ALLOW_BETA 1u
 /* Open an encrypted XIZ 1.3 archive without credentials: structure, groups and signatures
@@ -455,6 +467,46 @@ XIZ_API int xiz_verify_proof(const char *json, size_t json_len, const uint8_t *c
 
 typedef struct xiz_writer xiz_writer;
 
+/* XIZ 1.3 (§13) for new archives: access groups, recipients, custodians. Given any recipient or
+ * threshold, the archive gets a directory and is encrypted (`password` must then be NULL: a
+ * password is a recipient of type XIZ_RECIPIENT_PASSWORD). */
+#define XIZ_RECIPIENT_PASSWORD        2   /* password (Argon2id with the KDF options) */
+#define XIZ_RECIPIENT_X25519          3   /* public key, 32 bytes */
+#define XIZ_RECIPIENT_XWING           6   /* post-quantum public key, 1216 bytes (§17) */
+#define XIZ_RECIPIENT_PASSWORD_FACTOR 8   /* password and a 32-byte second factor (§24.3) */
+
+typedef struct xiz_group_spec {     /* groups 1, 2…; group 0 is everything else */
+    const char *name;
+    const char *const *prefixes;    /* archive paths ("a/b"): their entries belong to the group */
+    size_t prefix_count;
+} xiz_group_spec;
+
+typedef struct xiz_recipient {
+    int type;                       /* XIZ_RECIPIENT_* */
+    const char *label;              /* visible to anyone, at most 255 bytes */
+    const char *password;           /* PASSWORD, PASSWORD_FACTOR: UTF-8 in NFC (§24.2) */
+    const uint8_t *public_key;      /* X25519, XWING */
+    const uint8_t *factor;          /* PASSWORD_FACTOR: 32 bytes */
+    const uint16_t *groups;         /* the groups it opens; NULL: every group */
+    size_t group_count;
+} xiz_recipient;
+
+typedef struct xiz_custodian {      /* one share of a threshold: PASSWORD, X25519 or XWING */
+    int type;
+    const char *label;
+    const char *password;
+    const uint8_t *public_key;
+} xiz_custodian;
+
+typedef struct xiz_threshold {      /* k of n custodians together (Shamir, §13.3) */
+    int k;
+    const xiz_custodian *custodians;
+    size_t custodian_count;         /* n, 2…255 */
+    const char *label;
+    const uint16_t *groups;         /* NULL: every group */
+    size_t group_count;
+} xiz_threshold;
+
 typedef struct xiz_writer_options {
     int level;                   /* zstd level, 0 = 9 */
     uint32_t frame_size;         /* 0 = 4 MiB (max 64 MiB) */
@@ -466,6 +518,13 @@ typedef struct xiz_writer_options {
      * the writer can only be aborted. Optional. */
     xiz_progress_fn progress;
     void *progress_ctx;
+    /* XIZ 1.3: new archives only (appending to them is refused). */
+    const xiz_group_spec *groups;
+    size_t group_count;             /* at most 63 */
+    const xiz_recipient *recipients;
+    size_t recipient_count;
+    const xiz_threshold *thresholds;
+    size_t threshold_count;
 } xiz_writer_options;
 
 /* A new archive at `path` (must not exist unless `overwrite`). */

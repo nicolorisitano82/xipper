@@ -57,3 +57,65 @@
 #define IDC_NEW_STRONG 617
 #define IDC_NEW_RECOVERY 618
 #define IDC_NEW_ERROR 619
+#define IDC_NEW_ACCESS 620
+#define IDC_NEW_ACCESSINFO 621
+
+#define IDD_ACCESS 700
+#define IDC_AC_LIST 701
+#define IDC_AC_PW 702
+#define IDC_AC_KEY 703
+#define IDC_AC_CUST 704
+#define IDC_AC_REMOVE 705
+#define IDC_AC_HINT 706
+#define IDC_AC_ERROR 707
+
+#define IDD_ACPW 710
+#define IDC_AP_LABELL 711
+#define IDC_AP_LABEL 712
+#define IDC_AP_PWL 713
+#define IDC_AP_PW 714
+#define IDC_AP_PW2L 715
+#define IDC_AP_PW2 716
+#define IDC_AP_STRENGTH 717
+#define IDC_AP_FACTOR 718
+#define IDC_AP_FOLDERSL 719
+#define IDC_AP_FOLDERS 720
+#define IDC_AP_ERROR 721
+
+#define IDD_ACKEY 730
+#define IDC_AK_LABELL 731
+#define IDC_AK_LABEL 732
+#define IDC_AK_KEYL 733
+#define IDC_AK_KEY 734
+#define IDC_AK_FILE 735
+#define IDC_AK_FOLDERSL 736
+#define IDC_AK_FOLDERS 737
+#define IDC_AK_ERROR 738
+
+#define IDD_ACCUST 750
+#define IDC_AU_LABELL 751
+#define IDC_AU_LABEL 752
+#define IDC_AU_NEED 753
+#define IDC_AU_K 754
+#define IDC_AU_OFN 755
+#define IDC_AU_LIST 756
+#define IDC_AU_ADDPW 757
+#define IDC_AU_ADDKEY 758
+#define IDC_AU_REMOVE 759
+#define IDC_AU_FOLDERSL 760
+#define IDC_AU_FOLDERS 761
+#define IDC_AU_ERROR 762
+
+#define IDD_KEYS 780
+#define IDC_KS_LIST 781
+#define IDC_KS_NEW 782
+#define IDC_KS_COPY 783
+#define IDC_KS_IMPORT 784
+#define IDC_KS_EXPORT 785
+#define IDC_KS_DELETE 786
+#define IDC_KS_NOTE 787
+
+#define IDD_KEYNAME 790
+#define IDC_KN_LABEL 791
+#define IDC_KN_NAME 792
+#define IDC_KN_PQ 793

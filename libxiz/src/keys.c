@@ -126,6 +126,51 @@ static int xwing_decap(const xwing_key *k, const uint8_t ct[1120], uint8_t ss[32
     return 1;
 }
 
+/* Writing (§17): encapsulation to a 1216-byte public key pk_M ‖ pk_X; ct = ct_M ‖ ct_X. */
+int xwing_encap(const uint8_t pk[1216], uint8_t ct[1120], uint8_t ss[32]) {
+    static const uint8_t label[6] = {0x5c, 0x2e, 0x2f, 0x2f, 0x5e, 0x5c};
+    uint8_t coins[32], esk[32], in[32 + 32 + 32 + 32 + 6];
+    if (xiz_random(coins, 32) || xiz_random(esk, 32)) return 0;
+    int ok = xiz_mlkem768_enc_derand(ct, in, pk, coins) == 0;
+    crypto_x25519_public_key(ct + XIZ_MLKEM_CIPHERTEXT, esk);
+    crypto_x25519(in + 32, esk, pk + XIZ_MLKEM_PUBLICKEY);
+    memcpy(in + 64, ct + XIZ_MLKEM_CIPHERTEXT, 32);
+    memcpy(in + 96, pk + XIZ_MLKEM_PUBLICKEY, 32);
+    memcpy(in + 128, label, 6);
+    xiz_mlkem768_sha3_256(ss, in, sizeof in);
+    secure_zero(coins, 32);
+    secure_zero(esk, 32);
+    secure_zero(in, sizeof in);
+    return ok;
+}
+
+/* The 1216-byte X-Wing public key of a 32-byte seed. */
+int xwing_public(const uint8_t seed[32], uint8_t pk[1216]) {
+    xwing_key *k = malloc(sizeof *k);
+    if (!k) return 0;
+    int ok = xwing_expand(seed, k);
+    if (ok) memcpy(pk, k->pk, sizeof k->pk);
+    secure_zero(k, sizeof *k);
+    free(k);
+    return ok;
+}
+
+/* Shamir over GF(2^8) (§13.3): share x (1…n) of a random polynomial of degree k−1 per byte whose
+ * constant term is the secret byte. */
+int shamir_split(const uint8_t secret[32], int k, int n, uint8_t (*shares)[32]) {
+    uint8_t coef[255][32];
+    memcpy(coef[0], secret, 32);
+    if (xiz_random(coef[1], (size_t)(k - 1) * 32)) return 0;
+    for (int x = 1; x <= n; x++)
+        for (int b = 0; b < 32; b++) {
+            uint8_t y = 0;  /* Horner from the highest degree */
+            for (int d = k - 1; d >= 0; d--) y = (uint8_t)(gf_mul(y, (uint8_t)x) ^ coef[d][b]);
+            shares[x - 1][b] = y;
+        }
+    secure_zero(coef, sizeof coef);
+    return 1;
+}
+
 /* KEKs for a credential header at body[p..]: kind 1 password (44 bytes), kind 2 X25519 (40 bytes),
  * kind 3 X-Wing (1128 bytes: ciphertext, key id). */
 typedef struct {

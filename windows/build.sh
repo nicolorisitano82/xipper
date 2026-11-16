@@ -53,7 +53,7 @@ for arch in "${ARCHS[@]}"; do
         -DUNICODE -D_UNICODE \
         -DXIZW_VERSION="\"$VERSION\"" \
         -Ilibxiz/include -IVendor/zxcvbn/include windows/src/main.cpp windows/src/core.cpp windows/src/strings.cpp windows/src/strings_i18n.cpp windows/src/dragdrop.cpp "$WORK/$arch/app.res" "$WORK/$arch/zxcvbn.o" \
-        "$lib/libxiz.a" -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -luxtheme -lnormaliz -lbcrypt -ladvapi32 -lgdi32 -luser32 \
+        "$lib/libxiz.a" -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -luxtheme -lnormaliz -lbcrypt -ladvapi32 -lgdi32 -luser32 -lcrypt32 \
         -Wl,--subsystem,windows -s -o "$WORK/$arch/XipperXIZ.exe"
     cp "$lib/xiz.exe" "$WORK/$arch/xiz.exe"
     ls -l "$WORK/$arch/XipperXIZ.exe" | awk -v a="$arch" '{print a": XipperXIZ.exe", $5, "bytes"}'

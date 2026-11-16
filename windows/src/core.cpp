@@ -2,6 +2,7 @@
 
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <wincrypt.h>
 
 #include <algorithm>
 #include <thread>
@@ -512,6 +513,237 @@ static std::string source_name(std::wstring p) {
     return utf8(n.empty() ? std::wstring(L"_") : n);
 }
 
+// ---------------------------------------------------------------- access
+
+void AccessEntry::wipe() {
+    SecureZeroMemory(password.data(), password.size());
+    SecureZeroMemory(factor.data(), factor.size());
+    for (auto &c : custodians) SecureZeroMemory(c.password.data(), c.password.size());
+}
+
+static std::string folder_prefix(const std::wstring &f) {
+    std::wstring w = f;
+    std::replace(w.begin(), w.end(), L'\\', L'/');
+    while (!w.empty() && (w.front() == L'/' || w.front() == L' ')) w.erase(w.begin());
+    while (!w.empty() && (w.back() == L'/' || w.back() == L' ')) w.pop_back();
+    return utf8(w);
+}
+
+bool build_access(const Access &a, AccessBuild &b, std::wstring &error) {
+    // Each distinct folder is a group; an entry listing folder F opens F and the folders under it.
+    std::vector<std::string> folders;
+    for (auto &e : a.entries)
+        for (auto &f : e.folders) {
+            std::string p = folder_prefix(f);
+            if (!p.empty() && std::find(folders.begin(), folders.end(), p) == folders.end()) folders.push_back(p);
+        }
+    bool main_open = false;
+    for (auto &e : a.entries) main_open |= e.folders.empty();
+    if (!main_open) { error = T(S::AcNoMain); return false; }
+    auto keep = [&](const std::string &s) { b.strings.push_back(s); return b.strings.back().c_str(); };
+    b.prefix_lists.reserve(folders.size());
+    for (auto &f : folders) {
+        b.prefix_lists.push_back({keep(f)});
+        b.groups.push_back({keep(f), nullptr, 1});
+    }
+    for (size_t i = 0; i < folders.size(); i++) b.groups[i].prefixes = b.prefix_lists[i].data();
+    b.group_lists.reserve(a.entries.size());
+    auto groups_of = [&](const AccessEntry &e, const uint16_t *&list, size_t &count) {
+        list = nullptr;
+        count = 0;
+        if (e.folders.empty()) return;
+        std::vector<uint16_t> g;
+        for (auto &f : e.folders) {
+            std::string p = folder_prefix(f);
+            for (size_t i = 0; i < folders.size(); i++)
+                if ((folders[i] == p || folders[i].rfind(p + "/", 0) == 0) &&
+                    std::find(g.begin(), g.end(), (uint16_t)(i + 1)) == g.end())
+                    g.push_back((uint16_t)(i + 1));
+        }
+        b.group_lists.push_back(g);
+        list = b.group_lists.back().data();
+        count = b.group_lists.back().size();
+    };
+    b.custodian_lists.reserve(a.entries.size());
+    for (auto &e : a.entries) {
+        if (e.kind == AccessEntry::Custodians) {
+            xiz_threshold t{};
+            t.k = e.k;
+            t.label = keep(utf8(e.label));
+            std::vector<xiz_custodian> cs;
+            for (auto &c : e.custodians) {
+                xiz_custodian x{};
+                x.type = c.type;
+                x.label = keep(utf8(c.label));
+                x.password = c.type == XIZ_RECIPIENT_PASSWORD ? keep(c.password) : nullptr;
+                x.public_key = c.type == XIZ_RECIPIENT_PASSWORD ? nullptr : c.key.data();
+                cs.push_back(x);
+            }
+            b.custodian_lists.push_back(cs);
+            t.custodians = b.custodian_lists.back().data();
+            t.custodian_count = b.custodian_lists.back().size();
+            groups_of(e, t.groups, t.group_count);
+            b.thresholds.push_back(t);
+            continue;
+        }
+        xiz_recipient r{};
+        r.label = keep(utf8(e.label));
+        if (e.kind == AccessEntry::Password) {
+            r.type = e.has_factor ? XIZ_RECIPIENT_PASSWORD_FACTOR : XIZ_RECIPIENT_PASSWORD;
+            r.password = keep(e.password);
+            r.factor = e.has_factor ? e.factor.data() : nullptr;
+        } else {
+            r.type = e.key_type == XIZ_SECRET_XWING ? XIZ_RECIPIENT_XWING : XIZ_RECIPIENT_X25519;
+            r.public_key = e.key.data();
+        }
+        groups_of(e, r.groups, r.group_count);
+        b.recipients.push_back(r);
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------- stored keys (DPAPI)
+
+static std::wstring keys_dir() {
+    PWSTR p = nullptr;
+    std::wstring d;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &p))) { d = p; CoTaskMemFree(p); }
+    d += L"\\XipperXIZ\\keys";
+    SHCreateDirectoryExW(nullptr, d.c_str(), nullptr);
+    return d;
+}
+
+static bool read_file(const std::wstring &path, std::string &out) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    char buf[8192];
+    DWORD n = 0;
+    out.clear();
+    while (ReadFile(h, buf, sizeof buf, &n, nullptr) && n) out.append(buf, n);
+    CloseHandle(h);
+    SecureZeroMemory(buf, sizeof buf);
+    return true;
+}
+
+static bool write_file(const std::wstring &path, const void *data, size_t n) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    DWORD w = 0;
+    bool ok = WriteFile(h, data, (DWORD)n, &w, nullptr) && w == n;
+    CloseHandle(h);
+    return ok;
+}
+
+// The secret text, protected for the current Windows user.
+static bool store_secret(const std::wstring &name, const std::string &secret, const std::string &pub, std::wstring &error) {
+    DATA_BLOB in{(DWORD)secret.size(), (BYTE *)secret.data()}, out{};
+    if (!CryptProtectData(&in, L"Xipper XIZ key", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) {
+        error = L"DPAPI";
+        return false;
+    }
+    std::wstring base = keys_dir() + L"\\" + name;
+    bool ok = write_file(base + L".xizkey", out.pbData, out.cbData) && write_file(base + L".pub", pub.data(), pub.size());
+    LocalFree(out.pbData);
+    if (!ok) error = base;
+    return ok;
+}
+
+static bool load_secret(const std::wstring &file, std::string &secret) {
+    std::string blob;
+    if (!read_file(file, blob)) return false;
+    DATA_BLOB in{(DWORD)blob.size(), (BYTE *)blob.data()}, out{};
+    if (!CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
+    secret.assign((const char *)out.pbData, out.cbData);
+    SecureZeroMemory(out.pbData, out.cbData);
+    LocalFree(out.pbData);
+    return true;
+}
+
+std::vector<StoredKey> stored_keys() {
+    std::vector<StoredKey> keys;
+    std::wstring d = keys_dir();
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((d + L"\\*.xizkey").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return keys;
+    do {
+        StoredKey k;
+        std::wstring fn = fd.cFileName;
+        k.name = fn.substr(0, fn.size() - 7);
+        k.file = d + L"\\" + fn;
+        std::string pub;
+        if (read_file(d + L"\\" + k.name + L".pub", pub)) {
+            while (!pub.empty() && (pub.back() == '\n' || pub.back() == '\r')) pub.pop_back();
+            k.pub = wide(pub);
+            k.pq = pub.rfind("xizpq1", 0) == 0;
+        }
+        keys.push_back(k);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(keys.begin(), keys.end(), [](const StoredKey &a, const StoredKey &b) { return a.name < b.name; });
+    return keys;
+}
+
+static bool valid_name(const std::wstring &n) {
+    return !n.empty() && n.size() < 100 && n.find_first_of(L"<>:\"/\\|?*") == std::wstring::npos && n.back() != L'.' && n.back() != L' ';
+}
+
+bool new_stored_key(const std::wstring &name, bool pq, std::wstring &error) {
+    if (!valid_name(name)) { error = name; return false; }
+    char sec[64], pub[1700];
+    if (xiz_generate_identity(pq ? 1 : 0, sec, sizeof sec, pub, sizeof pub) != XIZ_OK) { error = L"keygen"; return false; }
+    bool ok = store_secret(name, sec, std::string(pub) + "\n", error);
+    SecureZeroMemory(sec, sizeof sec);
+    return ok;
+}
+
+bool import_stored_key(const std::wstring &path, const std::wstring &name, std::wstring &error) {
+    if (!valid_name(name)) { error = name; return false; }
+    std::string text;
+    if (!read_file(path, text)) { error = path; return false; }
+    Secret s{};
+    int kind = xiz_parse_secret(text.data(), text.size(), s.data());
+    SecureZeroMemory(s.data(), s.size());
+    char pub[1700];
+    if ((kind != XIZ_SECRET_X25519 && kind != XIZ_SECRET_XWING) || xiz_public_from_secret(text.data(), text.size(), pub, sizeof pub) != XIZ_OK) {
+        SecureZeroMemory(text.data(), text.size());
+        error = T(S::CrKeyInvalid);
+        return false;
+    }
+    bool ok = store_secret(name, text, std::string(pub) + "\n", error);
+    SecureZeroMemory(text.data(), text.size());
+    return ok;
+}
+
+bool export_stored_key(const StoredKey &k, const std::wstring &path, std::wstring &error) {
+    std::string secret;
+    if (!load_secret(k.file, secret)) { error = k.file; return false; }
+    bool ok = write_file(path, secret.data(), secret.size());
+    SecureZeroMemory(secret.data(), secret.size());
+    if (!ok) error = path;
+    return ok;
+}
+
+bool delete_stored_key(const StoredKey &k) {
+    std::wstring base = k.file.substr(0, k.file.size() - 7);
+    return DeleteFileW(k.file.c_str()) && (DeleteFileW((base + L".pub").c_str()) || true);
+}
+
+void add_stored_identities(Credentials &c) {
+    for (auto &k : stored_keys()) {
+        std::string secret;
+        if (!load_secret(k.file, secret)) continue;
+        Secret s{};
+        int kind = xiz_parse_secret(secret.data(), secret.size(), s.data());
+        SecureZeroMemory(secret.data(), secret.size());
+        if (kind == XIZ_SECRET_X25519) c.identities.push_back(s);
+        else if (kind == XIZ_SECRET_XWING) c.pq_identities.push_back(s);
+        else continue;
+        c.given.push_back(fmt(S::GivenStored, k.name.c_str()));
+        c.kinds.push_back(kind);
+        SecureZeroMemory(s.data(), s.size());
+    }
+}
+
 static void writer_options(Job &j, xiz_writer_options &o) {
     o = xiz_writer_options{};
     o.level = j.level;
@@ -529,6 +761,22 @@ static void create(Job &j) {
     j.total = 2 * bytes;  // every file is read twice: hash, then data
     xiz_writer_options o;
     writer_options(j, o);
+    AccessBuild ab;
+    if (j.access && !j.access->empty()) {
+        std::wstring why;
+        if (!build_access(*j.access, ab, why)) {
+            j.rc = XIZ_E_ARG;
+            snprintf(j.err.message, sizeof j.err.message, "%s", utf8(why).c_str());
+            return;
+        }
+        o.password = nullptr;
+        o.groups = ab.groups.data();
+        o.group_count = ab.groups.size();
+        o.recipients = ab.recipients.data();
+        o.recipient_count = ab.recipients.size();
+        o.thresholds = ab.thresholds.data();
+        o.threshold_count = ab.thresholds.size();
+    }
     xiz_writer *w = nullptr;
     j.rc = xiz_writer_create(&w, utf8(j.path).c_str(), &o, 1, &j.err);
     for (size_t i = 0; j.rc == XIZ_OK && i < j.sources.size(); i++) {

@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ** di Xipper (lettura fino alla 1.14; scrittura 1.0, e 1.14 per gli archivi cifrati), scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ** di Xipper (lettura fino alla 1.14; scrittura 1.0, 1.14 per gli archivi cifrati, 1.3 con gruppi e destinatari), scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -27,7 +27,8 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | Beta 0.1 (§9) | dietro `XIZ_OPEN_ALLOW_BETA`, senza fixture |
 | Scrittura: zstd, frame da 4 MiB compressi in parallelo (`threads`), deduplica per file, password con commitment delle chiavi (XIZ 1.14, stanza 9), avanzamento e annullamento (`progress`) | completo |
 | Scrittura: segmenti aggiunti (aggiunte, rimozioni, cartelle) su archivi 1.0–1.2/1.4 | completo |
-| Scrittura di strutture 1.3 (gruppi, firme, slot), dizionari, LZMA2 | non prevista |
+| Scrittura 1.3: gruppi di accesso, destinatari password / X25519 / X-Wing / password con fattore, custodi k-di-n (stanza 2–9), cataloghi di gruppo, foglie di Merkle e directory (§13, §17, §24); chiavi pubbliche (`xiz_parse_public_key`), nuove identità e fattori (`xiz_generate_identity`, `xiz_generate_factor`) | completo (archivi nuovi; letti da Xipper per Mac) |
+| Scrittura di firme, slot cancellabili, dizionari, LZMA2; append su archivi 1.3 | non prevista |
 | 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
 | 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
 | 1.7: destinatari e custodi post-quantum X-Wing (§17) | lettura completa: ML-KEM-768 di mlkem-native + X25519, `--identity` con `XIZ-SECRET-KEY-PQ-1-…` |
@@ -208,7 +209,7 @@ Né CryptoKit né CommonCrypto: tutto è portabile e compilato dai sorgenti.
 | AES-256-GCM | BearSSL 0.6, `aes_ct64*` (AES bitsliced a tempo costante) + `ghash_ctmul64` + `gcm.c` | MIT |
 | ECDSA P-256, RSA PKCS#1 v1.5 (verifica), certificato X.509 (chiave pubblica) | BearSSL 0.6, `ec_p256_m31`, `ecdsa_i31_vrfy_*`, `rsa_i31_pkcs1_vrfy`, `rsa_i31_pub`, `x509_decoder` e gli `i31_*` che servono | MIT |
 | X25519, Ed25519 (SHA-512) | [Monocypher](https://monocypher.org) 4.0.2, `monocypher.c` e `optional/monocypher-ed25519.c` | BSD-2-Clause o CC0 |
-| ML-KEM-768 (decapsulazione, destinatari X-Wing §17), SHA3-256, SHAKE-256 | [mlkem-native](https://github.com/pq-code-package/mlkem-native) 2.0.0 (PQ Code Package), `mlkem/` in C portabile, senza `native/` né assembly, senza incapsulamento | Apache-2.0, ISC o MIT |
+| ML-KEM-768 (incapsulamento e decapsulazione, destinatari X-Wing §17), SHA3-256, SHAKE-256 | [mlkem-native](https://github.com/pq-code-package/mlkem-native) 2.0.0 (PQ Code Package), `mlkem/` in C portabile, senza `native/` né assembly | Apache-2.0, ISC o MIT |
 | ML-DSA-65 (verifica, firme ibride §22) | [mldsa-native](https://github.com/pq-code-package/mldsa-native) 2.0.0 (PQ Code Package), `mldsa/` in C portabile, senza `native/` né generazione di chiavi | Apache-2.0, ISC o MIT |
 | Argon2id | PHC reference (`../Vendor/argon2`, già usata da Xipper) | CC0 o Apache-2.0 |
 | CRC-32C | proprio (tabelle slice-by-8; istruzioni CRC su ARMv8) | MIT |
@@ -277,7 +278,7 @@ funzione `make_114_fixtures` dello script.
 ## Limiti noti
 
 - Niente verifica CMS delle marche temporali RFC 3161 (presenza riportata).
-- Il writer non produce strutture 1.3 né dizionari o LZMA2; l'append su archivi 1.3 è rifiutato.
+- Il writer non firma, non scrive slot cancellabili, dizionari o LZMA2; l'append su archivi 1.3 è rifiutato.
 - Il writer deduplica per file intero (SHA-256), non per chunk a contenuto variabile.
 - La decompressione è a thread singolo (un archivio per thread); niente prefetch parallelo dei frame.
 - In scrittura gli hash di ogni file (SHA-256, e HMAC se cifrato) restano su un thread: con i livelli bassi sono loro il limite, non la compressione.

@@ -160,6 +160,25 @@ $A /append mk/pw.xiz /src mk/extra.txt /passenv NFD /quiet /log apppw.log; wines
 code apppw.log 0 && $X list --password-env NFC mk/pw.xiz | tr -d '\r' | grep -qx 'extra.txt' && $X recovery info mk/pw.xiz > /dev/null 2>&1 \
     && ok append-password-keeps-record || { cat apppw.log; no append-password-keeps-record; }
 
+# C2: recipients, folders, second factor, custodians, the user's own key (DPAPI).
+export PA='alpha pass' PB='beta pass' PC1='cust one' PC2='cust two'
+$A /keygen mine /pq /quiet /log kg.log; wineserver -w
+sed -n 's/^public //p' kg.log | tr -d '\r' > mine.pub
+code kg.log 0 && grep -q '^xizpq1' mine.pub && ok keygen-dpapi || { cat kg.log; no keygen-dpapi; }
+mkdir -p c2/src/lab c2/src/doc && echo r1 > c2/src/lab/r1.txt && echo d1 > c2/src/doc/d1.txt
+$A /new c2/a.xiz /src c2/src /to-pass PA /to-key mine.pub /only src/lab /to-factor PB c2/b.xizfactor \
+   /custodians 2 /cust-pass PC1 /cust-pass PC2 /only src/lab /quiet /log c2new.log; wineserver -w
+code c2new.log 0 && $X info --password-env PA c2/a.xiz | tr -d '\r' | grep -q 'XIZ 1.14' && ok c2-create || { cat c2new.log; no c2-create; }
+[ "$($X list --password-env PA c2/a.xiz | tr -d '\r' | grep -c 'txt$')" = 2 ] && ok c2-password-all || no c2-password-all
+[ "$($X list --password-env PB --factor c2/b.xizfactor c2/a.xiz | tr -d '\r' | grep -c 'txt$')" = 2 ] && ok c2-factor || no c2-factor
+$X list --password-env PB c2/a.xiz > /dev/null 2>&1; [ $? = 3 ] && ok c2-factor-required || no c2-factor-required
+L=$($X list --password-env PC1 --password-env PC2 c2/a.xiz | tr -d '\r')
+echo "$L" | grep -q 'src/lab/r1.txt' && ! echo "$L" | grep -q 'src/doc/d1.txt' && ok c2-custodians-lab-only || { echo "$L"; no c2-custodians-lab-only; }
+$A /x c2/a.xiz /d c2/out /quiet /log c2x.log; wineserver -w
+code c2x.log 0 && [ -f c2/out/src/lab/r1.txt ] && [ ! -f c2/out/src/doc/d1.txt ] && ok c2-stored-key-opens-lab || { cat c2x.log; no c2-stored-key-opens-lab; }
+$A /info c2/a.xiz /passenv PA /quiet /log c2i.log; wineserver -w
+grep -q 'src/lab' c2i.log && grep -q 'custodians' c2i.log && ok c2-properties || { cat c2i.log; no c2-properties; }
+
 $A /register /quiet; wineserver -w
 wine reg query 'HKCU\Software\Classes\.xiz' 2> /dev/null | grep -q XipperXIZ.Archive &&
     wine reg query 'HKCU\Software\Classes\XipperXIZ.Archive\shell\extracthere\command' 2> /dev/null | grep -q '/x' && ok register || no register
@@ -201,6 +220,11 @@ if [ "${SHOTS:-1}" = 1 ]; then
             /d 'WenQuanYi Micro Hei' /f > /dev/null 2>&1
     done
     wineserver -w
+    $A /ui-access /to-pass PA /label Ufficio /to-key mine.pub /only src/lab /label Laboratorio /to-factor PB /tmp/f.xizfactor \
+       /custodians 2 /cust-pass PC1 /cust-pass PC2 /label 'Custodi DPO' & shot access 8
+    wineserver -k; sleep 1
+    $A /ui-keys & shot keys 8
+    wineserver -k; sleep 1
     for l in de ja zh-Hans; do XIZW_LANG=$l $A in/plain.xiz & shot "main-$l" 8; wineserver -k; sleep 1; done
     XIZW_LANG=fr $A in/access.xiz & shot credentials-fr 8
     wineserver -k

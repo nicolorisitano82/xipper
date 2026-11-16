@@ -65,7 +65,7 @@ target_include_directories(xiz_crypto SYSTEM PUBLIC third_party/bearssl/inc thir
 add_library(xiz_mldsa OBJECT src/mldsa.c)
 target_include_directories(xiz_mldsa SYSTEM PUBLIC third_party/mldsa-native/mldsa)
 
-# ML-KEM-768 decapsulation (mlkem-native 2.0.0, portable C): X-Wing recipients (§17).
+# ML-KEM-768 (mlkem-native 2.0.0, portable C): X-Wing recipients (§17), encapsulation and decapsulation.
 add_library(xiz_mlkem OBJECT src/mlkem.c)
 target_include_directories(xiz_mlkem SYSTEM PUBLIC third_party/mlkem-native/mlkem)
 

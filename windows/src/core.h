@@ -7,6 +7,8 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -99,6 +101,64 @@ struct Conflict {
     bool all = false;  // apply the answer to the next conflicts
 };
 
+// ---- who can open a new archive (XIZ 1.3, §13): passwords, public keys, custodians; each one
+// opens everything or only some folders (which become access groups).
+
+struct Custodian {
+    std::wstring label;
+    int type = XIZ_RECIPIENT_PASSWORD;   // or XIZ_RECIPIENT_X25519, XIZ_RECIPIENT_XWING
+    std::string password;                // NFC, UTF-8
+    std::vector<uint8_t> key;            // public key
+};
+
+struct AccessEntry {
+    enum Kind { Password, Key, Custodians } kind = Password;
+    std::wstring label;
+    std::vector<std::wstring> folders;   // archive folders ("a/b"); empty: everything
+    std::string password;                // Password: NFC, UTF-8
+    bool has_factor = false;
+    Secret factor{};                     // Password with a second factor
+    int key_type = 0;                    // Key: XIZ_SECRET_X25519 or XIZ_SECRET_XWING
+    std::vector<uint8_t> key;
+    int k = 2;                           // Custodians: k of custodians.size()
+    std::vector<Custodian> custodians;
+    void wipe();
+};
+
+struct Access {
+    std::vector<AccessEntry> entries;
+    bool empty() const { return entries.empty(); }
+    ~Access() { for (auto &e : entries) e.wipe(); }
+};
+
+// libxiz's options for an Access; the storage the pointers point into lives here.
+struct AccessBuild {
+    std::deque<std::string> strings;             // labels, names, prefixes, passwords (a deque: stable)
+    std::vector<std::vector<const char *>> prefix_lists;
+    std::vector<std::vector<uint16_t>> group_lists;
+    std::vector<xiz_group_spec> groups;
+    std::vector<xiz_recipient> recipients;
+    std::vector<std::vector<xiz_custodian>> custodian_lists;
+    std::vector<xiz_threshold> thresholds;
+    ~AccessBuild() { for (auto &s : strings) SecureZeroMemory(s.data(), s.size()); }
+};
+// Folders → groups; false with `error` when the folders not listed would open for nobody.
+bool build_access(const Access &a, AccessBuild &b, std::wstring &error);
+
+// ---- the user's own keys, to open archives sent to them: secrets protected by DPAPI (current
+// user) in %APPDATA%\XipperXIZ\keys, public texts next to them.
+struct StoredKey {
+    std::wstring name, pub, file;
+    bool pq = false;
+};
+std::vector<StoredKey> stored_keys();
+bool new_stored_key(const std::wstring &name, bool pq, std::wstring &error);
+bool import_stored_key(const std::wstring &path, const std::wstring &name, std::wstring &error);
+bool export_stored_key(const StoredKey &k, const std::wstring &path, std::wstring &error);
+bool delete_stored_key(const StoredKey &k);
+// Adds every stored identity to `c` (archives sent to the user open without asking).
+void add_stored_identities(Credentials &c);
+
 struct Job {
     enum Kind { Extract, Test, Repair, Create, Update } kind = Extract;
     std::wstring path;              // the archive (Test: its recovery record; Repair: the original)
@@ -124,6 +184,7 @@ struct Job {
     int level = 9;
     std::string password;               // NFC, UTF-8; empty: none
     bool strong = false, recovery = false;
+    std::shared_ptr<Access> access;     // Create: recipients, custodians, groups (XIZ 1.3)
     uint64_t total = 0;                 // bytes the writer will read (progress)
     uint64_t files = 0, bytes_in = 0;   // Create: what went in
     std::vector<std::wstring> problems;

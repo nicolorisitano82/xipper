@@ -143,6 +143,11 @@ int argon2id_kek(const char *password, const uint8_t salt[32], uint32_t mem_kib,
 
 int xiz_random(void *buf, size_t n);
 
+/* Writing XIZ 1.3/1.7 keys blocks (keys.c). */
+int xwing_encap(const uint8_t pk[1216], uint8_t ct[1120], uint8_t ss[32]);
+int xwing_public(const uint8_t seed[32], uint8_t pk[1216]);
+int shamir_split(const uint8_t secret[32], int k, int n, uint8_t (*shares)[32]);
+
 /* ------------------------------------------------------------------ model */
 
 typedef struct {

@@ -212,6 +212,52 @@
     X(VerbAddToXiz, L"Aggiungi a un archivio XIZ…", L"Add to an XIZ archive…") \
     X(CantModify, L"Questo archivio non si può modificare qui (gruppi di accesso, chiavi, firme o secondo fattore): usa Xipper sul Mac.", L"This archive cannot be changed here (access groups, keys, signatures or a second factor): use Xipper on a Mac.") \
     X(DefaultArchiveName, L"Archivio", L"Archive") \
+    X(AccessBtn, L"Destinatari e custodi…", L"Recipients and custodians…") \
+    X(AccessInfo, L"%u modi di accesso: la password qui sopra non viene usata.", L"%u ways in: the password above is not used.") \
+    X(AcTitle, L"Chi può aprire l'archivio", L"Who can open the archive") \
+    X(AcColWho, L"Chi", L"Who") \
+    X(AcColFolders, L"Cartelle", L"Folders") \
+    X(AcAddPw, L"Password…", L"Password…") \
+    X(AcAddKey, L"Chiave pubblica…", L"Public key…") \
+    X(AcAddCust, L"Custodi…", L"Custodians…") \
+    X(AcHint, L"Le cartelle sono quelle dell'archivio, per esempio «documenti/2026». Chi non ha cartelle elencate apre tutto.", L"Folders are the archive's, e.g. “documents/2026”. Whoever has no folders listed opens everything.") \
+    X(AcKindPw, L"Password", L"Password") \
+    X(AcKindPwFactor, L"Password + fattore", L"Password + factor") \
+    X(AcKindKey, L"Chiave", L"Key") \
+    X(AcKindKeyPq, L"Chiave post-quantum", L"Post-quantum key") \
+    X(AcKindCust, L"%d custodi su %d", L"%d of %d custodians") \
+    X(AcAll, L"tutto", L"everything") \
+    X(AcLabel, L"Etichetta (visibile a tutti):", L"Label (visible to anyone):") \
+    X(AcFactor, L"Con un secondo fattore (un file .xizfactor da tenere a parte)", L"With a second factor (a .xizfactor file to keep apart)") \
+    X(AcFolders, L"Solo queste cartelle (una per riga; vuoto: tutto):", L"Only these folders (one per line; empty: everything):") \
+    X(AcKeyLabel, L"Chiave pubblica (xizpk1…, xizpq1…, age1…):", L"Public key (xizpk1…, xizpq1…, age1…):") \
+    X(AcFromFile, L"Da file…", L"From file…") \
+    X(AcKeyInvalid, L"Non è una chiave pubblica XIZ o age.", L"Not an XIZ or age public key.") \
+    X(AcNeed, L"Ne servono", L"Needed:") \
+    X(AcOfN, L"su %u", L"of %u") \
+    X(AcCustKey, L"Chiave…", L"Key…") \
+    X(AcCustTooFew, L"Servono almeno 2 custodi, e non più di quanti ce ne sono.", L"At least 2 custodians are needed, and no more than there are.") \
+    X(AcNoMain, L"Le cartelle non elencate non le aprirebbe nessuno: aggiungi un accesso senza cartelle.", L"Nobody would open the folders not listed: add a way in without folders.") \
+    X(AcFactorSave, L"Salva il file del secondo fattore", L"Save the second factor file") \
+    X(AcFactorFile, L"Tieni «%ls» separato dall'archivio: senza, la password non basta.", L"Keep “%ls” apart from the archive: without it the password is not enough.") \
+    X(AcNone, L"Aggiungi almeno una password, una chiave o un gruppo di custodi.", L"Add at least a password, a key or a custodian group.") \
+    X(MenuKeys, L"Le mie c&hiavi…", L"My &keys…") \
+    X(KeysTitle, L"Le mie chiavi", L"My keys") \
+    X(KeysNote, L"Servono ad aprire gli archivi indirizzati a te: dai agli altri la chiave pubblica. Le chiavi segrete restano in questo PC, protette da Windows per il tuo utente.", L"They open archives sent to you: give others the public key. The secret keys stay on this PC, protected by Windows for your user.") \
+    X(KeysNew, L"Nuova…", L"New…") \
+    X(KeysCopy, L"Copia la chiave pubblica", L"Copy the public key") \
+    X(KeysImport, L"Importa…", L"Import…") \
+    X(KeysExport, L"Esporta…", L"Export…") \
+    X(KeysColPublic, L"Chiave pubblica", L"Public key") \
+    X(KeysTypePq, L"post-quantum", L"post-quantum") \
+    X(KeysNameLabel, L"Nome della chiave:", L"Key name:") \
+    X(KeysPq, L"Post-quantum (consigliata)", L"Post-quantum (recommended)") \
+    X(KeysCopied, L"Chiave pubblica copiata negli appunti.", L"Public key copied to the clipboard.") \
+    X(KeysExportWarn, L"Chi ha questo file apre gli archivi indirizzati a te. Esportarlo?", L"Whoever has this file opens the archives sent to you. Export it?") \
+    X(KeysDeleteWarn, L"Eliminare «%ls»? Gli archivi indirizzati a questa chiave non si apriranno più qui.", L"Delete “%ls”? Archives sent to this key will no longer open here.") \
+    X(GivenStored, L"Chiave salvata: %ls", L"Stored key: %ls") \
+    X(SecretFilter, L"Chiavi segrete (*.key)", L"Secret keys (*.key)") \
+    X(PublicFilter, L"Chiavi pubbliche (*.pub, *.txt)", L"Public keys (*.pub, *.txt)") \
     X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica (e recovery record)\n  /repair archivio            ripara una copia col recovery record\n  /info archivio              proprietà e firme\n  /passenv VAR, /identity FILE, /factor FILE   credenziali (ripetibili)\n  /new archivio /src FILE [/level 3|9|19] [/passenv VAR] [/recovery]   crea\n  /append archivio /src FILE [/folder CARTELLA], /remove archivio /entry PERCORSO\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify (and the recovery record)\n  /repair archive          repair a copy with the recovery record\n  /info archive            properties and signatures\n  /passenv VAR, /identity FILE, /factor FILE   credentials (repeatable)\n  /new archive /src FILE [/level 3|9|19] [/passenv VAR] [/recovery]   create\n  /append archive /src FILE [/folder FOLDER], /remove archive /entry PATH\n  /register, /unregister   associate .xiz files, or not")
 
 enum class S {

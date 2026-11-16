@@ -800,6 +800,154 @@ static void test_writer(const char *scratch) {
     CHECK(!exists(a1));
 }
 
+/* ------------------------------------------------------------------ writer: XIZ 1.3 */
+
+static size_t visible(xiz_archive *a, const char *prefix) {
+    size_t n = 0;
+    for (size_t i = 0; i < xiz_entry_count(a); i++) {
+        xiz_entry e;
+        xiz_get_entry(a, i, &e);
+        if (!strncmp(e.path, prefix, strlen(prefix))) n++;
+    }
+    return n;
+}
+
+static int open_with(const char *path, const xiz_open_options *o, xiz_archive **a) {
+    xiz_error e;
+    return xiz_open_file(a, path, o, &e);
+}
+
+static void test_writer13(const char *scratch) {
+    char root[1024], path[1100];
+    snprintf(root, sizeof root, "%s/w13XXXXXX", scratch);
+    mkdir(scratch, 0755);
+    if (!mkdtemp(root)) { CHECK(0); return; }
+    snprintf(path, sizeof path, "%s/a.xiz", root);
+    /* Keys: an X25519 and an X-Wing identity, a factor. */
+    char sec[64], pub[64], sec_pq[64], pub_pq[1700], ftext[64];
+    uint8_t x_pub[1216], q_pub[1216], factor[32], x_sec[32], q_sec[32], f2[32];
+    size_t kl;
+    CHECK(xiz_generate_identity(0, sec, sizeof sec, pub, sizeof pub) == XIZ_OK);
+    CHECK(xiz_generate_identity(1, sec_pq, sizeof sec_pq, pub_pq, sizeof pub_pq) == XIZ_OK);
+    CHECK(xiz_parse_public_key(pub, strlen(pub), x_pub, sizeof x_pub, &kl) == XIZ_SECRET_X25519 && kl == 32);
+    CHECK(xiz_parse_public_key(pub_pq, strlen(pub_pq), q_pub, sizeof q_pub, &kl) == XIZ_SECRET_XWING && kl == 1216);
+    CHECK(xiz_parse_secret(sec, strlen(sec), x_sec) == XIZ_SECRET_X25519);
+    CHECK(xiz_parse_secret(sec_pq, strlen(sec_pq), q_sec) == XIZ_SECRET_XWING);
+    char again[1700];
+    CHECK(xiz_public_from_secret(sec_pq, strlen(sec_pq), again, sizeof again) == XIZ_OK && !strcmp(again, pub_pq));
+    CHECK(xiz_generate_factor(ftext, sizeof ftext, factor) == XIZ_OK);
+    CHECK(xiz_parse_secret(ftext, strlen(ftext), f2) == XIZ_SECRET_FACTOR && !memcmp(f2, factor, 32));
+    /* An age recipient: the same key as age's Bech32 (test vector computed here from x_pub). */
+    CHECK(xiz_parse_public_key("xizpk1short", 11, x_pub + 600, 616, &kl) < 0);
+
+    xiz_writer_options o;
+    memset(&o, 0, sizeof o);
+    o.kdf_memory_kib = 19456;
+    o.kdf_iterations = 1;
+    o.kdf_parallelism = 1;
+    o.frame_size = 64 * 1024;
+    static const char *const lab[] = {"lab"};
+    xiz_group_spec g[1] = {{"Laboratorio", lab, 1}};
+    static const uint16_t only_lab[] = {1}, only_main[] = {0};
+    xiz_recipient r[4];
+    memset(r, 0, sizeof r);
+    r[0].type = XIZ_RECIPIENT_PASSWORD; r[0].label = "Tutto"; r[0].password = "all secret";
+    r[1].type = XIZ_RECIPIENT_X25519; r[1].label = "Chiave"; r[1].public_key = x_pub; r[1].groups = only_lab; r[1].group_count = 1;
+    r[2].type = XIZ_RECIPIENT_XWING; r[2].label = "PQ"; r[2].public_key = q_pub; r[2].groups = only_main; r[2].group_count = 1;
+    r[3].type = XIZ_RECIPIENT_PASSWORD_FACTOR; r[3].label = "Fattore"; r[3].password = "with factor"; r[3].factor = factor;
+    xiz_custodian cu[3];
+    memset(cu, 0, sizeof cu);
+    cu[0].type = XIZ_RECIPIENT_PASSWORD; cu[0].label = "C1"; cu[0].password = "c one";
+    cu[1].type = XIZ_RECIPIENT_X25519; cu[1].label = "C2"; cu[1].public_key = x_pub;
+    cu[2].type = XIZ_RECIPIENT_XWING; cu[2].label = "C3"; cu[2].public_key = q_pub;
+    xiz_threshold th = {2, cu, 3, "Custodi", only_lab, 1};
+    o.groups = g; o.group_count = 1;
+    o.recipients = r; o.recipient_count = 4;
+    o.thresholds = &th; o.threshold_count = 1;
+    xiz_writer *w;
+    xiz_error e;
+    int rc = xiz_writer_create(&w, path, &o, 1, &e);
+    CHECK(rc == XIZ_OK);
+    if (rc) { fprintf(stderr, "  %s\n", e.message); return; }
+    char big[200000];
+    for (size_t i = 0; i < sizeof big; i++) big[i] = (char)(i * 13 + i / 777);
+    CHECK(xiz_writer_add_directory(w, "lab", NULL, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_data(w, "lab/r1.txt", "referto 1\n", 10, NULL, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_data(w, "lab/big.bin", big, sizeof big, NULL, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_data(w, "doc/a.txt", "documento\n", 10, NULL, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_data(w, "doc/big-copy.bin", big, sizeof big, NULL, &e) == XIZ_OK);  /* no dedup across groups */
+    CHECK(xiz_writer_add_symlink(w, "doc/link", "a.txt", NULL, &e) == XIZ_OK);
+    rc = xiz_writer_finish(w, &e);
+    CHECK(rc == XIZ_OK);
+    if (rc) { fprintf(stderr, "  %s\n", e.message); return; }
+
+    xiz_open_options oo;
+    xiz_archive *a;
+    memset(&oo, 0, sizeof oo);
+    oo.password = "all secret";
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    xiz_info in;
+    xiz_get_info(a, &in);
+    CHECK(in.has_directory && in.version_minor == 14 && in.group_count == 2 && in.hidden_groups == 0);
+    CHECK(visible(a, "lab/") == 2 && visible(a, "doc/") == 3);
+    CHECK(xiz_test(a, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    CHECK(xiz_check_tree(a, &e) == XIZ_OK);
+    uint32_t leaf;
+    CHECK(xiz_check_inclusion(a, 1, &leaf, &e) == XIZ_OK);
+    xiz_group gr;
+    CHECK(xiz_get_group(a, 1, &gr) == XIZ_OK && gr.name && !strcmp(gr.name, "Laboratorio") && gr.prefix_count == 1);
+    xiz_close(a);
+    /* The X25519 key: the laboratory only. */
+    memset(&oo, 0, sizeof oo);
+    oo.identities = (const uint8_t(*)[32])x_sec; oo.identity_count = 1;
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    xiz_get_info(a, &in);
+    CHECK(in.hidden_groups == 1 && visible(a, "lab/") == 2 && visible(a, "doc/") == 0);
+    CHECK(xiz_test(a, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    xiz_close(a);
+    /* The X-Wing key: everything else. */
+    memset(&oo, 0, sizeof oo);
+    oo.pq_identities = (const uint8_t(*)[32])q_sec; oo.pq_identity_count = 1;
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    CHECK(visible(a, "lab/") == 0 && visible(a, "doc/") == 3);
+    xiz_close(a);
+    /* Password with factor: needs the factor. */
+    memset(&oo, 0, sizeof oo);
+    oo.password = "with factor";
+    CHECK(open_with(path, &oo, &a) == XIZ_E_FACTOR_REQUIRED);
+    oo.factors = (const uint8_t(*)[32])factor; oo.factor_count = 1;
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    CHECK(visible(a, "lab/") == 2 && visible(a, "doc/") == 3);
+    xiz_close(a);
+    /* Custodians: one is not enough, two (password + X-Wing) are. */
+    memset(&oo, 0, sizeof oo);
+    oo.password = "c one";
+    CHECK(open_with(path, &oo, &a) == XIZ_E_FACTOR_REQUIRED);  /* nothing opened, a factor stanza untried */
+    oo.pq_identities = (const uint8_t(*)[32])q_sec; oo.pq_identity_count = 1;
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    CHECK(visible(a, "lab/") == 2);  /* the custodians' group, plus the X-Wing recipient's */
+    xiz_close(a);
+    memset(&oo, 0, sizeof oo);
+    oo.password = "wrong";
+    CHECK(open_with(path, &oo, &a) == XIZ_E_FACTOR_REQUIRED);
+    /* Bad options are refused. */
+    o.password = "also";
+    CHECK(xiz_writer_create(&w, path, &o, 1, &e) == XIZ_E_ARG);
+    o.password = NULL;
+    th.k = 4;
+    CHECK(xiz_writer_create(&w, path, &o, 1, &e) == XIZ_E_ARG);
+    th.k = 2;
+    /* Kept with its keys for cross-checks by other readers (Xipper for Mac). */
+    const char *files[3][2] = {{"x25519.key", sec}, {"xwing.key", sec_pq}, {"f.xizfactor", ftext}};
+    for (int i = 0; i < 3; i++) {
+        char kp[1200];
+        snprintf(kp, sizeof kp, "%s/%s", root, files[i][0]);
+        FILE *kf = fopen(kp, "w");
+        if (kf) { fprintf(kf, "%s\n", files[i][1]); fclose(kf); }
+    }
+    printf("w13: %s\n", path);
+}
+
 /* ------------------------------------------------------------------ fixtures */
 
 static uint8_t *slurp(const char *path, size_t *n) {
@@ -1078,6 +1226,7 @@ int main(int argc, char **argv) {
     test_extraction(argv[2]);
     test_callbacks(argv[2]);
     test_writer(argv[2]);
+    test_writer13(argv[2]);
     test_fixture_flips(argv[1]);
     test_erased_slot(argv[1]);
     if (failures) { fprintf(stderr, "security: %d of %d checks failed\n", failures, checks); return 1; }

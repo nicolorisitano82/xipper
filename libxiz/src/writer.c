@@ -1,8 +1,11 @@
-/* Writer: new archives (XIZ 1.0, zstd frames, file-level deduplication, optional password
- * encryption) and appended segments (§11). Never produces 1.3 structures. */
+/* Writer: new archives (zstd frames compressed in parallel, file-level deduplication; a password,
+ * or XIZ 1.3 access groups with recipients, custodians and second factors, §13, §17, §24) and
+ * appended segments to archives without a directory (§11). */
 #include "internal.h"
 
 #include <stdio.h>
+
+#include "monocypher.h"
 
 #if defined(_WIN32)
 #  include <windows.h>
@@ -36,9 +39,10 @@ typedef struct {
     size_t n_xattrs;
     int has_digest;
     uint8_t digest[32];
-    uint8_t plain_sha[32];       /* dedup key, never written */
+    uint8_t plain_sha[32];       /* dedup key; with a directory, also the proof data (§13.6) */
     int has_plain_sha;
     int removed;
+    uint16_t group;              /* XIZ 1.3: its access group */
 } wentry;
 
 /* One frame on its way out: filled by the writer, compressed and sealed by a worker, written in
@@ -48,6 +52,7 @@ typedef struct {
     struct xiz_writer *w;
     uint8_t *in;
     uint32_t used, index;
+    uint16_t group;
     uint8_t *out;
     size_t out_cap, n;
     frame_rec f;
@@ -91,6 +96,16 @@ struct xiz_writer {
     xiz_progress_fn progress;
     void *progress_ctx;
     uint64_t read_bytes;
+    /* XIZ 1.3 (§13): a directory, a key per group, frames never shared between groups. */
+    int dir;
+    uint16_t n_groups;           /* group 0 included */
+    keyset *gkeys;
+    char **gname;
+    char ***gprefix;
+    size_t *gnprefix;
+    uint16_t cur_group;          /* the group of the frame being filled */
+    uint8_t *keys_block;
+    size_t keys_len;
     int failed;
 };
 
@@ -178,6 +193,30 @@ static int rename_path(const char *from, const char *to, int overwrite) {
 
 /* ------------------------------------------------------------------ frames */
 
+static const keyset *keys_for(const xiz_writer *w, uint16_t group) {
+    return w->dir ? &w->gkeys[group] : &w->keys;
+}
+
+/* §13.2: the group with the longest prefix equal to the path or to a leading run of its components. */
+static uint16_t group_of(const xiz_writer *w, const char *path) {
+    if (!w->dir) return 0;
+    while (*path == '/') path++;
+    size_t pl = strlen(path);
+    while (pl && path[pl - 1] == '/') pl--;
+    uint16_t best = 0;
+    size_t best_len = 0;
+    for (uint16_t g = 1; g < w->n_groups; g++)
+        for (size_t i = 0; i < w->gnprefix[g]; i++) {
+            const char *x = w->gprefix[g][i];
+            size_t xl = strlen(x);
+            if (xl > best_len && xl <= pl && memcmp(path, x, xl) == 0 && (xl == pl || path[xl] == '/')) {
+                best = g;
+                best_len = xl;
+            }
+        }
+    return best;
+}
+
 /* Compresses (zstd, or store when it does not shrink) and seals one frame: no shared state, so
  * workers run it in parallel. */
 static void seal_frame(wframe *p) {
@@ -203,10 +242,11 @@ static void seal_frame(wframe *p) {
         uint8_t nonce[12], aad[37];
         frame_nonce(p->index, nonce);
         frame_aad(w->sb.id, p->index, &p->f, aad);
-        aes_gcm_seal(w->keys.data, nonce, aad, sizeof aad, p->out, n, p->out + n);
+        aes_gcm_seal(keys_for(w, p->group)->data, nonce, aad, sizeof aad, p->out, n, p->out + n);
         n += XIZ_TAG;
     }
     p->f.csize = (uint32_t)n;
+    p->f.group = w->dir ? p->group : 0;
     p->f.crc = xiz_crc32c(0, p->out, n);
     p->n = n;
 }
@@ -293,6 +333,7 @@ static int flush_frame(xiz_writer *w, int final, xiz_error *err) {
         wframe *p = &w->slots[cur][w->filled[cur]++];
         p->used = w->used;
         p->index = w->next_index++;
+        p->group = w->cur_group;
         w->used = 0;
     }
     if (w->filled[cur] == (uint32_t)w->threads || (final && w->filled[cur])) {
@@ -321,6 +362,10 @@ static int add_extent(wentry *e, uint32_t frame, uint32_t off, uint32_t len) {
 }
 
 static int put_data(xiz_writer *w, wentry *e, const uint8_t *d, size_t n, xiz_error *err) {
+    if (w->dir && e->group != w->cur_group) {  /* a frame holds one group's data only */
+        if (w->used) TRY(flush_frame(w, 0, err));
+        w->cur_group = e->group;
+    }
     while (n) {
         uint32_t room = w->frame_size - w->used;
         uint32_t k = n < room ? (uint32_t)n : room;
@@ -396,6 +441,7 @@ static wentry *new_entry(xiz_writer *w, uint8_t type, const char *path, const xi
     e->type = type;
     e->path = p;
     e->path_len = len;
+    e->group = group_of(w, p);
     e->mode = m && m->mode ? (uint16_t)(m->mode & 07777) : (type == 1 ? 0755 : 0644);
     if (m) {
         e->uid = m->uid;
@@ -416,7 +462,8 @@ static int check_writer(xiz_writer *w, xiz_error *err) {
 static const wentry *find_same(const xiz_writer *w, const wentry *e) {
     for (size_t i = 0; i + 1 < w->n_entries; i++) {
         const wentry *o = &w->entries[i];
-        if (o->type == 0 && o->has_plain_sha && o->size == e->size && memcmp(o->plain_sha, e->plain_sha, 32) == 0)
+        if (o->type == 0 && o->has_plain_sha && o->group == e->group && o->size == e->size &&
+            memcmp(o->plain_sha, e->plain_sha, 32) == 0)  /* inside a group only (§13.2) */
             return o;
     }
     return NULL;
@@ -444,7 +491,7 @@ int xiz_writer_add_data(xiz_writer *w, const char *path, const void *data, size_
     if (same) return reuse(e, same, err);
     if (w->encrypted) {
         hmac_ctx h;
-        hmac_init(&h, w->keys.mac);
+        hmac_init(&h, keys_for(w, e->group)->mac);
         hmac_update(&h, data, len);
         hmac_final(&h, e->digest);
     } else {
@@ -522,7 +569,7 @@ int xiz_writer_add_file(xiz_writer *w, const char *path, const char *disk_path, 
     sha256_ctx sc;
     hmac_ctx hc;
     sha256_init(&sc);
-    if (w->encrypted) hmac_init(&hc, w->keys.mac);
+    if (w->encrypted) hmac_init(&hc, keys_for(w, group_of(w, path))->mac);
     uint64_t size = 0;
     long r;
     int rc = XIZ_OK;
@@ -789,6 +836,20 @@ static void writer_free(xiz_writer *w) {
     free(w->entries);
     free(w->frames);
     if (w->running >= 0) join_batch(w, w->running);
+    for (uint16_t g = 0; g < w->n_groups; g++) {
+        if (w->gname) free(w->gname[g]);
+        if (w->gprefix && w->gprefix[g]) {
+            for (size_t k = 0; k < w->gnprefix[g]; k++) free(w->gprefix[g][k]);
+            free(w->gprefix[g]);
+        }
+    }
+    if (w->gkeys) secure_zero(w->gkeys, w->n_groups * sizeof(keyset));
+    free(w->gkeys);
+    free(w->gname);
+    free(w->gprefix);
+    free(w->gnprefix);
+    if (w->keys_block) secure_zero(w->keys_block, w->keys_len);
+    free(w->keys_block);
     for (int s = 0; s < 2; s++) {
         if (!w->slots[s]) continue;
         for (int i = 0; i < w->threads; i++) {
@@ -809,6 +870,285 @@ static char *dup_str(const char *s) {
     char *d = malloc(n);
     if (d) memcpy(d, s, n);
     return d;
+}
+
+/* ------------------------------------------------------------------ XIZ 1.3 keys block (§13.3, §17, §24) */
+
+#define XIZ_WRITER_MAX_GROUPS 64
+
+static int recipient_kind_ok(int t) {
+    return t == XIZ_RECIPIENT_PASSWORD || t == XIZ_RECIPIENT_X25519 || t == XIZ_RECIPIENT_XWING;
+}
+
+static size_t label_len(const char *l) { return l ? strlen(l) : 0; }
+
+/* Credential header lengths: password (Argon2id) 44, X25519 40, X-Wing 1128. */
+static size_t cred_len(int t) { return t == XIZ_RECIPIENT_PASSWORD ? 44 : t == XIZ_RECIPIENT_X25519 ? 40 : 1128; }
+
+/* Writes the credential header of `t` into `h` and derives its key-encryption key. */
+static int put_credential(wbuf *h, int t, const char *password, const uint8_t *pub, uint32_t mem, uint32_t it, uint32_t par,
+                          uint8_t kek[32], xiz_error *err) {
+    if (t == XIZ_RECIPIENT_PASSWORD) {
+        uint8_t salt[32];
+        if (!password) return FAIL(XIZ_E_ARG, "a password recipient without a password");
+        if (xiz_random(salt, 32)) return FAIL(XIZ_E_IO, "no randomness");
+        wb_u32(h, mem); wb_u32(h, it); wb_u32(h, par); wb_put(h, salt, 32);
+        if (argon2id_kek(password, salt, mem, it, par, kek) != 0) return FAIL(XIZ_E_NOMEM, "Argon2id failed");
+        return XIZ_OK;
+    }
+    if (!pub) return FAIL(XIZ_E_ARG, "a key recipient without a public key");
+    uint8_t id[32];
+    if (t == XIZ_RECIPIENT_X25519) {
+        uint8_t esk[32], epk[32], shared[32], salt[64];
+        static const uint8_t zero[32];
+        if (xiz_random(esk, 32)) return FAIL(XIZ_E_IO, "no randomness");
+        crypto_x25519_public_key(epk, esk);
+        crypto_x25519(shared, esk, pub);
+        secure_zero(esk, 32);
+        if (ct_equal(shared, zero, 32)) return FAIL(XIZ_E_ARG, "invalid X25519 public key");
+        sha256(pub, 32, id);
+        memcpy(salt, epk, 32);
+        memcpy(salt + 32, pub, 32);
+        hkdf_sha256(shared, 32, salt, 64, "xiz/1.3/x25519", kek, 32);
+        secure_zero(shared, 32);
+        wb_put(h, epk, 32);
+        wb_put(h, id, 8);
+        return XIZ_OK;
+    }
+    uint8_t ct[1120], ss[32];
+    if (!xwing_encap(pub, ct, ss)) return FAIL(XIZ_E_ARG, "invalid post-quantum public key");
+    sha256(pub, 1216, id);
+    hkdf_sha256(ss, 32, id, 8, "xiz/1.7/xwing", kek, 32);
+    secure_zero(ss, 32);
+    wb_put(h, ct, 1120);
+    wb_put(h, id, 8);
+    return XIZ_OK;
+}
+
+static void put_label(wbuf *h, const char *label) {
+    size_t l = label_len(label);
+    wb_u8(h, (uint8_t)l);
+    if (l) wb_put(h, label, l);
+}
+
+/* type ‖ length ‖ header ‖ nonce ‖ AES-GCM(kek, plain) ‖ tag, with aad = superblock[0..<60] ‖ type ‖ header. */
+static int put_box(wbuf *blk, const uint8_t sbb[XIZ_SUPERBLOCK], uint8_t type, const wbuf *h, const uint8_t kek[32],
+                   const uint8_t *plain, size_t plen, xiz_error *err) {
+    uint8_t nonce[12], tag[16];
+    uint8_t *aad = malloc(61 + h->n), *ct = malloc(plen + 1);
+    if (!aad || !ct || h->oom) { free(aad); free(ct); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+    if (xiz_random(nonce, 12)) { free(aad); free(ct); return FAIL(XIZ_E_IO, "no randomness"); }
+    memcpy(aad, sbb, 60);
+    aad[60] = type;
+    memcpy(aad + 61, h->p, h->n);
+    memcpy(ct, plain, plen);
+    aes_gcm_seal(kek, nonce, aad, 61 + h->n, ct, plen, tag);
+    wb_u8(blk, type);
+    wb_u16(blk, (uint16_t)(h->n + 12 + plen + 16));
+    wb_put(blk, h->p, h->n);
+    wb_put(blk, nonce, 12);
+    wb_put(blk, ct, plen);
+    wb_put(blk, tag, 16);
+    free(aad);
+    secure_zero(ct, plen);
+    free(ct);
+    return XIZ_OK;
+}
+
+static size_t bundle_len(const uint16_t *groups, size_t count, uint16_t n_groups) {
+    return 2 + 34 * (groups ? count : n_groups);
+}
+
+static void put_bundle(wbuf *b, const uint16_t *groups, size_t count, uint16_t n_groups, const uint8_t (*gk)[32]) {
+    size_t n = groups ? count : n_groups;
+    wb_u16(b, (uint16_t)n);
+    for (size_t i = 0; i < n; i++) {
+        uint16_t g = groups ? groups[i] : (uint16_t)i;
+        wb_u16(b, g);
+        wb_put(b, gk[g], 32);
+    }
+}
+
+static int groups_ok(const uint16_t *groups, size_t count, uint16_t n_groups) {
+    if (groups && !count) return 0;
+    for (size_t i = 0; groups && i < count; i++) {
+        if (groups[i] >= n_groups) return 0;
+        for (size_t j = 0; j < i; j++)
+            if (groups[j] == groups[i]) return 0;
+    }
+    return 1;
+}
+
+static char *norm_prefix(const char *p) {
+    while (*p == '/') p++;
+    size_t l = strlen(p);
+    while (l && p[l - 1] == '/') l--;
+    if (!l) return NULL;
+    char *d = malloc(l + 1);
+    if (d) { memcpy(d, p, l); d[l] = 0; }
+    return d;
+}
+
+/* Groups, group keys and the keys block of a new XIZ 1.3 archive; fills w->sb and w->keys_block. */
+static int setup_directory(xiz_writer *w, const xiz_writer_options *o, xiz_error *err) {
+    if (o->password) return FAIL(XIZ_E_ARG, "with recipients a password is a recipient (XIZ_RECIPIENT_PASSWORD)");
+    if (o->group_count + 1 > XIZ_WRITER_MAX_GROUPS) return FAIL(XIZ_E_LIMIT, "at most %d groups", XIZ_WRITER_MAX_GROUPS - 1);
+    uint32_t mem = o->kdf_memory_kib ? o->kdf_memory_kib : 262144, it = o->kdf_iterations ? o->kdf_iterations : 3,
+             par = o->kdf_parallelism ? o->kdf_parallelism : 4;
+    if (mem < 19456 || mem > 2097152 || it < 1 || it > 10 || par < 1 || par > 16)
+        return FAIL(XIZ_E_ARG, "Argon2id parameters outside what readers accept");
+    uint16_t ng = (uint16_t)(o->group_count + 1);
+    w->dir = 1;
+    w->n_groups = ng;
+    w->gkeys = calloc(ng, sizeof(keyset));
+    w->gname = calloc(ng, sizeof(char *));
+    w->gprefix = calloc(ng, sizeof(char **));
+    w->gnprefix = calloc(ng, sizeof(size_t));
+    if (!w->gkeys || !w->gname || !w->gprefix || !w->gnprefix) return FAIL(XIZ_E_NOMEM, "out of memory");
+    for (uint16_t g = 1; g < ng; g++) {
+        const xiz_group_spec *gs = &o->groups[g - 1];
+        w->gname[g] = dup_str(gs->name ? gs->name : "");
+        w->gprefix[g] = calloc(gs->prefix_count + 1, sizeof(char *));
+        if (!w->gname[g] || !w->gprefix[g]) return FAIL(XIZ_E_NOMEM, "out of memory");
+        if (!gs->prefix_count) return FAIL(XIZ_E_ARG, "group %u without folders", g);
+        for (size_t k = 0; k < gs->prefix_count; k++) {
+            if (!(w->gprefix[g][k] = norm_prefix(gs->prefixes[k]))) return FAIL(XIZ_E_ARG, "group %u: empty folder", g);
+            w->gnprefix[g]++;
+        }
+    }
+    /* Sizes first: the superblock, authenticated by every stanza, holds the block's length. */
+    size_t total = 4 + 2 + 4, stanzas = 0;
+    for (size_t i = 0; i < o->recipient_count; i++) {
+        const xiz_recipient *r = &o->recipients[i];
+        size_t L = label_len(r->label), B = bundle_len(r->groups, r->group_count, ng), h;
+        if (L > 255 || !groups_ok(r->groups, r->group_count, ng)) return FAIL(XIZ_E_ARG, "recipient %zu: label or groups", i + 1);
+        if (r->type == XIZ_RECIPIENT_PASSWORD_FACTOR) {
+            if (!r->password || !r->factor) return FAIL(XIZ_E_ARG, "recipient %zu: password and factor", i + 1);
+            h = 52;
+        } else if (recipient_kind_ok(r->type)) {
+            h = cred_len(r->type);
+        } else {
+            return FAIL(XIZ_E_ARG, "recipient %zu: type %d", i + 1, r->type);
+        }
+        total += 3 + h + 1 + L + 28 + B;
+        stanzas++;
+    }
+    for (size_t t = 0; t < o->threshold_count; t++) {
+        const xiz_threshold *th = &o->thresholds[t];
+        size_t n = th->custodian_count, L = label_len(th->label);
+        if (t > 255 || th->k < 2 || (size_t)th->k > n || n > 255 || L > 255 || !groups_ok(th->groups, th->group_count, ng))
+            return FAIL(XIZ_E_ARG, "custodians %zu: k of n, label or groups", t + 1);
+        total += 3 + 3 + 1 + L + 28 + bundle_len(th->groups, th->group_count, ng);
+        stanzas++;
+        for (size_t c = 0; c < n; c++) {
+            const xiz_custodian *cu = &th->custodians[c];
+            size_t cl = label_len(cu->label);
+            if (!recipient_kind_ok(cu->type) || cl > 255) return FAIL(XIZ_E_ARG, "custodian %zu: type or label", c + 1);
+            total += 3 + (cu->type == XIZ_RECIPIENT_XWING ? 2 + 1128 : 3 + cred_len(cu->type)) + 1 + cl + 28 + 32;
+            stanzas++;
+        }
+    }
+    if (!stanzas) return FAIL(XIZ_E_ARG, "no recipient");
+    total += 3 + 2 + 34 * (size_t)ng;  /* key commitment (§24.1) */
+    stanzas++;
+    if (total > 65536 || stanzas > 65535) return FAIL(XIZ_E_LIMIT, "too many recipients for the 64 KiB keys block");
+    w->encrypted = 1;
+    w->sb.minor = 14;
+    w->sb.required = XIZ_FEATURE_ENCRYPTED | XIZ_FEATURE_DIRECTORY;
+    w->sb.keys_length = (uint32_t)total;
+    uint8_t sbb[XIZ_SUPERBLOCK];
+    superblock_encode(&w->sb, sbb);
+    uint8_t (*gk)[32] = malloc((size_t)ng * 32);
+    if (!gk || xiz_random(gk, (size_t)ng * 32)) { free(gk); return FAIL(XIZ_E_IO, "no randomness"); }
+    for (uint16_t g = 0; g < ng; g++) keyset_derive(&w->gkeys[g], gk[g], w->sb.id);
+    wbuf blk = {0};
+    wb_put(&blk, "XKEY", 4);
+    wb_u16(&blk, (uint16_t)stanzas);
+    int rc = XIZ_OK;
+    uint8_t kek[32];
+    for (size_t i = 0; i < o->recipient_count && rc == XIZ_OK; i++) {
+        const xiz_recipient *r = &o->recipients[i];
+        wbuf h = {0}, b = {0};
+        uint8_t type = (uint8_t)r->type;
+        if (r->type == XIZ_RECIPIENT_PASSWORD_FACTOR) {
+            /* KEK = HKDF(Argon2id(password) ‖ factor, salt = archive_id) (§24.3) */
+            uint8_t a[32], ikm[64], fid[32];
+            rc = put_credential(&h, XIZ_RECIPIENT_PASSWORD, r->password, NULL, mem, it, par, a, err);
+            if (rc == XIZ_OK) {
+                sha256(r->factor, 32, fid);
+                wb_put(&h, fid, 8);
+                memcpy(ikm, a, 32);
+                memcpy(ikm + 32, r->factor, 32);
+                hkdf_sha256(ikm, 64, w->sb.id, 16, "xiz/1.14/password+factor", kek, 32);
+            }
+            secure_zero(a, 32);
+            secure_zero(ikm, 64);
+        } else {
+            rc = put_credential(&h, r->type, r->password, r->public_key, mem, it, par, kek, err);
+        }
+        put_label(&h, r->label);
+        put_bundle(&b, r->groups, r->group_count, ng, (const uint8_t(*)[32])gk);
+        if (rc == XIZ_OK) rc = put_box(&blk, sbb, type, &h, kek, b.p, b.n, err);
+        if (b.p) secure_zero(b.p, b.n);
+        wb_free(&h);
+        wb_free(&b);
+    }
+    for (size_t t = 0; t < o->threshold_count && rc == XIZ_OK; t++) {
+        const xiz_threshold *th = &o->thresholds[t];
+        uint8_t secret[32], (*shares)[32] = malloc(th->custodian_count * 32);
+        if (!shares || xiz_random(secret, 32) || !shamir_split(secret, th->k, (int)th->custodian_count, shares)) {
+            free(shares);
+            rc = FAIL(XIZ_E_IO, "no randomness");
+            break;
+        }
+        wbuf h = {0}, b = {0};
+        wb_u8(&h, (uint8_t)t);
+        wb_u8(&h, (uint8_t)th->k);
+        wb_u8(&h, (uint8_t)th->custodian_count);
+        put_label(&h, th->label);
+        put_bundle(&b, th->groups, th->group_count, ng, (const uint8_t(*)[32])gk);
+        hkdf_sha256(secret, 32, w->sb.id, 16, "xiz/1.3/threshold", kek, 32);
+        rc = put_box(&blk, sbb, 4, &h, kek, b.p, b.n, err);
+        if (b.p) secure_zero(b.p, b.n);
+        wb_free(&h);
+        wb_free(&b);
+        for (size_t c = 0; c < th->custodian_count && rc == XIZ_OK; c++) {
+            const xiz_custodian *cu = &th->custodians[c];
+            wbuf sh = {0};
+            wb_u8(&sh, (uint8_t)t);
+            wb_u8(&sh, (uint8_t)(c + 1));
+            uint8_t type = cu->type == XIZ_RECIPIENT_XWING ? 7 : 5;
+            if (type == 5) wb_u8(&sh, cu->type == XIZ_RECIPIENT_PASSWORD ? 1 : 2);
+            rc = put_credential(&sh, cu->type, cu->password, cu->public_key, mem, it, par, kek, err);
+            put_label(&sh, cu->label);
+            if (rc == XIZ_OK) rc = put_box(&blk, sbb, type, &sh, kek, shares[c], 32, err);
+            wb_free(&sh);
+        }
+        secure_zero(secret, 32);
+        secure_zero(shares, th->custodian_count * 32);
+        free(shares);
+    }
+    secure_zero(kek, 32);
+    if (rc == XIZ_OK) {
+        wb_u8(&blk, 9);
+        wb_u16(&blk, (uint16_t)(2 + 34 * ng));
+        wb_u16(&blk, ng);
+        for (uint16_t g = 0; g < ng; g++) {
+            uint8_t c[32];
+            hkdf_sha256(gk[g], 32, w->sb.id, 16, "xiz/1.14/commit", c, 32);
+            wb_u16(&blk, g);
+            wb_put(&blk, c, 32);
+        }
+        wb_u32(&blk, xiz_crc32c(0, blk.p, blk.n));
+        if (blk.oom) rc = FAIL(XIZ_E_NOMEM, "out of memory");
+        else if (blk.n != total) rc = FAIL(XIZ_E_ARG, "keys block of %zu bytes, %zu expected", blk.n, total);
+    }
+    secure_zero(gk, (size_t)ng * 32);
+    free(gk);
+    if (rc) { if (blk.p) secure_zero(blk.p, blk.n); wb_free(&blk); return rc; }
+    w->keys_block = blk.p;
+    w->keys_len = blk.n;
+    return XIZ_OK;
 }
 
 int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_options *opt, int overwrite, xiz_error *err) {
@@ -846,6 +1186,13 @@ int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_optio
     w->sb.major = 1;
     w->sb.minor = 0;
     if (xiz_random(w->sb.id, 16) != 0) { rc = FAIL(XIZ_E_IO, "no randomness"); goto fail; }
+    if (opt && (opt->recipient_count || opt->threshold_count)) {
+        if ((rc = setup_directory(w, opt, err))) goto fail;
+        superblock_encode(&w->sb, w->sb.raw);
+        if ((rc = w_write(w, w->sb.raw, XIZ_SUPERBLOCK, err)) || (rc = w_write(w, w->keys_block, w->keys_len, err))) goto fail;
+        *out = w;
+        return XIZ_OK;
+    }
     /* "XKEY" ‖ count 2 ‖ type 1 (104) ‖ type 9 (36: the key commitment, XIZ 1.14 §24.1) ‖ CRC */
     uint8_t keys_block[4 + 2 + 3 + 104 + 3 + 36 + 4];
     if (opt && opt->password) {
@@ -984,6 +1331,170 @@ int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_optio
 
 /* ------------------------------------------------------------------ finish */
 
+/* One catalog entry (§5.2); `proof` (salt ‖ content SHA-256) adds field 0x0009 (§13.6). */
+static void put_entry(wbuf *c, const wentry *e, const uint8_t proof[48]) {
+    wb_u8(c, e->type);
+    wb_u16(c, (uint16_t)e->path_len);
+    wb_put(c, e->path, e->path_len);
+    uint16_t nf = 3 + (e->type == 0 ? 2 : 0) + (e->type == 2) + (uint16_t)e->n_xattrs + (e->has_digest && e->type == 0) + (proof != NULL);
+    wb_u16(c, nf);
+    if (e->type == 0) {
+        wb_u16(c, TAG_SIZE); wb_u32(c, 8); wb_u64(c, e->size);
+        wb_u16(c, TAG_EXTENTS); wb_u32(c, e->n_ext * 12);
+        for (uint32_t x = 0; x < e->n_ext; x++) { wb_u32(c, e->ext[x].frame); wb_u32(c, e->ext[x].offset); wb_u32(c, e->ext[x].length); }
+    }
+    if (e->type == 2) { wb_u16(c, TAG_LINK); wb_u32(c, (uint32_t)e->link_len); wb_put(c, e->link, e->link_len); }
+    wb_u16(c, TAG_MODE); wb_u32(c, 2); wb_u16(c, e->mode);
+    wb_u16(c, TAG_OWNER); wb_u32(c, 8); wb_u32(c, e->uid); wb_u32(c, e->gid);
+    wb_u16(c, TAG_MTIME); wb_u32(c, 12); wb_u64(c, (uint64_t)e->mtime); wb_u32(c, e->nsec);
+    for (size_t x = 0; x < e->n_xattrs; x++) {
+        wb_u16(c, TAG_XATTR);
+        wb_u32(c, (uint32_t)(2 + e->xattrs[x].name_len + e->xattrs[x].value_len));
+        wb_u16(c, (uint16_t)e->xattrs[x].name_len);
+        wb_put(c, e->xattrs[x].name, e->xattrs[x].name_len);
+        wb_put(c, e->xattrs[x].value, e->xattrs[x].value_len);
+    }
+    if (e->has_digest && e->type == 0) { wb_u16(c, TAG_DIGEST); wb_u32(c, 32); wb_put(c, e->digest, 32); }
+    if (proof) { wb_u16(c, TAG_PROOF); wb_u32(c, 48); wb_put(c, proof, 48); }
+}
+
+static int leaf_cmp(const void *a, const void *b) { return memcmp(a, b, 32); }
+
+/* XIZ 1.3 (§13.1): after the frames, one catalog per group (version 2, sealed with that group's
+ * catalog key), the Merkle leaf table, the directory (plaintext, unsigned) and the footer. */
+static int write_directory(xiz_writer *w, xiz_error *err) {
+    uint32_t count = 0;
+    uint64_t total = 0;
+    for (size_t i = 0; i < w->n_entries; i++)
+        if (!w->entries[i].removed) {
+            count++;
+            if (w->entries[i].type == 0) total += w->entries[i].size;
+        }
+    /* Proof data and leaves of every entry. */
+    uint8_t (*proof)[48] = calloc(w->n_entries + 1, 48);
+    uint8_t (*leaves)[32] = calloc(count + 1, 32);
+    uint64_t *coff = calloc(w->n_groups, sizeof *coff), *ccs = calloc(w->n_groups, sizeof *ccs), *cus = calloc(w->n_groups, sizeof *cus);
+    uint8_t (*csha)[32] = calloc(w->n_groups, 32);
+    int rc = XIZ_OK;
+    if (!proof || !leaves || !coff || !ccs || !cus || !csha) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); goto out; }
+    size_t nl = 0;
+    for (size_t i = 0; i < w->n_entries; i++) {
+        const wentry *e = &w->entries[i];
+        if (e->removed) continue;
+        if (xiz_random(proof[i], 16)) { rc = FAIL(XIZ_E_IO, "no randomness"); goto out; }
+        if (e->type == 0) memcpy(proof[i] + 16, e->plain_sha, 32);
+        else if (e->type == 2) sha256(e->link, e->link_len, proof[i] + 16);  /* the target; zeros for folders */
+        wbuf ld = {0};
+        leaf_data(&ld, proof[i], e->path, e->path_len, e->type, e->type == 0 ? e->size : 0, proof[i] + 16);
+        if (ld.oom) { wb_free(&ld); rc = FAIL(XIZ_E_NOMEM, "out of memory"); goto out; }
+        merkle_leaf(ld.p, ld.n, leaves[nl++]);
+        wb_free(&ld);
+    }
+    qsort(leaves, nl, 32, leaf_cmp);
+    for (uint16_t g = 0; g < w->n_groups && rc == XIZ_OK; g++) {
+        wbuf c = {0};
+        wb_put(&c, "XCAT", 4);
+        wb_u16(&c, 2);
+        wb_u32(&c, w->n_frames);
+        for (uint32_t i = 0; i < w->n_frames; i++) {
+            const frame_rec *f = &w->frames[i];
+            wb_u64(&c, f->offset); wb_u32(&c, f->csize); wb_u32(&c, f->usize); wb_u32(&c, f->crc);
+            wb_u8(&c, f->codec); wb_u8(&c, f->flags); wb_u16(&c, f->dict); wb_u16(&c, f->group);
+        }
+        uint32_t ng = 0;
+        for (size_t i = 0; i < w->n_entries; i++) ng += !w->entries[i].removed && w->entries[i].group == g;
+        wb_u32(&c, ng);
+        for (size_t i = 0; i < w->n_entries; i++)
+            if (!w->entries[i].removed && w->entries[i].group == g) put_entry(&c, &w->entries[i], proof[i]);
+        const char *name = w->gname[g] ? w->gname[g] : "";
+        wb_u16(&c, (uint16_t)strlen(name));
+        wb_put(&c, name, strlen(name));
+        wb_u16(&c, (uint16_t)w->gnprefix[g]);
+        for (size_t k = 0; k < w->gnprefix[g]; k++) {
+            wb_u16(&c, (uint16_t)strlen(w->gprefix[g][k]));
+            wb_put(&c, w->gprefix[g][k], strlen(w->gprefix[g][k]));
+        }
+        if (c.oom) { wb_free(&c); rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
+        size_t cap = zstd_bound(c.n);
+        uint8_t *z = malloc(cap);
+        size_t zn = z ? zstd_encode(c.p, c.n, w->level, z, cap) : 0;
+        cus[g] = c.n;
+        wb_free(&c);
+        if (!zn) { free(z); rc = FAIL(XIZ_E_NOMEM, "catalog compression failed"); break; }
+        wbuf sealed = {0};
+        const uint8_t *cat = z;
+        size_t cat_len = zn;
+        if (w->encrypted) {
+            uint8_t aad[12 + 16 + 2 + 4 + 8 + 4];
+            memcpy(aad, "XIZ13catalog", 12);
+            memcpy(aad + 12, w->sb.id, 16);
+            wr16(aad + 28, g);
+            wr32(aad + 30, w->segment);
+            wr64(aad + 34, cus[g]);
+            wr32(aad + 42, w->n_frames);
+            if (stream_seal(w->gkeys[g].catalog, aad, sizeof aad, w->segment, z, zn, &sealed) != XIZ_OK) {
+                free(z);
+                wb_free(&sealed);
+                rc = FAIL(XIZ_E_NOMEM, "out of memory");
+                break;
+            }
+            cat = sealed.p;
+            cat_len = sealed.n;
+        }
+        coff[g] = w->pos;
+        ccs[g] = cat_len;
+        sha256(cat, cat_len, csha[g]);
+        rc = w_write(w, cat, cat_len, err);
+        free(z);
+        wb_free(&sealed);
+    }
+    if (rc) goto out;
+    uint64_t leaf_offset = w->pos;
+    if ((rc = w_write(w, leaves, nl * 32, err))) goto out;
+    uint8_t root[32];
+    merkle_root((const uint8_t(*)[32])leaves, nl, root);
+    wbuf d = {0};
+    wb_put(&d, "XDIR", 4);
+    wb_u16(&d, 2);
+    wb_u16(&d, 0);  /* flags */
+    wb_u16(&d, w->n_groups);
+    for (uint16_t g = 0; g < w->n_groups; g++) {
+        wb_u16(&d, g); wb_u32(&d, w->segment); wb_u64(&d, coff[g]); wb_u64(&d, ccs[g]); wb_u64(&d, cus[g]); wb_put(&d, csha[g], 32);
+    }
+    wb_u16(&d, 0);  /* no key slot tables */
+    wb_u64(&d, leaf_offset);
+    wb_u32(&d, (uint32_t)nl);
+    wb_put(&d, root, 32);
+    wb_u32(&d, 0);  /* unsigned */
+    if (d.oom) { wb_free(&d); rc = FAIL(XIZ_E_NOMEM, "out of memory"); goto out; }
+    wb_u32(&d, xiz_crc32c(0, d.p, d.n));
+    footer ft;
+    memset(&ft, 0, sizeof ft);
+    ft.major = 1;
+    ft.minor = w->sb.minor;
+    ft.cat_offset = w->pos;
+    ft.cat_csize = ft.cat_usize = d.n;
+    sha256(d.p, d.n, ft.cat_sha);
+    ft.frame_count = w->n_frames;
+    ft.entry_count = count;
+    ft.total_bytes = total;
+    rc = w_write(w, d.p, d.n, err);
+    wb_free(&d);
+    if (rc) goto out;
+    uint8_t fb[XIZ_FOOTER];
+    footer_encode(&ft, fb);
+    rc = w_write(w, fb, sizeof fb, err);
+out:
+    if (proof) secure_zero(proof, (w->n_entries + 1) * 48);
+    free(proof);
+    free(leaves);
+    free(coff);
+    free(ccs);
+    free(cus);
+    free(csha);
+    return rc;
+}
+
 static int write_catalog(xiz_writer *w, xiz_error *err) {
     wbuf c = {0};
     wb_put(&c, "XCAT", 4);
@@ -1006,29 +1517,8 @@ static int write_catalog(xiz_writer *w, xiz_error *err) {
     for (size_t i = 0; i < w->n_entries; i++) {
         const wentry *e = &w->entries[i];
         if (e->removed) continue;
-        wb_u8(&c, e->type);
-        wb_u16(&c, (uint16_t)e->path_len);
-        wb_put(&c, e->path, e->path_len);
-        uint16_t nf = 3 + (e->type == 0 ? 2 : 0) + (e->type == 2) + (uint16_t)e->n_xattrs + (e->has_digest && e->type == 0);
-        wb_u16(&c, nf);
-        if (e->type == 0) {
-            wb_u16(&c, TAG_SIZE); wb_u32(&c, 8); wb_u64(&c, e->size);
-            wb_u16(&c, TAG_EXTENTS); wb_u32(&c, e->n_ext * 12);
-            for (uint32_t x = 0; x < e->n_ext; x++) { wb_u32(&c, e->ext[x].frame); wb_u32(&c, e->ext[x].offset); wb_u32(&c, e->ext[x].length); }
-            total += e->size;
-        }
-        if (e->type == 2) { wb_u16(&c, TAG_LINK); wb_u32(&c, (uint32_t)e->link_len); wb_put(&c, e->link, e->link_len); }
-        wb_u16(&c, TAG_MODE); wb_u32(&c, 2); wb_u16(&c, e->mode);
-        wb_u16(&c, TAG_OWNER); wb_u32(&c, 8); wb_u32(&c, e->uid); wb_u32(&c, e->gid);
-        wb_u16(&c, TAG_MTIME); wb_u32(&c, 12); wb_u64(&c, (uint64_t)e->mtime); wb_u32(&c, e->nsec);
-        for (size_t x = 0; x < e->n_xattrs; x++) {
-            wb_u16(&c, TAG_XATTR);
-            wb_u32(&c, (uint32_t)(2 + e->xattrs[x].name_len + e->xattrs[x].value_len));
-            wb_u16(&c, (uint16_t)e->xattrs[x].name_len);
-            wb_put(&c, e->xattrs[x].name, e->xattrs[x].name_len);
-            wb_put(&c, e->xattrs[x].value, e->xattrs[x].value_len);
-        }
-        if (e->has_digest && e->type == 0) { wb_u16(&c, TAG_DIGEST); wb_u32(&c, 32); wb_put(&c, e->digest, 32); }
+        put_entry(&c, e, NULL);
+        if (e->type == 0) total += e->size;
     }
     if (c.oom) { wb_free(&c); return FAIL(XIZ_E_NOMEM, "out of memory"); }
     size_t cap = zstd_bound(c.n);
@@ -1078,7 +1568,7 @@ int xiz_writer_finish(xiz_writer *w, xiz_error *err) {
     if (!w) return FAIL(XIZ_E_ARG, "no writer");
     int rc = check_writer(w, err);
     if (!rc) rc = flush_frame(w, 1, err);
-    if (!rc) rc = write_catalog(w, err);
+    if (!rc) rc = w->dir ? write_directory(w, err) : write_catalog(w, err);
     if (!rc && w_sync(w) != 0) rc = FAIL(XIZ_E_IO, "sync failed");
     if (rc) { xiz_writer_abort(w); return rc; }
     w_close_file(w);

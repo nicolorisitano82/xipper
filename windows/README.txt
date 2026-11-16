@@ -12,6 +12,11 @@ Opens, verifies, extracts and creates XIZ archives, readable by Xipper on the Ma
   Maximum compression, a password with a strength meter (the same estimate as Xipper on the Mac),
   "Slower to crack" (with 8 GB of RAM or more), a recovery record. Encrypted archives are XIZ 1.14
   with key commitment.
+- "Recipients and custodians…" in the new archive window: several passwords (also with a second
+  factor), public keys (xizpk1…, xizpq1…, age1…), custodian groups (k of n); each opens everything
+  or only some folders. The archives are XIZ 1.3 like those of Xipper on the Mac.
+- File > "My keys": keys to receive archives (post-quantum by default). Give senders the public key;
+  the secret one stays on the PC, protected by Windows (DPAPI), and opens archives sent to you.
 - In an open archive: Add… (or drop files on the window) puts files into the open folder; Delete
   removes them. Deleted data stays in the file until the archive is made again. Archives with
   groups, keys, signatures or a second factor can be changed only with Xipper.

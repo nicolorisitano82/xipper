@@ -26,7 +26,7 @@ namespace {
 
 enum : int {
     ID_OPEN = 1001, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_ASSOC, ID_UNASSOC, ID_EXIT, ID_ABOUT, ID_CANCEL,
-    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF, ID_BACK, ID_UP, ID_NEW, ID_ADD, ID_ADDDIR, ID_DELETE,
+    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF, ID_BACK, ID_UP, ID_NEW, ID_ADD, ID_ADDDIR, ID_DELETE, ID_KEYS,
     ID_LIST = 1100, ID_TREE
 };
 
@@ -330,6 +330,7 @@ INT_PTR CALLBACK cred_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
 int open_interactive(HWND owner, const std::wstring &path, Credentials &c, Archive &out, bool interactive, xiz_error &err,
                      bool always_ask = false) {
     bool asked = !c.empty();
+    if (c.identities.empty() && c.pq_identities.empty()) add_stored_identities(c);  // archives sent to this user
     for (;;) {
         int rc = always_ask ? XIZ_E_PASSWORD_REQUIRED : open_archive(path, c, out, &err);
         bool forced = always_ask;
@@ -420,11 +421,574 @@ bool ask_destination(HWND owner, const std::wstring &archive, ExState &st) {
     return DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_EXTRACT), owner, ex_proc, (LPARAM)&st) == IDOK;
 }
 
+// ---------------------------------------------------------------- who can open a new archive
+
+bool read_all(const std::wstring &path, std::string &out, uint64_t limit);
+bool pick_save(HWND owner, std::wstring &inout, const wchar_t *filter = nullptr, const wchar_t *pattern = L"*.xiz",
+               const wchar_t *ext = L"xiz", const wchar_t *title = nullptr);
+
+std::vector<std::wstring> lines_of(const std::wstring &text) {
+    std::vector<std::wstring> out;
+    size_t start = 0;
+    while (start <= text.size()) {
+        size_t end = text.find_first_of(L"\r\n", start);
+        if (end == std::wstring::npos) end = text.size();
+        std::wstring l = text.substr(start, end - start);
+        while (!l.empty() && (l.back() == L' ' || l.back() == L'\t')) l.pop_back();
+        while (!l.empty() && (l.front() == L' ' || l.front() == L'\t')) l.erase(l.begin());
+        if (!l.empty()) out.push_back(l);
+        start = end + 1;
+    }
+    return out;
+}
+
+std::wstring joined_lines(const std::vector<std::wstring> &v, const wchar_t *sep = L"\r\n") {
+    std::wstring s;
+    for (auto &x : v) s += (s.empty() ? L"" : sep) + x;
+    return s;
+}
+
+void red_text(HWND d, WPARAM wp, LPARAM lp, int id, int level, INT_PTR &brush) {
+    brush = 0;
+    if ((HWND)lp == GetDlgItem(d, id)) {
+        static const COLORREF levels[] = {RGB(196, 43, 28), RGB(202, 120, 0), RGB(16, 124, 16), RGB(16, 124, 16)};
+        SetTextColor((HDC)wp, level >= 0 && level < 4 ? levels[level] : RGB(196, 43, 28));
+        SetBkMode((HDC)wp, TRANSPARENT);
+        brush = (INT_PTR)GetSysColorBrush(COLOR_BTNFACE);
+    }
+}
+
+// --- a password (a recipient, or a custodian's share)
+
+struct PwEntry {
+    bool custodian = false;
+    std::wstring archive;     // for the factor file's default name
+    AccessEntry e;            // kind Password (label, password, factor, folders)
+    int level = -1;
+};
+
+INT_PTR CALLBACK acpw_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<PwEntry *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG: {
+        st = reinterpret_cast<PwEntry *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::AcKindPw));
+        const std::pair<int, S> t[] = {{IDC_AP_LABELL, S::AcLabel}, {IDC_AP_PWL, S::NewPw}, {IDC_AP_PW2L, S::NewPw2},
+                                       {IDC_AP_FACTOR, S::AcFactor}, {IDC_AP_FOLDERSL, S::AcFolders}, {IDCANCEL, S::Cancel}};
+        for (auto &x : t) SetDlgItemTextW(d, x.first, T(x.second));
+        if (st->custodian)
+            for (int id : {IDC_AP_FACTOR, IDC_AP_FOLDERSL, IDC_AP_FOLDERS}) ShowWindow(GetDlgItem(d, id), SW_HIDE);
+        return TRUE;
+    }
+    case WM_CTLCOLORSTATIC: {
+        INT_PTR b;
+        red_text(d, wp, lp, IDC_AP_ERROR, -1, b);
+        if (b) return b;
+        if (st->level >= 0) red_text(d, wp, lp, IDC_AP_STRENGTH, st->level, b);
+        if (b) return b;
+        break;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDC_AP_PW && HIWORD(wp) == EN_CHANGE) {
+            std::wstring pw = window_text(GetDlgItem(d, IDC_AP_PW));
+            st->level = pw.empty() ? -1 : strength_level(password_bits(pw));
+            wipe(pw);
+            const S names[] = {S::StrengthWeak, S::StrengthFair, S::StrengthGood, S::StrengthExcellent};
+            SetDlgItemTextW(d, IDC_AP_STRENGTH, st->level < 0 ? L"" : fmt(S::StrengthLabel, T(names[st->level])).c_str());
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDOK) {
+            std::wstring a = window_text(GetDlgItem(d, IDC_AP_PW)), b = window_text(GetDlgItem(d, IDC_AP_PW2));
+            bool same = a == b;
+            wipe(b);
+            if (a.empty() || !same) {
+                wipe(a);
+                SetDlgItemTextW(d, IDC_AP_ERROR, T(a.empty() && same ? S::NewPwEmpty : S::NewPwMismatch));
+                return TRUE;
+            }
+            if (password_bits(a) < kMinimumBits && !(IsDlgButtonChecked(d, IDC_AP_FACTOR) == BST_CHECKED)) {
+                TASKDIALOG_BUTTON bt[] = {{400, T(S::UseAnyway)}};
+                if (task_dialog(d, TD_WARNING_ICON, T(S::WeakTitle), T(S::WeakText), {}, bt, 1, TDCBF_CANCEL_BUTTON) != 400) { wipe(a); return TRUE; }
+            }
+            st->e.kind = AccessEntry::Password;
+            st->e.label = window_text(GetDlgItem(d, IDC_AP_LABEL));
+            if (st->e.label.empty()) st->e.label = T(S::AcKindPw);
+            st->e.password = password_utf8(a);
+            wipe(a);
+            if (!st->custodian) {
+                st->e.folders = lines_of(window_text(GetDlgItem(d, IDC_AP_FOLDERS)));
+                if (IsDlgButtonChecked(d, IDC_AP_FACTOR) == BST_CHECKED) {
+                    // A new random factor, saved where the user says: without it the password is not enough.
+                    char text[64];
+                    std::wstring path = parent_dir(st->archive) + L"\\" + stem(st->archive) + L".xizfactor";
+                    if (!pick_save(d, path, T(S::FactorFilter), L"*.xizfactor", L"xizfactor", T(S::AcFactorSave))) {
+                        st->e.wipe();
+                        return TRUE;
+                    }
+                    xiz_generate_factor(text, sizeof text, st->e.factor.data());
+                    std::string line = std::string(text) + "\r\n";
+                    SecureZeroMemory(text, sizeof text);
+                    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+                    DWORD w = 0;
+                    bool ok = h != INVALID_HANDLE_VALUE && WriteFile(h, line.data(), (DWORD)line.size(), &w, nullptr) && w == line.size();
+                    if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+                    SecureZeroMemory(line.data(), line.size());
+                    if (!ok) { SetDlgItemTextW(d, IDC_AP_ERROR, fmt(S::OpenFail, path.c_str()).c_str()); st->e.wipe(); return TRUE; }
+                    st->e.has_factor = true;
+                    task_dialog(d, TD_INFORMATION_ICON, T(S::AcKindPwFactor), fmt(S::AcFactorFile, path.c_str()));
+                }
+            }
+            SetDlgItemTextW(d, IDC_AP_PW, L"");
+            SetDlgItemTextW(d, IDC_AP_PW2, L"");
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDCANCEL) {
+            SetDlgItemTextW(d, IDC_AP_PW, L"");
+            SetDlgItemTextW(d, IDC_AP_PW2, L"");
+            EndDialog(d, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// --- a public key
+
+struct KeyEntry {
+    bool custodian = false;
+    AccessEntry e;
+};
+
+INT_PTR CALLBACK ackey_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<KeyEntry *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG: {
+        st = reinterpret_cast<KeyEntry *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::AcKindKey));
+        const std::pair<int, S> t[] = {{IDC_AK_LABELL, S::AcLabel}, {IDC_AK_KEYL, S::AcKeyLabel}, {IDC_AK_FILE, S::AcFromFile},
+                                       {IDC_AK_FOLDERSL, S::AcFolders}, {IDCANCEL, S::Cancel}};
+        for (auto &x : t) SetDlgItemTextW(d, x.first, T(x.second));
+        if (st->custodian)
+            for (int id : {IDC_AK_FOLDERSL, IDC_AK_FOLDERS}) ShowWindow(GetDlgItem(d, id), SW_HIDE);
+        return TRUE;
+    }
+    case WM_CTLCOLORSTATIC: {
+        INT_PTR b;
+        red_text(d, wp, lp, IDC_AK_ERROR, -1, b);
+        if (b) return b;
+        break;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDC_AK_FILE) {
+            COMDLG_FILTERSPEC f[] = {{T(S::PublicFilter), L"*.pub;*.txt"}, {T(S::AllFiles), L"*.*"}};
+            std::wstring path;
+            std::string text;
+            if (pick_file(d, f, 2, path) && read_all(path, text, 1 << 16)) {
+                SetDlgItemTextW(d, IDC_AK_KEY, wide(text).c_str());
+                if (GetWindowTextLengthW(GetDlgItem(d, IDC_AK_LABEL)) == 0) SetDlgItemTextW(d, IDC_AK_LABEL, stem(path).c_str());
+            }
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDOK) {
+            std::string text = utf8(window_text(GetDlgItem(d, IDC_AK_KEY)));
+            std::vector<uint8_t> key(1216);
+            size_t n = 0;
+            int kind = xiz_parse_public_key(text.data(), text.size(), key.data(), key.size(), &n);
+            if (kind != XIZ_SECRET_X25519 && kind != XIZ_SECRET_XWING) { SetDlgItemTextW(d, IDC_AK_ERROR, T(S::AcKeyInvalid)); return TRUE; }
+            key.resize(n);
+            st->e.kind = AccessEntry::Key;
+            st->e.key_type = kind;
+            st->e.key = key;
+            st->e.label = window_text(GetDlgItem(d, IDC_AK_LABEL));
+            if (st->e.label.empty()) st->e.label = T(kind == XIZ_SECRET_XWING ? S::AcKindKeyPq : S::AcKindKey);
+            if (!st->custodian) st->e.folders = lines_of(window_text(GetDlgItem(d, IDC_AK_FOLDERS)));
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDCANCEL) { EndDialog(d, IDCANCEL); return TRUE; }
+        break;
+    }
+    return FALSE;
+}
+
+// --- k of n custodians
+
+struct CustEntry {
+    std::wstring archive;
+    AccessEntry e;  // kind Custodians
+};
+
+void cust_refresh(HWND d, CustEntry *st) {
+    HWND l = GetDlgItem(d, IDC_AU_LIST);
+    SendMessageW(l, LB_RESETCONTENT, 0, 0);
+    for (auto &c : st->e.custodians) {
+        std::wstring kind = T(c.type == XIZ_RECIPIENT_PASSWORD ? S::AcKindPw : c.type == XIZ_RECIPIENT_XWING ? S::AcKindKeyPq : S::AcKindKey);
+        SendMessageW(l, LB_ADDSTRING, 0, (LPARAM)(c.label + L" (" + kind + L")").c_str());
+    }
+    SetDlgItemTextW(d, IDC_AU_OFN, fmt(S::AcOfN, (unsigned)st->e.custodians.size()).c_str());
+}
+
+INT_PTR CALLBACK accust_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<CustEntry *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG: {
+        st = reinterpret_cast<CustEntry *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::AcAddCust));
+        const std::pair<int, S> t[] = {{IDC_AU_LABELL, S::AcLabel}, {IDC_AU_NEED, S::AcNeed}, {IDC_AU_ADDPW, S::AcAddPw},
+                                       {IDC_AU_ADDKEY, S::AcCustKey}, {IDC_AU_REMOVE, S::NewRemove}, {IDC_AU_FOLDERSL, S::AcFolders},
+                                       {IDCANCEL, S::Cancel}};
+        for (auto &x : t) SetDlgItemTextW(d, x.first, T(x.second));
+        SetDlgItemInt(d, IDC_AU_K, 2, FALSE);
+        cust_refresh(d, st);
+        return TRUE;
+    }
+    case WM_CTLCOLORSTATIC: {
+        INT_PTR b;
+        red_text(d, wp, lp, IDC_AU_ERROR, -1, b);
+        if (b) return b;
+        break;
+    }
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case IDC_AU_ADDPW: {
+            PwEntry pe;
+            pe.custodian = true;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACPW), d, acpw_proc, (LPARAM)&pe) == IDOK) {
+                Custodian c;
+                c.label = pe.e.label;
+                c.type = XIZ_RECIPIENT_PASSWORD;
+                c.password = pe.e.password;
+                st->e.custodians.push_back(c);
+                pe.e.wipe();
+                cust_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDC_AU_ADDKEY: {
+            KeyEntry ke;
+            ke.custodian = true;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACKEY), d, ackey_proc, (LPARAM)&ke) == IDOK) {
+                Custodian c;
+                c.label = ke.e.label;
+                c.type = ke.e.key_type == XIZ_SECRET_XWING ? XIZ_RECIPIENT_XWING : XIZ_RECIPIENT_X25519;
+                c.key = ke.e.key;
+                st->e.custodians.push_back(c);
+                cust_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDC_AU_REMOVE: {
+            LRESULT i = SendMessageW(GetDlgItem(d, IDC_AU_LIST), LB_GETCURSEL, 0, 0);
+            if (i != LB_ERR && (size_t)i < st->e.custodians.size()) {
+                SecureZeroMemory(st->e.custodians[(size_t)i].password.data(), st->e.custodians[(size_t)i].password.size());
+                st->e.custodians.erase(st->e.custodians.begin() + i);
+                cust_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDOK: {
+            int k = (int)GetDlgItemInt(d, IDC_AU_K, nullptr, FALSE);
+            int n = (int)st->e.custodians.size();
+            if (n < 2 || k < 2 || k > n || n > 255) { SetDlgItemTextW(d, IDC_AU_ERROR, T(S::AcCustTooFew)); return TRUE; }
+            st->e.kind = AccessEntry::Custodians;
+            st->e.k = k;
+            st->e.label = window_text(GetDlgItem(d, IDC_AU_LABEL));
+            if (st->e.label.empty()) st->e.label = fmt(S::AcKindCust, k, n);
+            st->e.folders = lines_of(window_text(GetDlgItem(d, IDC_AU_FOLDERS)));
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        case IDCANCEL: EndDialog(d, IDCANCEL); return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// --- the list
+
+struct AccessState {
+    std::wstring archive;
+    Access work;
+};
+
+std::wstring access_kind(const AccessEntry &e) {
+    if (e.kind == AccessEntry::Password) return T(e.has_factor ? S::AcKindPwFactor : S::AcKindPw);
+    if (e.kind == AccessEntry::Key) return T(e.key_type == XIZ_SECRET_XWING ? S::AcKindKeyPq : S::AcKindKey);
+    return fmt(S::AcKindCust, e.k, (int)e.custodians.size());
+}
+
+void access_refresh(HWND d, AccessState *st) {
+    HWND l = GetDlgItem(d, IDC_AC_LIST);
+    ListView_DeleteAllItems(l);
+    for (size_t i = 0; i < st->work.entries.size(); i++) {
+        const AccessEntry &e = st->work.entries[i];
+        std::wstring who = e.label, kind = access_kind(e), folders = e.folders.empty() ? T(S::AcAll) : joined_lines(e.folders, L", ");
+        LVITEMW it{};
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        it.pszText = who.data();
+        int row = ListView_InsertItem(l, &it);
+        ListView_SetItemText(l, row, 1, kind.data());
+        ListView_SetItemText(l, row, 2, folders.data());
+    }
+}
+
+INT_PTR CALLBACK access_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<AccessState *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG: {
+        st = reinterpret_cast<AccessState *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::AcTitle));
+        const std::pair<int, S> t[] = {{IDC_AC_PW, S::AcAddPw}, {IDC_AC_KEY, S::AcAddKey}, {IDC_AC_CUST, S::AcAddCust},
+                                       {IDC_AC_REMOVE, S::NewRemove}, {IDC_AC_HINT, S::AcHint}, {IDCANCEL, S::Cancel}};
+        for (auto &x : t) SetDlgItemTextW(d, x.first, T(x.second));
+        HWND l = GetDlgItem(d, IDC_AC_LIST);
+        SetWindowTheme(l, L"Explorer", nullptr);
+        ListView_SetExtendedListViewStyle(l, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+        const S cols[] = {S::AcColWho, S::ColType, S::AcColFolders};
+        const int widths[] = {170, 170, 200};
+        LVCOLUMNW c{};
+        c.mask = LVCF_TEXT | LVCF_WIDTH;
+        for (int i = 0; i < 3; i++) {
+            c.pszText = const_cast<wchar_t *>(T(cols[i]));
+            c.cx = scale(widths[i], dpi_of(d));
+            ListView_InsertColumn(l, i, &c);
+        }
+        access_refresh(d, st);
+        return TRUE;
+    }
+    case WM_CTLCOLORSTATIC: {
+        INT_PTR b;
+        red_text(d, wp, lp, IDC_AC_ERROR, -1, b);
+        if (b) return b;
+        break;
+    }
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case IDC_AC_PW: {
+            PwEntry pe;
+            pe.archive = st->archive;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACPW), d, acpw_proc, (LPARAM)&pe) == IDOK) {
+                st->work.entries.push_back(pe.e);
+                pe.e.wipe();
+                access_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDC_AC_KEY: {
+            KeyEntry ke;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACKEY), d, ackey_proc, (LPARAM)&ke) == IDOK) {
+                st->work.entries.push_back(ke.e);
+                access_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDC_AC_CUST: {
+            CustEntry ce;
+            ce.archive = st->archive;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACCUST), d, accust_proc, (LPARAM)&ce) == IDOK) {
+                st->work.entries.push_back(ce.e);
+                ce.e.wipe();
+                access_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDC_AC_REMOVE: {
+            int i = ListView_GetNextItem(GetDlgItem(d, IDC_AC_LIST), -1, LVNI_SELECTED);
+            if (i >= 0 && (size_t)i < st->work.entries.size()) {
+                st->work.entries[(size_t)i].wipe();
+                st->work.entries.erase(st->work.entries.begin() + i);
+                access_refresh(d, st);
+            }
+            return TRUE;
+        }
+        case IDOK: {
+            if (!st->work.empty()) {
+                AccessBuild b;
+                std::wstring why;
+                if (!build_access(st->work, b, why)) { SetDlgItemTextW(d, IDC_AC_ERROR, why.c_str()); return TRUE; }
+            }
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        case IDCANCEL: EndDialog(d, IDCANCEL); return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// Edits `access` (a copy is kept until OK).
+bool edit_access(HWND owner, const std::wstring &archive, Access &access) {
+    AccessState st;
+    st.archive = archive;
+    st.work.entries = access.entries;
+    if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_ACCESS), owner, access_proc, (LPARAM)&st) != IDOK) return false;
+    for (auto &e : access.entries) e.wipe();
+    access.entries = st.work.entries;
+    return true;
+}
+
+// ---------------------------------------------------------------- my keys
+
+struct KeyName {
+    std::wstring name;
+    bool pq = true;
+};
+
+INT_PTR CALLBACK keyname_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<KeyName *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG:
+        st = reinterpret_cast<KeyName *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::KeysTitle));
+        SetDlgItemTextW(d, IDC_KN_LABEL, T(S::KeysNameLabel));
+        SetDlgItemTextW(d, IDC_KN_NAME, st->name.c_str());
+        SetDlgItemTextW(d, IDC_KN_PQ, T(S::KeysPq));
+        SetDlgItemTextW(d, IDCANCEL, T(S::Cancel));
+        CheckDlgButton(d, IDC_KN_PQ, st->pq ? BST_CHECKED : BST_UNCHECKED);
+        if (!st->pq) ShowWindow(GetDlgItem(d, IDC_KN_PQ), SW_HIDE);  /* import: the file decides */
+        return TRUE;
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK) {
+            st->name = window_text(GetDlgItem(d, IDC_KN_NAME));
+            if (st->name.empty()) { MessageBeep(MB_ICONWARNING); return TRUE; }
+            st->pq = IsDlgButtonChecked(d, IDC_KN_PQ) == BST_CHECKED;
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        if (LOWORD(wp) == IDCANCEL) { EndDialog(d, IDCANCEL); return TRUE; }
+        break;
+    }
+    return FALSE;
+}
+
+std::vector<StoredKey> g_keys;
+
+void keys_refresh(HWND d) {
+    g_keys = stored_keys();
+    HWND l = GetDlgItem(d, IDC_KS_LIST);
+    ListView_DeleteAllItems(l);
+    for (size_t i = 0; i < g_keys.size(); i++) {
+        std::wstring type = g_keys[i].pq ? T(S::KeysTypePq) : L"X25519";
+        LVITEMW it{};
+        it.mask = LVIF_TEXT;
+        it.iItem = (int)i;
+        it.pszText = g_keys[i].name.data();
+        int row = ListView_InsertItem(l, &it);
+        ListView_SetItemText(l, row, 1, type.data());
+        ListView_SetItemText(l, row, 2, g_keys[i].pub.data());
+    }
+}
+
+bool copy_text(HWND owner, const std::wstring &t) {
+    if (!OpenClipboard(owner)) return false;
+    EmptyClipboard();
+    HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, (t.size() + 1) * sizeof(wchar_t));
+    if (g) {
+        memcpy(GlobalLock(g), t.c_str(), (t.size() + 1) * sizeof(wchar_t));
+        GlobalUnlock(g);
+        SetClipboardData(CF_UNICODETEXT, g);
+    }
+    CloseClipboard();
+    return g != nullptr;
+}
+
+INT_PTR CALLBACK keys_proc(HWND d, UINT msg, WPARAM wp, LPARAM) {
+    switch (msg) {
+    case WM_INITDIALOG: {
+        SetWindowTextW(d, T(S::KeysTitle));
+        const std::pair<int, S> t[] = {{IDC_KS_NEW, S::KeysNew}, {IDC_KS_COPY, S::KeysCopy}, {IDC_KS_IMPORT, S::KeysImport},
+                                       {IDC_KS_EXPORT, S::KeysExport}, {IDC_KS_DELETE, S::DeleteBtn}, {IDC_KS_NOTE, S::KeysNote},
+                                       {IDCANCEL, S::Close}};
+        for (auto &x : t) SetDlgItemTextW(d, x.first, T(x.second));
+        HWND l = GetDlgItem(d, IDC_KS_LIST);
+        SetWindowTheme(l, L"Explorer", nullptr);
+        ListView_SetExtendedListViewStyle(l, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+        const S cols[] = {S::ColName, S::ColType, S::KeysColPublic};
+        const int widths[] = {140, 100, 340};
+        LVCOLUMNW c{};
+        c.mask = LVCF_TEXT | LVCF_WIDTH;
+        for (int i = 0; i < 3; i++) {
+            c.pszText = const_cast<wchar_t *>(T(cols[i]));
+            c.cx = scale(widths[i], dpi_of(d));
+            ListView_InsertColumn(l, i, &c);
+        }
+        keys_refresh(d);
+        return TRUE;
+    }
+    case WM_COMMAND: {
+        int sel = ListView_GetNextItem(GetDlgItem(d, IDC_KS_LIST), -1, LVNI_SELECTED);
+        const StoredKey *k = sel >= 0 && (size_t)sel < g_keys.size() ? &g_keys[(size_t)sel] : nullptr;
+        std::wstring error;
+        switch (LOWORD(wp)) {
+        case IDC_KS_NEW: {
+            KeyName kn;
+            kn.name = vfmt(L"%ls %u", T(S::AcKindKey), (unsigned)g_keys.size() + 1);
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_KEYNAME), d, keyname_proc, (LPARAM)&kn) == IDOK) {
+                if (!new_stored_key(kn.name, kn.pq, error)) task_dialog(d, TD_ERROR_ICON, T(S::FailTitle), error);
+                keys_refresh(d);
+            }
+            return TRUE;
+        }
+        case IDC_KS_IMPORT: {
+            COMDLG_FILTERSPEC f[] = {{T(S::SecretFilter), L"*.key;*.txt"}, {T(S::AllFiles), L"*.*"}};
+            std::wstring path;
+            if (!pick_file(d, f, 2, path)) return TRUE;
+            KeyName kn;
+            kn.name = stem(path);
+            kn.pq = false;
+            if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_KEYNAME), d, keyname_proc, (LPARAM)&kn) == IDOK) {
+                if (!import_stored_key(path, kn.name, error)) task_dialog(d, TD_ERROR_ICON, T(S::FailTitle), error);
+                keys_refresh(d);
+            }
+            return TRUE;
+        }
+        case IDC_KS_COPY:
+            if (k && copy_text(d, k->pub)) task_dialog(d, TD_INFORMATION_ICON, T(S::KeysCopied), L"");
+            return TRUE;
+        case IDC_KS_EXPORT: {
+            if (!k) return TRUE;
+            TASKDIALOG_BUTTON bt[] = {{410, T(S::KeysExport)}};
+            if (task_dialog(d, TD_WARNING_ICON, T(S::KeysExportWarn), L"", {}, bt, 1, TDCBF_CANCEL_BUTTON) != 410) return TRUE;
+            std::wstring path = k->name + L".key";
+            if (pick_save(d, path, T(S::SecretFilter), L"*.key", L"key") && !export_stored_key(*k, path, error))
+                task_dialog(d, TD_ERROR_ICON, T(S::FailTitle), error);
+            return TRUE;
+        }
+        case IDC_KS_DELETE: {
+            if (!k) return TRUE;
+            TASKDIALOG_BUTTON bt[] = {{411, T(S::DeleteBtn)}};
+            if (task_dialog(d, TD_WARNING_ICON, fmt(S::KeysDeleteWarn, k->name.c_str()), L"", {}, bt, 1, TDCBF_CANCEL_BUTTON) == 411) {
+                delete_stored_key(*k);
+                keys_refresh(d);
+            }
+            return TRUE;
+        }
+        case IDCANCEL: EndDialog(d, 0); return TRUE;
+        }
+        break;
+    }
+    }
+    return FALSE;
+}
+
+void manage_keys(HWND owner) { DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_KEYS), owner, keys_proc, 0); }
+
 // ---------------------------------------------------------------- new archive dialog
 
 struct NewState {
     std::wstring path;
     std::vector<std::wstring> sources;
+    std::shared_ptr<Access> access = std::make_shared<Access>();
     int level = 9;
     std::wstring password;
     bool strong = false, recovery = false;
@@ -479,9 +1043,17 @@ void new_refresh(HWND d, NewState *st) {
 }
 
 void new_enable(HWND d) {
+    auto *st = reinterpret_cast<NewState *>(GetWindowLongPtrW(d, DWLP_USER));
+    bool access = st && !st->access->empty();
+    EnableWindow(GetDlgItem(d, IDC_NEW_USEPW), !access);
+    if (access) CheckDlgButton(d, IDC_NEW_USEPW, BST_UNCHECKED);
+    SetDlgItemTextW(d, IDC_NEW_ACCESSINFO, access ? fmt(S::AccessInfo, (unsigned)st->access->entries.size()).c_str() : L"");
     bool pw = IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED;
     for (int id : {IDC_NEW_PWLABEL, IDC_NEW_PW, IDC_NEW_PW2LABEL, IDC_NEW_PW2, IDC_NEW_STRENGTH}) EnableWindow(GetDlgItem(d, id), pw);
-    EnableWindow(GetDlgItem(d, IDC_NEW_STRONG), pw && lots_of_memory());
+    bool any_pw = pw;
+    if (access)
+        for (auto &e : st->access->entries) any_pw |= e.kind != AccessEntry::Key;
+    EnableWindow(GetDlgItem(d, IDC_NEW_STRONG), any_pw && lots_of_memory());
 }
 
 int g_strength = -1;  // the level shown, for its colour
@@ -496,12 +1068,14 @@ void new_strength(HWND d) {
     InvalidateRect(GetDlgItem(d, IDC_NEW_STRENGTH), nullptr, TRUE);
 }
 
-bool pick_save(HWND owner, std::wstring &inout) {
+bool pick_save(HWND owner, std::wstring &inout, const wchar_t *filter, const wchar_t *pattern, const wchar_t *ext,
+               const wchar_t *title) {
     IFileSaveDialog *d = nullptr;
     if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&d)))) return false;
-    COMDLG_FILTERSPEC f[] = {{T(S::OpenFilter), L"*.xiz"}};
+    COMDLG_FILTERSPEC f[] = {{filter ? filter : T(S::OpenFilter), pattern}};
     d->SetFileTypes(1, f);
-    d->SetDefaultExtension(L"xiz");
+    d->SetDefaultExtension(ext);
+    if (title) d->SetTitle(title);
     d->SetFileName(file_name(inout).c_str());
     IShellItem *start = nullptr;
     if (SUCCEEDED(SHCreateItemFromParsingName(parent_dir(inout).c_str(), nullptr, IID_PPV_ARGS(&start)))) {
@@ -561,7 +1135,8 @@ INT_PTR CALLBACK new_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
             {IDC_NEW_PATHLABEL, S::NewArchiveLabel}, {IDC_NEW_PATHBROWSE, S::Browse}, {IDC_NEW_CONTENTS, S::NewContents},
             {IDC_NEW_ADDFILES, S::NewAddFiles}, {IDC_NEW_ADDDIR, S::NewAddFolder}, {IDC_NEW_REMOVE, S::NewRemove},
             {IDC_NEW_LEVELLABEL, S::NewLevel}, {IDC_NEW_USEPW, S::NewUsePw}, {IDC_NEW_PWLABEL, S::NewPw}, {IDC_NEW_PW2LABEL, S::NewPw2},
-            {IDC_NEW_STRONG, S::NewStrong}, {IDC_NEW_RECOVERY, S::NewRecovery}, {IDOK, S::NewCreate}, {IDCANCEL, S::Cancel}};
+            {IDC_NEW_STRONG, S::NewStrong}, {IDC_NEW_RECOVERY, S::NewRecovery}, {IDOK, S::NewCreate}, {IDCANCEL, S::Cancel},
+            {IDC_NEW_ACCESS, S::AccessBtn}};
         for (auto &t : texts) SetDlgItemTextW(d, t.first, T(t.second));
         if (st->path.empty()) st->path = default_archive(st->sources);
         SetDlgItemTextW(d, IDC_NEW_PATH, st->path.c_str());
@@ -616,6 +1191,10 @@ INT_PTR CALLBACK new_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
             new_refresh(d, st);
             return TRUE;
         }
+        case IDC_NEW_ACCESS:
+            edit_access(d, window_text(GetDlgItem(d, IDC_NEW_PATH)), *st->access);
+            new_enable(d);
+            return TRUE;
         case IDC_NEW_USEPW:
             new_enable(d);
             if (IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED) SetFocus(GetDlgItem(d, IDC_NEW_PW));
@@ -630,7 +1209,7 @@ INT_PTR CALLBACK new_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
             if (path.empty()) return TRUE;
             if (path.size() < 4 || _wcsicmp(path.c_str() + path.size() - 4, L".xiz") != 0) path += L".xiz";
             st->password.clear();
-            if (IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED) {
+            if (st->access->empty() && IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED) {
                 std::wstring a = window_text(GetDlgItem(d, IDC_NEW_PW)), b = window_text(GetDlgItem(d, IDC_NEW_PW2));
                 bool same = a == b;
                 wipe(b);
@@ -646,8 +1225,8 @@ INT_PTR CALLBACK new_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 st->password = a;
                 wipe(a);
-                st->strong = IsDlgButtonChecked(d, IDC_NEW_STRONG) == BST_CHECKED;
             }
+            st->strong = IsDlgButtonChecked(d, IDC_NEW_STRONG) == BST_CHECKED && IsWindowEnabled(GetDlgItem(d, IDC_NEW_STRONG));
             if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
                 TASKDIALOG_BUTTON bt[] = {{401, T(S::ConflictReplace)}};
                 if (task_dialog(d, TD_WARNING_ICON, fmt(S::NewExists, file_name(path).c_str()), L"", {}, bt, 1, TDCBF_CANCEL_BUTTON) != 401)
@@ -687,6 +1266,7 @@ bool ask_new(HWND owner, const std::vector<std::wstring> &sources, Job &j) {
     wipe(st.password);
     j.strong = st.strong;
     j.recovery = st.recovery;
+    if (!st.access->empty()) j.access = st.access;
     return true;
 }
 
@@ -1541,6 +2121,7 @@ HMENU build_menu() {
     AppendMenuW(file, MF_STRING, ID_SIGS, T(S::MenuSignatures));
     AppendMenuW(file, MF_STRING, ID_PROPS, T(S::MenuProperties));
     AppendMenuW(file, MF_STRING, ID_PROOF, T(S::MenuProof));
+    AppendMenuW(file, MF_STRING, ID_KEYS, T(S::MenuKeys));
     AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(file, MF_STRING, ID_ASSOC, T(S::MenuAssociate));
     AppendMenuW(file, MF_STRING, ID_UNASSOC, T(S::MenuUnassociate));
@@ -1577,6 +2158,7 @@ void command(int id) {
         break;
     }
     case ID_DELETE: delete_selection(); break;
+    case ID_KEYS: manage_keys(M.wnd); break;
     case ID_UP: if (!M.job) go_up(); break;
     case ID_UNLOCK: if (M.ar) open_path(M.ar->path, true); break;
     case ID_SIGS: if (M.ar) show_signatures(M.wnd, *M.ar); break;
@@ -1884,8 +2466,10 @@ LRESULT CALLBACK prog_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
 struct Args {
     std::wstring mode, archive, dest, log, folder;
     std::vector<std::wstring> sources, entries;  // /src, /entry (repeatable)
+    std::shared_ptr<Access> access = std::make_shared<Access>();  // /to-pass, /to-key, /to-factor, /custodians…
+    std::wstring arg_error;
     int level = 9;
-    bool strong = false, recovery = false;
+    bool strong = false, recovery = false, pq = false;
     std::vector<std::wstring> passenv, keys;  // repeatable: custodians, recipients, factors
     bool quiet = false, keep_both = false;
 };
@@ -1963,6 +2547,7 @@ int run_write(const Args &a, Credentials &c, bool interactive) {
         if (!c.passwords.empty()) j.password = c.passwords[0];
         j.strong = a.strong;
         j.recovery = a.recovery;
+        if (!a.access->empty()) j.access = a.access;
     } else {
         j.kind = Job::Update;
         j.path = a.archive;
@@ -1984,7 +2569,7 @@ int run_command(const Args &a) {
         if (interactive) task_dialog(nullptr, TD_INFORMATION_ICON, T(a.mode == L"/register" ? S::Associated : S::Unassociated), L"");
         return ok ? EXIT_OK : EXIT_ERROR;
     }
-    if (a.archive.empty() && a.mode != L"/create") {
+    if (a.archive.empty() && a.mode != L"/create" && a.mode != L"/keygen" && a.mode != L"/ui-access" && a.mode != L"/ui-keys") {
         if (interactive) task_dialog(nullptr, TD_INFORMATION_ICON, T(S::AppName), T(S::Usage));
         return EXIT_USAGE;
     }
@@ -2002,6 +2587,29 @@ int run_command(const Args &a) {
             if (interactive) task_dialog(nullptr, TD_ERROR_ICON, T(S::FailTitle), T(S::CrKeyInvalid));
             return EXIT_USAGE;
         }
+    }
+    if (!a.arg_error.empty()) {
+        write_log(a.log, "exit 2\nerror " + utf8(a.arg_error) + "\n");
+        if (interactive) task_dialog(nullptr, TD_ERROR_ICON, T(S::FailTitle), a.arg_error);
+        return EXIT_USAGE;
+    }
+    if (a.mode == L"/ui-access") {  // tests: the access window with the entries given on the command line
+        edit_access(nullptr, L"archive.xiz", *a.access);
+        return EXIT_OK;
+    }
+    if (a.mode == L"/ui-keys") {
+        manage_keys(nullptr);
+        return EXIT_OK;
+    }
+    if (a.mode == L"/keygen") {  // tests: a stored key, its public text in the log
+        std::wstring error;
+        bool ok = new_stored_key(a.archive, a.pq, error);
+        std::string log = std::string("exit ") + (ok ? "0" : "1") + "\n";
+        for (auto &k : stored_keys())
+            if (k.name == a.archive) log += "public " + utf8(k.pub) + "\n";
+        if (!ok) log += "error " + utf8(error) + "\n";
+        write_log(a.log, log);
+        return ok ? EXIT_OK : EXIT_ERROR;
     }
     if (a.mode == L"/create" || a.mode == L"/new" || a.mode == L"/append" || a.mode == L"/remove") {
         Credentials cw = c;
@@ -2159,6 +2767,82 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         else if (s == L"/log") next(a.log);
         else if (s == L"/folder") next(a.folder);
         else if (s == L"/src") { std::wstring v; next(v); a.sources.push_back(v); }
+        // Who opens a /new archive (XIZ 1.3): each adds an entry; /only and /label apply to the last.
+        else if (s == L"/to-pass" || s == L"/to-factor") {
+            std::wstring var, out;
+            next(var);
+            AccessEntry e;
+            e.kind = AccessEntry::Password;
+            e.label = var;
+            std::wstring v(32768, L'\0');
+            DWORD n = GetEnvironmentVariableW(var.c_str(), v.data(), (DWORD)v.size());
+            v.resize(n < v.size() ? n : 0);
+            e.password = password_utf8(v);
+            wipe(v);
+            if (s == L"/to-factor") {
+                next(out);
+                char text[64];
+                xiz_generate_factor(text, sizeof text, e.factor.data());
+                e.has_factor = true;
+                std::string line = std::string(text) + "\r\n";
+                HANDLE h = CreateFileW(out.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+                DWORD w = 0;
+                if (h != INVALID_HANDLE_VALUE) { WriteFile(h, line.data(), (DWORD)line.size(), &w, nullptr); CloseHandle(h); }
+                else a.arg_error = out;
+            }
+            a.access->entries.push_back(e);
+        }
+        else if (s == L"/to-key" || s == L"/cust-key") {
+            std::wstring file;
+            next(file);
+            std::string text;
+            std::vector<uint8_t> key(1216);
+            size_t n = 0;
+            int kind = read_all(file, text, 1 << 16) ? xiz_parse_public_key(text.data(), text.size(), key.data(), key.size(), &n) : XIZ_E_IO;
+            if (kind != XIZ_SECRET_X25519 && kind != XIZ_SECRET_XWING) { a.arg_error = file; continue; }
+            key.resize(n);
+            if (s == L"/to-key") {
+                AccessEntry e;
+                e.kind = AccessEntry::Key;
+                e.label = stem(file);
+                e.key_type = kind;
+                e.key = key;
+                a.access->entries.push_back(e);
+            } else if (!a.access->entries.empty() && a.access->entries.back().kind == AccessEntry::Custodians) {
+                Custodian c;
+                c.label = stem(file);
+                c.type = kind == XIZ_SECRET_XWING ? XIZ_RECIPIENT_XWING : XIZ_RECIPIENT_X25519;
+                c.key = key;
+                a.access->entries.back().custodians.push_back(c);
+            }
+        }
+        else if (s == L"/custodians") {
+            std::wstring k;
+            next(k);
+            AccessEntry e;
+            e.kind = AccessEntry::Custodians;
+            e.k = _wtoi(k.c_str());
+            e.label = L"custodians";
+            a.access->entries.push_back(e);
+        }
+        else if (s == L"/cust-pass") {
+            std::wstring var;
+            next(var);
+            if (a.access->entries.empty() || a.access->entries.back().kind != AccessEntry::Custodians) { a.arg_error = s; continue; }
+            Custodian c;
+            c.label = var;
+            std::wstring v(32768, L'\0');
+            DWORD n = GetEnvironmentVariableW(var.c_str(), v.data(), (DWORD)v.size());
+            v.resize(n < v.size() ? n : 0);
+            c.password = password_utf8(v);
+            wipe(v);
+            a.access->entries.back().custodians.push_back(c);
+        }
+        else if (s == L"/only") { std::wstring v; next(v); if (!a.access->entries.empty()) a.access->entries.back().folders.push_back(v); }
+        else if (s == L"/label") { std::wstring v; next(v); if (!a.access->entries.empty()) a.access->entries.back().label = v; }
+        else if (s == L"/keygen") { a.mode = s; next(a.archive); }  // archive = the key's name
+        else if (s == L"/pq") a.pq = true;
+        else if (s == L"/ui-access" || s == L"/ui-keys") a.mode = s;
         else if (s == L"/entry") { std::wstring v; next(v); a.entries.push_back(v); }
         else if (s == L"/level") { std::wstring v; next(v); a.level = _wtoi(v.c_str()); }
         else if (s == L"/strong") a.strong = true;

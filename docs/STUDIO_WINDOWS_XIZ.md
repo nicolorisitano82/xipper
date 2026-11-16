@@ -374,6 +374,15 @@ nell'archivio aperto (append, recovery record rifatto), trascinamento di file su
 `/new`, `/append`, `/remove`. Prove: Wine 45/45; Barrique 16+16, con gli archivi creati verificati da
 Xipper per Mac. Non fatto: generatore di passphrase (decisione sulla lista GPL ancora aperta).
 
+**C2 fatta il 17/11/2026** (app 0.6.0): libxiz scrive la 1.3 per gli archivi nuovi: gruppi di
+accesso dalle cartelle, destinatari password / X25519 / X-Wing (incapsulamento ML-KEM di
+mlkem-native, ora abilitato) / password con fattore, custodi k-di-n (Shamir), commitment per gruppo,
+cataloghi di gruppo, foglie di Merkle e directory; legge le chiavi pubbliche xizpk1/xizpq1/age1/age1pq1
+e genera identità e fattori. Verificato con Xipper per Mac (password, chiave sola cartella, fattore,
+custodi). Nell'app: «Destinatari e custodi…» nel nuovo archivio, «Le mie chiavi» con le chiavi segrete
+protette da DPAPI e usate da sole all'apertura. Prove: Wine 53/53, Barrique 20+20. Restano: append su
+archivi 1.3, firme (C3).
+
 ### 12.6 Fasi della creazione
 
 | Fase | Contenuto | Stima |

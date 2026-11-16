@@ -14,6 +14,12 @@ Uso
   l'associazione). Compressione Veloce / Normale / Massima, password con indicatore di robustezza
   (la stessa stima di Xipper sul Mac), "Protezione più lenta da forzare" (con almeno 8 GB di
   RAM), recovery record. Gli archivi cifrati sono XIZ 1.14 con commitment delle chiavi.
+- "Destinatari e custodi…" nella finestra del nuovo archivio: più password (anche con secondo
+  fattore), chiavi pubbliche (xizpk1…, xizpq1…, age1…), gruppi di custodi (k su n); ciascuno può
+  aprire tutto o solo alcune cartelle. Gli archivi sono XIZ 1.3 come quelli di Xipper sul Mac.
+- File > "Le mie chiavi": chiavi per ricevere archivi (post-quantum di default). La chiave pubblica
+  si dà a chi manda; quella segreta resta nel PC, protetta da Windows (DPAPI), e apre da sola gli
+  archivi indirizzati a te.
 - In un archivio aperto: Aggiungi… (o trascina file sulla finestra) mette i file nella cartella
   aperta; Elimina (Canc) li toglie. I dati eliminati restano nel file finché l'archivio non viene
   ricreato. Archivi con gruppi, chiavi, firme o secondo fattore si modificano solo con Xipper.

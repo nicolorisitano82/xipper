@@ -91,6 +91,22 @@ for arch in $archs; do
     else
         code $O/new.log 0 && ok create || { cat $O/new.log; no create; }
     fi
+    # C2: groups, keys, factor, custodians written on "Windows", read by Xipper for Mac.
+    if [[ -x $ROOT/.build/release/xipper ]]; then
+        XM=$ROOT/.build/release/xipper
+        $XM keygen --pq -o $O/mac.key > $O/kg.log 2>&1
+        grep -o 'xizpq1[A-Za-z0-9_-]*' $O/kg.log | head -1 > $O/mac.pub
+        [[ -s $O/mac.pub ]] || $XM keygen --help > /dev/null 2>&1
+        mkdir -p $O/c2/lab $O/c2/doc && echo r1 > $O/c2/lab/r1.txt && echo d1 > $O/c2/doc/d1.txt
+        export PA='alpha pass' PB='beta pass' PC1='cust one' PC2='cust two'
+        A /new $(winpath $O/c2.xiz) /src $(winpath $O/c2) /to-pass PA /to-key $(winpath $O/mac.pub) /only c2/lab \
+          /to-factor PB $(winpath $O/b.xizfactor) /custodians 2 /cust-pass PC1 /cust-pass PC2 /quiet /log $(winpath $O/c2.log)
+        print -r -- "$PA" | $XM test --password-stdin $O/c2.xiz > $O/m1.log 2>&1 && ok c2-mac-password || { cat $O/c2.log $O/m1.log; no c2-mac-password; }
+        $XM list --identity $O/mac.key $O/c2.xiz > $O/m2.log 2>&1
+        grep -q 'c2/lab/r1.txt' $O/m2.log && ! grep -q 'c2/doc/d1.txt' $O/m2.log && ok c2-mac-key-lab-only || { cat $O/kg.log $O/m2.log; no c2-mac-key-lab-only; }
+        print -r -- "$PB" | $XM test --factor $O/b.xizfactor --password-stdin $O/c2.xiz > $O/m3.log 2>&1 && ok c2-mac-factor || { cat $O/m3.log; no c2-mac-factor; }
+        printf '%s\n%s\n' "$PC1" "$PC2" | $XM test --password-stdin $O/c2.xiz > $O/m4.log 2>&1 && ok c2-mac-custodians || { cat $O/m4.log; no c2-mac-custodians; }
+    fi
     printf "%s: %d passed, %d failed, %.0f s\n" $arch $pass $bad $(( EPOCHREALTIME - t0 ))
     total_bad=$((total_bad + bad))
 done
