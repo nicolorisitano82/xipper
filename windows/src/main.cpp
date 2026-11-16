@@ -26,8 +26,8 @@ namespace {
 
 enum : int {
     ID_OPEN = 1001, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_ASSOC, ID_UNASSOC, ID_EXIT, ID_ABOUT, ID_CANCEL,
-    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF,
-    ID_LIST = 1100
+    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF, ID_BACK, ID_UP,
+    ID_LIST = 1100, ID_TREE
 };
 
 enum Exit : int { EXIT_OK = 0, EXIT_ERROR = 1, EXIT_USAGE = 2, EXIT_PASSWORD = 3, EXIT_SKIPPED = 4, EXIT_CANCELLED = 5 };
@@ -640,8 +640,28 @@ void check_proof(HWND owner) {
 
 // ---------------------------------------------------------------- main window
 
+// The archive as folders, like File Explorer: the folder tree on the left, the open folder's
+// contents on the right, an address bar with Back and Up. Folders that the archive does not store
+// as entries (implied by a file's path) are folders all the same.
+struct Node {
+    std::wstring name;
+    std::string stored;          // "a/b" (empty for the root)
+    int parent = -1;
+    std::vector<int> dirs;       // child folders, sorted by name
+    std::vector<size_t> files;   // entries (files and links) directly inside
+    int entry = -1;              // the folder's own entry, when stored
+    HTREEITEM item = nullptr;
+    bool filled = false;         // children inserted in the tree
+};
+
+struct Row {
+    bool dir;
+    size_t idx;                  // node (dir) or entry
+};
+
 struct Main {
-    HWND wnd = nullptr, list = nullptr, empty = nullptr, status = nullptr, progress = nullptr, cancel = nullptr;
+    HWND wnd = nullptr, tree = nullptr, list = nullptr, addr = nullptr, back = nullptr, up = nullptr, tips = nullptr;
+    HWND empty = nullptr, status = nullptr, progress = nullptr, cancel = nullptr;
     HWND buttons[4] = {};
     HFONT font = nullptr;
     UINT dpi = 96;
@@ -652,8 +672,255 @@ struct Main {
     std::wstring idle_status;
     ITaskbarList3 *taskbar = nullptr;
     std::map<std::wstring, int> icons;
-    int folder_icon = -1;
+    std::map<std::wstring, std::wstring> types;
+    int folder_icon = -1, folder_open_icon = -1;
+    std::vector<Node> nodes;
+    std::vector<Row> rows;
+    std::vector<int> history;
+    int cur = -1;
+    int sort_col = 0;
+    bool sort_desc = false, tree_sync = false;
+    int split = 240;             // tree width at 96 DPI
+    bool splitting = false;
 } M;
+
+// ---- the folder model
+
+int child_dir(int parent, const std::wstring &name, const std::string &stored) {
+    for (int c : M.nodes[(size_t)parent].dirs)
+        if (M.nodes[(size_t)c].name == name) return c;
+    Node n;
+    n.name = name;
+    n.stored = stored;
+    n.parent = parent;
+    M.nodes.push_back(n);
+    int id = (int)M.nodes.size() - 1;
+    M.nodes[(size_t)parent].dirs.push_back(id);
+    return id;
+}
+
+std::wstring name_of(const Entry &e) {
+    size_t p = e.stored.find_last_of('/');
+    return wide(p == std::string::npos ? e.stored : e.stored.substr(p + 1));
+}
+
+bool name_less(const std::wstring &a, const std::wstring &b) {
+    return CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS, a.c_str(), (int)a.size(), b.c_str(),
+                           (int)b.size(), nullptr, nullptr, 0) == CSTR_LESS_THAN;
+}
+
+void build_nodes() {
+    M.nodes.clear();
+    M.history.clear();
+    M.cur = -1;
+    if (!M.ar) return;
+    Node root;
+    root.name = file_name(M.ar->path);
+    M.nodes.push_back(root);
+    for (size_t i = 0; i < M.ar->entries.size(); i++) {
+        const Entry &e = M.ar->entries[i];
+        int at = 0;
+        size_t start = 0;
+        for (;;) {
+            size_t slash = e.stored.find('/', start);
+            std::string comp = e.stored.substr(start, slash == std::string::npos ? std::string::npos : slash - start);
+            bool last = slash == std::string::npos;
+            if (comp.empty() || comp == ".") { if (last) break; start = slash + 1; continue; }
+            std::string stored = e.stored.substr(0, last ? e.stored.size() : slash);
+            if (last) {
+                if (e.type == XIZ_TYPE_DIRECTORY) M.nodes[(size_t)child_dir(at, wide(comp), stored)].entry = (int)i;
+                else M.nodes[(size_t)at].files.push_back(i);
+                break;
+            }
+            at = child_dir(at, wide(comp), stored);
+            start = slash + 1;
+        }
+    }
+    for (auto &n : M.nodes)
+        std::sort(n.dirs.begin(), n.dirs.end(), [](int a, int b) { return name_less(M.nodes[(size_t)a].name, M.nodes[(size_t)b].name); });
+}
+
+// ---- icons and type names (the system's, by extension)
+
+std::wstring ext_of(const std::wstring &name) {
+    size_t dot = name.find_last_of(L'.');
+    std::wstring ext = dot == std::wstring::npos || dot == 0 ? L"" : name.substr(dot);
+    CharLowerW(ext.data());
+    return ext;
+}
+
+void load_folder_icons() {
+    if (M.folder_icon >= 0) return;
+    SHFILEINFOW fi{};
+    if (SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON))
+        M.folder_icon = fi.iIcon;
+    if (SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY, &fi, sizeof fi,
+                       SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_OPENICON))
+        M.folder_open_icon = fi.iIcon;
+    if (SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_TYPENAME))
+        M.types[L"/"] = fi.szTypeName;
+}
+
+int file_icon(const std::wstring &name) {
+    std::wstring ext = ext_of(name);
+    auto it = M.icons.find(ext);
+    if (it != M.icons.end()) return it->second;
+    SHFILEINFOW fi{};
+    int idx = 0;
+    if (SHGetFileInfoW((L"x" + ext).c_str(), FILE_ATTRIBUTE_NORMAL, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON))
+        idx = fi.iIcon;
+    M.icons[ext] = idx;
+    return idx;
+}
+
+const std::wstring &type_name(const std::wstring &name, bool dir) {
+    std::wstring key = dir ? L"/" : ext_of(name);
+    auto it = M.types.find(key);
+    if (it != M.types.end()) return it->second;
+    SHFILEINFOW fi{};
+    std::wstring t;
+    if (SHGetFileInfoW((L"x" + key).c_str(), FILE_ATTRIBUTE_NORMAL, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_TYPENAME)) t = fi.szTypeName;
+    if (t.empty()) t = key.size() > 1 ? key.substr(1) : L"";
+    return M.types[key] = t;
+}
+
+// ---- tree pane
+
+HTREEITEM insert_node(HTREEITEM parent, int id) {
+    Node &n = M.nodes[(size_t)id];
+    TVINSERTSTRUCTW ins{};
+    ins.hParent = parent;
+    ins.hInsertAfter = TVI_LAST;
+    ins.item.mask = TVIF_TEXT | TVIF_PARAM | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN;
+    ins.item.pszText = n.name.data();
+    ins.item.lParam = id;
+    ins.item.iImage = M.folder_icon;
+    ins.item.iSelectedImage = M.folder_open_icon >= 0 ? M.folder_open_icon : M.folder_icon;
+    ins.item.cChildren = n.dirs.empty() ? 0 : 1;
+    n.item = (HTREEITEM)SendMessageW(M.tree, TVM_INSERTITEMW, 0, (LPARAM)&ins);
+    return n.item;
+}
+
+void fill_node(int id) {
+    Node &n = M.nodes[(size_t)id];
+    if (n.filled) return;
+    n.filled = true;
+    for (int c : n.dirs) insert_node(n.item, c);
+}
+
+// Selects the folder in the tree, expanding its parents, without navigating again.
+void select_in_tree(int id) {
+    std::vector<int> chain;
+    for (int x = id; x >= 0; x = M.nodes[(size_t)x].parent) chain.push_back(x);
+    M.tree_sync = true;
+    for (size_t i = chain.size(); i-- > 1;) {
+        fill_node(chain[i]);
+        TreeView_Expand(M.tree, M.nodes[(size_t)chain[i]].item, TVE_EXPAND);
+    }
+    if (M.nodes[(size_t)id].item) {
+        TreeView_SelectItem(M.tree, M.nodes[(size_t)id].item);
+        TreeView_EnsureVisible(M.tree, M.nodes[(size_t)id].item);
+    }
+    M.tree_sync = false;
+}
+
+// ---- list pane
+
+int64_t row_mtime(const Row &r) {
+    if (!r.dir) return M.ar->entries[r.idx].mtime;
+    int e = M.nodes[r.idx].entry;
+    return e >= 0 ? M.ar->entries[(size_t)e].mtime : 0;
+}
+
+std::wstring row_name(const Row &r) { return r.dir ? M.nodes[r.idx].name : name_of(M.ar->entries[r.idx]); }
+
+void sort_rows() {
+    auto less = [](const Row &a, const Row &b) {
+        if (a.dir != b.dir) return a.dir;  // folders first, as in Explorer
+        int c = 0;
+        switch (M.sort_col) {
+        case 1: if (!a.dir) { uint64_t x = M.ar->entries[a.idx].size, y = M.ar->entries[b.idx].size; c = x < y ? -1 : x > y; } break;
+        case 2: {
+            const std::wstring &x = type_name(row_name(a), a.dir), &y = type_name(row_name(b), b.dir);
+            c = name_less(x, y) ? -1 : name_less(y, x) ? 1 : 0;
+            break;
+        }
+        case 3: { int64_t x = row_mtime(a), y = row_mtime(b); c = x < y ? -1 : x > y; break; }
+        case 4: if (!a.dir) c = (int)M.ar->entries[a.idx].group - (int)M.ar->entries[b.idx].group; break;
+        }
+        if (c == 0) {
+            std::wstring x = row_name(a), y = row_name(b);
+            c = name_less(x, y) ? -1 : name_less(y, x) ? 1 : 0;
+            if (M.sort_col != 0) return c < 0;  // ties by name, always ascending
+        }
+        return M.sort_desc ? c > 0 : c < 0;
+    };
+    std::stable_sort(M.rows.begin(), M.rows.end(), less);
+    // The sort arrow on the header.
+    HWND hdr = ListView_GetHeader(M.list);
+    for (int i = 0; i < Header_GetItemCount(hdr); i++) {
+        HDITEMW it{};
+        it.mask = HDI_FORMAT;
+        Header_GetItem(hdr, i, &it);
+        it.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
+        if (i == M.sort_col) it.fmt |= M.sort_desc ? HDF_SORTDOWN : HDF_SORTUP;
+        Header_SetItem(hdr, i, &it);
+    }
+}
+
+std::wstring address_of(int id) {
+    std::wstring a = M.nodes[0].name;
+    if (id > 0) {
+        std::wstring s = wide(M.nodes[(size_t)id].stored);
+        std::replace(s.begin(), s.end(), L'/', L'\\');
+        a += L"\\" + s;
+    }
+    return a;
+}
+
+void update_nav() {
+    EnableWindow(M.back, !M.job && !M.history.empty());
+    EnableWindow(M.up, !M.job && M.cur > 0);
+}
+
+void navigate(int id, bool remember = true) {
+    if (!M.ar || id < 0 || (size_t)id >= M.nodes.size()) return;
+    if (remember && M.cur >= 0 && M.cur != id) M.history.push_back(M.cur);
+    M.cur = id;
+    const Node &n = M.nodes[(size_t)id];
+    M.rows.clear();
+    for (int d : n.dirs) M.rows.push_back({true, (size_t)d});
+    for (size_t f : n.files) M.rows.push_back({false, f});
+    sort_rows();
+    ListView_SetItemState(M.list, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+    ListView_SetItemCountEx(M.list, (int)M.rows.size(), 0);
+    if (!M.rows.empty()) ListView_SetItemState(M.list, 0, LVIS_FOCUSED, LVIS_FOCUSED);
+    ListView_EnsureVisible(M.list, 0, FALSE);
+    InvalidateRect(M.list, nullptr, TRUE);
+    SetWindowTextW(M.addr, address_of(id).c_str());
+    select_in_tree(id);
+    update_nav();
+    EnableWindow(M.buttons[2], FALSE);
+}
+
+// Opens a folder by its stored path ("a/b"), for /folder on the command line.
+void navigate_to(const std::string &stored) {
+    for (size_t i = 0; i < M.nodes.size(); i++)
+        if (M.nodes[i].stored == stored) { navigate((int)i); return; }
+}
+
+void go_back() {
+    if (M.history.empty()) return;
+    int id = M.history.back();
+    M.history.pop_back();
+    navigate(id, false);
+}
+
+void go_up() {
+    if (M.cur > 0) navigate(M.nodes[(size_t)M.cur].parent);
+}
+
+// ---- layout
 
 void layout() {
     RECT rc;
@@ -671,15 +938,41 @@ void layout() {
     }
     SelectObject(dc, old);
     ReleaseDC(M.wnd, dc);
-    int top = pad + bh + pad, bottom_h = scale(30, M.dpi), list_h = h - top - bottom_h;
-    MoveWindow(M.list, 0, top, w, list_h, TRUE);
-    MoveWindow(M.empty, pad, top + list_h / 2 - scale(12, M.dpi), w - 2 * pad, scale(24, M.dpi), TRUE);
-    int by = top + list_h + (bottom_h - scale(24, M.dpi)) / 2, cw = scale(90, M.dpi), pw = scale(220, M.dpi);
+    int ay = pad + bh + scale(6, M.dpi), ah = scale(24, M.dpi), nb = scale(30, M.dpi);
+    MoveWindow(M.back, pad, ay, nb, ah, TRUE);
+    MoveWindow(M.up, pad + nb + scale(4, M.dpi), ay, nb, ah, TRUE);
+    int ax = pad + 2 * nb + scale(10, M.dpi);
+    MoveWindow(M.addr, ax, ay, w - ax - pad, ah, TRUE);
+    int top = ay + ah + scale(6, M.dpi), bottom_h = scale(30, M.dpi), body_h = h - top - bottom_h;
+    int tw = std::min(std::max(scale(M.split, M.dpi), scale(120, M.dpi)), std::max(w - scale(200, M.dpi), scale(120, M.dpi)));
+    int gap = scale(5, M.dpi);
+    MoveWindow(M.tree, 0, top, tw, body_h, TRUE);
+    MoveWindow(M.list, tw + gap, top, w - tw - gap, body_h, TRUE);
+    // The Name column takes the width the others leave, as in Explorer: no horizontal scroll bar.
+    int cols = Header_GetItemCount(ListView_GetHeader(M.list)), others = 0;
+    for (int i = 1; i < cols; i++) others += ListView_GetColumnWidth(M.list, i);
+    RECT lc;
+    GetClientRect(M.list, &lc);
+    int vs = (GetWindowLongPtrW(M.list, GWL_STYLE) & WS_VSCROLL) ? 0 : GetSystemMetricsForDpi(SM_CXVSCROLL, M.dpi);
+    if (cols > 0) ListView_SetColumnWidth(M.list, 0, std::max(scale(140, M.dpi), (int)lc.right - others - vs));
+    MoveWindow(M.empty, pad, top + body_h / 2 - scale(12, M.dpi), w - 2 * pad, scale(24, M.dpi), TRUE);
+    int by = top + body_h + (bottom_h - scale(24, M.dpi)) / 2, cw = scale(90, M.dpi), pw = scale(220, M.dpi);
     MoveWindow(M.cancel, w - pad - cw, by, cw, scale(24, M.dpi), TRUE);
     MoveWindow(M.progress, w - pad - cw - scale(8, M.dpi) - pw, by + scale(4, M.dpi), pw, scale(16, M.dpi), TRUE);
     bool busy = M.job != nullptr;
     int sw = busy ? w - 3 * pad - cw - pw - scale(8, M.dpi) : w - 2 * pad;
     MoveWindow(M.status, pad, by + scale(4, M.dpi), sw, scale(20, M.dpi), TRUE);
+}
+
+// The vertical strip between the tree and the list, dragged to resize the tree.
+bool on_splitter(int x, int y) {
+    if (!M.ar) return false;
+    RECT t, l;
+    GetWindowRect(M.tree, &t);
+    GetWindowRect(M.list, &l);
+    MapWindowPoints(nullptr, M.wnd, reinterpret_cast<POINT *>(&t), 2);
+    MapWindowPoints(nullptr, M.wnd, reinterpret_cast<POINT *>(&l), 2);
+    return x >= t.right && x < l.left && y >= t.top && y < t.bottom;
 }
 
 void set_busy(bool busy, const wchar_t *what) {
@@ -699,12 +992,13 @@ void set_busy(bool busy, const wchar_t *what) {
     SendMessageW(M.progress, PBM_SETPOS, 0, 0);
     SetWindowTextW(M.status, busy ? what : M.idle_status.c_str());
     if (M.taskbar) M.taskbar->SetProgressState(M.wnd, busy ? TBPF_NORMAL : TBPF_NOPROGRESS);
+    update_nav();
     layout();
 }
 
 void show_archive() {
     bool has = M.ar != nullptr;
-    ShowWindow(M.list, has ? SW_SHOW : SW_HIDE);
+    for (HWND c : {M.tree, M.list, M.addr, M.back, M.up}) ShowWindow(c, has ? SW_SHOW : SW_HIDE);
     ShowWindow(M.empty, has ? SW_HIDE : SW_SHOW);
     bool want_group = has && M.ar->info.has_directory && xiz_group_count(M.ar->a) > 1;
     if (want_group != M.group_col) {
@@ -713,13 +1007,16 @@ void show_archive() {
             c.mask = LVCF_TEXT | LVCF_WIDTH;
             c.pszText = const_cast<wchar_t *>(T(S::ColGroup));
             c.cx = scale(140, M.dpi);
-            ListView_InsertColumn(M.list, 3, &c);
+            ListView_InsertColumn(M.list, 4, &c);
         } else {
-            ListView_DeleteColumn(M.list, 3);
+            ListView_DeleteColumn(M.list, 4);
+            if (M.sort_col == 4) M.sort_col = 0;
         }
         M.group_col = want_group;
     }
-    ListView_SetItemCountEx(M.list, has ? (int)M.ar->entries.size() : 0, 0);
+    TreeView_DeleteAllItems(M.tree);
+    ListView_SetItemCountEx(M.list, 0, 0);
+    build_nodes();
     if (has) {
         const xiz_info &i = M.ar->info;
         M.idle_status = fmt(S::Summary, (unsigned long long)M.ar->entries.size(), byte_size(M.ar->bytes).c_str());
@@ -727,6 +1024,16 @@ void show_archive() {
         M.idle_status += vfmt(L" \x2022 XIZ %u.%u", (unsigned)i.version_major, (unsigned)i.version_minor);
         if (i.hidden_groups) M.idle_status += L" \x2022 " + fmt(S::HiddenGroups, (unsigned)i.hidden_groups);
         SetWindowTextW(M.wnd, (file_name(M.ar->path) + L" \x2014 " + T(S::AppName)).c_str());
+        load_folder_icons();
+        insert_node(TVI_ROOT, 0);
+        // Straight into the only folder when the archive holds just one (Xipper's usual layout).
+        int start = 0;
+        fill_node(0);
+        TreeView_Expand(M.tree, M.nodes[0].item, TVE_EXPAND);
+        if (M.nodes[0].dirs.size() == 1 && M.nodes[0].files.empty()) start = M.nodes[0].dirs[0];
+        navigate(start, false);
+        fill_node(start);
+        TreeView_Expand(M.tree, M.nodes[(size_t)start].item, TVE_EXPAND);
     } else {
         M.idle_status.clear();
         SetWindowTextW(M.wnd, T(S::AppName));
@@ -777,6 +1084,15 @@ void open_path(const std::wstring &path, bool ask = false) {
     SetFocus(M.list);
 }
 
+std::string row_stored(const Row &r) { return r.dir ? M.nodes[r.idx].stored : M.ar->entries[r.idx].stored; }
+
+std::vector<std::string> selected_paths() {
+    std::vector<std::string> sel;
+    for (int i = -1; (i = ListView_GetNextItem(M.list, i, LVNI_SELECTED)) >= 0;)
+        if ((size_t)i < M.rows.size()) sel.push_back(row_stored(M.rows[(size_t)i]));
+    return sel;
+}
+
 void start(Job::Kind kind, bool selection) {
     if (!M.ar || M.job) return;
     auto j = std::make_unique<Job>();
@@ -786,7 +1102,7 @@ void start(Job::Kind kind, bool selection) {
     j->path = M.ar->path;
     if (kind == Job::Extract) {
         if (selection) {
-            for (int i = -1; (i = ListView_GetNextItem(M.list, i, LVNI_SELECTED)) >= 0;) j->select.push_back(M.ar->entries[(size_t)i].stored);
+            j->select = selected_paths();
             if (j->select.empty()) return;
         }
         ExState st;
@@ -801,33 +1117,12 @@ void start(Job::Kind kind, bool selection) {
     start_job(*M.job);
 }
 
-int icon_for(const Entry &e) {
-    SHFILEINFOW fi{};
-    if (e.type == XIZ_TYPE_DIRECTORY) {
-        if (M.folder_icon < 0 &&
-            SHGetFileInfoW(L"folder", FILE_ATTRIBUTE_DIRECTORY, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON))
-            M.folder_icon = fi.iIcon;
-        return M.folder_icon;
-    }
-    std::wstring name = file_name(e.path);
-    size_t dot = name.find_last_of(L'.');
-    std::wstring ext = dot == std::wstring::npos ? L"" : name.substr(dot);
-    CharLowerW(ext.data());
-    auto it = M.icons.find(ext);
-    if (it != M.icons.end()) return it->second;
-    int idx = 0;
-    if (SHGetFileInfoW((L"x" + ext).c_str(), FILE_ATTRIBUTE_NORMAL, &fi, sizeof fi, SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_SMALLICON))
-        idx = fi.iIcon;
-    M.icons[ext] = idx;
-    return idx;
-}
-
 void add_columns() {
     LVCOLUMNW c{};
     c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
-    const S names[] = {S::ColName, S::ColSize, S::ColModified};
-    const int widths[] = {460, 110, 160};
-    for (int i = 0; i < 3; i++) {
+    const S names[] = {S::ColName, S::ColSize, S::ColType, S::ColModified};
+    const int widths[] = {300, 90, 150, 140};
+    for (int i = 0; i < 4; i++) {
         c.pszText = const_cast<wchar_t *>(T(names[i]));
         c.cx = scale(widths[i], M.dpi);
         c.fmt = i == 1 ? LVCFMT_RIGHT : LVCFMT_LEFT;
@@ -835,16 +1130,13 @@ void add_columns() {
     }
 }
 
-std::vector<std::string> selected_paths() {
-    std::vector<std::string> sel;
-    for (int i = -1; (i = ListView_GetNextItem(M.list, i, LVNI_SELECTED)) >= 0;) sel.push_back(M.ar->entries[(size_t)i].stored);
-    return sel;
-}
-
-// Double-click or Enter on a file: extracted to a temporary folder and opened with its program.
+// Double-click or Enter: a folder opens in the window; a file is extracted to a temporary folder
+// and opened with its program.
 void open_item(int index) {
-    if (index < 0 || (size_t)index >= M.ar->entries.size()) return;
-    const Entry &e = M.ar->entries[(size_t)index];
+    if (index < 0 || (size_t)index >= M.rows.size()) return;
+    const Row r = M.rows[(size_t)index];
+    if (r.dir) { navigate((int)r.idx); return; }
+    const Entry &e = M.ar->entries[r.idx];
     if (e.type != XIZ_TYPE_FILE) return;
     SetCursor(LoadCursorW(nullptr, IDC_WAIT));
     SetWindowTextW(M.status, T(S::Preparing));
@@ -892,6 +1184,8 @@ void command(int id) {
     case ID_EXTRACT_SEL: start(Job::Extract, true); break;
     case ID_VERIFY: start(Job::Test, false); break;
     case ID_CANCEL: if (M.job) M.job->cancel = true; break;
+    case ID_BACK: if (!M.job) go_back(); break;
+    case ID_UP: if (!M.job) go_up(); break;
     case ID_UNLOCK: if (M.ar) open_path(M.ar->path, true); break;
     case ID_SIGS: if (M.ar) show_signatures(M.wnd, *M.ar); break;
     case ID_PROPS: if (M.ar) show_properties(M.wnd, *M.ar); break;
@@ -913,6 +1207,16 @@ void command(int id) {
     }
 }
 
+void add_tip(HWND control, S text) {
+    TTTOOLINFOW ti{};
+    ti.cbSize = sizeof ti;
+    ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+    ti.hwnd = M.wnd;
+    ti.uId = (UINT_PTR)control;
+    ti.lpszText = const_cast<wchar_t *>(T(text));
+    SendMessageW(M.tips, TTM_ADDTOOLW, 0, (LPARAM)&ti);
+}
+
 LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE: {
@@ -924,13 +1228,22 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         for (int i = 0; i < 4; i++)
             M.buttons[i] = CreateWindowW(L"BUTTON", T(labels[i]), WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w,
                                          (HMENU)(INT_PTR)ids[i], g_inst, nullptr);
-        M.list = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | WS_TABSTOP | LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS | LVS_SHAREIMAGELISTS,
-                                 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_LIST, g_inst, nullptr);
+        M.back = CreateWindowW(L"BUTTON", L"\x2190", WS_CHILD | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_BACK, g_inst, nullptr);
+        M.up = CreateWindowW(L"BUTTON", L"\x2191", WS_CHILD | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_UP, g_inst, nullptr);
+        M.addr = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | ES_READONLY | ES_AUTOHSCROLL, 0, 0, 0, 0, w, nullptr, g_inst, nullptr);
+        M.tree = CreateWindowExW(0, WC_TREEVIEWW, L"", WS_CHILD | WS_TABSTOP | WS_BORDER | TVS_HASBUTTONS | TVS_LINESATROOT | TVS_SHOWSELALWAYS |
+                                 TVS_TRACKSELECT | TVS_FULLROWSELECT, 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_TREE, g_inst, nullptr);
+        SetWindowTheme(M.tree, L"Explorer", nullptr);
+        M.list = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | WS_TABSTOP | WS_BORDER | LVS_REPORT | LVS_OWNERDATA | LVS_SHOWSELALWAYS |
+                                 LVS_SHAREIMAGELISTS, 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_LIST, g_inst, nullptr);
         SetWindowTheme(M.list, L"Explorer", nullptr);
         ListView_SetExtendedListViewStyle(M.list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
         SHFILEINFOW fi{};
         auto sys = (HIMAGELIST)SHGetFileInfoW(L"", 0, &fi, sizeof fi, SHGFI_SYSICONINDEX | SHGFI_SMALLICON);
-        if (sys) ListView_SetImageList(M.list, sys, LVSIL_SMALL);
+        if (sys) {
+            ListView_SetImageList(M.list, sys, LVSIL_SMALL);
+            TreeView_SetImageList(M.tree, sys, TVSIL_NORMAL);
+        }
         add_columns();
         M.empty = CreateWindowW(L"STATIC", T(S::Empty), WS_CHILD | WS_VISIBLE | SS_CENTER, 0, 0, 0, 0, w, nullptr, g_inst, nullptr);
         M.status = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS | SS_NOPREFIX, 0, 0, 0, 0, w, nullptr, g_inst, nullptr);
@@ -938,6 +1251,9 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(M.progress, PBM_SETRANGE32, 0, 1000);
         M.cancel = CreateWindowW(L"BUTTON", T(S::Cancel), WS_CHILD | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w,
                                  (HMENU)(INT_PTR)ID_CANCEL, g_inst, nullptr);
+        M.tips = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, w, nullptr, g_inst, nullptr);
+        add_tip(M.back, S::Back);
+        add_tip(M.up, S::Up);
         set_font_all(w, M.font);
         DragAcceptFiles(w, TRUE);
         show_archive();
@@ -946,7 +1262,7 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SIZE: layout(); return 0;
     case WM_GETMINMAXINFO: {
         auto *mm = reinterpret_cast<MINMAXINFO *>(lp);
-        mm->ptMinTrackSize = {scale(520, M.dpi), scale(320, M.dpi)};
+        mm->ptMinTrackSize = {scale(560, M.dpi), scale(340, M.dpi)};
         return 0;
     }
     case WM_DPICHANGED: {
@@ -956,12 +1272,32 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         set_font_all(w, f);
         if (M.font) DeleteObject(M.font);
         M.font = f;
-        for (int i = 0; i < 3; i++) ListView_SetColumnWidth(M.list, i, MulDiv(ListView_GetColumnWidth(M.list, i), (int)M.dpi, (int)old));
+        int cols = Header_GetItemCount(ListView_GetHeader(M.list));
+        for (int i = 0; i < cols; i++) ListView_SetColumnWidth(M.list, i, MulDiv(ListView_GetColumnWidth(M.list, i), (int)M.dpi, (int)old));
         auto *r = reinterpret_cast<RECT *>(lp);
         SetWindowPos(w, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
         layout();
         return 0;
     }
+    case WM_SETCURSOR: {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(w, &p);
+        if ((HWND)wp == w && on_splitter(p.x, p.y)) { SetCursor(LoadCursorW(nullptr, IDC_SIZEWE)); return TRUE; }
+        break;
+    }
+    case WM_LBUTTONDOWN:
+        if (on_splitter((short)LOWORD(lp), (short)HIWORD(lp))) { M.splitting = true; SetCapture(w); }
+        return 0;
+    case WM_MOUSEMOVE:
+        if (M.splitting) {
+            M.split = std::max(80, MulDiv((short)LOWORD(lp), 96, (int)M.dpi));
+            layout();
+        }
+        return 0;
+    case WM_LBUTTONUP:
+        if (M.splitting) { M.splitting = false; ReleaseCapture(); }
+        return 0;
     case WM_COMMAND: command(LOWORD(wp)); return 0;
     case WM_DROPFILES: {
         auto drop = (HDROP)wp;
@@ -975,23 +1311,56 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_NOTIFY: {
         auto *h = reinterpret_cast<NMHDR *>(lp);
+        if (h->idFrom == ID_TREE && M.ar) {
+            if (h->code == TVN_ITEMEXPANDINGW) {
+                auto *t = reinterpret_cast<NMTREEVIEWW *>(lp);
+                if (t->action & TVE_EXPAND) fill_node((int)t->itemNew.lParam);
+                return 0;
+            }
+            if (h->code == TVN_SELCHANGEDW && !M.tree_sync && !M.job) {
+                auto *t = reinterpret_cast<NMTREEVIEWW *>(lp);
+                if ((int)t->itemNew.lParam != M.cur) navigate((int)t->itemNew.lParam);
+                return 0;
+            }
+            break;
+        }
         if (h->idFrom == ID_LIST && h->code == LVN_GETDISPINFOW && M.ar) {
             auto *d = reinterpret_cast<NMLVDISPINFOW *>(lp);
-            if (d->item.iItem < 0 || (size_t)d->item.iItem >= M.ar->entries.size()) return 0;
-            const Entry &e = M.ar->entries[(size_t)d->item.iItem];
-            if (d->item.mask & LVIF_IMAGE) d->item.iImage = icon_for(e);
+            if (d->item.iItem < 0 || (size_t)d->item.iItem >= M.rows.size()) return 0;
+            const Row &r = M.rows[(size_t)d->item.iItem];
+            std::wstring name = row_name(r);
+            if (d->item.mask & LVIF_IMAGE) d->item.iImage = r.dir ? M.folder_icon : file_icon(name);
             if (d->item.mask & LVIF_TEXT) {
                 static std::wstring text;
-                if (d->item.iSubItem == 0) text = e.path;
-                else if (d->item.iSubItem == 1) text = e.type == XIZ_TYPE_FILE ? byte_size(e.size) : L"";
-                else if (d->item.iSubItem == 2) text = date_time(e.mtime);
-                else text = group_name(M.ar->a, e.group);
+                switch (d->item.iSubItem) {
+                case 0: text = name; break;
+                case 1: text = r.dir ? L"" : byte_size(M.ar->entries[r.idx].size); break;
+                case 2: text = type_name(name, r.dir); break;
+                case 3: { int64_t t = row_mtime(r); text = t ? date_time(t) : L""; break; }
+                default: {
+                    int e = r.dir ? M.nodes[r.idx].entry : (int)r.idx;
+                    text = e >= 0 ? group_name(M.ar->a, M.ar->entries[(size_t)e].group) : L"";
+                }
+                }
                 lstrcpynW(d->item.pszText, text.c_str(), d->item.cchTextMax);
             }
             return 0;
         }
+        if (h->idFrom == ID_LIST && h->code == LVN_COLUMNCLICK && M.ar) {
+            int col = reinterpret_cast<NMLISTVIEW *>(lp)->iSubItem;
+            M.sort_desc = col == M.sort_col ? !M.sort_desc : false;
+            M.sort_col = col;
+            sort_rows();
+            ListView_SetItemState(M.list, -1, 0, LVIS_SELECTED);
+            InvalidateRect(M.list, nullptr, TRUE);
+            return 0;
+        }
         if (h->idFrom == ID_LIST && h->code == LVN_ITEMACTIVATE && M.ar && !M.job) {
             open_item(ListView_GetNextItem(M.list, -1, LVNI_FOCUSED));
+            return 0;
+        }
+        if (h->idFrom == ID_LIST && h->code == LVN_KEYDOWN && M.ar && !M.job) {
+            if (reinterpret_cast<NMLVKEYDOWN *>(lp)->wVKey == VK_BACK) go_up();
             return 0;
         }
         if (h->idFrom == ID_LIST && h->code == LVN_BEGINDRAG && M.ar && !M.job) {
@@ -1102,7 +1471,7 @@ LRESULT CALLBACK prog_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
 // ---------------------------------------------------------------- command line
 
 struct Args {
-    std::wstring mode, archive, dest, log;
+    std::wstring mode, archive, dest, log, folder;
     std::vector<std::wstring> passenv, keys;  // repeatable: custodians, recipients, factors
     bool quiet = false, keep_both = false;
 };
@@ -1254,7 +1623,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     g_inst = inst;
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     OleInitialize(nullptr);  // COM, plus OLE drag and drop
-    INITCOMMONCONTROLSEX icc{sizeof icc, ICC_LISTVIEW_CLASSES | ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES};
+    INITCOMMONCONTROLSEX icc{sizeof icc, ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES | ICC_BAR_CLASSES};
     InitCommonControlsEx(&icc);
 
     WNDCLASSEXW wc{};
@@ -1283,6 +1652,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         else if (s == L"/passenv") { std::wstring v; next(v); a.passenv.push_back(v); }
         else if (s == L"/factor" || s == L"/identity") { std::wstring v; next(v); a.keys.push_back(v); }
         else if (s == L"/log") next(a.log);
+        else if (s == L"/folder") next(a.folder);
         else if (s == L"/quiet") a.quiet = true;
         else if (s == L"/keep-both") a.keep_both = true;
         else if (s == L"/?" || s == L"/help") a.mode = L"/help";
@@ -1307,10 +1677,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     ShowWindow(w, show);
     UpdateWindow(w);
     if (!first.empty()) open_path(first);
+    if (!a.folder.empty()) navigate_to(utf8(a.folder));
 
     ACCEL acc[] = {{FCONTROL | FVIRTKEY, 'O', ID_OPEN}, {FCONTROL | FVIRTKEY, 'E', ID_EXTRACT}, {FCONTROL | FVIRTKEY, 'T', ID_VERIFY},
-                   {FALT | FVIRTKEY, VK_RETURN, ID_PROPS}};
-    HACCEL accel = CreateAcceleratorTableW(acc, 4);
+                   {FALT | FVIRTKEY, VK_RETURN, ID_PROPS}, {FALT | FVIRTKEY, VK_LEFT, ID_BACK}, {FALT | FVIRTKEY, VK_UP, ID_UP}};
+    HACCEL accel = CreateAcceleratorTableW(acc, 6);
     MSG m;
     while (GetMessageW(&m, nullptr, 0, 0) > 0) {
         if (!TranslateAcceleratorW(w, accel, &m)) {

@@ -155,6 +155,8 @@ if [ "${SHOTS:-1}" = 1 ]; then
     export DISPLAY=:9
     sleep 2
     shot() { sleep "$2"; import -window root "/w/shots/$1.png" 2> /dev/null; }
+    $A in/plain.xiz /folder tree/docs & sleep 8; shot folder 1
+    wineserver -k; sleep 1
     $A in/plain.xiz & sleep 8; shot main 1
     xdotool key ctrl+e 2> /dev/null; shot extract-dialog 3
     xdotool key Escape 2> /dev/null; sleep 1
