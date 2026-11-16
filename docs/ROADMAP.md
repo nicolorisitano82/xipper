@@ -552,6 +552,8 @@ Decisione del proprietario: niente VM Windows. `xiz.exe` x86_64 (zig) gira sotto
 - limiti: Wine non è Windows (niente NTFS, ACL, flussi alternativi, nomi riservati e maiuscole/minuscole; i link simbolici Wine finge di crearli; output su pipe, non console); `--password-stdin` legge ancora nella code page ANSI; la build aarch64 compila ma sotto Wine arm64 non parte.
 
 ### 3.5 — password più robuste e XIZ 1.14 (piano del 16/11/2026)
+- ✅ **3.5.0 rilasciata il 16/11/2026** con le fasi A e C; campagna completa verde: 427 test, matrice esaustiva, fuzzing, libxiz con 98 archivi riletti (anche i 1.14 cifrati), interop, 45 giri di poco spazio con 70 kill, validazione forense, `xiz` su Linux e su Windows sotto Wine (127 controlli); prova di corrente saltata.
+
 Dallo studio [STUDIO_XIZ_ATTACCHI.md](STUDIO_XIZ_ATTACCHI.md): chi ha l'archivio attacca offline, quindi conta l'entropia del segreto più del costo di Argon2id. Il proprietario ha scelto le fasi A e C.
 
 | Fase | Contenuto | Stato |
