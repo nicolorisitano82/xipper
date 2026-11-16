@@ -83,6 +83,14 @@ for arch in $archs; do
     code $O/tmp.log 0 && grep -q 'a.md$' $O/tmp.log && [[ ! -f $O/tmp.log.left ]] && ok temp-extract || { cat $O/tmp.log; no temp-extract; }
     XIZW_LANG=ja A /x $(winpath $T/missing.xiz) /quiet /log $(winpath $O/ja.log)
     grep -q '開けません' $O/ja.log && ok language-ja || { cat $O/ja.log; no language-ja; }
+    # C1: archives written on "Windows", checked by Xipper for Mac.
+    mkdir -p $O/src/sub && echo uno > $O/src/a.txt && head -c 300000 /dev/urandom > $O/src/sub/b.bin
+    A /new $(winpath $O/new.xiz) /src $(winpath $O/src) /passenv NFD /recovery /quiet /log $(winpath $O/new.log)
+    if code $O/new.log 0 && [[ -x $ROOT/.build/release/xipper ]]; then
+        print -r -- "$NFC" | $ROOT/.build/release/xipper test --password-stdin $O/new.xiz > $O/mac.log 2>&1 && ok create-read-by-xipper-mac || { cat $O/new.log $O/mac.log; no create-read-by-xipper-mac; }
+    else
+        code $O/new.log 0 && ok create || { cat $O/new.log; no create; }
+    fi
     printf "%s: %d passed, %d failed, %.0f s\n" $arch $pass $bad $(( EPOCHREALTIME - t0 ))
     total_bad=$((total_bad + bad))
 done

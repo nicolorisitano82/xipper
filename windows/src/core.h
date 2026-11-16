@@ -100,7 +100,7 @@ struct Conflict {
 };
 
 struct Job {
-    enum Kind { Extract, Test, Repair } kind = Extract;
+    enum Kind { Extract, Test, Repair, Create, Update } kind = Extract;
     std::wstring path;              // the archive (Test: its recovery record; Repair: the original)
     HWND notify = nullptr;          // receives WM_JOB_*; nullptr: run quietly
     xiz_archive *a = nullptr;
@@ -117,6 +117,15 @@ struct Job {
     bool has_record = false;        // Test, Repair: the archive has a recovery record (§15)
     xiz_recovery_report rrep{};
     std::wstring repaired;          // Repair: the repaired copy
+    // Create (new archive at `path`) and Update (append to `path`):
+    std::vector<std::wstring> sources;  // files and folders from disk, added under `prefix`
+    std::string prefix;                 // Update: the archive folder they go into ("" = root)
+    std::vector<std::string> remove;    // Update: entries (and folders) to remove
+    int level = 9;
+    std::string password;               // NFC, UTF-8; empty: none
+    bool strong = false, recovery = false;
+    uint64_t total = 0;                 // bytes the writer will read (progress)
+    uint64_t files = 0, bytes_in = 0;   // Create: what went in
     std::vector<std::wstring> problems;
     // private
     int sticky = -1;
@@ -129,6 +138,14 @@ struct Job {
 void run_job(Job &j);
 // Starts on a new thread; WM_JOB_DONE arrives at j.notify when it ends.
 void start_job(Job &j);
+
+// Files and bytes under `sources` (folders recursively, links and junctions and Explorer's
+// desktop.ini/Thumbs.db left out, as the writer does).
+void measure(const std::vector<std::wstring> &sources, uint64_t &files, uint64_t &bytes);
+// Password strength (zxcvbn, as on the Mac): log2 of the guesses; level 0 weak … 3 excellent.
+double password_bits(const std::wstring &typed);
+int strength_level(double bits);
+constexpr double kMinimumBits = 45;
 
 // ---- shell
 

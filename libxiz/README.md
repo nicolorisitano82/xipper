@@ -1,6 +1,6 @@
 # libxiz
 
-Implementazione indipendente in C99 del formato **XIZ** di Xipper (lettura fino alla 1.14, scrittura 1.0), scritta a partire dalla
+Implementazione indipendente in C99 del formato **XIZ** di Xipper (lettura fino alla 1.14; scrittura 1.0, e 1.14 per gli archivi cifrati), scritta a partire dalla
 specifica pubblica [`docs/XIZ_SPEC.md`](../docs/XIZ_SPEC.md) e non dal codice Swift. Serve a
 leggere, verificare ed estrarre archivi XIZ su macOS, Linux e Windows, e come seconda
 implementazione per la riproducibilità forense (`docs/FORENSE_3.1.md`). Licenza MIT, come Xipper.
@@ -25,7 +25,7 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | 1.3: alberi Merkle, prove `xiz-proof-1` (§13.6) | verifica completa |
 | Marca temporale RFC 3161 | rilevata, **non** verificata |
 | Beta 0.1 (§9) | dietro `XIZ_OPEN_ALLOW_BETA`, senza fixture |
-| Scrittura: XIZ 1.0 zstd, frame da 4 MiB, deduplica per file, password | completo |
+| Scrittura: zstd, frame da 4 MiB compressi in parallelo (`threads`), deduplica per file, password con commitment delle chiavi (XIZ 1.14, stanza 9), avanzamento e annullamento (`progress`) | completo |
 | Scrittura: segmenti aggiunti (aggiunte, rimozioni, cartelle) su archivi 1.0–1.2/1.4 | completo |
 | Scrittura di strutture 1.3 (gruppi, firme, slot), dizionari, LZMA2 | non prevista |
 | 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
@@ -95,7 +95,7 @@ xiz extract [-d DIR] [--overwrite] [--allow-external-symlinks] [--no-symlinks]
 xiz cat     <archive> <entry>
 xiz history <archive>                    firme dei segmenti (non servono chiavi)
 xiz verify-proof <proof.json> <file>
-xiz create  [-l LEVEL] [--frame-size MiB] [--overwrite] <archive> <file|folder>...
+xiz create  [-l LEVEL] [--frame-size MiB] [--threads N] [--overwrite] <archive> <file|folder>...
 xiz append  <archive> [--add FILE[:PATH]]... [--delete PATH]... [--mkdir PATH]...
 xiz scrub   [--repair] <archive>         ogni byte contro il recovery record; --repair ripara in place
 xiz recovery add [--redundancy N] | remove | info <archive>
@@ -280,6 +280,8 @@ funzione `make_114_fixtures` dello script.
 - Il writer non produce strutture 1.3 né dizionari o LZMA2; l'append su archivi 1.3 è rifiutato.
 - Il writer deduplica per file intero (SHA-256), non per chunk a contenuto variabile.
 - La decompressione è a thread singolo (un archivio per thread); niente prefetch parallelo dei frame.
+- In scrittura gli hash di ogni file (SHA-256, e HMAC se cifrato) restano su un thread: con i livelli bassi sono loro il limite, non la compressione.
+- Su Windows il writer salta link, giunzioni, `desktop.ini` e `Thumbs.db`; i permessi diventano 0644/0755 (0444 i file in sola lettura).
 - Su Windows: provato sotto Wine, non su una macchina reale; `--password-stdin` legge ancora nella
   code page ANSI; link simbolici solo con privilegio o Developer
   Mode; i permessi POSIX diventano al più l'attributo sola lettura.

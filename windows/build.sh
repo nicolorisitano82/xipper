@@ -44,11 +44,15 @@ for arch in "${ARCHS[@]}"; do
         windows/res/app.rc > "$WORK/$arch/app.rc"
     rcarch=$([ "$arch" = aarch64 ] && echo arm64 || echo x64)
     zig rc /:target "$rcarch" /:auto-includes gnu /fo "$WORK/$arch/app.res" "$WORK/$arch/app.rc"
+    # zxcvbn (password strength, the same as the Mac app's), as C.
+    # zxcvbn.c includes "stdafx.h" on Windows (Visual Studio's precompiled header): an empty one.
+    mkdir -p "$WORK/$arch/inc" && : > "$WORK/$arch/inc/stdafx.h"
+    zig cc -target "$target" -O2 -c -I"$WORK/$arch/inc" -IVendor/zxcvbn/include Vendor/zxcvbn/src/zxcvbn.c -o "$WORK/$arch/zxcvbn.o"
     # The app.
     zig c++ -target "$target" -std=c++17 -O2 -municode -Wall -Wextra -Werror -Wno-missing-field-initializers \
         -DUNICODE -D_UNICODE \
         -DXIZW_VERSION="\"$VERSION\"" \
-        -Ilibxiz/include windows/src/main.cpp windows/src/core.cpp windows/src/strings.cpp windows/src/strings_i18n.cpp windows/src/dragdrop.cpp "$WORK/$arch/app.res" \
+        -Ilibxiz/include -IVendor/zxcvbn/include windows/src/main.cpp windows/src/core.cpp windows/src/strings.cpp windows/src/strings_i18n.cpp windows/src/dragdrop.cpp "$WORK/$arch/app.res" "$WORK/$arch/zxcvbn.o" \
         "$lib/libxiz.a" -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -luxtheme -lnormaliz -lbcrypt -ladvapi32 -lgdi32 -luser32 \
         -Wl,--subsystem,windows -s -o "$WORK/$arch/XipperXIZ.exe"
     cp "$lib/xiz.exe" "$WORK/$arch/xiz.exe"

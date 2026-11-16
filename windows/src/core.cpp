@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "strings.h"
+#include "zxcvbn.h"
 
 // ---------------------------------------------------------------- text
 
@@ -471,7 +472,146 @@ static void repair(Job &j) {
     j.repaired = dst;
 }
 
+// ---------------------------------------------------------------- writing
+
+static void walk(const std::wstring &p, uint64_t &files, uint64_t &bytes) {
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (!GetFileAttributesExW(p.c_str(), GetFileExInfoStandard, &fa)) return;
+    if (!(fa.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        files++;
+        bytes += (uint64_t)fa.nFileSizeHigh << 32 | fa.nFileSizeLow;
+        return;
+    }
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((p + L"\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
+        if (!_wcsicmp(fd.cFileName, L"desktop.ini") || !_wcsicmp(fd.cFileName, L"Thumbs.db")) continue;
+        walk(p + L"\\" + fd.cFileName, files, bytes);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+
+void measure(const std::vector<std::wstring> &sources, uint64_t &files, uint64_t &bytes) {
+    files = bytes = 0;
+    for (auto &s : sources) walk(s, files, bytes);
+}
+
+static int on_write_progress(void *ctx, uint64_t done, uint64_t) {
+    Job &j = *static_cast<Job *>(ctx);
+    return on_bytes(ctx, done > j.total ? j.total : done, j.total);
+}
+
+// The name a source gets in the archive: its last component ("C:\" alone becomes "C").
+static std::string source_name(std::wstring p) {
+    while (p.size() > 1 && (p.back() == L'\\' || p.back() == L'/')) p.pop_back();
+    std::wstring n = file_name(p);
+    if (!n.empty() && n.back() == L':') n.pop_back();
+    return utf8(n.empty() ? std::wstring(L"_") : n);
+}
+
+static void writer_options(Job &j, xiz_writer_options &o) {
+    o = xiz_writer_options{};
+    o.level = j.level;
+    o.password = j.password.empty() ? nullptr : j.password.c_str();
+    if (j.strong) { o.kdf_memory_kib = 1u << 20; o.kdf_iterations = 4; o.kdf_parallelism = 4; }
+    o.progress = on_write_progress;
+    o.progress_ctx = &j;
+}
+
+static void create(Job &j) {
+    uint64_t files, bytes;
+    measure(j.sources, files, bytes);
+    j.files = files;
+    j.bytes_in = bytes;
+    j.total = 2 * bytes;  // every file is read twice: hash, then data
+    xiz_writer_options o;
+    writer_options(j, o);
+    xiz_writer *w = nullptr;
+    j.rc = xiz_writer_create(&w, utf8(j.path).c_str(), &o, 1, &j.err);
+    for (size_t i = 0; j.rc == XIZ_OK && i < j.sources.size(); i++) {
+        wchar_t full[32768];
+        DWORD n = GetFullPathNameW(j.sources[i].c_str(), 32768, full, nullptr);
+        std::wstring src = n > 0 && n < 32768 ? std::wstring(full, n) : j.sources[i];
+        j.rc = xiz_writer_add_tree(w, source_name(src).c_str(), utf8(src).c_str(), &j.err);
+    }
+    if (j.rc != XIZ_OK) {
+        if (w) xiz_writer_abort(w);
+        return;
+    }
+    j.rc = xiz_writer_finish(w, &j.err);
+    if (j.rc == XIZ_OK && j.recovery) {
+        xiz_recovery_info ri;
+        j.rc = xiz_recovery_add(utf8(j.path).c_str(), 5.0, &ri, &j.err);
+    }
+}
+
+static void update(Job &j) {
+    uint64_t files, bytes;
+    measure(j.sources, files, bytes);
+    j.total = 2 * bytes;
+    xiz_recovery_info ri;
+    xiz_error e{};
+    bool had_record = xiz_recovery_info_file(utf8(j.path).c_str(), &ri, &e) == XIZ_OK;
+    xiz_writer_options o;
+    writer_options(j, o);
+    xiz_writer *w = nullptr;
+    j.rc = xiz_writer_append(&w, utf8(j.path).c_str(), &o, &j.err);
+    for (size_t i = 0; j.rc == XIZ_OK && i < j.remove.size(); i++) j.rc = xiz_writer_remove(w, j.remove[i].c_str(), &j.err);
+    for (size_t i = 0; j.rc == XIZ_OK && i < j.sources.size(); i++) {
+        std::string name = source_name(j.sources[i]);
+        j.rc = xiz_writer_add_tree(w, (j.prefix.empty() ? name : j.prefix + "/" + name).c_str(), utf8(j.sources[i]).c_str(), &j.err);
+    }
+    if (j.rc != XIZ_OK) {
+        if (w) xiz_writer_abort(w);  // the archive is exactly as before
+        return;
+    }
+    j.rc = xiz_writer_finish(w, &j.err);
+    if (j.rc == XIZ_OK && had_record) j.rc = xiz_recovery_add(utf8(j.path).c_str(), 5.0, &ri, &j.err);  // appending removed it
+}
+
+// ---------------------------------------------------------------- password strength
+
+// zxcvbn knows single-byte text: the NFC form and the form without diacritics ("pässwörd" is
+// "password" to an attacker); the weaker counts, as on the Mac.
+static double zx(const std::wstring &w) {
+    std::string u = utf8(w);
+    double b = ZxcvbnMatch(u.c_str(), nullptr, nullptr);
+    SecureZeroMemory(u.data(), u.size());
+    return b;
+}
+
+double password_bits(const std::wstring &typed) {
+    if (typed.empty()) return 0;
+    std::string nfc_u = password_utf8(typed);
+    std::wstring nfc = wide(nfc_u);
+    SecureZeroMemory(nfc_u.data(), nfc_u.size());
+    double bits = zx(nfc);
+    int n = NormalizeString(NormalizationKD, nfc.c_str(), (int)nfc.size(), nullptr, 0);
+    if (n > 0) {
+        std::wstring kd((size_t)n, L'\0');
+        n = NormalizeString(NormalizationKD, nfc.c_str(), (int)nfc.size(), kd.data(), n);
+        if (n > 0) {
+            kd.resize((size_t)n);
+            std::wstring folded;
+            for (wchar_t c : kd)
+                if (c < 0x300 || c > 0x36F) folded += c;  // combining marks dropped
+            if (folded != nfc) bits = std::min(bits, zx(folded));
+            SecureZeroMemory(folded.data(), folded.size() * sizeof(wchar_t));
+        }
+        SecureZeroMemory(kd.data(), kd.size() * sizeof(wchar_t));
+    }
+    SecureZeroMemory(nfc.data(), nfc.size() * sizeof(wchar_t));
+    return bits;
+}
+
+int strength_level(double bits) { return bits < kMinimumBits ? 0 : bits < 60 ? 1 : bits < 77 ? 2 : 3; }
+
 void run_job(Job &j) {
+    if (j.kind == Job::Create) { create(j); return; }
+    if (j.kind == Job::Update) { update(j); return; }
     if (j.kind == Job::Repair) {
         repair(j);
         return;
@@ -529,12 +669,21 @@ bool register_association() {
               set_value(L"Software\\Classes\\.xiz", nullptr, kProgId) &&
               set_value(L"Software\\Classes\\.xiz", L"Content Type", L"application/x-xiz") &&
               RegSetKeyValueW(HKEY_CURRENT_USER, L"Software\\Classes\\.xiz\\OpenWithProgids", kProgId, REG_NONE, nullptr, 0) == ERROR_SUCCESS;
+    // "Add to an XIZ archive…" on files and folders; Player: one verb for a multiple selection
+    // (each item still starts a process: the first collects the others, see main.cpp).
+    for (const wchar_t *base : {L"Software\\Classes\\*\\shell\\XipperXIZ.add", L"Software\\Classes\\Directory\\shell\\XipperXIZ.add"}) {
+        std::wstring k = base;
+        ok = ok && set_value(k, L"MUIVerb", T(S::VerbAddToXiz)) && set_value(k, L"Icon", exe + L",-1") &&
+             set_value(k, L"MultiSelectModel", L"Player") && set_value(k + L"\\command", nullptr, q + L" /create \"%1\"");
+    }
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return ok;
 }
 
 bool unregister_association() {
     RegDeleteTreeW(HKEY_CURRENT_USER, (std::wstring(L"Software\\Classes\\") + kProgId).c_str());
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\*\\shell\\XipperXIZ.add");
+    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\shell\\XipperXIZ.add");
     HKEY k;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\.xiz", 0, KEY_READ | KEY_WRITE, &k) == ERROR_SUCCESS) {
         wchar_t v[128] = {0};

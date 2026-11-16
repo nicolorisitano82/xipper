@@ -142,6 +142,24 @@ for l in de:geöffnet es:abrir fr:ouvrir ja:開けません zh:无法打开 it:a
     grep -q "^message .*${l#*:}" lang.log && ok "language-${l%%:*}" || { cat lang.log; no "language-${l%%:*}"; }
 done
 
+# C1: creating, appending, removing (read back by xiz.exe).
+mkdir -p mk/src/sub && printf 'uno\n' > mk/src/a.txt && head -c 300000 /dev/urandom > mk/src/sub/b.bin && printf 'x' > mk/src/desktop.ini
+printf 'nuovo\n' > mk/extra.txt
+$A /new mk/new.xiz /src mk/src /quiet /log new.log; wineserver -w
+$X extract -d mk/out mk/new.xiz > /dev/null 2>&1
+code new.log 0 && [ "$(cd mk/out/src && find . -type f | sort)" = "$(printf './a.txt\n./sub/b.bin')" ] && cmp -s mk/out/src/sub/b.bin mk/src/sub/b.bin \
+    && ok create || { cat new.log; no create; }
+$A /new mk/pw.xiz /src mk/src /passenv NFD /recovery /level 19 /quiet /log newpw.log; wineserver -w
+code newpw.log 0 && $X test --password-env NFC mk/pw.xiz > /dev/null 2>&1 && $X info --password-env NFC mk/pw.xiz | grep -q 'XIZ 1.14' \
+    && $X recovery info mk/pw.xiz > /dev/null 2>&1 && ok create-password-nfc-commitment-record || { cat newpw.log; $X info --password-env NFC mk/pw.xiz; no create-password-nfc-commitment-record; }
+$A /append mk/new.xiz /src mk/extra.txt /folder src/sub /quiet /log app.log; wineserver -w
+code app.log 0 && $X list mk/new.xiz | tr -d '\r' | grep -qx 'src/sub/extra.txt' && ok append || { cat app.log; no append; }
+$A /remove mk/new.xiz /entry src/a.txt /quiet /log rm.log; wineserver -w
+code rm.log 0 && ! $X list mk/new.xiz | tr -d '\r' | grep -qx 'src/a.txt' && $X test mk/new.xiz > /dev/null 2>&1 && ok remove || { cat rm.log; no remove; }
+$A /append mk/pw.xiz /src mk/extra.txt /passenv NFD /quiet /log apppw.log; wineserver -w
+code apppw.log 0 && $X list --password-env NFC mk/pw.xiz | tr -d '\r' | grep -qx 'extra.txt' && $X recovery info mk/pw.xiz > /dev/null 2>&1 \
+    && ok append-password-keeps-record || { cat apppw.log; no append-password-keeps-record; }
+
 $A /register /quiet; wineserver -w
 wine reg query 'HKCU\Software\Classes\.xiz' 2> /dev/null | grep -q XipperXIZ.Archive &&
     wine reg query 'HKCU\Software\Classes\XipperXIZ.Archive\shell\extracthere\command' 2> /dev/null | grep -q '/x' && ok register || no register
@@ -172,6 +190,9 @@ if [ "${SHOTS:-1}" = 1 ]; then
     xdotool key alt+f 2> /dev/null; sleep 1; xdotool key g 2> /dev/null; shot signatures 3
     wineserver -k; sleep 1
     $A & shot empty 8
+    xdotool key ctrl+n 2> /dev/null; sleep 3
+    xdotool key Tab Tab Tab Tab Tab Tab Tab space 2> /dev/null; sleep 1
+    xdotool type --delay 40 'correct horse' 2> /dev/null; shot new-dialog 2
     wineserver -k; sleep 1
     # Windows links a CJK font to the UI fonts; under Wine the UI fonts are replaced by WenQuanYi (from
     # the image) for these shots, which has Latin, kana and Han.

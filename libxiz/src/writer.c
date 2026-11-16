@@ -6,12 +6,14 @@
 
 #if defined(_WIN32)
 #  include <windows.h>
+#  include <process.h>
 #  include <io.h>
 #  include <fcntl.h>
 #  include <sys/stat.h>
 #else
 #  include <dirent.h>
 #  include <errno.h>
+#  include <pthread.h>
 #  include <fcntl.h>
 #  include <sys/stat.h>
 #  include <unistd.h>
@@ -39,6 +41,25 @@ typedef struct {
     int removed;
 } wentry;
 
+/* One frame on its way out: filled by the writer, compressed and sealed by a worker, written in
+ * order by the writer. */
+#define XIZ_WRITER_MAX_THREADS 16
+typedef struct {
+    struct xiz_writer *w;
+    uint8_t *in;
+    uint32_t used, index;
+    uint8_t *out;
+    size_t out_cap, n;
+    frame_rec f;
+    int fail;
+#if defined(_WIN32)
+    HANDLE thread;
+#else
+    pthread_t thread;
+#endif
+    int started;
+} wframe;
+
 struct xiz_writer {
     int append, overwrite;
     char *path, *tmp_path;
@@ -59,11 +80,17 @@ struct xiz_writer {
     uint32_t n_frames, cap_frames;
     wentry *entries;
     size_t n_entries, cap_entries;
-    uint8_t *buf;                /* current frame data */
+    uint8_t *buf;                /* current frame data (an input buffer of `slots`) */
     uint32_t used;
-    uint8_t *out;                /* compressed / sealed payload */
-    size_t out_cap;
+    uint32_t next_index;         /* the index the current frame will have */
+    int threads;                 /* frames compressed together */
+    wframe *slots[2];            /* two batches: one filling, one compressing */
+    uint32_t filled[2];
+    int cur, running;            /* the batch being filled; the one compressing (-1: none) */
     xiz_archive *source;         /* append: keeps xattr strings alive */
+    xiz_progress_fn progress;
+    void *progress_ctx;
+    uint64_t read_bytes;
     int failed;
 };
 
@@ -151,50 +178,130 @@ static int rename_path(const char *from, const char *to, int overwrite) {
 
 /* ------------------------------------------------------------------ frames */
 
-static int flush_frame(xiz_writer *w, xiz_error *err) {
-    if (w->used == 0) return XIZ_OK;
-    if (w->n_frames == w->cap_frames) {
-        uint32_t cap = w->cap_frames ? w->cap_frames * 2 : 64;
-        frame_rec *nf = realloc(w->frames, cap * sizeof(frame_rec));
-        if (!nf) return FAIL(XIZ_E_NOMEM, "out of memory");
-        w->frames = nf;
-        w->cap_frames = cap;
+/* Compresses (zstd, or store when it does not shrink) and seals one frame: no shared state, so
+ * workers run it in parallel. */
+static void seal_frame(wframe *p) {
+    xiz_writer *w = p->w;
+    size_t need = zstd_bound(p->used) + XIZ_TAG;
+    if (p->out_cap < need) {
+        uint8_t *o = realloc(p->out, need);
+        if (!o) { p->fail = 1; return; }
+        p->out = o;
+        p->out_cap = need;
     }
-    size_t need = zstd_bound(w->used) + XIZ_TAG;
-    if (w->out_cap < need) {
-        uint8_t *o = realloc(w->out, need);
-        if (!o) return FAIL(XIZ_E_NOMEM, "out of memory");
-        w->out = o;
-        w->out_cap = need;
-    }
-    frame_rec f;
-    memset(&f, 0, sizeof f);
-    uint32_t index = w->n_frames;
-    f.offset = w->pos;
-    f.usize = w->used;
-    size_t n = zstd_encode(w->buf, w->used, w->level, w->out, w->out_cap - XIZ_TAG);
-    if (n && n < w->used) {
-        f.codec = CODEC_ZSTD;
+    memset(&p->f, 0, sizeof p->f);
+    p->f.usize = p->used;
+    size_t n = zstd_encode(p->in, p->used, w->level, p->out, p->out_cap - XIZ_TAG);
+    if (n && n < p->used) {
+        p->f.codec = CODEC_ZSTD;
     } else {
-        f.codec = CODEC_STORE;
-        memcpy(w->out, w->buf, w->used);
-        n = w->used;
+        p->f.codec = CODEC_STORE;
+        memcpy(p->out, p->in, p->used);
+        n = p->used;
     }
     if (w->encrypted) {
         uint8_t nonce[12], aad[37];
-        frame_nonce(index, nonce);
-        frame_aad(w->sb.id, index, &f, aad);
-        aes_gcm_seal(w->keys.data, nonce, aad, sizeof aad, w->out, n, w->out + n);
+        frame_nonce(p->index, nonce);
+        frame_aad(w->sb.id, p->index, &p->f, aad);
+        aes_gcm_seal(w->keys.data, nonce, aad, sizeof aad, p->out, n, p->out + n);
         n += XIZ_TAG;
     }
-    f.csize = (uint32_t)n;
-    f.crc = xiz_crc32c(0, w->out, n);
-    uint8_t hdr[XIZ_FRAME_HEADER];
-    frame_header_encode(index, &f, hdr);
-    TRY(w_write(w, hdr, sizeof hdr, err));
-    TRY(w_write(w, w->out, n, err));
-    w->frames[w->n_frames++] = f;
-    w->used = 0;
+    p->f.csize = (uint32_t)n;
+    p->f.crc = xiz_crc32c(0, p->out, n);
+    p->n = n;
+}
+
+#if defined(_WIN32)
+static unsigned __stdcall seal_thread(void *arg) { seal_frame(arg); return 0; }
+#else
+static void *seal_thread(void *arg) { seal_frame(arg); return NULL; }
+#endif
+
+static int cpu_count(void) {
+#if defined(_WIN32)
+    DWORD n = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    return n ? (int)n : 1;
+#else
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int)n : 1;
+#endif
+}
+
+static void start_batch(xiz_writer *w, int set) {
+    for (uint32_t i = 0; i < w->filled[set]; i++) {
+        wframe *p = &w->slots[set][i];
+        p->started = 0;
+        if (w->threads > 1) {
+#if defined(_WIN32)
+            p->thread = (HANDLE)_beginthreadex(NULL, 0, seal_thread, p, 0, NULL);
+            p->started = p->thread != 0;
+#else
+            p->started = pthread_create(&p->thread, NULL, seal_thread, p) == 0;
+#endif
+        }
+        if (!p->started) seal_frame(p);  /* one thread, or no thread available */
+    }
+    w->running = set;
+}
+
+static void join_batch(xiz_writer *w, int set) {
+    for (uint32_t i = 0; i < w->filled[set]; i++) {
+        wframe *p = &w->slots[set][i];
+        if (!p->started) continue;
+#if defined(_WIN32)
+        WaitForSingleObject(p->thread, INFINITE);
+        CloseHandle(p->thread);
+#else
+        pthread_join(p->thread, NULL);
+#endif
+        p->started = 0;
+    }
+}
+
+/* Waits for the batch being compressed and writes its frames, in order. */
+static int write_batch(xiz_writer *w, xiz_error *err) {
+    if (w->running < 0) return XIZ_OK;
+    int set = w->running;
+    w->running = -1;
+    join_batch(w, set);
+    int rc = XIZ_OK;
+    for (uint32_t i = 0; i < w->filled[set] && rc == XIZ_OK; i++) {
+        wframe *p = &w->slots[set][i];
+        if (p->fail) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
+        if (w->n_frames == w->cap_frames) {
+            uint32_t cap = w->cap_frames ? w->cap_frames * 2 : 64;
+            frame_rec *nf = realloc(w->frames, cap * sizeof(frame_rec));
+            if (!nf) { rc = FAIL(XIZ_E_NOMEM, "out of memory"); break; }
+            w->frames = nf;
+            w->cap_frames = cap;
+        }
+        p->f.offset = w->pos;
+        uint8_t hdr[XIZ_FRAME_HEADER];
+        frame_header_encode(p->index, &p->f, hdr);
+        if ((rc = w_write(w, hdr, sizeof hdr, err)) == XIZ_OK && (rc = w_write(w, p->out, p->n, err)) == XIZ_OK)
+            w->frames[w->n_frames++] = p->f;
+    }
+    w->filled[set] = 0;
+    return rc;
+}
+
+/* The current frame is complete (or the data ends): it joins the batch; a full batch starts
+ * compressing while the next one fills, after the previous one is written. */
+static int flush_frame(xiz_writer *w, int final, xiz_error *err) {
+    int cur = w->cur;
+    if (w->used) {
+        wframe *p = &w->slots[cur][w->filled[cur]++];
+        p->used = w->used;
+        p->index = w->next_index++;
+        w->used = 0;
+    }
+    if (w->filled[cur] == (uint32_t)w->threads || (final && w->filled[cur])) {
+        TRY(write_batch(w, err));
+        start_batch(w, cur);
+        w->cur = cur ^ 1;
+    }
+    if (final) TRY(write_batch(w, err));
+    w->buf = w->slots[w->cur][w->filled[w->cur]].in;
     return XIZ_OK;
 }
 
@@ -218,11 +325,11 @@ static int put_data(xiz_writer *w, wentry *e, const uint8_t *d, size_t n, xiz_er
         uint32_t room = w->frame_size - w->used;
         uint32_t k = n < room ? (uint32_t)n : room;
         memcpy(w->buf + w->used, d, k);
-        if (!add_extent(e, w->n_frames, w->used, k)) return FAIL(XIZ_E_NOMEM, "out of memory");
+        if (!add_extent(e, w->next_index, w->used, k)) return FAIL(XIZ_E_NOMEM, "out of memory");
         w->used += k;
         d += k;
         n -= k;
-        if (w->used == w->frame_size) TRY(flush_frame(w, err));
+        if (w->used == w->frame_size) TRY(flush_frame(w, 0, err));
     }
     return XIZ_OK;
 }
@@ -418,13 +525,15 @@ int xiz_writer_add_file(xiz_writer *w, const char *path, const char *disk_path, 
     if (w->encrypted) hmac_init(&hc, w->keys.mac);
     uint64_t size = 0;
     long r;
+    int rc = XIZ_OK;
     while ((r = rf_read(&f, b, IOBUF)) > 0) {
         sha256_update(&sc, b, (size_t)r);
         if (w->encrypted) hmac_update(&hc, b, (size_t)r);
         size += (uint64_t)r;
+        w->read_bytes += (uint64_t)r;
+        if (w->progress && w->progress(w->progress_ctx, w->read_bytes, 0)) { rc = FAIL(XIZ_E_CALLBACK, "cancelled"); break; }
     }
-    int rc = XIZ_OK;
-    if (r < 0) rc = FAIL(XIZ_E_IO, "cannot read %s", disk_path);
+    if (!rc && r < 0) rc = FAIL(XIZ_E_IO, "cannot read %s", disk_path);
     wentry *e = rc ? NULL : new_entry(w, 0, path, meta, err);
     if (!rc && !e) rc = err ? err->code : XIZ_E_ARG;
     uint8_t mac[32];
@@ -449,6 +558,11 @@ int xiz_writer_add_file(xiz_writer *w, const char *path, const char *disk_path, 
                 sha256_update(&again, b, (size_t)r);
                 rc = put_data(w, e, b, (size_t)r, err);
                 got += (uint64_t)r;
+                w->read_bytes += (uint64_t)r;
+                if (!rc && w->progress && w->progress(w->progress_ctx, w->read_bytes, 0)) {
+                    w->failed = 1;
+                    rc = FAIL(XIZ_E_CALLBACK, "cancelled");
+                }
             }
             uint8_t h2[32];
             sha256_final(&again, h2);
@@ -547,7 +661,9 @@ int xiz_writer_add_tree(xiz_writer *w, const char *path, const char *disk_path, 
     size_t n = 0, cap = 0;
     do {
         if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;  /* links are not followed */
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;  /* links and junctions are not followed */
+        /* Explorer's own files, as .DS_Store on a Mac (docs/STUDIO_WINDOWS_XIZ.md §12.3). */
+        if (!_wcsicmp(fd.cFileName, L"desktop.ini") || !_wcsicmp(fd.cFileName, L"Thumbs.db")) continue;
         char name[1024];
         if (!WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, name, sizeof name, NULL, NULL)) continue;
         if (n == cap) {
@@ -642,8 +758,27 @@ static xiz_writer *writer_new(const xiz_writer_options *opt) {
     w->frame_size = opt && opt->frame_size ? opt->frame_size : 4u << 20;
     if (w->frame_size > XIZ_MAX_FRAME_DATA) w->frame_size = XIZ_MAX_FRAME_DATA;
     if (w->frame_size < 4096) w->frame_size = 4096;
-    w->buf = malloc(w->frame_size);
-    if (!w->buf) { free(w); return NULL; }
+    int t = opt && opt->threads > 0 ? opt->threads : cpu_count();
+    w->threads = t < 1 ? 1 : t > 8 && !(opt && opt->threads > 0) ? 8 : t > XIZ_WRITER_MAX_THREADS ? XIZ_WRITER_MAX_THREADS : t;
+    w->running = -1;
+    if (opt) { w->progress = opt->progress; w->progress_ctx = opt->progress_ctx; }
+    for (int s = 0; s < 2; s++) {
+        w->slots[s] = calloc((size_t)w->threads, sizeof(wframe));
+        if (!w->slots[s]) { free(w->slots[0]); free(w); return NULL; }
+        for (int i = 0; i < w->threads; i++) {
+            w->slots[s][i].w = w;
+            w->slots[s][i].in = malloc(w->frame_size);
+            if (!w->slots[s][i].in) {
+                for (int q = 0; q <= s; q++) {
+                    for (int j = 0; j < w->threads; j++) free(w->slots[q][j].in);
+                    free(w->slots[q]);
+                }
+                free(w);
+                return NULL;
+            }
+        }
+    }
+    w->buf = w->slots[0][0].in;
     return w;
 }
 
@@ -653,8 +788,15 @@ static void writer_free(xiz_writer *w) {
     for (size_t i = 0; i < w->n_entries; i++) entry_free(&w->entries[i]);
     free(w->entries);
     free(w->frames);
-    free(w->buf);
-    free(w->out);
+    if (w->running >= 0) join_batch(w, w->running);
+    for (int s = 0; s < 2; s++) {
+        if (!w->slots[s]) continue;
+        for (int i = 0; i < w->threads; i++) {
+            free(w->slots[s][i].in);
+            free(w->slots[s][i].out);
+        }
+        free(w->slots[s]);
+    }
     free(w->path);
     free(w->tmp_path);
     secure_zero(&w->keys, sizeof w->keys);
@@ -704,7 +846,8 @@ int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_optio
     w->sb.major = 1;
     w->sb.minor = 0;
     if (xiz_random(w->sb.id, 16) != 0) { rc = FAIL(XIZ_E_IO, "no randomness"); goto fail; }
-    uint8_t keys_block[117];
+    /* "XKEY" ‖ count 2 ‖ type 1 (104) ‖ type 9 (36: the key commitment, XIZ 1.14 §24.1) ‖ CRC */
+    uint8_t keys_block[4 + 2 + 3 + 104 + 3 + 36 + 4];
     if (opt && opt->password) {
         uint32_t mem = opt->kdf_memory_kib ? opt->kdf_memory_kib : 262144, it = opt->kdf_iterations ? opt->kdf_iterations : 3,
                  par = opt->kdf_parallelism ? opt->kdf_parallelism : 4;
@@ -713,6 +856,7 @@ int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_optio
             goto fail;
         }
         w->encrypted = 1;
+        w->sb.minor = 14;  /* every encrypted archive carries the commitment (§24.1) */
         w->sb.required = XIZ_FEATURE_ENCRYPTED;
         w->sb.keys_length = sizeof keys_block;
         uint8_t sbb[XIZ_SUPERBLOCK];
@@ -723,10 +867,9 @@ int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_optio
             goto fail;
         }
         if (argon2id_kek(opt->password, salt, mem, it, par, kek) != 0) { rc = FAIL(XIZ_E_NOMEM, "Argon2id failed"); goto fail; }
-        /* "XKEY" ‖ count ‖ type 1 ‖ length 104 ‖ body ‖ CRC */
         uint8_t *k = keys_block;
         memcpy(k, "XKEY", 4);
-        wr16(k + 4, 1);
+        wr16(k + 4, 2);
         k[6] = 1;
         wr16(k + 7, 104);
         uint8_t *body = k + 9;
@@ -741,7 +884,13 @@ int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_optio
         aad[60] = 1;
         memcpy(aad + 61, body, 44);
         aes_gcm_seal(kek, nonce, aad, sizeof aad, body + 56, 32, body + 88);
-        wr32(k + 113, xiz_crc32c(0, k, 113));
+        uint8_t *c9 = k + 113;
+        c9[0] = 9;
+        wr16(c9 + 1, 36);
+        wr16(c9 + 3, 1);  /* one entry: group 0, the file key */
+        wr16(c9 + 5, 0);
+        hkdf_sha256(file_key, 32, w->sb.id, 16, "xiz/1.14/commit", c9 + 7, 32);
+        wr32(k + 152, xiz_crc32c(0, k, 152));
         keyset_derive(&w->keys, file_key, w->sb.id);
         secure_zero(file_key, 32);
         secure_zero(kek, 32);
@@ -788,6 +937,7 @@ int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_optio
     if (!w->path || !w->frames || !w->entries) { writer_free(w); return FAIL(XIZ_E_NOMEM, "out of memory"); }
     memcpy(w->frames, a->cat.frames, a->cat.n_frames * sizeof(frame_rec));
     w->n_frames = a->cat.n_frames;
+    w->next_index = a->cat.n_frames;
     for (size_t i = 0; i < a->cat.n_entries; i++) {
         const entry_rec *s = &a->cat.entries[i];
         wentry *e = &w->entries[w->n_entries++];
@@ -927,7 +1077,7 @@ static int write_catalog(xiz_writer *w, xiz_error *err) {
 int xiz_writer_finish(xiz_writer *w, xiz_error *err) {
     if (!w) return FAIL(XIZ_E_ARG, "no writer");
     int rc = check_writer(w, err);
-    if (!rc) rc = flush_frame(w, err);
+    if (!rc) rc = flush_frame(w, 1, err);
     if (!rc) rc = write_catalog(w, err);
     if (!rc && w_sync(w) != 0) rc = FAIL(XIZ_E_IO, "sync failed");
     if (rc) { xiz_writer_abort(w); return rc; }

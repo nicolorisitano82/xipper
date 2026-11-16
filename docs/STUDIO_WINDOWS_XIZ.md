@@ -364,6 +364,16 @@ nei test (`XIPPER=…/xipper` in `run_fixtures.sh`, già previsto) e viceversa. 
 anche gli encoder delle librerie già approvate (xz, brunsli, preflate, OpenZL): sono le stesse
 librerie, ma è una superficie nuova da compilare e testare.
 
+**C1 fatta il 17/11/2026** (app 0.5.0): libxiz scrive gli archivi cifrati come XIZ 1.14 col
+commitment (stanza 9), comprime i frame in parallelo (`threads`, uscita identica a quella a un
+thread) e riporta avanzamento e annullamento (`progress`); su Windows salta `desktop.ini` e
+`Thumbs.db`. Nell'app: Nuovo archivio (livello, password NFC con zxcvbn come sul Mac, conferma
+sotto 45 bit, profilo Forte con almeno 8 GB, recovery record al 5 %), Aggiungi ed Elimina
+nell'archivio aperto (append, recovery record rifatto), trascinamento di file sulla finestra,
+«Aggiungi a un archivio XIZ…» nel menu di Esplora file (più file selezionati in una sola finestra),
+`/new`, `/append`, `/remove`. Prove: Wine 45/45; Barrique 16+16, con gli archivi creati verificati da
+Xipper per Mac. Non fatto: generatore di passphrase (decisione sulla lista GPL ancora aperta).
+
 ### 12.6 Fasi della creazione
 
 | Fase | Contenuto | Stima |

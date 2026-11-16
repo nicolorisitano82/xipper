@@ -1,7 +1,7 @@
 Xipper XIZ per Windows
 ======================
 
-Apre, verifica ed estrae gli archivi XIZ creati con Xipper (macOS). Non crea archivi (per ora).
+Apre, verifica, estrae e crea archivi XIZ, leggibili da Xipper sul Mac e da xiz su ogni sistema.
 
 Uso
 ---
@@ -9,6 +9,14 @@ Uso
 - File > "Apri i file .xiz con Xipper XIZ": i file .xiz si aprono con un doppio clic, e il menu
   di Esplora file offre "Estrai qui" ed "Estrai in…" (su Windows 11 sotto "Mostra altre opzioni").
   Non servono diritti di amministratore; File > "Rimuovi l'associazione" la toglie.
+- Nuovo archivio (Ctrl+N), oppure trascina file e cartelle sulla finestra vuota, oppure
+  tasto destro su file o cartelle in Esplora file > "Aggiungi a un archivio XIZ…" (dopo
+  l'associazione). Compressione Veloce / Normale / Massima, password con indicatore di robustezza
+  (la stessa stima di Xipper sul Mac), "Protezione più lenta da forzare" (con almeno 8 GB di
+  RAM), recovery record. Gli archivi cifrati sono XIZ 1.14 con commitment delle chiavi.
+- In un archivio aperto: Aggiungi… (o trascina file sulla finestra) mette i file nella cartella
+  aperta; Elimina (Canc) li toglie. I dati eliminati restano nel file finché l'archivio non viene
+  ricreato. Archivi con gruppi, chiavi, firme o secondo fattore si modificano solo con Xipper.
 - Archivi protetti: password e, se richiesto, il file del secondo fattore (.xizfactor). Per gli
   archivi con destinatari o custodi la finestra elenca come si aprono: si aggiungono password e file
   di chiave (XIZ-SECRET-KEY-…, AGE-SECRET-KEY-…). Con un gruppo bloccato, File > "Sblocca altri gruppi".
@@ -34,6 +42,9 @@ Riga di comando
   XipperXIZ /t archivio.xiz              verifica (anche il recovery record)
   XipperXIZ /repair archivio.xiz         ripara una copia
   XipperXIZ /info archivio.xiz           proprietà e firme
+  XipperXIZ /new archivio.xiz /src FILE [/src …] [/level 3|9|19] [/passenv VAR] [/recovery]
+  XipperXIZ /append archivio.xiz /src FILE [/folder CARTELLA]   aggiunge
+  XipperXIZ /remove archivio.xiz /entry PERCORSO                elimina
   credenziali: /passenv VARIABILE, /identity FILE, /factor FILE (ripetibili)
   XipperXIZ /register | /unregister      associa i file .xiz, o no
 Per gli script c'è anche xiz.exe (xiz --help).

@@ -26,7 +26,7 @@ namespace {
 
 enum : int {
     ID_OPEN = 1001, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_ASSOC, ID_UNASSOC, ID_EXIT, ID_ABOUT, ID_CANCEL,
-    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF, ID_BACK, ID_UP,
+    ID_UNLOCK, ID_SIGS, ID_PROPS, ID_PROOF, ID_BACK, ID_UP, ID_NEW, ID_ADD, ID_ADDDIR, ID_DELETE,
     ID_LIST = 1100, ID_TREE
 };
 
@@ -35,6 +35,7 @@ enum Exit : int { EXIT_OK = 0, EXIT_ERROR = 1, EXIT_USAGE = 2, EXIT_PASSWORD = 3
 HINSTANCE g_inst;
 const wchar_t kMainClass[] = L"XipperXIZ.Main";
 const wchar_t kProgressClass[] = L"XipperXIZ.Progress";
+const wchar_t kCollectClass[] = L"XipperXIZ.Collect";
 
 // ---------------------------------------------------------------- small helpers
 
@@ -419,6 +420,276 @@ bool ask_destination(HWND owner, const std::wstring &archive, ExState &st) {
     return DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_EXTRACT), owner, ex_proc, (LPARAM)&st) == IDOK;
 }
 
+// ---------------------------------------------------------------- new archive dialog
+
+struct NewState {
+    std::wstring path;
+    std::vector<std::wstring> sources;
+    int level = 9;
+    std::wstring password;
+    bool strong = false, recovery = false;
+};
+
+bool lots_of_memory() {
+    MEMORYSTATUSEX m{};
+    m.dwLength = sizeof m;
+    return GlobalMemoryStatusEx(&m) && m.ullTotalPhys >= (8ull << 30);  // the strong profile wants 1 GiB per opening
+}
+
+std::wstring unique_path(const std::wstring &want) {
+    if (GetFileAttributesW(want.c_str()) == INVALID_FILE_ATTRIBUTES) return want;
+    std::wstring base = want.size() > 4 ? want.substr(0, want.size() - 4) : want;
+    for (int k = 2;; k++) {
+        std::wstring p = base + vfmt(L" %d.xiz", k);
+        if (GetFileAttributesW(p.c_str()) == INVALID_FILE_ATTRIBUTES) return p;
+    }
+}
+
+// Next to the first item: "name.xiz" for one item, "<its folder>.xiz" for several.
+std::wstring default_archive(const std::vector<std::wstring> &sources) {
+    if (sources.empty()) {
+        PWSTR docs = nullptr;
+        std::wstring dir = L".";
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &docs))) { dir = docs; CoTaskMemFree(docs); }
+        return unique_path(dir + L"\\" + T(S::DefaultArchiveName) + L".xiz");
+    }
+    std::wstring first = sources[0];
+    while (first.size() > 3 && (first.back() == L'\\' || first.back() == L'/')) first.pop_back();
+    std::wstring dir = parent_dir(first);
+    std::wstring name = sources.size() == 1 ? stem(first) : file_name(dir);
+    if (name.empty() || name.back() == L':') name = T(S::DefaultArchiveName);
+    return unique_path(dir + L"\\" + name + L".xiz");
+}
+
+void new_refresh(HWND d, NewState *st) {
+    HWND l = GetDlgItem(d, IDC_NEW_SOURCES);
+    SendMessageW(l, LB_RESETCONTENT, 0, 0);
+    LONG wide_px = 0;
+    HDC dc = GetDC(l);
+    HGDIOBJ old = SelectObject(dc, (HFONT)SendMessageW(l, WM_GETFONT, 0, 0));
+    for (auto &x : st->sources) {
+        SendMessageW(l, LB_ADDSTRING, 0, (LPARAM)x.c_str());
+        SIZE sz{};
+        GetTextExtentPoint32W(dc, x.c_str(), (int)x.size(), &sz);
+        wide_px = std::max(wide_px, sz.cx + 8);
+    }
+    SelectObject(dc, old);
+    ReleaseDC(l, dc);
+    SendMessageW(l, LB_SETHORIZONTALEXTENT, (WPARAM)wide_px, 0);
+}
+
+void new_enable(HWND d) {
+    bool pw = IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED;
+    for (int id : {IDC_NEW_PWLABEL, IDC_NEW_PW, IDC_NEW_PW2LABEL, IDC_NEW_PW2, IDC_NEW_STRENGTH}) EnableWindow(GetDlgItem(d, id), pw);
+    EnableWindow(GetDlgItem(d, IDC_NEW_STRONG), pw && lots_of_memory());
+}
+
+int g_strength = -1;  // the level shown, for its colour
+
+void new_strength(HWND d) {
+    std::wstring pw = window_text(GetDlgItem(d, IDC_NEW_PW));
+    if (pw.empty()) { g_strength = -1; SetDlgItemTextW(d, IDC_NEW_STRENGTH, L""); return; }
+    g_strength = strength_level(password_bits(pw));
+    wipe(pw);
+    const S names[] = {S::StrengthWeak, S::StrengthFair, S::StrengthGood, S::StrengthExcellent};
+    SetDlgItemTextW(d, IDC_NEW_STRENGTH, fmt(S::StrengthLabel, T(names[g_strength])).c_str());
+    InvalidateRect(GetDlgItem(d, IDC_NEW_STRENGTH), nullptr, TRUE);
+}
+
+bool pick_save(HWND owner, std::wstring &inout) {
+    IFileSaveDialog *d = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&d)))) return false;
+    COMDLG_FILTERSPEC f[] = {{T(S::OpenFilter), L"*.xiz"}};
+    d->SetFileTypes(1, f);
+    d->SetDefaultExtension(L"xiz");
+    d->SetFileName(file_name(inout).c_str());
+    IShellItem *start = nullptr;
+    if (SUCCEEDED(SHCreateItemFromParsingName(parent_dir(inout).c_str(), nullptr, IID_PPV_ARGS(&start)))) {
+        d->SetFolder(start);
+        start->Release();
+    }
+    DWORD opts = 0;
+    d->GetOptions(&opts);
+    d->SetOptions(opts | FOS_FORCEFILESYSTEM | FOS_OVERWRITEPROMPT);
+    bool ok = false;
+    IShellItem *r = nullptr;
+    if (SUCCEEDED(d->Show(owner)) && SUCCEEDED(d->GetResult(&r))) {
+        PWSTR p = nullptr;
+        if (SUCCEEDED(r->GetDisplayName(SIGDN_FILESYSPATH, &p))) { inout = p; CoTaskMemFree(p); ok = true; }
+        r->Release();
+    }
+    d->Release();
+    return ok;
+}
+
+// Several files at once (IFileOpenDialog with multiple selection), or one folder.
+bool pick_many(HWND owner, bool folders, std::vector<std::wstring> &out) {
+    IFileOpenDialog *d = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&d)))) return false;
+    DWORD opts = 0;
+    d->GetOptions(&opts);
+    d->SetOptions(opts | FOS_FORCEFILESYSTEM | (folders ? FOS_PICKFOLDERS : FOS_ALLOWMULTISELECT | FOS_FILEMUSTEXIST));
+    bool ok = false;
+    IShellItemArray *items = nullptr;
+    if (SUCCEEDED(d->Show(owner)) && SUCCEEDED(d->GetResults(&items))) {
+        DWORD n = 0;
+        items->GetCount(&n);
+        for (DWORD i = 0; i < n; i++) {
+            IShellItem *it = nullptr;
+            PWSTR p = nullptr;
+            if (SUCCEEDED(items->GetItemAt(i, &it)) && SUCCEEDED(it->GetDisplayName(SIGDN_FILESYSPATH, &p))) {
+                out.push_back(p);
+                CoTaskMemFree(p);
+                ok = true;
+            }
+            if (it) it->Release();
+        }
+        items->Release();
+    }
+    d->Release();
+    return ok;
+}
+
+INT_PTR CALLBACK new_proc(HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+    auto *st = reinterpret_cast<NewState *>(GetWindowLongPtrW(d, DWLP_USER));
+    switch (msg) {
+    case WM_INITDIALOG: {
+        st = reinterpret_cast<NewState *>(lp);
+        SetWindowLongPtrW(d, DWLP_USER, lp);
+        SetWindowTextW(d, T(S::NewTitle));
+        const std::pair<int, S> texts[] = {
+            {IDC_NEW_PATHLABEL, S::NewArchiveLabel}, {IDC_NEW_PATHBROWSE, S::Browse}, {IDC_NEW_CONTENTS, S::NewContents},
+            {IDC_NEW_ADDFILES, S::NewAddFiles}, {IDC_NEW_ADDDIR, S::NewAddFolder}, {IDC_NEW_REMOVE, S::NewRemove},
+            {IDC_NEW_LEVELLABEL, S::NewLevel}, {IDC_NEW_USEPW, S::NewUsePw}, {IDC_NEW_PWLABEL, S::NewPw}, {IDC_NEW_PW2LABEL, S::NewPw2},
+            {IDC_NEW_STRONG, S::NewStrong}, {IDC_NEW_RECOVERY, S::NewRecovery}, {IDOK, S::NewCreate}, {IDCANCEL, S::Cancel}};
+        for (auto &t : texts) SetDlgItemTextW(d, t.first, T(t.second));
+        if (st->path.empty()) st->path = default_archive(st->sources);
+        SetDlgItemTextW(d, IDC_NEW_PATH, st->path.c_str());
+        HWND lv = GetDlgItem(d, IDC_NEW_LEVEL);
+        for (S x : {S::LevelFast, S::LevelNormal, S::LevelMax}) SendMessageW(lv, CB_ADDSTRING, 0, (LPARAM)T(x));
+        SendMessageW(lv, CB_SETCURSEL, st->level <= 3 ? 0 : st->level >= 19 ? 2 : 1, 0);
+        CheckDlgButton(d, IDC_NEW_RECOVERY, st->recovery ? BST_CHECKED : BST_UNCHECKED);
+        new_refresh(d, st);
+        new_enable(d);
+        return TRUE;
+    }
+    case WM_CTLCOLORSTATIC: {
+        HWND c = (HWND)lp;
+        COLORREF col = 0;
+        bool colour = false;
+        if (c == GetDlgItem(d, IDC_NEW_ERROR)) { col = RGB(196, 43, 28); colour = true; }
+        else if (c == GetDlgItem(d, IDC_NEW_STRENGTH) && g_strength >= 0) {
+            static const COLORREF levels[] = {RGB(196, 43, 28), RGB(202, 120, 0), RGB(16, 124, 16), RGB(16, 124, 16)};
+            col = levels[g_strength];
+            colour = true;
+        }
+        if (colour) {
+            SetTextColor((HDC)wp, col);
+            SetBkMode((HDC)wp, TRANSPARENT);
+            return (INT_PTR)GetSysColorBrush(COLOR_BTNFACE);
+        }
+        break;
+    }
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+        case IDC_NEW_PATHBROWSE: {
+            std::wstring p = window_text(GetDlgItem(d, IDC_NEW_PATH));
+            if (pick_save(d, p)) SetDlgItemTextW(d, IDC_NEW_PATH, p.c_str());
+            return TRUE;
+        }
+        case IDC_NEW_ADDFILES:
+        case IDC_NEW_ADDDIR: {
+            std::vector<std::wstring> more;
+            if (pick_many(d, LOWORD(wp) == IDC_NEW_ADDDIR, more)) {
+                bool first = st->sources.empty();
+                for (auto &m : more)
+                    if (std::find(st->sources.begin(), st->sources.end(), m) == st->sources.end()) st->sources.push_back(m);
+                new_refresh(d, st);
+                if (first) SetDlgItemTextW(d, IDC_NEW_PATH, default_archive(st->sources).c_str());
+            }
+            return TRUE;
+        }
+        case IDC_NEW_REMOVE: {
+            HWND l = GetDlgItem(d, IDC_NEW_SOURCES);
+            for (int i = (int)st->sources.size() - 1; i >= 0; i--)
+                if (SendMessageW(l, LB_GETSEL, (WPARAM)i, 0) > 0) st->sources.erase(st->sources.begin() + i);
+            new_refresh(d, st);
+            return TRUE;
+        }
+        case IDC_NEW_USEPW:
+            new_enable(d);
+            if (IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED) SetFocus(GetDlgItem(d, IDC_NEW_PW));
+            return TRUE;
+        case IDC_NEW_PW:
+            if (HIWORD(wp) == EN_CHANGE) new_strength(d);
+            return TRUE;
+        case IDOK: {
+            auto fail = [&](S why) { SetDlgItemTextW(d, IDC_NEW_ERROR, T(why)); MessageBeep(MB_ICONWARNING); };
+            if (st->sources.empty()) { fail(S::NewNoSources); return TRUE; }
+            std::wstring path = window_text(GetDlgItem(d, IDC_NEW_PATH));
+            if (path.empty()) return TRUE;
+            if (path.size() < 4 || _wcsicmp(path.c_str() + path.size() - 4, L".xiz") != 0) path += L".xiz";
+            st->password.clear();
+            if (IsDlgButtonChecked(d, IDC_NEW_USEPW) == BST_CHECKED) {
+                std::wstring a = window_text(GetDlgItem(d, IDC_NEW_PW)), b = window_text(GetDlgItem(d, IDC_NEW_PW2));
+                bool same = a == b;
+                wipe(b);
+                if (a.empty()) { fail(S::NewPwEmpty); return TRUE; }
+                if (!same) { wipe(a); fail(S::NewPwMismatch); SetFocus(GetDlgItem(d, IDC_NEW_PW2)); return TRUE; }
+                if (password_bits(a) < kMinimumBits) {
+                    TASKDIALOG_BUTTON bt[] = {{400, T(S::UseAnyway)}};
+                    if (task_dialog(d, TD_WARNING_ICON, T(S::WeakTitle), T(S::WeakText), {}, bt, 1, TDCBF_CANCEL_BUTTON) != 400) {
+                        wipe(a);
+                        SetFocus(GetDlgItem(d, IDC_NEW_PW));
+                        return TRUE;
+                    }
+                }
+                st->password = a;
+                wipe(a);
+                st->strong = IsDlgButtonChecked(d, IDC_NEW_STRONG) == BST_CHECKED;
+            }
+            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                TASKDIALOG_BUTTON bt[] = {{401, T(S::ConflictReplace)}};
+                if (task_dialog(d, TD_WARNING_ICON, fmt(S::NewExists, file_name(path).c_str()), L"", {}, bt, 1, TDCBF_CANCEL_BUTTON) != 401)
+                    return TRUE;
+            }
+            static const int levels[] = {3, 9, 19};
+            LRESULT sel = SendMessageW(GetDlgItem(d, IDC_NEW_LEVEL), CB_GETCURSEL, 0, 0);
+            st->level = levels[sel >= 0 && sel < 3 ? sel : 1];
+            st->recovery = IsDlgButtonChecked(d, IDC_NEW_RECOVERY) == BST_CHECKED;
+            st->path = path;
+            SetDlgItemTextW(d, IDC_NEW_PW, L"");
+            SetDlgItemTextW(d, IDC_NEW_PW2, L"");
+            EndDialog(d, IDOK);
+            return TRUE;
+        }
+        case IDCANCEL:
+            SetDlgItemTextW(d, IDC_NEW_PW, L"");
+            SetDlgItemTextW(d, IDC_NEW_PW2, L"");
+            EndDialog(d, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// The dialog, then a Create job ready to start (password in NFC).
+bool ask_new(HWND owner, const std::vector<std::wstring> &sources, Job &j) {
+    NewState st;
+    st.sources = sources;
+    if (DialogBoxParamW(g_inst, MAKEINTRESOURCEW(IDD_NEW), owner, new_proc, (LPARAM)&st) != IDOK) { wipe(st.password); return false; }
+    j.kind = Job::Create;
+    j.path = st.path;
+    j.sources = st.sources;
+    j.level = st.level;
+    j.password = password_utf8(st.password);
+    wipe(st.password);
+    j.strong = st.strong;
+    j.recovery = st.recovery;
+    return true;
+}
+
 // ---------------------------------------------------------------- job results
 
 int conflict_dialog(HWND owner, Conflict &c) {
@@ -450,7 +721,11 @@ int exit_code(const Job &j) {
     return EXIT_OK;
 }
 
-enum Next { NEXT_NONE, NEXT_REPAIR, NEXT_OPEN_COPY };
+enum Next { NEXT_NONE, NEXT_REPAIR, NEXT_OPEN_COPY, NEXT_OPEN_CREATED, NEXT_REOPEN };
+
+void show_in_folder(const std::wstring &path) {
+    ShellExecuteW(nullptr, L"open", L"explorer.exe", (L"/select,\"" + path + L"\"").c_str(), nullptr, SW_SHOWNORMAL);
+}
 
 std::wstring record_line(const Job &j) {
     if (!j.has_record) return {};
@@ -466,6 +741,22 @@ int show_result(HWND owner, Job &j, bool open_after, bool quiet, Next *next = nu
     if (next) *next = NEXT_NONE;
     if (quiet || code == EXIT_CANCELLED) return code;
     std::wstring msg = wide(j.err.message, strlen(j.err.message));
+    if (j.kind == Job::Create || j.kind == Job::Update) {
+        if (j.rc != XIZ_OK) {
+            task_dialog(owner, TD_ERROR_ICON, T(S::FailTitle), msg);
+            return code;
+        }
+        if (next) { *next = j.kind == Job::Create ? NEXT_OPEN_CREATED : NEXT_REOPEN; return code; }  // the main window shows it
+        WIN32_FILE_ATTRIBUTE_DATA fa{};
+        GetFileAttributesExW(j.path.c_str(), GetFileExInfoStandard, &fa);
+        uint64_t out = (uint64_t)fa.nFileSizeHigh << 32 | fa.nFileSizeLow;
+        TASKDIALOG_BUTTON b[] = {{500, T(S::ShowInFolder)}};
+        if (task_dialog(owner, TD_INFORMATION_ICON, T(S::CreatedTitle),
+                        fmt(S::CreatedText, j.path.c_str(), (unsigned long long)j.files, byte_size(j.bytes_in).c_str(), byte_size(out).c_str()),
+                        {}, b, 1) == 500)
+            show_in_folder(j.path);
+        return code;
+    }
     if (j.kind == Job::Repair) {
         if (j.rc != XIZ_OK) {
             task_dialog(owner, TD_ERROR_ICON, T(S::RepairFail), msg);
@@ -659,10 +950,12 @@ struct Row {
     size_t idx;                  // node (dir) or entry
 };
 
+enum { B_NEW, B_OPEN, B_EXTRACT, B_EXTRACT_SEL, B_VERIFY, B_ADD, B_DELETE };
+
 struct Main {
     HWND wnd = nullptr, tree = nullptr, list = nullptr, addr = nullptr, back = nullptr, up = nullptr, tips = nullptr;
     HWND empty = nullptr, status = nullptr, progress = nullptr, cancel = nullptr;
-    HWND buttons[4] = {};
+    HWND buttons[7] = {};  // B_*
     HFONT font = nullptr;
     UINT dpi = 96;
     std::unique_ptr<Archive> ar;
@@ -900,7 +1193,8 @@ void navigate(int id, bool remember = true) {
     SetWindowTextW(M.addr, address_of(id).c_str());
     select_in_tree(id);
     update_nav();
-    EnableWindow(M.buttons[2], FALSE);
+    EnableWindow(M.buttons[B_EXTRACT_SEL], FALSE);
+    EnableWindow(M.buttons[B_DELETE], FALSE);
 }
 
 // Opens a folder by its stored path ("a/b"), for /folder on the command line.
@@ -975,13 +1269,26 @@ bool on_splitter(int x, int y) {
     return x >= t.right && x < l.left && y >= t.top && y < t.bottom;
 }
 
+// Appending and removing go through libxiz's writer: plain or password archives without a directory
+// (no groups, keys, custodians, signatures) and without a second factor.
+bool can_modify() {
+    return M.ar && !M.ar->info.has_directory && M.creds.factors.empty() && M.creds.identities.empty() &&
+           M.creds.pq_identities.empty() && !(M.ar->info.required_features & XIZ_FEATURE_FORENSIC);
+}
+
 void set_busy(bool busy, const wchar_t *what) {
     for (HWND b : M.buttons) EnableWindow(b, !busy && M.ar);
-    EnableWindow(M.buttons[0], !busy);
-    EnableWindow(M.buttons[2], !busy && M.ar && ListView_GetSelectedCount(M.list) > 0);
+    EnableWindow(M.buttons[B_NEW], !busy);
+    EnableWindow(M.buttons[B_OPEN], !busy);
+    bool sel = M.ar && ListView_GetSelectedCount(M.list) > 0;
+    EnableWindow(M.buttons[B_EXTRACT_SEL], !busy && sel);
+    EnableWindow(M.buttons[B_ADD], !busy && can_modify());
+    EnableWindow(M.buttons[B_DELETE], !busy && sel && can_modify());
     HMENU menu = GetMenu(M.wnd);
-    for (int id : {ID_OPEN, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_PROPS, ID_PROOF})
-        EnableMenuItem(menu, (UINT)id, MF_BYCOMMAND | ((!busy && (M.ar || id == ID_OPEN || id == ID_PROOF)) ? MF_ENABLED : MF_GRAYED));
+    for (int id : {ID_OPEN, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_PROPS, ID_PROOF, ID_NEW})
+        EnableMenuItem(menu, (UINT)id, MF_BYCOMMAND | ((!busy && (M.ar || id == ID_OPEN || id == ID_PROOF || id == ID_NEW)) ? MF_ENABLED : MF_GRAYED));
+    for (int id : {ID_ADD, ID_ADDDIR}) EnableMenuItem(menu, (UINT)id, MF_BYCOMMAND | (!busy && can_modify() ? MF_ENABLED : MF_GRAYED));
+    EnableMenuItem(menu, ID_DELETE, MF_BYCOMMAND | (!busy && sel && can_modify() ? MF_ENABLED : MF_GRAYED));
     bool dir = M.ar && M.ar->info.has_directory;
     EnableMenuItem(menu, ID_SIGS, MF_BYCOMMAND | (!busy && dir ? MF_ENABLED : MF_GRAYED));
     EnableMenuItem(menu, ID_UNLOCK, MF_BYCOMMAND | (!busy && dir && M.ar->info.hidden_groups ? MF_ENABLED : MF_GRAYED));
@@ -1039,6 +1346,34 @@ void show_archive() {
         SetWindowTextW(M.wnd, T(S::AppName));
     }
     set_busy(false, nullptr);
+}
+
+// While an update rewrites the archive: the panes stay, empty; the title and folder are kept.
+std::string g_reopen_folder;
+std::wstring g_reopen_path;
+
+void show_archive_busy() {
+    g_reopen_folder = M.cur > 0 && (size_t)M.cur < M.nodes.size() ? M.nodes[(size_t)M.cur].stored : "";
+    ListView_SetItemCountEx(M.list, 0, 0);
+    TreeView_DeleteAllItems(M.tree);
+    M.rows.clear();
+    M.nodes.clear();
+    M.cur = -1;
+}
+
+// After an update: the same archive with the same credentials, at the same folder.
+void reopen(const std::wstring &path) {
+    auto ar = std::make_unique<Archive>();
+    xiz_error err{};
+    int rc = open_archive(path, M.creds, *ar, &err);
+    if (rc != XIZ_OK) {
+        show_archive();
+        task_dialog(M.wnd, TD_ERROR_ICON, T(S::FailTitle), open_error(path, rc, err));
+        return;
+    }
+    M.ar = std::move(ar);
+    show_archive();
+    if (!g_reopen_folder.empty()) navigate_to(g_reopen_folder);
 }
 
 void start_repair(const std::wstring &path) {
@@ -1117,6 +1452,46 @@ void start(Job::Kind kind, bool selection) {
     start_job(*M.job);
 }
 
+void start_create(const std::vector<std::wstring> &sources) {
+    if (M.job) return;
+    auto j = std::make_unique<Job>();
+    if (!ask_new(M.wnd, sources, *j)) return;
+    j->notify = M.wnd;
+    M.job = std::move(j);
+    set_busy(true, T(S::Creating));
+    start_job(*M.job);
+}
+
+// Adds files and folders into the open folder, or removes entries: an appended segment (§11).
+void start_update(const std::vector<std::wstring> &sources, const std::vector<std::string> &remove) {
+    if (M.job || !can_modify() || (sources.empty() && remove.empty())) return;
+    auto j = std::make_unique<Job>();
+    j->kind = Job::Update;
+    j->notify = M.wnd;
+    j->path = M.ar->path;
+    j->sources = sources;
+    j->remove = remove;
+    j->prefix = M.cur > 0 ? M.nodes[(size_t)M.cur].stored : "";
+    if (!M.creds.passwords.empty()) j->password = M.creds.passwords[0];
+    M.job = std::move(j);
+    // The archive is rewritten: its handle (and the list) wait until it is open again.
+    M.ar.reset();
+    show_archive_busy();
+    set_busy(true, T(S::Updating));
+    start_job(*M.job);
+}
+
+void delete_selection() {
+    if (!can_modify() || M.job) return;
+    std::vector<std::string> sel = selected_paths();
+    if (sel.empty()) return;
+    TASKDIALOG_BUTTON b[] = {{600, T(S::DeleteBtn)}};
+    if (task_dialog(M.wnd, TD_WARNING_ICON, fmt(S::DeleteConfirm, (unsigned long long)sel.size(), file_name(M.ar->path).c_str()),
+                    T(S::DeleteNote), {}, b, 1, TDCBF_CANCEL_BUTTON) != 600)
+        return;
+    start_update({}, sel);
+}
+
 void add_columns() {
     LVCOLUMNW c{};
     c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
@@ -1152,10 +1527,15 @@ void open_item(int index) {
 
 HMENU build_menu() {
     HMENU bar = CreateMenu(), file = CreatePopupMenu(), help = CreatePopupMenu();
+    AppendMenuW(file, MF_STRING, ID_NEW, T(S::MenuNew));
     AppendMenuW(file, MF_STRING, ID_OPEN, T(S::MenuOpen));
     AppendMenuW(file, MF_STRING, ID_EXTRACT, T(S::MenuExtract));
     AppendMenuW(file, MF_STRING, ID_EXTRACT_SEL, T(S::MenuExtractSel));
     AppendMenuW(file, MF_STRING, ID_VERIFY, T(S::MenuVerify));
+    AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(file, MF_STRING, ID_ADD, T(S::MenuAddFiles));
+    AppendMenuW(file, MF_STRING, ID_ADDDIR, T(S::MenuAddFolder));
+    AppendMenuW(file, MF_STRING, ID_DELETE, T(S::MenuDelete));
     AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(file, MF_STRING, ID_UNLOCK, T(S::MenuUnlock));
     AppendMenuW(file, MF_STRING, ID_SIGS, T(S::MenuSignatures));
@@ -1185,6 +1565,18 @@ void command(int id) {
     case ID_VERIFY: start(Job::Test, false); break;
     case ID_CANCEL: if (M.job) M.job->cancel = true; break;
     case ID_BACK: if (!M.job) go_back(); break;
+    case ID_NEW: start_create({}); break;
+    case ID_ADD:
+    case ID_ADDDIR: {
+        if (!can_modify()) {
+            if (M.ar) task_dialog(M.wnd, TD_INFORMATION_ICON, T(S::CantModify), L"");
+            break;
+        }
+        std::vector<std::wstring> more;
+        if (pick_many(M.wnd, id == ID_ADDDIR, more)) start_update(more, {});
+        break;
+    }
+    case ID_DELETE: delete_selection(); break;
     case ID_UP: if (!M.job) go_up(); break;
     case ID_UNLOCK: if (M.ar) open_path(M.ar->path, true); break;
     case ID_SIGS: if (M.ar) show_signatures(M.wnd, *M.ar); break;
@@ -1223,9 +1615,9 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         M.wnd = w;
         M.dpi = dpi_of(w);
         M.font = make_font(M.dpi);
-        const S labels[] = {S::Open, S::ExtractAll, S::ExtractSel, S::Verify};
-        const int ids[] = {ID_OPEN, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY};
-        for (int i = 0; i < 4; i++)
+        const S labels[] = {S::NewArchive, S::Open, S::ExtractAll, S::ExtractSel, S::Verify, S::AddBtn, S::DeleteBtn};
+        const int ids[] = {ID_NEW, ID_OPEN, ID_EXTRACT, ID_EXTRACT_SEL, ID_VERIFY, ID_ADD, ID_DELETE};
+        for (int i = 0; i < 7; i++)
             M.buttons[i] = CreateWindowW(L"BUTTON", T(labels[i]), WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w,
                                          (HMENU)(INT_PTR)ids[i], g_inst, nullptr);
         M.back = CreateWindowW(L"BUTTON", L"\x2190", WS_CHILD | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 0, 0, w, (HMENU)(INT_PTR)ID_BACK, g_inst, nullptr);
@@ -1300,13 +1692,24 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_COMMAND: command(LOWORD(wp)); return 0;
     case WM_DROPFILES: {
+        // One .xiz: open it. Other files on an open archive: add them to the open folder.
+        // Otherwise: a new archive with them.
         auto drop = (HDROP)wp;
-        UINT n = DragQueryFileW(drop, 0, nullptr, 0);
-        std::wstring p((size_t)n + 1, L'\0');
-        DragQueryFileW(drop, 0, p.data(), n + 1);
-        p.resize(n);
+        std::vector<std::wstring> files;
+        UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+        for (UINT i = 0; i < count; i++) {
+            UINT n = DragQueryFileW(drop, i, nullptr, 0);
+            std::wstring p((size_t)n + 1, L'\0');
+            DragQueryFileW(drop, i, p.data(), n + 1);
+            p.resize(n);
+            files.push_back(p);
+        }
         DragFinish(drop);
-        open_path(p);
+        if (files.empty() || M.job) return 0;
+        bool one_xiz = files.size() == 1 && files[0].size() > 4 && _wcsicmp(files[0].c_str() + files[0].size() - 4, L".xiz") == 0;
+        if (one_xiz) open_path(files[0]);
+        else if (can_modify()) start_update(files, {});
+        else start_create(files);
         return 0;
     }
     case WM_NOTIFY: {
@@ -1360,7 +1763,9 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         if (h->idFrom == ID_LIST && h->code == LVN_KEYDOWN && M.ar && !M.job) {
-            if (reinterpret_cast<NMLVKEYDOWN *>(lp)->wVKey == VK_BACK) go_up();
+            WORD key = reinterpret_cast<NMLVKEYDOWN *>(lp)->wVKey;
+            if (key == VK_BACK) go_up();
+            else if (key == VK_DELETE) command(ID_DELETE);
             return 0;
         }
         if (h->idFrom == ID_LIST && h->code == LVN_BEGINDRAG && M.ar && !M.job) {
@@ -1373,8 +1778,12 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
                 });
             return 0;
         }
-        if (h->idFrom == ID_LIST && h->code == LVN_ITEMCHANGED)
-            EnableWindow(M.buttons[2], !M.job && ListView_GetSelectedCount(M.list) > 0);
+        if (h->idFrom == ID_LIST && h->code == LVN_ITEMCHANGED) {
+            bool sel = !M.job && ListView_GetSelectedCount(M.list) > 0;
+            EnableWindow(M.buttons[B_EXTRACT_SEL], sel);
+            EnableWindow(M.buttons[B_DELETE], sel && can_modify());
+            EnableMenuItem(GetMenu(M.wnd), ID_DELETE, MF_BYCOMMAND | (sel && can_modify() ? MF_ENABLED : MF_GRAYED));
+        }
         break;
     }
     case WM_JOB_PROGRESS:
@@ -1391,6 +1800,8 @@ LRESULT CALLBACK main_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if (j->rc == XIZ_E_CALLBACK && j->cancel) SetWindowTextW(M.status, T(S::Cancelled));
         if (next == NEXT_REPAIR) start_repair(j->path);
         else if (next == NEXT_OPEN_COPY) open_path(j->repaired);
+        else if (next == NEXT_OPEN_CREATED) open_path(j->path);
+        else if (j->kind == Job::Update) reopen(j->path);  // also after an error: the append was undone
         return 0;
     }
     case WM_CLOSE:
@@ -1472,6 +1883,9 @@ LRESULT CALLBACK prog_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
 
 struct Args {
     std::wstring mode, archive, dest, log, folder;
+    std::vector<std::wstring> sources, entries;  // /src, /entry (repeatable)
+    int level = 9;
+    bool strong = false, recovery = false;
     std::vector<std::wstring> passenv, keys;  // repeatable: custodians, recipients, factors
     bool quiet = false, keep_both = false;
 };
@@ -1503,6 +1917,66 @@ std::string job_log(const Job &j, int code) {
     return s;
 }
 
+// Runs a job: quietly, or in the small progress window (the command-line modes, Explorer's verbs).
+int run_progress(Job &j, bool interactive, const std::wstring &archive, bool open_after) {
+    int code;
+    if (!interactive) {
+        run_job(j);
+        return exit_code(j);
+    }
+    P.job = &j;
+    P.open_after = open_after;
+    UINT dpi = GetDpiForSystem();
+    RECT r{0, 0, scale(420, dpi), scale(120, dpi)};
+    AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, dpi);
+    HWND w = CreateWindowExW(0, kProgressClass, T(S::AppName), WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT,
+                             r.right - r.left, r.bottom - r.top, nullptr, nullptr, g_inst, nullptr);
+    S what = j.kind == Job::Test ? S::Verifying : j.kind == Job::Repair ? S::Repairing : j.kind == Job::Create ? S::Creating
+             : j.kind == Job::Update ? S::Updating : S::Working;
+    SetWindowTextW(P.label, (std::wstring(T(what)) + L" " + file_name(archive)).c_str());
+    if (j.kind == Job::Repair) {
+        SetWindowLongPtrW(P.bar, GWL_STYLE, GetWindowLongPtrW(P.bar, GWL_STYLE) | PBS_MARQUEE);
+        SendMessageW(P.bar, PBM_SETMARQUEE, TRUE, 30);
+    }
+    prog_layout();
+    ShowWindow(w, SW_SHOWNORMAL);
+    j.notify = w;
+    start_job(j);
+    MSG m;
+    while (GetMessageW(&m, nullptr, 0, 0) > 0) {
+        if (!IsDialogMessageW(w, &m)) { TranslateMessage(&m); DispatchMessageW(&m); }
+    }
+    code = P.exit;
+    return code;
+}
+
+// /create (Explorer's "Add to an XIZ archive…"), /new, /append, /remove.
+int run_write(const Args &a, Credentials &c, bool interactive) {
+    Job j;
+    if (a.mode == L"/create") {
+        if (!ask_new(nullptr, a.sources, j)) return EXIT_CANCELLED;
+    } else if (a.mode == L"/new") {
+        j.kind = Job::Create;
+        j.path = a.archive;
+        j.sources = a.sources;
+        j.level = a.level;
+        if (!c.passwords.empty()) j.password = c.passwords[0];
+        j.strong = a.strong;
+        j.recovery = a.recovery;
+    } else {
+        j.kind = Job::Update;
+        j.path = a.archive;
+        j.sources = a.sources;
+        j.prefix = utf8(a.folder);
+        for (auto &e : a.entries) j.remove.push_back(utf8(e));
+        if (!c.passwords.empty()) j.password = c.passwords[0];
+    }
+    c.wipe();
+    int code = run_progress(j, interactive, j.path, false);
+    write_log(a.log, job_log(j, code));
+    return code;
+}
+
 int run_command(const Args &a) {
     bool interactive = !a.quiet;
     if (a.mode == L"/register" || a.mode == L"/unregister") {
@@ -1510,7 +1984,7 @@ int run_command(const Args &a) {
         if (interactive) task_dialog(nullptr, TD_INFORMATION_ICON, T(a.mode == L"/register" ? S::Associated : S::Unassociated), L"");
         return ok ? EXIT_OK : EXIT_ERROR;
     }
-    if (a.archive.empty()) {
+    if (a.archive.empty() && a.mode != L"/create") {
         if (interactive) task_dialog(nullptr, TD_INFORMATION_ICON, T(S::AppName), T(S::Usage));
         return EXIT_USAGE;
     }
@@ -1528,6 +2002,11 @@ int run_command(const Args &a) {
             if (interactive) task_dialog(nullptr, TD_ERROR_ICON, T(S::FailTitle), T(S::CrKeyInvalid));
             return EXIT_USAGE;
         }
+    }
+    if (a.mode == L"/create" || a.mode == L"/new" || a.mode == L"/append" || a.mode == L"/remove") {
+        Credentials cw = c;
+        c.wipe();
+        return run_write(a, cw, interactive);
     }
     Job j;
     Archive ar;  // outlives the job, which reads it
@@ -1585,36 +2064,62 @@ int run_command(const Args &a) {
         }
     }
     }
-    int code;
-    if (!interactive) {
-        run_job(j);
-        code = exit_code(j);
-    } else {
-        P.job = &j;
-        P.open_after = open_after;
-        UINT dpi = GetDpiForSystem();
-        RECT r{0, 0, scale(420, dpi), scale(120, dpi)};
-        AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, 0, dpi);
-        HWND w = CreateWindowExW(0, kProgressClass, T(S::AppName), WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT,
-                                 r.right - r.left, r.bottom - r.top, nullptr, nullptr, g_inst, nullptr);
-        S what = j.kind == Job::Test ? S::Verifying : j.kind == Job::Repair ? S::Repairing : S::Working;
-        SetWindowTextW(P.label, (std::wstring(T(what)) + L" " + file_name(a.archive)).c_str());
-        if (j.kind == Job::Repair) {
-            SetWindowLongPtrW(P.bar, GWL_STYLE, GetWindowLongPtrW(P.bar, GWL_STYLE) | PBS_MARQUEE);
-            SendMessageW(P.bar, PBM_SETMARQUEE, TRUE, 30);
-        }
-        prog_layout();
-        ShowWindow(w, SW_SHOWNORMAL);
-        j.notify = w;
-        start_job(j);
-        MSG m;
-        while (GetMessageW(&m, nullptr, 0, 0) > 0) {
-            if (!IsDialogMessageW(w, &m)) { TranslateMessage(&m); DispatchMessageW(&m); }
-        }
-        code = P.exit;
-    }
+    int code = run_progress(j, interactive, a.archive, open_after);
     write_log(a.log, job_log(j, code));
     return code;
+}
+
+// Explorer starts one process per selected item for a static verb ("Add to an XIZ archive…"):
+// the first one waits half a second for the others, which hand it their paths and exit.
+std::vector<std::wstring> g_collected;
+
+LRESULT CALLBACK collect_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_COPYDATA) {
+        auto *cd = reinterpret_cast<COPYDATASTRUCT *>(lp);
+        if (cd->dwData == 1 && cd->cbData >= sizeof(wchar_t))
+            g_collected.emplace_back(static_cast<const wchar_t *>(cd->lpData), cd->cbData / sizeof(wchar_t) - 1);
+        return TRUE;
+    }
+    return DefWindowProcW(w, msg, wp, lp);
+}
+
+// True when this process should go on (it collected the others' paths into `sources`).
+bool collect_sources(std::vector<std::wstring> &sources) {
+    HANDLE mx = CreateMutexW(nullptr, FALSE, L"Local\\XipperXIZ.create");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        for (int i = 0; i < 30; i++) {
+            HWND c = FindWindowExW(HWND_MESSAGE, nullptr, kCollectClass, nullptr);
+            if (c) {
+                for (auto &p : sources) {
+                    COPYDATASTRUCT cd{1, (DWORD)((p.size() + 1) * sizeof(wchar_t)), const_cast<wchar_t *>(p.c_str())};
+                    SendMessageW(c, WM_COPYDATA, 0, (LPARAM)&cd);
+                }
+                CloseHandle(mx);
+                return false;
+            }
+            Sleep(100);
+        }
+        CloseHandle(mx);
+        return true;  // nobody collecting: go on alone
+    }
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof wc;
+    wc.hInstance = g_inst;
+    wc.lpfnWndProc = collect_proc;
+    wc.lpszClassName = kCollectClass;
+    RegisterClassExW(&wc);
+    HWND w = CreateWindowExW(0, kCollectClass, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_inst, nullptr);
+    ULONGLONG until = GetTickCount64() + 600;
+    MSG m;
+    while (GetTickCount64() < until) {
+        MsgWaitForMultipleObjects(0, nullptr, FALSE, 50, QS_ALLINPUT);
+        while (PeekMessageW(&m, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&m);
+    }
+    DestroyWindow(w);
+    CloseHandle(mx);  // later selections start a new group
+    for (auto &p : g_collected)
+        if (std::find(sources.begin(), sources.end(), p) == sources.end()) sources.push_back(p);
+    return true;
 }
 
 }  // namespace
@@ -1653,12 +2158,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         else if (s == L"/factor" || s == L"/identity") { std::wstring v; next(v); a.keys.push_back(v); }
         else if (s == L"/log") next(a.log);
         else if (s == L"/folder") next(a.folder);
+        else if (s == L"/src") { std::wstring v; next(v); a.sources.push_back(v); }
+        else if (s == L"/entry") { std::wstring v; next(v); a.entries.push_back(v); }
+        else if (s == L"/level") { std::wstring v; next(v); a.level = _wtoi(v.c_str()); }
+        else if (s == L"/strong") a.strong = true;
+        else if (s == L"/recovery") a.recovery = true;
+        else if (s == L"/new" || s == L"/append" || s == L"/remove") { a.mode = s; next(a.archive); }
+        else if (s == L"/create") { a.mode = s; std::wstring v; next(v); if (!v.empty()) a.sources.push_back(v); }
         else if (s == L"/quiet") a.quiet = true;
         else if (s == L"/keep-both") a.keep_both = true;
         else if (s == L"/?" || s == L"/help") a.mode = L"/help";
         else if (first.empty()) first = s;
     }
     LocalFree(argv);
+    if (a.mode == L"/create" && !a.quiet && !collect_sources(a.sources)) {
+        OleUninitialize();
+        return EXIT_OK;
+    }
     if (!a.mode.empty()) {
         int code = run_command(a);
         OleUninitialize();
@@ -1680,8 +2196,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     if (!a.folder.empty()) navigate_to(utf8(a.folder));
 
     ACCEL acc[] = {{FCONTROL | FVIRTKEY, 'O', ID_OPEN}, {FCONTROL | FVIRTKEY, 'E', ID_EXTRACT}, {FCONTROL | FVIRTKEY, 'T', ID_VERIFY},
-                   {FALT | FVIRTKEY, VK_RETURN, ID_PROPS}, {FALT | FVIRTKEY, VK_LEFT, ID_BACK}, {FALT | FVIRTKEY, VK_UP, ID_UP}};
-    HACCEL accel = CreateAcceleratorTableW(acc, 6);
+                   {FALT | FVIRTKEY, VK_RETURN, ID_PROPS}, {FALT | FVIRTKEY, VK_LEFT, ID_BACK}, {FALT | FVIRTKEY, VK_UP, ID_UP},
+                   {FCONTROL | FVIRTKEY, 'N', ID_NEW}};
+    HACCEL accel = CreateAcceleratorTableW(acc, 7);
     MSG m;
     while (GetMessageW(&m, nullptr, 0, 0) > 0) {
         if (!TranslateAcceleratorW(w, accel, &m)) {

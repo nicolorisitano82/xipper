@@ -83,7 +83,7 @@ static const char *usage =
     "  forensic [--records] <archive>          forensic profile (XIZ 1.10): segments, frame hashes,\n"
     "                                         signatures, images against the source SHA-256\n"
     "  verify-proof <proof.json> <file>        check an xiz-proof-1 against a file\n"
-    "  create  [-l LEVEL] [--frame-size MiB] [--overwrite] <archive> <file|folder>...\n"
+    "  create  [-l LEVEL] [--frame-size MiB] [--threads N] [--overwrite] <archive> <file|folder>...\n"
     "  append  <archive> [--add FILE[:PATH]]... [--delete PATH]... [--mkdir PATH]...\n"
     "  scrub   [--repair] <archive>           check every byte against the recovery record (§15);\n"
     "                                         --repair rebuilds damaged bytes in place, no password\n"
@@ -583,6 +583,7 @@ static int cmd_create(int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-l") && i + 1 < argc) wo.level = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frame-size") && i + 1 < argc) wo.frame_size = (uint32_t)atoi(argv[++i]) << 20;
+        else if (!strcmp(argv[i], "--threads") && i + 1 < argc) wo.threads = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--overwrite")) overwrite = 1;
         else if (!out) out = argv[i];
         else inputs[ni++] = argv[i];

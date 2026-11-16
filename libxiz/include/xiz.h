@@ -460,7 +460,12 @@ typedef struct xiz_writer_options {
     uint32_t frame_size;         /* 0 = 4 MiB (max 64 MiB) */
     const char *password;        /* encrypt with a password stanza (§6); NULL: plain */
     uint32_t kdf_memory_kib, kdf_iterations, kdf_parallelism; /* 0 = 262144, 3, 4 */
-    int threads;                 /* unused for now */
+    int threads;                 /* frames compressed in parallel; 0 = the CPUs, at most 8 (max 16) */
+    /* Bytes read from disk so far (files are read twice: a hash pass, then the data, unless a
+     * file is a duplicate); total is 0. A nonzero return stops: the call returns XIZ_E_CALLBACK and
+     * the writer can only be aborted. Optional. */
+    xiz_progress_fn progress;
+    void *progress_ctx;
 } xiz_writer_options;
 
 /* A new archive at `path` (must not exist unless `overwrite`). */

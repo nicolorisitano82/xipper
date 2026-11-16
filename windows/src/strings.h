@@ -167,7 +167,52 @@
     X(Up, L"Cartella superiore (Alt+Freccia su)", L"Up one level (Alt+Up arrow)") \
     X(FolderItems, L"%llu elementi in questa cartella", L"%llu items in this folder") \
     X(Preparing, L"Preparazione dei file…", L"Preparing the files…") \
-    X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica (e recovery record)\n  /repair archivio            ripara una copia col recovery record\n  /info archivio              proprietà e firme\n  /passenv VAR, /identity FILE, /factor FILE   credenziali (ripetibili)\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify (and the recovery record)\n  /repair archive          repair a copy with the recovery record\n  /info archive            properties and signatures\n  /passenv VAR, /identity FILE, /factor FILE   credentials (repeatable)\n  /register, /unregister   associate .xiz files, or not")
+    X(NewArchive, L"Nuovo archivio…", L"New archive…") \
+    X(MenuNew, L"&Nuovo archivio…\tCtrl+N", L"&New archive…\tCtrl+N") \
+    X(AddBtn, L"Aggiungi…", L"Add…") \
+    X(MenuAddFiles, L"Aggiungi &file…", L"Add &files…") \
+    X(MenuAddFolder, L"Aggiungi c&artella…", L"Add a fol&der…") \
+    X(DeleteBtn, L"Elimina", L"Delete") \
+    X(MenuDelete, L"E&limina\tCanc", L"&Delete\tDel") \
+    X(NewTitle, L"Nuovo archivio XIZ", L"New XIZ archive") \
+    X(NewArchiveLabel, L"Archivio:", L"Archive:") \
+    X(NewContents, L"Contenuto:", L"Contents:") \
+    X(NewAddFiles, L"Aggiungi file…", L"Add files…") \
+    X(NewAddFolder, L"Aggiungi cartella…", L"Add folder…") \
+    X(NewRemove, L"Rimuovi", L"Remove") \
+    X(NewLevel, L"Compressione:", L"Compression:") \
+    X(LevelFast, L"Veloce", L"Fast") \
+    X(LevelNormal, L"Normale", L"Normal") \
+    X(LevelMax, L"Massima", L"Maximum") \
+    X(NewUsePw, L"Proteggi con una password", L"Protect with a password") \
+    X(NewPw, L"Password:", L"Password:") \
+    X(NewPw2, L"Ripeti la password:", L"Repeat the password:") \
+    X(StrengthLabel, L"Robustezza: %ls", L"Strength: %ls") \
+    X(StrengthWeak, L"Debole", L"Weak") \
+    X(StrengthFair, L"Discreta", L"Fair") \
+    X(StrengthGood, L"Buona", L"Good") \
+    X(StrengthExcellent, L"Ottima", L"Excellent") \
+    X(NewStrong, L"Protezione più lenta da forzare", L"Slower to crack") \
+    X(NewRecovery, L"Aggiungi un recovery record (ripara piccoli danni)", L"Add a recovery record (repairs small damage)") \
+    X(NewCreate, L"Crea", L"Create") \
+    X(NewNoSources, L"Aggiungi almeno un file o una cartella.", L"Add at least one file or folder.") \
+    X(NewPwMismatch, L"Le password non coincidono.", L"The passwords don't match.") \
+    X(NewPwEmpty, L"Scrivi una password.", L"Enter a password.") \
+    X(WeakTitle, L"Password debole", L"Weak password") \
+    X(WeakText, L"Si può indovinare in poco tempo: chi ha l'archivio potrebbe aprirlo. Usarla lo stesso?", L"It can be guessed quickly: whoever has the archive could open it. Use it anyway?") \
+    X(UseAnyway, L"Usala lo stesso", L"Use it anyway") \
+    X(NewExists, L"«%ls» esiste già. Sostituirlo?", L"“%ls” already exists. Replace it?") \
+    X(Creating, L"Compressione in corso…", L"Compressing…") \
+    X(Updating, L"Aggiornamento dell'archivio…", L"Updating the archive…") \
+    X(CreatedTitle, L"Archivio creato", L"Archive created") \
+    X(CreatedText, L"%ls\n%llu file, %ls → %ls", L"%ls\n%llu files, %ls → %ls") \
+    X(ShowInFolder, L"Mostra nella cartella", L"Show in folder") \
+    X(DeleteConfirm, L"Eliminare %llu elementi da «%ls»?", L"Delete %llu items from “%ls”?") \
+    X(DeleteNote, L"I dati restano nel file finché l'archivio non viene ricreato: chi conosce la password potrebbe ancora recuperarli.", L"The data stays in the file until the archive is made again: whoever knows the password could still recover it.") \
+    X(VerbAddToXiz, L"Aggiungi a un archivio XIZ…", L"Add to an XIZ archive…") \
+    X(CantModify, L"Questo archivio non si può modificare qui (gruppi di accesso, chiavi, firme o secondo fattore): usa Xipper sul Mac.", L"This archive cannot be changed here (access groups, keys, signatures or a second factor): use Xipper on a Mac.") \
+    X(DefaultArchiveName, L"Archivio", L"Archive") \
+    X(Usage, L"Uso: XipperXIZ [archivio.xiz]\n  /x archivio [/d CARTELLA]   estrai (qui, in una cartella col nome dell'archivio)\n  /xto archivio               chiedi dove estrarre\n  /t archivio                 verifica (e recovery record)\n  /repair archivio            ripara una copia col recovery record\n  /info archivio              proprietà e firme\n  /passenv VAR, /identity FILE, /factor FILE   credenziali (ripetibili)\n  /new archivio /src FILE [/level 3|9|19] [/passenv VAR] [/recovery]   crea\n  /append archivio /src FILE [/folder CARTELLA], /remove archivio /entry PERCORSO\n  /register, /unregister      associa o no i file .xiz", L"Usage: XipperXIZ [archive.xiz]\n  /x archive [/d FOLDER]   extract (here, into a folder named after the archive)\n  /xto archive             ask where to extract\n  /t archive               verify (and the recovery record)\n  /repair archive          repair a copy with the recovery record\n  /info archive            properties and signatures\n  /passenv VAR, /identity FILE, /factor FILE   credentials (repeatable)\n  /new archive /src FILE [/level 3|9|19] [/passenv VAR] [/recovery]   create\n  /append archive /src FILE [/folder FOLDER], /remove archive /entry PATH\n  /register, /unregister   associate .xiz files, or not")
 
 enum class S {
 #define XIZW_ENUM(id, it, en) id,

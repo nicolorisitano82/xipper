@@ -1,12 +1,20 @@
 Xipper XIZ for Windows
 ======================
 
-Opens, verifies and extracts the XIZ archives made with Xipper (macOS). It does not create archives (yet).
+Opens, verifies, extracts and creates XIZ archives, readable by Xipper on the Mac and by xiz everywhere.
 
 - Double-click XipperXIZ.exe, then Open… or drop a .xiz file on the window.
 - File > "Open .xiz files with Xipper XIZ": .xiz files open with a double-click, and File Explorer
   offers "Extract here" and "Extract to…" (on Windows 11 under "Show more options"). No administrator
   rights needed; File > "Remove the .xiz file association" undoes it.
+- New archive (Ctrl+N), or drop files and folders on the empty window, or right-click files or
+  folders in File Explorer > "Add to an XIZ archive…" (after the association). Fast / Normal /
+  Maximum compression, a password with a strength meter (the same estimate as Xipper on the Mac),
+  "Slower to crack" (with 8 GB of RAM or more), a recovery record. Encrypted archives are XIZ 1.14
+  with key commitment.
+- In an open archive: Add… (or drop files on the window) puts files into the open folder; Delete
+  removes them. Deleted data stays in the file until the archive is made again. Archives with
+  groups, keys, signatures or a second factor can be changed only with Xipper.
 - Protected archives: password and, when asked, the second factor key file (.xizfactor). For
   archives with recipients or custodians the window lists how they open: add passwords and key
   files (XIZ-SECRET-KEY-…, AGE-SECRET-KEY-…). With a locked group, File > "Unlock more groups".

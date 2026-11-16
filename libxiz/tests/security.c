@@ -707,6 +707,99 @@ static void test_callbacks(const char *scratch) {
     wb_free(&b);
 }
 
+/* ------------------------------------------------------------------ writer: 1.14, threads */
+
+static int count_progress(void *ctx, uint64_t done, uint64_t total) {
+    (void)total;
+    *(uint64_t *)ctx = done;
+    return 0;
+}
+
+static int stop_progress(void *ctx, uint64_t done, uint64_t total) {
+    (void)ctx;
+    (void)total;
+    return done > 0;
+}
+
+static void test_writer(const char *scratch) {
+    char root[1024], a1[1100], a8[1100], src[1100];
+    snprintf(root, sizeof root, "%s/wrXXXXXX", scratch);
+    mkdir(scratch, 0755);
+    if (!mkdtemp(root)) { CHECK(0); return; }
+    snprintf(src, sizeof src, "%s/data.bin", root);
+    FILE *f = fopen(src, "wb");
+    for (int i = 0; i < 3 * 1024 * 1024; i++) fputc((i * 7 + i / 1000) & 0xff, f);
+    fclose(f);
+    xiz_error e;
+    /* Encrypted: XIZ 1.14 with a key commitment that libxiz checks when opening (§24.1). */
+    snprintf(a1, sizeof a1, "%s/p.xiz", root);
+    xiz_writer_options o;
+    memset(&o, 0, sizeof o);
+    o.password = "pw";
+    o.kdf_memory_kib = 19456;
+    o.kdf_iterations = 1;
+    o.kdf_parallelism = 1;
+    o.frame_size = 1u << 20;
+    o.threads = 4;
+    uint64_t seen = 0;
+    o.progress = count_progress;
+    o.progress_ctx = &seen;
+    xiz_writer *w;
+    CHECK(xiz_writer_create(&w, a1, &o, 1, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_file(w, "data.bin", src, NULL, &e) == XIZ_OK);
+    CHECK(xiz_writer_finish(w, &e) == XIZ_OK);
+    CHECK(seen == 2ull * 3 * 1024 * 1024);  /* read twice: hash, then data */
+    xiz_open_options oo;
+    memset(&oo, 0, sizeof oo);
+    oo.password = "pw";
+    xiz_archive *a;
+    CHECK(xiz_open_file(&a, a1, &oo, &e) == XIZ_OK);
+    xiz_info in;
+    xiz_get_info(a, &in);
+    CHECK(in.version_minor == 14);
+    int commit = 0;
+    for (size_t i = 0; i < xiz_stanza_count(a); i++) {
+        xiz_stanza st;
+        xiz_get_stanza(a, i, &st);
+        commit += st.type == 9;
+    }
+    CHECK(commit == 1);
+    CHECK(xiz_test(a, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    xiz_close(a);
+    oo.password = "wrong";
+    CHECK(xiz_open_file(&a, a1, &oo, &e) == XIZ_E_WRONG_PASSWORD);
+    /* One thread or eight: the same frames (the archive id differs, so compare the frame table). */
+    snprintf(a8, sizeof a8, "%s/t8.xiz", root);
+    snprintf(a1, sizeof a1, "%s/t1.xiz", root);
+    for (int t = 1; t <= 8; t += 7) {
+        memset(&o, 0, sizeof o);
+        o.frame_size = 1u << 20;
+        o.threads = t;
+        CHECK(xiz_writer_create(&w, t == 1 ? a1 : a8, &o, 1, &e) == XIZ_OK);
+        CHECK(xiz_writer_add_file(w, "data.bin", src, NULL, &e) == XIZ_OK);
+        CHECK(xiz_writer_finish(w, &e) == XIZ_OK);
+    }
+    xiz_archive *b;
+    memset(&oo, 0, sizeof oo);
+    CHECK(xiz_open_file(&a, a1, &oo, &e) == XIZ_OK);
+    CHECK(xiz_open_file(&b, a8, &oo, &e) == XIZ_OK);
+    CHECK(a->cat.n_frames == b->cat.n_frames && a->cat.n_frames >= 3);
+    for (uint32_t i = 0; i < a->cat.n_frames && i < b->cat.n_frames; i++)
+        CHECK(a->cat.frames[i].csize == b->cat.frames[i].csize && a->cat.frames[i].crc == b->cat.frames[i].crc &&
+              a->cat.frames[i].offset == b->cat.frames[i].offset);
+    CHECK(xiz_test(b, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    xiz_close(a);
+    xiz_close(b);
+    /* Cancelled from the progress callback: nothing is left. */
+    snprintf(a1, sizeof a1, "%s/c.xiz", root);
+    memset(&o, 0, sizeof o);
+    o.progress = stop_progress;
+    CHECK(xiz_writer_create(&w, a1, &o, 1, &e) == XIZ_OK);
+    CHECK(xiz_writer_add_file(w, "data.bin", src, NULL, &e) == XIZ_E_CALLBACK);
+    xiz_writer_abort(w);
+    CHECK(!exists(a1));
+}
+
 /* ------------------------------------------------------------------ fixtures */
 
 static uint8_t *slurp(const char *path, size_t *n) {
@@ -984,6 +1077,7 @@ int main(int argc, char **argv) {
     test_preflate(argv[1]);
     test_extraction(argv[2]);
     test_callbacks(argv[2]);
+    test_writer(argv[2]);
     test_fixture_flips(argv[1]);
     test_erased_slot(argv[1]);
     if (failures) { fprintf(stderr, "security: %d of %d checks failed\n", failures, checks); return 1; }
