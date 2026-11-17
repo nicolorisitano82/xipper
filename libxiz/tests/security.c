@@ -937,6 +937,42 @@ static void test_writer13(const char *scratch) {
     th.k = 4;
     CHECK(xiz_writer_create(&w, path, &o, 1, &e) == XIZ_E_ARG);
     th.k = 2;
+    /* Appending (§13.4): every group's key is needed; all catalogs and leaves are written again. */
+    xiz_writer_options ao;
+    memset(&ao, 0, sizeof ao);
+    xiz_open_options cred;
+    memset(&cred, 0, sizeof cred);
+    cred.identities = (const uint8_t(*)[32])x_sec; cred.identity_count = 1;
+    ao.credentials = &cred;
+    CHECK(xiz_writer_append(&w, path, &ao, &e) == XIZ_E_LOCKED);  /* the laboratory only */
+    memset(&cred, 0, sizeof cred);
+    cred.password = "all secret";
+    rc = xiz_writer_append(&w, path, &ao, &e);
+    CHECK(rc == XIZ_OK);
+    if (rc == XIZ_OK) {
+        CHECK(xiz_writer_add_data(w, "lab/r2.txt", "referto 2\n", 10, NULL, &e) == XIZ_OK);
+        CHECK(xiz_writer_add_data(w, "doc/b.txt", "secondo\n", 8, NULL, &e) == XIZ_OK);
+        CHECK(xiz_writer_remove(w, "doc/a.txt", &e) == XIZ_OK);
+        rc = xiz_writer_finish(w, &e);
+        CHECK(rc == XIZ_OK);
+        if (rc) fprintf(stderr, "  %s\n", e.message);
+    }
+    memset(&oo, 0, sizeof oo);
+    oo.identities = (const uint8_t(*)[32])x_sec; oo.identity_count = 1;
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    xiz_get_info(a, &in);
+    CHECK(in.segments == 2 && visible(a, "lab/") == 3 && visible(a, "doc/") == 0);
+    CHECK(xiz_test(a, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    xiz_close(a);
+    memset(&oo, 0, sizeof oo);
+    oo.password = "all secret";
+    CHECK(open_with(path, &oo, &a) == XIZ_OK);
+    CHECK(visible(a, "lab/") == 3 && visible(a, "doc/") == 3);  /* a.txt removed, b.txt added */
+    CHECK(xiz_check_tree(a, &e) == XIZ_OK);
+    for (size_t i = 0; i < xiz_entry_count(a); i++) CHECK(xiz_check_inclusion(a, i, &leaf, &e) == XIZ_OK);
+    CHECK(xiz_test(a, 0, NULL, NULL, NULL, &e) == XIZ_OK);
+    xiz_close(a);
+
     /* Kept with its keys for cross-checks by other readers (Xipper for Mac). */
     const char *files[3][2] = {{"x25519.key", sec}, {"xwing.key", sec_pq}, {"f.xizfactor", ftext}};
     for (int i = 0; i < 3; i++) {

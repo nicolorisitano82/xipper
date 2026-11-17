@@ -134,10 +134,8 @@ static std::string read_zone(const std::wstring &path) {
     return z;
 }
 
-int open_archive(const std::wstring &path, const Credentials &c, Archive &out, xiz_error *err, unsigned flags) {
-    xiz_open_options o{};
-    o.flags = flags;
-    std::vector<const char *> more;
+// libxiz's open options for `c`; `more` holds the extra password pointers.
+static void open_options(const Credentials &c, xiz_open_options &o, std::vector<const char *> &more) {
     for (size_t i = 0; i < c.passwords.size(); i++) {
         if (i == 0) o.password = c.passwords[0].c_str();
         else more.push_back(c.passwords[i].c_str());
@@ -151,6 +149,13 @@ int open_archive(const std::wstring &path, const Credentials &c, Archive &out, x
     o.pq_identity_count = c.pq_identities.size();
     o.factors = keys(c.factors);
     o.factor_count = c.factors.size();
+}
+
+int open_archive(const std::wstring &path, const Credentials &c, Archive &out, xiz_error *err, unsigned flags) {
+    xiz_open_options o{};
+    o.flags = flags;
+    std::vector<const char *> more;
+    open_options(c, o, more);
     xiz_archive *a = nullptr;
     int rc = xiz_open_file(&a, utf8(path).c_str(), &o, err);
     if (rc != XIZ_OK) return rc;
@@ -805,6 +810,12 @@ static void update(Job &j) {
     bool had_record = xiz_recovery_info_file(utf8(j.path).c_str(), &ri, &e) == XIZ_OK;
     xiz_writer_options o;
     writer_options(j, o);
+    xiz_open_options cred{};
+    std::vector<const char *> more;
+    if (j.creds) {
+        open_options(*j.creds, cred, more);
+        o.credentials = &cred;
+    }
     xiz_writer *w = nullptr;
     j.rc = xiz_writer_append(&w, utf8(j.path).c_str(), &o, &j.err);
     for (size_t i = 0; j.rc == XIZ_OK && i < j.remove.size(); i++) j.rc = xiz_writer_remove(w, j.remove[i].c_str(), &j.err);

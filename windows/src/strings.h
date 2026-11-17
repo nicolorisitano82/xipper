@@ -210,7 +210,7 @@
     X(DeleteConfirm, L"Eliminare %llu elementi da «%ls»?", L"Delete %llu items from “%ls”?") \
     X(DeleteNote, L"I dati restano nel file finché l'archivio non viene ricreato: chi conosce la password potrebbe ancora recuperarli.", L"The data stays in the file until the archive is made again: whoever knows the password could still recover it.") \
     X(VerbAddToXiz, L"Aggiungi a un archivio XIZ…", L"Add to an XIZ archive…") \
-    X(CantModify, L"Questo archivio non si può modificare qui (gruppi di accesso, chiavi, firme o secondo fattore): usa Xipper sul Mac.", L"This archive cannot be changed here (access groups, keys, signatures or a second factor): use Xipper on a Mac.") \
+    X(CantModify, L"Per modificarlo servono le chiavi di tutti i gruppi di accesso (File > Sblocca altri gruppi); gli archivi firmati, cancellabili o forensi si modificano solo con Xipper sul Mac.", L"Changing it needs the keys of all its access groups (File > Unlock more groups); signed, erasable or forensic archives can be changed only with Xipper on a Mac.") \
     X(DefaultArchiveName, L"Archivio", L"Archive") \
     X(AccessBtn, L"Destinatari e custodi…", L"Recipients and custodians…") \
     X(AccessInfo, L"%u modi di accesso: la password qui sopra non viene usata.", L"%u ways in: the password above is not used.") \

@@ -22,7 +22,8 @@ Uso
   archivi indirizzati a te.
 - In un archivio aperto: Aggiungi… (o trascina file sulla finestra) mette i file nella cartella
   aperta; Elimina (Canc) li toglie. I dati eliminati restano nel file finché l'archivio non viene
-  ricreato. Archivi con gruppi, chiavi, firme o secondo fattore si modificano solo con Xipper.
+  ricreato. Negli archivi con gruppi di accesso servono le chiavi di tutti i gruppi; gli archivi
+  firmati, cancellabili o forensi si modificano solo con Xipper.
 - Archivi protetti: password e, se richiesto, il file del secondo fattore (.xizfactor). Per gli
   archivi con destinatari o custodi la finestra elenca come si aprono: si aggiungono password e file
   di chiave (XIZ-SECRET-KEY-…, AGE-SECRET-KEY-…). Con un gruppo bloccato, File > "Sblocca altri gruppi".

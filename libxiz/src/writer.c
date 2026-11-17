@@ -43,6 +43,8 @@ typedef struct {
     int has_plain_sha;
     int removed;
     uint16_t group;              /* XIZ 1.3: its access group */
+    int has_proof;               /* appending to 1.3: the salt and SHA-256 its leaf already uses */
+    uint8_t proof[48];
 } wentry;
 
 /* One frame on its way out: filled by the writer, compressed and sealed by a worker, written in
@@ -1262,10 +1264,51 @@ int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_optio
     xiz_open_options oo;
     memset(&oo, 0, sizeof oo);
     oo.password = opt ? opt->password : NULL;
-    int rc = xiz_open_file(&w->source, path, &oo, err);
+    int rc = xiz_open_file(&w->source, path, opt && opt->credentials ? opt->credentials : &oo, err);
     if (rc) { writer_free(w); return rc; }
     xiz_archive *a = w->source;
-    if (a->has_dir) { writer_free(w); return FAIL(XIZ_E_UNSUPPORTED, "appending to XIZ 1.3 archives (directory) is not supported"); }
+    if (a->has_dir) {
+        /* §13.4: every group catalog is written again, so every group key is needed. */
+        const directory *d = &a->dir;
+        if (a->sb.required & XIZ_FEATURE_FORENSIC) { writer_free(w); return FAIL(XIZ_E_UNSUPPORTED, "appending to a forensic archive"); }
+        if (d->version < 2 || d->n_slots || (d->flags & XIZ_DIR_ERASABLE)) {
+            writer_free(w);
+            return FAIL(XIZ_E_UNSUPPORTED, "appending to this XIZ 1.3 archive (erasable, or without inclusion tree) is not supported");
+        }
+        if (a->hidden_groups) { writer_free(w); return FAIL(XIZ_E_LOCKED, "adding to this archive needs the keys of all its access groups"); }
+        /* A segment added here would be unsigned: the archive's signatures would no longer speak
+         * for its current content. Signed archives are left to a writer that signs. */
+        uint32_t nseg = 0;
+        xiz_signature_count(a, &nseg);
+        for (uint32_t i = 0; i < nseg; i++) {
+            xiz_signature sg;
+            xiz_error se;
+            if (xiz_get_signature(a, i, &sg, &se) == XIZ_OK && sg.is_signed) {
+                writer_free(w);
+                return FAIL(XIZ_E_UNSUPPORTED, "the archive is signed: adding an unsigned segment is not supported");
+            }
+        }
+        if (a->n_groups > XIZ_WRITER_MAX_GROUPS) { writer_free(w); return FAIL(XIZ_E_LIMIT, "too many groups"); }
+        w->dir = 1;
+        w->n_groups = (uint16_t)a->n_groups;
+        w->gkeys = calloc(w->n_groups, sizeof(keyset));
+        w->gname = calloc(w->n_groups, sizeof(char *));
+        w->gprefix = calloc(w->n_groups, sizeof(char **));
+        w->gnprefix = calloc(w->n_groups, sizeof(size_t));
+        if (!w->gkeys || !w->gname || !w->gprefix || !w->gnprefix) { writer_free(w); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+        for (uint16_t g = 0; g < w->n_groups; g++) {
+            const group_state *gs = &a->groups[g];
+            if (gs->id != g) { writer_free(w); return FAIL(XIZ_E_UNSUPPORTED, "access groups not numbered 0, 1, 2…"); }
+            w->gkeys[g] = gs->keys;
+            w->gname[g] = dup_str(gs->name ? gs->name : "");
+            w->gprefix[g] = calloc(gs->n_prefixes + 1, sizeof(char *));
+            if (!w->gname[g] || !w->gprefix[g]) { writer_free(w); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+            for (size_t k = 0; k < gs->n_prefixes; k++) {
+                if (!(w->gprefix[g][k] = dup_str(gs->prefixes[k]))) { writer_free(w); return FAIL(XIZ_E_NOMEM, "out of memory"); }
+                w->gnprefix[g]++;
+            }
+        }
+    }
     if (a->sb.major != 1) { writer_free(w); return FAIL(XIZ_E_UNSUPPORTED, "appending to a beta archive"); }
     if (a->segments >= (1u << 24)) { writer_free(w); return FAIL(XIZ_E_LIMIT, "too many segments"); }
     w->append = 1;
@@ -1309,6 +1352,15 @@ int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_optio
         e->n_xattrs = s->n_xattrs;
         e->has_digest = s->has_digest;
         memcpy(e->digest, s->digest, 32);
+        if (w->dir) {
+            e->group = s->group;
+            if (!entry_proof_data(a, s, e->proof, e->proof + 16)) {
+                writer_free(w);
+                return FAIL(XIZ_E_UNSUPPORTED, "%s has no proof data", s->path);
+            }
+            e->has_proof = 1;
+            if (s->type == 0) { memcpy(e->plain_sha, e->proof + 16, 32); e->has_plain_sha = 1; }  /* dedup inside the group */
+        }
         /* Unencrypted digests are the plain SHA-256: they deduplicate new data too. */
         if (!w->encrypted && s->has_digest && s->type == 0) { memcpy(e->plain_sha, s->digest, 32); e->has_plain_sha = 1; }
     }
@@ -1381,9 +1433,13 @@ static int write_directory(xiz_writer *w, xiz_error *err) {
     for (size_t i = 0; i < w->n_entries; i++) {
         const wentry *e = &w->entries[i];
         if (e->removed) continue;
-        if (xiz_random(proof[i], 16)) { rc = FAIL(XIZ_E_IO, "no randomness"); goto out; }
-        if (e->type == 0) memcpy(proof[i] + 16, e->plain_sha, 32);
-        else if (e->type == 2) sha256(e->link, e->link_len, proof[i] + 16);  /* the target; zeros for folders */
+        if (e->has_proof) {
+            memcpy(proof[i], e->proof, 48);  /* an earlier segment's entry: the same leaf */
+        } else {
+            if (xiz_random(proof[i], 16)) { rc = FAIL(XIZ_E_IO, "no randomness"); goto out; }
+            if (e->type == 0) memcpy(proof[i] + 16, e->plain_sha, 32);
+            else if (e->type == 2) sha256(e->link, e->link_len, proof[i] + 16);  /* the target; zeros for folders */
+        }
         wbuf ld = {0};
         leaf_data(&ld, proof[i], e->path, e->path_len, e->type, e->type == 0 ? e->size : 0, proof[i] + 16);
         if (ld.oom) { wb_free(&ld); rc = FAIL(XIZ_E_NOMEM, "out of memory"); goto out; }
@@ -1478,6 +1534,7 @@ static int write_directory(xiz_writer *w, xiz_error *err) {
     ft.frame_count = w->n_frames;
     ft.entry_count = count;
     ft.total_bytes = total;
+    ft.previous = w->previous_footer;
     rc = w_write(w, d.p, d.n, err);
     wb_free(&d);
     if (rc) goto out;

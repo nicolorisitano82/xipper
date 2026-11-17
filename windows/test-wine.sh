@@ -179,6 +179,16 @@ code c2x.log 0 && [ -f c2/out/src/lab/r1.txt ] && [ ! -f c2/out/src/doc/d1.txt ]
 $A /info c2/a.xiz /passenv PA /quiet /log c2i.log; wineserver -w
 grep -q 'src/lab' c2i.log && grep -q 'custodians' c2i.log && ok c2-properties || { cat c2i.log; no c2-properties; }
 
+# Adding to an XIZ 1.3 archive (§13.4): with every group's key; refused with one group only.
+echo nuovo > c2/extra.txt
+$A /append c2/a.xiz /src c2/extra.txt /folder src/lab /passenv PA /quiet /log c2a.log; wineserver -w
+code c2a.log 0 && $X list --password-env PA c2/a.xiz | tr -d '\r' | grep -qx 'src/lab/extra.txt' && ok c2-append || { cat c2a.log; no c2-append; }
+$A /remove c2/a.xiz /entry src/doc/d1.txt /passenv PA /quiet /log c2r.log; wineserver -w
+code c2r.log 0 && ! $X list --password-env PA c2/a.xiz | tr -d '\r' | grep -q 'd1.txt' && $X test --password-env PA c2/a.xiz > /dev/null 2>&1 \
+    && ok c2-remove || { cat c2r.log; no c2-remove; }
+$A /append c2/a.xiz /src c2/extra.txt /passenv PC1 /passenv PC2 /quiet /log c2l.log; wineserver -w
+code c2l.log 1 && grep -q 'keys of all its access groups' c2l.log && ok c2-append-needs-all-groups || { cat c2l.log; no c2-append-needs-all-groups; }
+
 $A /register /quiet; wineserver -w
 wine reg query 'HKCU\Software\Classes\.xiz' 2> /dev/null | grep -q XipperXIZ.Archive &&
     wine reg query 'HKCU\Software\Classes\XipperXIZ.Archive\shell\extracthere\command' 2> /dev/null | grep -q '/x' && ok register || no register

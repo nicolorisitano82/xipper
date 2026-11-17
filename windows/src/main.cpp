@@ -1849,11 +1849,15 @@ bool on_splitter(int x, int y) {
     return x >= t.right && x < l.left && y >= t.top && y < t.bottom;
 }
 
-// Appending and removing go through libxiz's writer: plain or password archives without a directory
-// (no groups, keys, custodians, signatures) and without a second factor.
+// Appending and removing go through libxiz's writer: archives without a directory opened by a
+// password alone, or XIZ 1.3 archives whose every group is open (§13.4; not erasable ones).
 bool can_modify() {
-    return M.ar && !M.ar->info.has_directory && M.creds.factors.empty() && M.creds.identities.empty() &&
-           M.creds.pq_identities.empty() && !(M.ar->info.required_features & XIZ_FEATURE_FORENSIC);
+    if (!M.ar || (M.ar->info.required_features & XIZ_FEATURE_FORENSIC)) return false;
+    if (!M.ar->info.has_directory) return true;
+    if (M.ar->info.hidden_groups || M.ar->info.erasable) return false;
+    for (auto &r : signatures(M.ar->a))
+        if (r.is_signed) return false;  // an added segment would be unsigned
+    return true;
 }
 
 void set_busy(bool busy, const wchar_t *what) {
@@ -2053,6 +2057,7 @@ void start_update(const std::vector<std::wstring> &sources, const std::vector<st
     j->remove = remove;
     j->prefix = M.cur > 0 ? M.nodes[(size_t)M.cur].stored : "";
     if (!M.creds.passwords.empty()) j->password = M.creds.passwords[0];
+    j->creds = std::make_shared<Credentials>(M.creds);
     M.job = std::move(j);
     // The archive is rewritten: its handle (and the list) wait until it is open again.
     M.ar.reset();
@@ -2555,6 +2560,7 @@ int run_write(const Args &a, Credentials &c, bool interactive) {
         j.prefix = utf8(a.folder);
         for (auto &e : a.entries) j.remove.push_back(utf8(e));
         if (!c.passwords.empty()) j.password = c.passwords[0];
+        j.creds = std::make_shared<Credentials>(c);
     }
     c.wipe();
     int code = run_progress(j, interactive, j.path, false);

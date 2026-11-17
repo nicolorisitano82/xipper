@@ -185,6 +185,7 @@ struct Job {
     std::string password;               // NFC, UTF-8; empty: none
     bool strong = false, recovery = false;
     std::shared_ptr<Access> access;     // Create: recipients, custodians, groups (XIZ 1.3)
+    std::shared_ptr<Credentials> creds; // Update: what opens the archive (all its groups, for XIZ 1.3)
     uint64_t total = 0;                 // bytes the writer will read (progress)
     uint64_t files = 0, bytes_in = 0;   // Create: what went in
     std::vector<std::wstring> problems;

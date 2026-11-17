@@ -106,6 +106,11 @@ for arch in $archs; do
         grep -q 'c2/lab/r1.txt' $O/m2.log && ! grep -q 'c2/doc/d1.txt' $O/m2.log && ok c2-mac-key-lab-only || { cat $O/kg.log $O/m2.log; no c2-mac-key-lab-only; }
         print -r -- "$PB" | $XM test --factor $O/b.xizfactor --password-stdin $O/c2.xiz > $O/m3.log 2>&1 && ok c2-mac-factor || { cat $O/m3.log; no c2-mac-factor; }
         printf '%s\n%s\n' "$PC1" "$PC2" | $XM test --password-stdin $O/c2.xiz > $O/m4.log 2>&1 && ok c2-mac-custodians || { cat $O/m4.log; no c2-mac-custodians; }
+        echo nuovo > $O/extra.txt
+        A /append $(winpath $O/c2.xiz) /src $(winpath $O/extra.txt) /folder c2/lab /passenv PA /quiet /log $(winpath $O/c2a.log)
+        $XM list --identity $O/mac.key $O/c2.xiz > $O/m5.log 2>&1
+        grep -q 'c2/lab/extra.txt' $O/m5.log && print -r -- "$PA" | $XM test --password-stdin $O/c2.xiz > $O/m6.log 2>&1 \
+            && ok c2-mac-reads-append || { cat $O/c2a.log $O/m5.log $O/m6.log; no c2-mac-reads-append; }
     fi
     printf "%s: %d passed, %d failed, %.0f s\n" $arch $pass $bad $(( EPOCHREALTIME - t0 ))
     total_bad=$((total_bad + bad))

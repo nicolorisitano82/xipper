@@ -28,7 +28,8 @@ Dove spec e riferimento Swift non coincidono, o la spec è ambigua, è annotato 
 | Scrittura: zstd, frame da 4 MiB compressi in parallelo (`threads`), deduplica per file, password con commitment delle chiavi (XIZ 1.14, stanza 9), avanzamento e annullamento (`progress`) | completo |
 | Scrittura: segmenti aggiunti (aggiunte, rimozioni, cartelle) su archivi 1.0–1.2/1.4 | completo |
 | Scrittura 1.3: gruppi di accesso, destinatari password / X25519 / X-Wing / password con fattore, custodi k-di-n (stanza 2–9), cataloghi di gruppo, foglie di Merkle e directory (§13, §17, §24); chiavi pubbliche (`xiz_parse_public_key`), nuove identità e fattori (`xiz_generate_identity`, `xiz_generate_factor`) | completo (archivi nuovi; letti da Xipper per Mac) |
-| Scrittura di firme, slot cancellabili, dizionari, LZMA2; append su archivi 1.3 | non prevista |
+| Append su archivi 1.3 con le chiavi di tutti i gruppi (§13.4): cataloghi e foglie riscritti, prove delle voci esistenti conservate | completo (non firmati, cancellabili né forensi) |
+| Scrittura di firme, slot cancellabili, dizionari, LZMA2 | non prevista |
 | 1.5: recovery record (§15): verifica, riparazione in place, aggiunta e rimozione, senza password | completo (un thread, NEON su AArch64) |
 | 1.6: frame JPEG ricompressi con brunsli (§16) | lettura completa (decoder in C++, opzione `XIZ_JPEG`) |
 | 1.7: destinatari e custodi post-quantum X-Wing (§17) | lettura completa: ML-KEM-768 di mlkem-native + X25519, `--identity` con `XIZ-SECRET-KEY-PQ-1-…` |
@@ -278,7 +279,7 @@ funzione `make_114_fixtures` dello script.
 ## Limiti noti
 
 - Niente verifica CMS delle marche temporali RFC 3161 (presenza riportata).
-- Il writer non firma, non scrive slot cancellabili, dizionari o LZMA2; l'append su archivi 1.3 è rifiutato.
+- Il writer non firma, non scrive slot cancellabili, dizionari o LZMA2; l'append su archivi 1.3 firmati, cancellabili o forensi, o senza le chiavi di tutti i gruppi, è rifiutato (un segmento aggiunto da libxiz non sarebbe firmato).
 - Il writer deduplica per file intero (SHA-256), non per chunk a contenuto variabile.
 - La decompressione è a thread singolo (un archivio per thread); niente prefetch parallelo dei frame.
 - In scrittura gli hash di ogni file (SHA-256, e HMAC se cifrato) restano su un thread: con i livelli bassi sono loro il limite, non la compressione.

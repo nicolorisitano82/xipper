@@ -383,6 +383,11 @@ custodi). Nell'app: «Destinatari e custodi…» nel nuovo archivio, «Le mie ch
 protette da DPAPI e usate da sole all'apertura. Prove: Wine 53/53, Barrique 20+20. Restano: append su
 archivi 1.3, firme (C3).
 
+**Append su archivi 1.3 fatto il 17/11/2026** (app 0.7.0): libxiz aggiunge segmenti agli
+archivi 1.3 quando le credenziali aprono tutti i gruppi (§13.4), riscrivendo cataloghi di gruppo e
+foglie e conservando le prove delle voci già presenti; Aggiungi ed Elimina nell'app valgono anche per
+questi archivi. Verificato con Xipper per Mac. C3 (firme) e prova su Windows vero: sospese.
+
 ### 12.6 Fasi della creazione
 
 | Fase | Contenuto | Stima |

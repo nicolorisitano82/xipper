@@ -525,13 +525,17 @@ typedef struct xiz_writer_options {
     size_t recipient_count;
     const xiz_threshold *thresholds;
     size_t threshold_count;
+    /* xiz_writer_append: how to open the archive (passwords, keys, factors). NULL: `password`. An
+     * XIZ 1.3 archive needs the keys of all its groups (§13.4). */
+    const struct xiz_open_options *credentials;
 } xiz_writer_options;
 
 /* A new archive at `path` (must not exist unless `overwrite`). */
 XIZ_API int xiz_writer_create(xiz_writer **out, const char *path, const xiz_writer_options *opt, int overwrite,
                               xiz_error *err);
-/* Opens an archive to append a segment (§11). Plain 1.0–1.2/1.4 or password-encrypted archives
- * without directory. The new catalog starts as the current one. */
+/* Opens an archive to append a segment (§11): archives without a directory, or XIZ 1.3 ones whose
+ * every group the credentials open (not erasable nor forensic ones). The new catalog starts as the
+ * current one; with a directory every group catalog and the leaf table are written again. */
 XIZ_API int xiz_writer_append(xiz_writer **out, const char *path, const xiz_writer_options *opt, xiz_error *err);
 
 typedef struct xiz_entry_meta {

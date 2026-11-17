@@ -19,7 +19,7 @@ Opens, verifies, extracts and creates XIZ archives, readable by Xipper on the Ma
   the secret one stays on the PC, protected by Windows (DPAPI), and opens archives sent to you.
 - In an open archive: Add… (or drop files on the window) puts files into the open folder; Delete
   removes them. Deleted data stays in the file until the archive is made again. Archives with
-  groups, keys, signatures or a second factor can be changed only with Xipper.
+  access groups need the keys of all groups; signed, erasable or forensic ones change only with Xipper.
 - Protected archives: password and, when asked, the second factor key file (.xizfactor). For
   archives with recipients or custodians the window lists how they open: add passwords and key
   files (XIZ-SECRET-KEY-…, AGE-SECRET-KEY-…). With a locked group, File > "Unlock more groups".
