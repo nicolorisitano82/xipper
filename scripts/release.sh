@@ -105,3 +105,7 @@ rm -f "$DIST/$NAME-rw.dmg"
 (cd "$DIST" && shasum -a 256 "$NAME.dmg" > "$NAME.dmg.sha256")
 echo "==> $DIST/$NAME.dmg ($(du -h "$DIST/$NAME.dmg" | cut -f1))"
 cat "$DIST/$NAME.dmg.sha256"
+if [ "$SUFFIX" = "final" ]; then
+    echo "==> after the GitHub release v$VERSION is published with this DMG, update the Homebrew tap:"
+    echo "    scripts/update-homebrew-tap.sh $VERSION"
+fi
